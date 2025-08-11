@@ -6,11 +6,11 @@ public readonly record struct HitPoints(int Current, int Max)
 
     public HitPoints Heal(int amount)
     {
-        return new HitPoints(Math.Min(Current + Math.Max(0, amount), Max), Max);
+        return this with { Current = Math.Min(Current + Math.Max(0, amount), Max) };
     }
 
     public HitPoints Damage(int amount)
     {
-        return new HitPoints(Math.Max(0, Current - Math.Max(0, amount)), Max);
+        return this with { Current = Math.Max(0, Current - Math.Max(0, amount)) };
     }
 }

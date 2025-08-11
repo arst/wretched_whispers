@@ -1,9 +1,11 @@
-﻿using WretchedWhispers.Core.Character.Armor;
+﻿using WretchedWhispers.Core.Abilities;
+using WretchedWhispers.Core.Character.Armor;
 using WretchedWhispers.Core.Character.Armor.Tiers;
 using WretchedWhispers.Core.Character.Weapon;
 using WretchedWhispers.Core.Combat;
 using WretchedWhispers.Core.Combat.Attack;
 using WretchedWhispers.Core.Combat.Defence;
+using WretchedWhispers.Core.Dice;
 using WretchedWhispers.Core.Outcomes;
 using WretchedWhispers.Core.Powers;
 using WretchedWhispers.Core.Scrolls;
@@ -13,20 +15,18 @@ namespace WretchedWhispers.Core.Character;
 
 public sealed class Character
 {
-    private readonly List<Scroll> _knownScrolls = new();
+    private readonly List<Scroll> _knownScrolls = [];
 
-    public Character(string name, Abilities.Abilities abilities, Weapon.Weapon weapon, Armor.Armor armor,
-        Shield? shield, IRandomService rng, int startingOmens = 0)
+    private Character(string name, Abilities.Abilities abilities, Weapon.Weapon weapon, Armor.Armor armor,
+        Shield? shield, int currentHp, int maxHp, int omenCount = 0)
     {
         Name = name;
         Abilities = abilities;
         Weapon = weapon;
         Armor = armor;
         Shield = shield;
-        Omens = new Omens(startingOmens);
-        // Starting HP: Toughness + d8, min 1
-        var max = Math.Max(1, abilities.Toughness.Modifier + rng.D(8));
-        Hp = new HitPoints(max, max);
+        Omens = new Omens(omenCount);
+        Hp = new HitPoints(currentHp, maxHp);
     }
 
     public Guid Id { get; } = Guid.NewGuid();
@@ -41,7 +41,8 @@ public sealed class Character
 
     public bool IsInfected { get; private set; }
     public bool IsDizzyFromMagic { get; private set; }
-    public IReadOnlyList<Scroll> KnownScrolls => _knownScrolls;
+    
+    public IReadOnlyCollection<Scroll> KnownScrolls => _knownScrolls;
 
     public void LearnScroll(Scroll s)
     {
@@ -58,9 +59,9 @@ public sealed class Character
         IsInfected = false;
     }
 
-    public void NewDawn(IRandomService rng)
+    public void NewDawn(Dice.Dice dice)
     {
-        Powers.ResetForNewDay(rng, Abilities.Presence);
+        Powers.ResetForNewDay(dice, Abilities.Presence);
         IsDizzyFromMagic = false;
     }
 
@@ -99,16 +100,15 @@ public sealed class Character
         };
     }
 
-    public void Rest(IRandomService rng, bool fullNight)
+    public void Rest(IRandomService rng, bool isFullNightRest)
     {
         if (IsInfected)
         {
-            // No healing, lose d6 hp daily while infected
             Hp = Hp.Damage(rng.D(6));
             return;
         }
 
-        var heal = fullNight ? rng.D(6) : rng.D(4);
+        var heal = isFullNightRest ? rng.D(6) : rng.D(4);
         Hp = Hp.Heal(heal);
     }
 
@@ -131,5 +131,31 @@ public sealed class Character
         Hp = Hp.Damage(loss);
         IsDizzyFromMagic = true;
         return CastOutcome.Fizzle(scroll.Key, loss);
+    }
+    
+    public Character Create(string name, Abilities.Abilities abilities, Weapon.Weapon weapon, Armor.Armor armor,
+        Shield? shield, IRandomService rng, int startingOmensCount = 0)
+    {
+        var maxHp = Math.Max(1, abilities.Toughness.Modifier + rng.D(8));
+        return new Character(name, Abilities, weapon, armor, shield, maxHp, maxHp, startingOmensCount);
+    }
+
+    public ChallengeOutcome Challenge(Dice.Dice dice, Dr challenge, AbilityKind ability)
+    {
+        var rollResults = dice.Roll(DiceExpr.d20);
+        switch (rollResults)
+        {
+            case 1:
+                return ChallengeOutcome.Fail();
+            case 20:
+                return ChallengeOutcome.Success();
+            default:
+            {
+                var total = rollResults + Abilities[ability].Modifier;
+                return total >= challenge.Value
+                    ? ChallengeOutcome.Success()
+                    : ChallengeOutcome.Fail();
+            }
+        }
     }
 }
