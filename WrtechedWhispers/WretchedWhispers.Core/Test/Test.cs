@@ -5,7 +5,7 @@ namespace WretchedWhispers.Core.Test;
 
 public sealed class Test
 {
-    public static TestResult Roll(IRandomService rng, AbilityScore ability, Dr dr)
+    public static TestResult Roll(Dice.Dice rng, AbilityScore ability, Dr dr)
     {
         var roll = rng.Roll(DiceExpr.d20);
         var total = roll + ability.Modifier;

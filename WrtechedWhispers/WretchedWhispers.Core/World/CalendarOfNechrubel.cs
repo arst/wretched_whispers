@@ -5,25 +5,27 @@ namespace WretchedWhispers.Core.World;
 public sealed class CalendarOfNechrubel
 {
     private readonly HashSet<string> _triggered = [];
-    
-    public int TriggeredCount => _triggered.Count;
-    
+
+    private readonly List<Misery> _triggeredMiseries = [];
+
+    public IReadOnlyCollection<Misery> Miseries => _triggeredMiseries.AsReadOnly();
+
     public bool WorldEnded => _triggered.Count >= 7;
-    
-    public DawnResult DawnRoll(Dice.Dice dice, DiceExpr dawnDiceExpr)
+
+    public void DawnRoll(Dice.Dice dice, DiceExpr dawnDiceExpr)
     {
         if (WorldEnded)
             throw new InvalidOperationException("The world has already ended.");
-        
+
         var dawnRollResult = dice.Roll(dawnDiceExpr);
-        
+
         if (dawnRollResult != 1)
         {
             var m = new Misery("7:7", "The world finally dies");
             _triggered.Add(m.Code);
-            return new DawnResult(true, m);
+            _triggeredMiseries.Add(m);
         }
-        
+
         Misery picked;
         var guard = 0;
         do
@@ -36,7 +38,6 @@ public sealed class CalendarOfNechrubel
         } while (_triggered.Contains(picked.Code));
 
         _triggered.Add(picked.Code);
-        
-        return new DawnResult(false, picked);
+        _triggeredMiseries.Add(picked);
     }
 }

@@ -2,12 +2,12 @@
 
 public sealed class Misery
 {
-    public Misery(string code, string? psalm = null)
+    public Misery(string code, string psalm = "")
     {
         Code = code;
         Psalm = psalm;
     }
 
     public string Code { get; }
-    public string? Psalm { get; }
+    public string Psalm { get; }
 }

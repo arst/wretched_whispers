@@ -7,10 +7,12 @@ public sealed class PowerPool
 {
     // Re-rolled each dawn: Presence + d4 uses
     public int UsesRemaining { get; private set; }
+    public int MaxUses { get; set; }
 
     public void ResetForNewDay(Dice.Dice dice, AbilityScore presence)
     {
-        UsesRemaining = Math.Max(0, presence.Modifier) + dice.Roll(DiceExpr.d4);
+        MaxUses = Math.Max(0, presence.Modifier) + dice.Roll(DiceExpr.d4);
+        UsesRemaining = MaxUses;
     }
 
     public bool TryConsumeOne()

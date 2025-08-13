@@ -1,19 +1,19 @@
-namespace WretchedWhispers.Core.Character;
+namespace WretchedWhispers.Core.Characters;
 
 public class ChallengeOutcome
 {
-    public bool IsSuccess { get; private set; }
-
     private ChallengeOutcome(bool isSuccess)
     {
         IsSuccess = isSuccess;
     }
-    
+
+    public bool IsSuccess { get; private set; }
+
     public static ChallengeOutcome Success()
     {
         return new ChallengeOutcome(true);
     }
-    
+
     public static ChallengeOutcome Fail()
     {
         return new ChallengeOutcome(false);

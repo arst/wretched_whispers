@@ -1,6 +1,6 @@
-﻿using WretchedWhispers.Core.Character.Armor;
-using WretchedWhispers.Core.Character.Armor.Tiers;
-using WretchedWhispers.Core.Character.Weapon;
+﻿using WretchedWhispers.Core.Characters.Armor;
+using WretchedWhispers.Core.Characters.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Weapon;
 
 namespace WretchedWhispers.Core.Scrolls;
 
