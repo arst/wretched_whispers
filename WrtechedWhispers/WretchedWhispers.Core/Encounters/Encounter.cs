@@ -5,11 +5,15 @@ using WretchedWhispers.Core.Combat.Defence;
 
 namespace WretchedWhispers.Core.Encounters;
 
-public sealed class Encounter
+public sealed class Encounter(Guid id, string name, string description)
 {
     private readonly List<Adversary> _adversaries = [];
 
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; } = id;
+
+    public string Name { get; } = name;
+
+    public string Description { get; } = description;
 
     public IReadOnlyList<Adversary> Adversaries => _adversaries;
 
