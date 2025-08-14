@@ -156,9 +156,9 @@ public class Campaign
         return challengeOutcome;
     }
 
-    public Encounter StartEncounter(string name, string description)
+    public Encounter StartEncounter(string name, string description, EncounterType type, IRandomService rng)
     {
-        var encounter = new Encounter(Guid.NewGuid(), name, description);
+        var encounter = Encounter.Create(name, description, type, rng);
         _encounters.Add(encounter);
 
         return encounter;
@@ -172,8 +172,7 @@ public class Campaign
         return encounter;
     }
 
-    public AttackOutcome AttackAdversary(Guid encounterId, Guid adversaryId, Guid characterId, Armor targetArmor,
-        IRandomService rng)
+    public AttackOutcome AttackAdversary(Guid encounterId, Guid adversaryId, Guid characterId, IRandomService rng)
     {
         var encounter = _encounters.Single(e => e.Id == encounterId);
         var attacker = _characters.Single(c => c.Id == characterId);
@@ -181,8 +180,7 @@ public class Campaign
         return encounter.PlayerAttack(rng, attacker, adversary);
     }
 
-    public DefenceOutcome AttackPlayer(Guid encounterId, Guid adversaryId, Guid characterId, Weapon attackingWeapon,
-        IRandomService rng)
+    public DefenceOutcome AttackPlayer(Guid encounterId, Guid adversaryId, Guid characterId, IRandomService rng)
     {
         var defender = _characters.Single(c => c.Id == characterId);
         var encounter = _encounters.Single(e => e.Id == encounterId);

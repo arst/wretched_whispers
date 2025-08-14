@@ -69,6 +69,7 @@ public sealed class CharacterPlugin(
     }
 
     [KernelFunction]
+    [Description("Challenge a character with an ability test against a specified difficulty rating")]
     public async Task<ChallengeOutcomeDto> ChallengeCharacter(
         [Description("Id of the character to challenge")]
         Guid characterId,
