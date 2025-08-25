@@ -1,4 +1,4 @@
-﻿using WretchedWhispers.Core.Dice;
+﻿using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.World;
 
@@ -12,12 +12,12 @@ public sealed class CalendarOfNechrubel
 
     public bool WorldEnded => _triggered.Count >= 7;
 
-    public void DawnRoll(Dice.Dice dice, DiceExpr dawnDiceExpr)
+    public void DawnRoll(DiceExpr dawnDiceExpr)
     {
         if (WorldEnded)
             throw new InvalidOperationException("The world has already ended.");
 
-        var dawnRollResult = dice.Roll(dawnDiceExpr);
+        var dawnRollResult = Dice.Roll(dawnDiceExpr);
 
         if (dawnRollResult != 1)
         {
@@ -30,7 +30,7 @@ public sealed class CalendarOfNechrubel
         var guard = 0;
         do
         {
-            var miseryIndex = dice.Roll(DiceExpr.d6) * 10 + dice.Roll(DiceExpr.d6);
+            var miseryIndex = Dice.Roll(DiceExpr.D6) * 10 + Dice.Roll(DiceExpr.D6);
             picked = new Misery($"{miseryIndex}");
             guard++;
             if (guard >= 100)

@@ -1,14 +1,15 @@
 ﻿using WretchedWhispers.Core.Abilities;
 using WretchedWhispers.Core.CharacterCreation;
-using WretchedWhispers.Core.Characters.Armor.Tiers;
-using WretchedWhispers.Core.Characters.Weapon;
-using WretchedWhispers.Core.Combat.Attack;
-using WretchedWhispers.Core.Combat.Defence;
-using WretchedWhispers.Core.Dice;
+using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Combat;
+using WretchedWhispers.Core.Characters.Inventory;
+using WretchedWhispers.Core.Characters.Inventory.Armor;
+using WretchedWhispers.Core.Characters.Inventory.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Inventory.Weapon;
+using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Outcomes;
 using WretchedWhispers.Core.Powers;
 using WretchedWhispers.Core.Scrolls;
-using WretchedWhispers.Core.Test;
 
 namespace WretchedWhispers.Core.Characters;
 
@@ -17,8 +18,8 @@ public sealed class Character
     private readonly List<Scroll> _knownScrolls;
 
     private Character(Guid id, string name, Abilities.Abilities abilities, int silver, int foodDays, Gear gear,
-        Weapon.Weapon weapon,
-        Armor.Armor armor,
+        Weapon weapon,
+        Armor armor,
         Shield? shield, List<Scroll> scrolls, int currentHp, int maxHp, int omenCount = 0)
     {
         Id = id;
@@ -42,9 +43,9 @@ public sealed class Character
     public int FoodDays { get; }
     public Gear Gear { get; }
     public HitPoints Hp { get; private set; }
-    public Armor.Armor Armor { get; }
+    public Armor Armor { get; }
     public Shield? Shield { get; }
-    public Weapon.Weapon Weapon { get; private set; }
+    public Weapon Weapon { get; private set; }
     public Omens Omens { get; private set; }
     public PowerPool Powers { get; } = new();
 
@@ -68,19 +69,19 @@ public sealed class Character
         IsInfected = false;
     }
 
-    public void NewDawn(Dice.Dice dice)
+    public void NewDawn()
     {
-        Powers.ResetForNewDay(dice, Abilities.Presence);
+        Powers.ResetForNewDay(Abilities.Presence);
         IsDizzyFromMagic = false;
     }
 
-    public AttackOutcome Attack(IRandomService rng, Armor.Armor targetArmor)
+    public AttackOutcome Attack(Armor targetArmor)
     {
-        var outcome = Combat.Combat.ResolvePlayerAttack(new Dice.Dice(rng), Abilities, Weapon, targetArmor);
+        var outcome = ResolveAttack(targetArmor);
 
         if (outcome.Fumble)
             // Weapon breaks => fallback to Improvised
-            Weapon = Characters.Weapon.Weapon.Create(WeaponKind.Improvised);
+            Weapon = Weapon.Create(WeaponKind.Improvised);
 
         if (outcome.TargetArmorDegraded) targetArmor.Degrade();
 
@@ -88,78 +89,132 @@ public sealed class Character
             outcome.TargetArmorDegraded);
     }
 
-    public DefenceOutcome Defend(IRandomService rng, DiceExpr attackDie)
+    private AttackOutcome ResolveAttack(Armor targetArmor)
     {
-        var outcome = Combat.Combat.ResolvePlayerDefence(new Dice.Dice(rng), Abilities, new DefenceRequest(), Armor);
+        var ability = Weapon.IsRanged ? Abilities.Presence : Abilities.Strength;
+        var test = ability.Test(new Dr(12));
 
-        if (outcome.Avoided)
-            return new DefenceOutcome();
+        var hit = test.Outcome == TestOutcome.Success;
+        var crit = test.IsCrit;
+        var fumble = test.IsFumble;
+        var weaponBroken = false;
+        var targetArmorDegraded = false;
 
-        var damage = rng.Roll(attackDie);
-
-        if (outcome.FumbleDoubleDamage) damage *= 2; // Fumble doubles the damage
-
-        if (outcome.CriticalFreeAttack)
+        var dmg = Damage.Zero;
+        if (hit)
         {
-            var freeAttackResults = Defend(rng, attackDie); // Crit grants a free attack
+            var raw = Dice.Roll(Weapon.DamageDie);
+            if (crit) raw *= 2;
+            // Armor damage reduction
+            var reduction = targetArmor.DamageReduction.Sides == 0 ? 0 : Dice.Roll(targetArmor.DamageReduction);
+            var final = Math.Max(0, raw - reduction);
+            dmg = Damage.From(final);
+
+            if (crit && targetArmor.Tier is not NoArmorTier) targetArmorDegraded = true;
+        }
+        else if (fumble)
+        {
+            // Weapon breaks or is lost, model as broken for now
+            weaponBroken = true;
+        }
+
+        return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded);
+    }
+
+    public DefenceOutcome Defend(DiceExpr attackDie)
+    {
+        var outcome = ResolveDefence();
+
+        if (outcome.IsAvoided)
+            return new DefenceOutcome
+            {
+                DamageDealt = 0,
+                Avoided = outcome.IsAvoided,
+                CriticalFreeAttack = outcome.IsCritFree,
+                FumbleDoubleDamage = outcome.IsFumble
+            };
+
+        var damage = Dice.Roll(attackDie);
+
+        if (outcome.IsFumble) damage *= 2; // Fumble doubles the damage
+
+        if (outcome.IsCritFree)
+        {
+            var freeAttackResults = Defend(attackDie); // Crit grants a free attack
             damage += freeAttackResults.DamageDealt;
         }
 
         var armorReduction =
-            RollArmorReduction(rng, Armor) +
+            RollArmorReduction(Armor) +
             (Shield is not null
                 ? 1
-                : 0); // Shild adds +1 to armor reduction or completely blocks one attack and breaks, model as +1 to armor reduction fo now
+                : 0); // Shield adds +1 to armor reduction or completely blocks one attack and breaks, model as +1 to armor reduction fo now
 
         damage -= armorReduction;
 
-        // TODO: Implement armor tier degradation
+        // TODO: Implement armor tier degradation + shield break
 
         return new DefenceOutcome
         {
-            DamageDealt = damage
+            DamageDealt = damage,
+            Avoided = outcome.IsAvoided,
+            CriticalFreeAttack = outcome.IsCritFree,
+            FumbleDoubleDamage = outcome.IsFumble
         };
     }
 
-    private static int RollArmorReduction(IRandomService rng, Armor.Armor armor)
+    private (bool IsAvoided, bool IsCritFree, bool IsFumble) ResolveDefence()
+    {
+        var dr = new Dr(new Dr(12).Value + Armor.DefencePenalty);
+        var abilityScore = new AbilityScore(Abilities.Agility.Modifier - Armor.AgilityPenalty);
+        var test = abilityScore.Test(dr);
+        var avoided = test.Outcome == TestOutcome.Success;
+        var critFree = test.IsCrit; // free attack granted to the attacker
+        var fumble = test.IsFumble;
+
+        return (avoided, critFree, fumble);
+    }
+
+    private static int RollArmorReduction(Armor armor)
     {
         return armor.Tier switch
         {
-            HeavyArmorTier => rng.D(6),
-            LightArmorTier => rng.D(4),
-            MediumArmorTier => rng.D(3),
+            HeavyArmorTier => Dice.Roll(DiceExpr.D6),
+            LightArmorTier => Dice.Roll(DiceExpr.D4),
+            MediumArmorTier => Dice.Roll(DiceExpr.D3),
             NoArmorTier => 0,
             _ => throw new ArgumentOutOfRangeException(nameof(armor.Tier), armor.Tier, null)
         };
     }
 
-    public BrokenOutcome? ResolveBroken(IRandomService rng)
+    public BrokenOutcome? ResolveBroken()
     {
         if (!Hp.IsZero) return null;
-        var d4 = rng.D(4);
+        var d4 = Dice.Roll(DiceExpr.D4);
         return d4 switch
         {
-            1 => BrokenOutcome.Unconscious(rng.D(4), rng.D(4)),
-            2 => rng.D(6) == 6 ? BrokenOutcome.LostEye(rng.D(4)) : BrokenOutcome.BrokenOrSeveredLimb(rng.D(4)),
+            1 => BrokenOutcome.Unconscious(Dice.Roll(DiceExpr.D4), Dice.Roll(DiceExpr.D4)),
+            2 => Dice.Roll(DiceExpr.D6) == 6
+                ? BrokenOutcome.LostEye(Dice.Roll(DiceExpr.D4))
+                : BrokenOutcome.BrokenOrSeveredLimb(Dice.Roll(DiceExpr.D4)),
             3 => BrokenOutcome.Hemorrhage(),
-            4 => BrokenOutcome.Dead(),
             _ => BrokenOutcome.Dead()
         };
     }
 
-    public void Rest(IRandomService rng, bool isFullNightRest)
+    public void Rest(bool isFullNightRest)
     {
         if (IsInfected)
         {
-            Hp = Hp.Damage(rng.D(6));
+            Hp = Hp.Damage(Dice.Roll(DiceExpr.D6));
             return;
         }
 
-        var heal = isFullNightRest ? rng.D(6) : rng.D(4);
+        var heal = isFullNightRest ? Dice.Roll(DiceExpr.D6) : Dice.Roll(DiceExpr.D4);
         Hp = Hp.Heal(heal);
     }
 
-    public CastOutcome Cast(IRandomService rng, Scroll scroll)
+    public CastOutcome Cast(Scroll scroll)
     {
         if (IsDizzyFromMagic)
             return CastOutcome.Fail("Dizzy from prior failure");
@@ -168,18 +223,18 @@ public sealed class Character
         if (!Powers.TryConsumeOne())
             return CastOutcome.Fail("No daily power uses remaining");
 
-        var test = Test.Test.Roll(new Dice.Dice(rng), Abilities.Presence, 12);
+        var test = Abilities.Presence.Test(12);
         if (test.Outcome == TestOutcome.Success) return CastOutcome.Success(scroll.Key);
 
-        var loss = rng.D(2);
+        var loss = Dice.Roll(DiceExpr.D2);
         Hp = Hp.Damage(loss);
         IsDizzyFromMagic = true;
         return CastOutcome.Fizzle(scroll.Key, loss);
     }
 
-    public ChallengeOutcome Challenge(Dice.Dice dice, Dr challenge, AbilityKind ability)
+    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability)
     {
-        var rollResults = dice.Roll(DiceExpr.d20);
+        var rollResults = Dice.Roll(DiceExpr.D20);
         switch (rollResults)
         {
             case 1:

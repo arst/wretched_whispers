@@ -2,7 +2,7 @@ namespace WretchedWhispers.Core;
 
 public interface ICampaignsRepository
 {
-    public Task<Campaign?> GetCampaignById(Guid campaignId);
+    public Task<Campaign?> Get(Guid campaignId);
 
     Task SaveCampaign(Campaign newCampaign);
 }

@@ -1,3 +1,3 @@
-﻿namespace WretchedWhispers.Core.Outcomes;
+namespace WretchedWhispers.Core.Outcomes;
 
-public sealed record UnconsciousBroken(int Rounds, int AwakenWithHp) : BrokenOutcome("Unconscious");
+public sealed record UnconsciousBroken(int Rounds, int AwakenHp) : BrokenOutcome("Unconscious");

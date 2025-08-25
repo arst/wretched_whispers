@@ -1,14 +1,15 @@
 using WretchedWhispers.Core.Abilities;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Armor;
-using WretchedWhispers.Core.Characters.Armor.Tiers;
-using WretchedWhispers.Core.Characters.Weapon;
-using WretchedWhispers.Core.Dice;
+using WretchedWhispers.Core.Characters.Inventory;
+using WretchedWhispers.Core.Characters.Inventory.Armor;
+using WretchedWhispers.Core.Characters.Inventory.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Inventory.Weapon;
+using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Scrolls;
 
 namespace WretchedWhispers.Core.CharacterCreation;
 
-public class CharacterCreationService(IRandomService randomService, ICharactersRepository charactersRepository)
+public class CharacterCreationService(ICharactersRepository charactersRepository)
     : ICharacterCreationService
 {
     public async Task<Character> Create(string name)
@@ -20,20 +21,20 @@ public class CharacterCreationService(IRandomService randomService, ICharactersR
         const int numberOfOmens = 0; // TODO: Implement as d2 roll when enabled
 
         var character = Character.Create(id, name, maxHp, abilities, equipment);
-        await charactersRepository.SaveAsync(character);
+        await charactersRepository.Save(character);
 
         return character;
     }
 
     private int RollStartingHealthPoints(Abilities.Abilities abilities)
     {
-        return Math.Max(1, abilities.Toughness.Modifier + randomService.D(8));
+        return Math.Max(1, abilities.Toughness.Modifier + Dice.Roll(DiceExpr.D8));
     }
 
     private StartingEquipment RollStartingEquipment()
     {
-        var silver = randomService.D(2, 6) * 10; // 2d6 × 10 silver
-        var foodDays = randomService.D(4); // d4 days of food
+        var silver = Dice.Roll(DiceExpr.D(2, 6)) * 10; // 2d6 × 10 silver
+        var foodDays = Dice.Roll(DiceExpr.D4); // d4 days of food
         var container = RollContainer(); // d6: nothing/backpack/sack/wagon/donkey
         var gear1 = RollGearSlot1();
         var gear2 = RollGearSlot2();
@@ -61,9 +62,9 @@ public class CharacterCreationService(IRandomService randomService, ICharactersR
         );
     }
 
-    private string RollContainer()
+    private static string RollContainer()
     {
-        var containerRoll = randomService.D(1, 6);
+        var containerRoll = Dice.Roll(DiceExpr.D6);
         return containerRoll switch
         {
             1 or 2 => "nothing",
@@ -77,7 +78,7 @@ public class CharacterCreationService(IRandomService randomService, ICharactersR
 
     private (string GearDescription, Scrolls.ScrollSchool? ScrollSchool, bool IsShield) RollGearSlot1()
     {
-        var d = randomService.D(12);
+        var d = Dice.Roll(DiceExpr.D12);
         return d switch
         {
             1 => ("rope 30 ft", null, false),
@@ -95,9 +96,9 @@ public class CharacterCreationService(IRandomService randomService, ICharactersR
         };
     }
 
-    private (string GearDescription, Scrolls.ScrollSchool? ScrollSchool, bool IsShield) RollGearSlot2()
+    private static (string GearDescription, Scrolls.ScrollSchool? ScrollSchool, bool IsShield) RollGearSlot2()
     {
-        var d = randomService.D(12);
+        var d = Dice.Roll(DiceExpr.D12);
         return d switch
         {
             1 => ("life elixir d4 doses", null, false),
@@ -118,7 +119,7 @@ public class CharacterCreationService(IRandomService randomService, ICharactersR
     private Weapon RollWeapon(bool hasScroll)
     {
         // Weapons d10 (d6 if you begin with a scroll)
-        var d = hasScroll ? randomService.D(6) : randomService.D(10);
+        var d = hasScroll ? Dice.Roll(DiceExpr.D6) : Dice.Roll(DiceExpr.D10);
         return Weapon.Create(d switch
         {
             1 => WeaponKind.Femur,
@@ -138,7 +139,7 @@ public class CharacterCreationService(IRandomService randomService, ICharactersR
     private Armor RollArmor(bool hasScroll)
     {
         // Armor d4 (d2 if you begin with a scroll)
-        var d = hasScroll ? randomService.D(2) : randomService.D(4);
+        var d = hasScroll ? Dice.Roll(DiceExpr.D2) : Dice.Roll(DiceExpr.D4);
         ArmorTier tier = d switch
         {
             1 => NoArmorTier.Instance,
@@ -175,7 +176,7 @@ public class CharacterCreationService(IRandomService randomService, ICharactersR
 
         int Roll()
         {
-            return randomService.Roll(DiceExpr.Parse("3d6"));
+            return Dice.Roll(DiceExpr.D(3, 6));
         }
     }
 }

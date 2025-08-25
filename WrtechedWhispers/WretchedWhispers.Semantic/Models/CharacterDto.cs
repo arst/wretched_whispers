@@ -1,4 +1,4 @@
-using WretchedWhispers.Core.Characters.Weapon;
+using WretchedWhispers.Core.Characters.Inventory.Weapon;
 
 namespace WretchedWhispers.Semantic.Models;
 

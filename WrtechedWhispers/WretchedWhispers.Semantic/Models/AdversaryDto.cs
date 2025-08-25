@@ -10,4 +10,5 @@ public class AdversaryDto
     public int Morale { get; set; }
     public AttackProfileDto Attack { get; set; } = new();
     public bool IsDead { get; set; }
+    public bool IsFled { get; set; }
 }

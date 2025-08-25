@@ -6,5 +6,4 @@ public record CampaignDto(
     string Description,
     int CurrentDay,
     int CurrentHour,
-    List<MiseryDto> Miseries,
-    List<EncounterDto> Encounters);
+    List<MiseryDto> Miseries);

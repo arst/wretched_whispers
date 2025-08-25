@@ -6,7 +6,7 @@ public class CampaignsRepository : ICampaignsRepository
 {
     private static readonly ConcurrentDictionary<Guid, Campaign> Characters = new();
 
-    public Task<Campaign?> GetCampaignById(Guid campaignId)
+    public Task<Campaign?> Get(Guid campaignId)
     {
         Characters.TryGetValue(campaignId, out var campaign);
         return Task.FromResult(campaign);

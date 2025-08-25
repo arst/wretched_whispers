@@ -1,3 +1,3 @@
-﻿namespace WretchedWhispers.Core.Outcomes;
+namespace WretchedWhispers.Core.Outcomes;
 
-public sealed record LimbBroken(int StunRounds) : BrokenOutcome("LimbBroken");
+public sealed record LimbBroken(int Rounds) : BrokenOutcome("LimbBroken");

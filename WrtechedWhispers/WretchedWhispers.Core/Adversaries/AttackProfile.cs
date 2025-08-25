@@ -1,4 +1,4 @@
-using WretchedWhispers.Core.Dice;
+using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Adversaries;
 

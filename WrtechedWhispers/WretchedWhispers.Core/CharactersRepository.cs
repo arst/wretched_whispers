@@ -7,13 +7,13 @@ public class CharactersRepository : ICharactersRepository
 {
     private static readonly ConcurrentDictionary<Guid, Character> Characters = new();
 
-    public Task<Character?> GetAsync(Guid id, CancellationToken ct = default)
+    public Task<Character?> Get(Guid id, CancellationToken ct = default)
     {
         Characters.TryGetValue(id, out var character);
         return Task.FromResult(character);
     }
 
-    public Task SaveAsync(Character character, CancellationToken ct = default)
+    public Task Save(Character character, CancellationToken ct = default)
     {
         Characters.AddOrUpdate(character.Id, character, (k, v) => v);
 

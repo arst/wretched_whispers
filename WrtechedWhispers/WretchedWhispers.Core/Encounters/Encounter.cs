@@ -1,14 +1,13 @@
 using WretchedWhispers.Core.Adversaries;
-using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Combat.Attack;
-using WretchedWhispers.Core.Combat.Defence;
-using WretchedWhispers.Core.Dice;
+using WretchedWhispers.Core.Characters.Combat;
+using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Encounters;
 
 public sealed class Encounter
 {
     private readonly List<Adversary> _adversaries = [];
+
 
     private Encounter(Guid id, EncounterType initialType, string name, string description)
     {
@@ -17,97 +16,80 @@ public sealed class Encounter
         Name = name;
         Description = description;
     }
-    
+
     public Guid Id { get; }
-    
     public EncounterType InitialType { get; }
-    
     public EncounterType CurrentType { get; private set; }
-
     public string Name { get; }
-
     public string Description { get; }
-
     public IReadOnlyList<Adversary> Adversaries => _adversaries;
-
     public IReadOnlyList<Adversary> LivingAdversaries => _adversaries.Where(a => !a.IsDead).ToList().AsReadOnly();
-
     public IReadOnlyList<Adversary> DeadAdversaries => _adversaries.Where(a => a.IsDead).ToList().AsReadOnly();
+    public bool IsStarted { get; set; }
+    public bool IsEnded { get; set; }
+
+    public static Encounter Create(string name, string description, EncounterType initialType, IRandomService rng)
+    {
+        var encounter = new Encounter(Guid.NewGuid(), initialType, name, description);
+        encounter.Initiate(initialType);
+
+        return encounter;
+    }
+
+    public void StartEncounter()
+    {
+        if (_adversaries.Count == 0)
+            throw new InvalidOperationException("Can't start an encounter without adversaries.");
+        IsStarted = true;
+        IsEnded = false;
+    }
+
+    public void EndEncounter()
+    {
+        if (!IsStarted) throw new InvalidOperationException("Can't end an encounter that hasn't started.");
+        var anyActiveAdversaries = _adversaries.Any(a => a is { IsDead: false, IsFled: false });
+        if (anyActiveAdversaries)
+            throw new InvalidOperationException("Can't end an encounter with active adversaries.");
+        IsEnded = true;
+    }
 
     public void AddAdversary(Adversary e)
     {
         _adversaries.Add(e);
     }
 
-    private void RemoveAdversary(Adversary e)
+    public void ProcessPlayerAttackOutcome(AttackOutcome outcome, Guid adversaryId)
     {
-        var adversary = _adversaries.First(a => a.Id == e.Id);
-        _adversaries.Remove(adversary);
-    }
+        var adversary = _adversaries.Single(a => a.Id == adversaryId);
 
-    public DefenceOutcome AdversaryAttack(Character player, Adversary foe, IRandomService rng)
-    {
-        return player.Defend(rng, foe.Attack.DamageDie);
-    }
-
-    public AttackOutcome PlayerAttack(IRandomService rng, Character player, Adversary foe)
-    {
-        var outcome = player.Attack(rng, foe.Armor);
-
-        if (outcome.Hit) foe.ReceiveDamage(outcome.Damage.Amount);
+        if (outcome.Hit) adversary.ReceiveDamage(outcome.Damage.Amount);
 
         if (!ShouldCheckMorale())
-            return outcome;
-        
-        var moraleDiceExpr = DiceExpr.Parse("2d6");
-        var moraleRoll = rng.Roll(moraleDiceExpr);
+            return;
 
-        if (moraleRoll >= foe.Morale)
-            return outcome;
-        
-        RemoveAdversary(foe);
-        return outcome;
+        var moraleDiceExpr = DiceExpr.D(2, 6);
+        var moraleRoll = Dice.Roll(moraleDiceExpr);
+
+        if (moraleRoll >= adversary.Morale)
+            return;
+
+        adversary.Retreat();
     }
 
-    private bool ShouldCheckMorale()
+    public void ProcessPlayerDefenceOutcome(DefenceOutcome defenceOutcome, Guid adversaryId)
     {
-        var groupSize = _adversaries.Count;
-
-        if (groupSize == 1)
-        {
-            var adversary = _adversaries.First();
-            var hasLessThanThirdHp = adversary.Hp.Current < adversary.Hp.Max *  0.3;
-
-            return hasLessThanThirdHp;
-        }
-        
-        var livingAdversaries = LivingAdversaries.Count;
-
-        return livingAdversaries <= groupSize / 2;
     }
 
-    public static Encounter Create(string name, string description, EncounterType initialType, IRandomService rng)
-    {
-        var encounter = new Encounter(Guid.NewGuid(), initialType, name, description);
-        encounter.Initiate(rng, initialType);
-
-        return encounter;
-    }
-
-    private void Initiate(IRandomService rng, EncounterType initialType)
+    private void Initiate(EncounterType initialType)
     {
         if (initialType is not EncounterType.Unknown)
             return;
-        
-        var reaction = RollInitialReaction(rng);
+
+        var reaction = RollInitialReaction();
         if (reaction is InitialReaction.Kill or InitialReaction.Angered)
-        {
             ElevateToHostile();
-        }
         else
-        {
             ElevateToFriendly();
-        }
     }
 
     private void ElevateToFriendly()
@@ -119,11 +101,11 @@ public sealed class Encounter
     {
         CurrentType = EncounterType.Hostile;
     }
-    
-    private static InitialReaction RollInitialReaction(IRandomService rng)
+
+    private static InitialReaction RollInitialReaction()
     {
-        var initialReactionDiceExpr = DiceExpr.Parse("2d6");
-        var rollResult = rng.Roll(initialReactionDiceExpr);
+        var initialReactionDiceExpr = DiceExpr.D(2, 6);
+        var rollResult = Dice.Roll(initialReactionDiceExpr);
 
         return rollResult switch
         {
@@ -133,5 +115,22 @@ public sealed class Encounter
             9 or 10 => InitialReaction.AlmostFriendly,
             _ => InitialReaction.Helpful
         };
+    }
+
+    private bool ShouldCheckMorale()
+    {
+        var groupSize = _adversaries.Count;
+
+        if (groupSize == 1)
+        {
+            var adversary = _adversaries.First();
+            var hasLessThanThirdHp = adversary.Hp.Current < adversary.Hp.Max * 0.3;
+
+            return hasLessThanThirdHp;
+        }
+
+        var livingAdversaries = LivingAdversaries.Count;
+
+        return livingAdversaries <= groupSize / 2;
     }
 }
