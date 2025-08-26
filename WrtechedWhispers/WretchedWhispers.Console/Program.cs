@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using WretchedWhispers.Console;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.CharacterCreation;
 using WretchedWhispers.Core.Characters;
@@ -11,6 +12,8 @@ using WretchedWhispers.Semantic;
 
 #pragma warning disable SKEXP0001
 #pragma warning disable SKEXP0110
+
+Settings settings = new();
 
 Kernel BuildCampaignKernel()
 {
@@ -47,6 +50,11 @@ return;
 
 void RegisterServices(IKernelBuilder builder)
 {
+    builder.AddAzureOpenAIChatCompletion(
+        deploymentName: settings.AzureOpenAi.ChatModelDeployment,
+        endpoint: settings.AzureOpenAi.Endpoint,
+        apiKey: settings.AzureOpenAi.ApiKey);
+
     builder.Services.AddSingleton<IRandomService>(_ => new SeededRandomService());
     builder.Services.AddSingleton<ICharactersRepository, CharactersRepository>();
     builder.Services.AddSingleton<ICharacterCreationService, CharacterCreationService>();
