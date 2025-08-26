@@ -18,7 +18,7 @@ public class CampaignPlugin(
     [Description(
         "Creates a new campaign with the specified dice expression for dawn rolls. Dawn roll dice is selected by player and rolled each dawn. It determines the length of the campaign." +
         "Examples: d100 - “years of pain”(very slow campaign), d20 - “a bleak half-year”, d10 - “a fall in anguish”, d6 - “a cruel month”, d2 - “the end is nigh!” (very fast) ")]
-    public CampaignDto Create(
+    public CampaignDto CreateCampaign(
         [Description(
             "Dice expression for dawn rolls that determines campaign length (e.g., 'd100' for very slow, 'd6' for fast)")]
         string diceExpression,

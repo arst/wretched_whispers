@@ -3,7 +3,7 @@ using Microsoft.SemanticKernel;
 using WretchedWhispers.Core.Abilities;
 using WretchedWhispers.Core.CharacterCreation;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Inventory.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Services;
 using WretchedWhispers.Semantic.Models;
@@ -24,6 +24,110 @@ public sealed class CharacterPlugin(
         var character = await characterCreationService.Create(name);
         await charactersRepository.Save(character);
 
+        return CreateCharacterDto(character);
+    }
+
+    [KernelFunction]
+    [Description("Challenge a character with an ability test against a specified difficulty rating")]
+    public async Task<ChallengeOutcomeDto> ChallengeCharacter(
+        [Description("Id of the character to challenge")]
+        Guid characterId,
+        [Description(
+            "Level of the challenge, the higher the number the harder the challenge. Usually equal to 12 for a normal challenge.")]
+        int challengeDr,
+        [Description("Ability kind to use for the challenge, one of: 'Strength', 'Agility', 'Presence', 'Toughness'.")]
+        AbilityKind abilityKind)
+    {
+        var outcome = await characterService.ChallengePlayer(characterId, new Dr(challengeDr), abilityKind);
+        return new ChallengeOutcomeDto(outcome.IsSuccess);
+    }
+
+    [KernelFunction]
+    [Description("Add an item to a character's inventory")]
+    public async Task<CharacterDto> AddItemToCharacterInventory(
+        [Description("Id of the character to add item to")]
+        Guid characterId,
+        [Description("Description of the item to add")]
+        string itemDescription,
+        [Description("Whether the item is bulky and takes 2 inventory slots instead of 1")]
+        bool isBulky = false,
+        [Description("Whether the item is consumed after one use")]
+        bool isOneTimeUse = false,
+        [Description("Quantity of the item to add")]
+        int quantity = 1)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        var newItem = new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity);
+        character.Inventory.AddItem(newItem);
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [KernelFunction]
+    [Description("Remove an item from a character's inventory")]
+    public async Task<CharacterDto> RemoveItemFromCharacterInventory(
+        [Description("Id of the character to remove item from")]
+        Guid characterId,
+        [Description("Id of the inventory item to remove")]
+        Guid itemId)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        character.Inventory.RemoveItem(itemId);
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [KernelFunction]
+    [Description("Consume one unit of an item from a character's inventory, reducing its quantity by 1 or removing it completely if quantity reaches 0")]
+    public async Task<CharacterDto> ConsumeItemFromCharacterInventory(
+        [Description("Id of the character whose item to consume")]
+        Guid characterId,
+        [Description("Id of the inventory item to consume")]
+        Guid itemId)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        var wasConsumed = character.Inventory.ConsumeItem(itemId);
+        if (!wasConsumed)
+        {
+            throw new InvalidOperationException($"Item with id {itemId} has no quantity left to consume");
+        }
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+    
+
+    private static ArmorTierDto GetArmorTier(ArmorTier armorTier)
+    {
+        return armorTier switch
+        {
+            HeavyArmorTier => ArmorTierDto.Heavy,
+            NoArmorTier => ArmorTierDto.None,
+            LightArmorTier => ArmorTierDto.Light,
+            MediumArmorTier => ArmorTierDto.Medium,
+            _ => throw new ArgumentOutOfRangeException(nameof(armorTier), armorTier, null)
+        };
+    }
+    
+    private static CharacterDto CreateCharacterDto(Character character)
+    {
         return new CharacterDto
         {
             Id = character.Id,
@@ -50,36 +154,21 @@ public sealed class CharacterPlugin(
                 Key = s.Key,
                 School = s.School
             }).ToList(),
-            Container = character.Gear.Container,
-            Gear1 = character.Gear.Gear1,
-            Gear2 = character.Gear.Gear2
-        };
-    }
-
-    [KernelFunction]
-    [Description("Challenge a character with an ability test against a specified difficulty rating")]
-    public async Task<ChallengeOutcomeDto> ChallengeCharacter(
-        [Description("Id of the character to challenge")]
-        Guid characterId,
-        [Description(
-            "Level of the challenge, the higher the number the harder the challenge. Usually equal to 12 for a normal challenge.")]
-        int challengeDr,
-        [Description("Ability kind to use for the challenge, one of: 'Strength', 'Agility', 'Presence', 'Toughness'.")]
-        AbilityKind abilityKind)
-    {
-        var outcome = await characterService.ChallengePlayer(characterId, new Dr(challengeDr), abilityKind);
-        return new ChallengeOutcomeDto(outcome.IsSuccess);
-    }
-
-    private static ArmorTierDto GetArmorTier(ArmorTier armorTier)
-    {
-        return armorTier switch
-        {
-            HeavyArmorTier => ArmorTierDto.Heavy,
-            NoArmorTier => ArmorTierDto.None,
-            LightArmorTier => ArmorTierDto.Light,
-            MediumArmorTier => ArmorTierDto.Medium,
-            _ => throw new ArgumentOutOfRangeException(nameof(armorTier), armorTier, null)
+            Inventory = new InventoryDto
+            {
+                Container = character.Inventory.Container,
+                MaxCapacity = character.Inventory.MaxCapacity,
+                FreeSlots = character.Inventory.GetFreeSlots(),
+                IsFull = character.Inventory.IsFull,
+                Items = character.Inventory.InventoryItems.Select(i => new InventoryItemDto
+                {
+                    Id = i.Id,
+                    Description = i.Description,
+                    IsBulky = i.IsBulky,
+                    IsOneTimeUse = i.IsOneTimeUse,
+                    Quantity = i.Quantity
+                }).ToList()
+            }
         };
     }
 }

@@ -1,7 +1,7 @@
-﻿using WretchedWhispers.Core.Characters.Inventory.Armor.Tiers;
+﻿using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
 using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Core.Characters.Inventory.Armor;
+namespace WretchedWhispers.Core.Characters.Posessions.Armor;
 
 public sealed class Armor(ArmorTier tier)
 {

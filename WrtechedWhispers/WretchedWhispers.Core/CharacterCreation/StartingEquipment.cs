@@ -1,6 +1,7 @@
-using WretchedWhispers.Core.Characters.Inventory;
-using WretchedWhispers.Core.Characters.Inventory.Armor;
-using WretchedWhispers.Core.Characters.Inventory.Weapon;
+using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Posessions;
+using WretchedWhispers.Core.Characters.Posessions.Armor;
+using WretchedWhispers.Core.Characters.Posessions.Weapon;
 using WretchedWhispers.Core.Scrolls;
 
 namespace WretchedWhispers.Core.CharacterCreation;
@@ -9,8 +10,8 @@ public readonly record struct StartingEquipment(
     int Silver,
     int FoodDays,
     string Container,
-    string Gear1,
-    string Gear2,
+    InventoryItem? Gear1,
+    InventoryItem? Gear2,
     Weapon Weapon,
     Armor Armor,
     Shield? Shield,

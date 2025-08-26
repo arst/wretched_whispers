@@ -2,10 +2,10 @@
 using WretchedWhispers.Core.CharacterCreation;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
-using WretchedWhispers.Core.Characters.Inventory;
-using WretchedWhispers.Core.Characters.Inventory.Armor;
-using WretchedWhispers.Core.Characters.Inventory.Armor.Tiers;
-using WretchedWhispers.Core.Characters.Inventory.Weapon;
+using WretchedWhispers.Core.Characters.Posessions;
+using WretchedWhispers.Core.Characters.Posessions.Armor;
+using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Posessions.Weapon;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Outcomes;
 using WretchedWhispers.Core.Powers;
@@ -17,23 +17,33 @@ public sealed class Character
 {
     private readonly List<Scroll> _knownScrolls;
 
-    private Character(Guid id, string name, Abilities.Abilities abilities, int silver, int foodDays, Gear gear,
+    private Character(
+        Guid id,
+        string name,
+        Abilities.Abilities abilities,
+        int silver,
+        int foodDays,
+        Inventory inventory,
         Weapon weapon,
         Armor armor,
-        Shield? shield, List<Scroll> scrolls, int currentHp, int maxHp, int omenCount = 0)
+        Shield? shield,
+        List<Scroll> scrolls,
+        int currentHp,
+        int maxHp,
+        int omenCount = 0)
     {
         Id = id;
         Name = name;
         Abilities = abilities;
         Silver = silver;
         FoodDays = foodDays;
-        Gear = gear;
         Weapon = weapon;
         Armor = armor;
         Shield = shield;
         Omens = new Omens(omenCount);
         Hp = new HitPoints(currentHp, maxHp);
         _knownScrolls = scrolls;
+        Inventory = inventory;
     }
 
     public Guid Id { get; private set; }
@@ -41,7 +51,9 @@ public sealed class Character
     public Abilities.Abilities Abilities { get; }
     public int Silver { get; }
     public int FoodDays { get; }
-    public Gear Gear { get; }
+    
+    public Inventory Inventory { get; private set; }
+
     public HitPoints Hp { get; private set; }
     public Armor Armor { get; }
     public Shield? Shield { get; }
@@ -51,6 +63,7 @@ public sealed class Character
 
     public bool IsInfected { get; private set; }
     public bool IsDizzyFromMagic { get; private set; }
+    public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
 
     public IReadOnlyCollection<Scroll> KnownScrolls => _knownScrolls;
 
@@ -91,12 +104,11 @@ public sealed class Character
 
     private AttackOutcome ResolveAttack(Armor targetArmor)
     {
-        var ability = Weapon.IsRanged ? Abilities.Presence : Abilities.Strength;
-        var test = ability.Test(new Dr(12));
-
-        var hit = test.Outcome == TestOutcome.Success;
-        var crit = test.IsCrit;
-        var fumble = test.IsFumble;
+        var abilityKind = Weapon.IsRanged ? AbilityKind.Presence : AbilityKind.Strength;
+        var test = Challenge(new Dr(12), abilityKind);
+        var hit = test.IsSuccess;
+        var crit = test.Natural == Natural.Twenty;
+        var fumble = test.Natural == Natural.One;
         var weaponBroken = false;
         var targetArmorDegraded = false;
 
@@ -172,11 +184,10 @@ public sealed class Character
     private (bool IsAvoided, bool IsCritFree, bool IsFumble) ResolveDefence()
     {
         var dr = new Dr(new Dr(12).Value + Armor.DefencePenalty);
-        var abilityScore = new AbilityScore(Abilities.Agility.Modifier - Armor.AgilityPenalty);
-        var test = abilityScore.Test(dr);
-        var avoided = test.Outcome == TestOutcome.Success;
-        var critFree = test.IsCrit; // free attack granted to the attacker
-        var fumble = test.IsFumble;
+        var test = Challenge(dr, AbilityKind.Agility, Armor.AgilityPenalty);
+        var avoided = test.IsSuccess;
+        var critFree = test.Natural == Natural.Twenty;
+        var fumble = test.Natural == Natural.One;
 
         return (avoided, critFree, fumble);
     }
@@ -229,8 +240,8 @@ public sealed class Character
         if (!Powers.TryConsumeOne())
             return CastOutcome.Fail("No daily power uses remaining");
 
-        var test = Abilities.Presence.Test(12);
-        if (test.Outcome == TestOutcome.Success) return CastOutcome.Success(scroll.Key);
+        var test = Challenge(new Dr(12), AbilityKind.Presence);
+        if (test.IsSuccess) return CastOutcome.Success(scroll.Key);
 
         var loss = Dice.Roll(DiceExpr.D2);
         Hp = Hp.Damage(loss);
@@ -238,35 +249,70 @@ public sealed class Character
         return CastOutcome.Fizzle(scroll.Key, loss);
     }
 
-    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability)
+    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, int penalty = 0)
     {
-        var rollResults = Dice.Roll(DiceExpr.D20);
-        switch (rollResults)
+        if (ability is AbilityKind.Strength or AbilityKind.Agility && IsEncumbered)
         {
-            case 1:
-                return ChallengeOutcome.Fail();
-            case 20:
-                return ChallengeOutcome.Success();
-            default:
-            {
-                var total = rollResults + Abilities[ability].Modifier;
-                return total >= challenge.Value
-                    ? ChallengeOutcome.Success()
-                    : ChallengeOutcome.Fail();
-            }
+            challenge = new Dr(challenge.Value + 2);
         }
+        
+        var rollResults = Dice.Roll(DiceExpr.D20);
+        var outcome = rollResults + Abilities[ability].Modifier;
+        var nat = rollResults switch { 1 => Natural.One, 20 => Natural.Twenty, _ => Natural.None };
+        
+        return nat is Natural.One ? ChallengeOutcome.Fail(nat) 
+            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat) 
+            : outcome >= challenge.Value ? ChallengeOutcome.Success(nat) : ChallengeOutcome.Fail(nat);
+    }
+    
+    public void Improve(AbilityKind kind, int delta)
+    {
+        Abilities.ModifyAbility(kind, delta);
+
+        if (kind != AbilityKind.Strength)
+            return;
+        var newCapacity = 2 * (Abilities.Strength.Modifier + 8);
+        Inventory = Inventory with { MaxCapacity = newCapacity };
+    }
+    
+    public void Degrade(AbilityKind kind, int delta)
+    {
+        if (delta >= 0)
+        {
+            throw new InvalidOperationException("Degrade delta must be negative.");
+        }
+        
+        Abilities.ModifyAbility(kind, delta);
+
+        if (kind != AbilityKind.Strength)
+            return;
+        var newCapacity = 2 * (Abilities.Strength.Modifier + 8);
+        Inventory = Inventory with { MaxCapacity = newCapacity };
     }
 
     public static Character Create(Guid id, string name, int maxHp, Abilities.Abilities abilities,
         StartingEquipment equipment, int startingOmensCount = 0)
     {
+        var items = new List<InventoryItem>();
+        
+        if (equipment.Gear1 is not null)
+        {
+            items.Add(equipment.Gear1);
+        }
+
+        if (equipment.Gear2 is not null)
+        {
+            items.Add(equipment.Gear2);
+        }
+        var inventoryCapacity = 2 * (abilities.Strength.Modifier + 8);
+        
         return new Character(
             id,
             name,
             abilities,
             equipment.Silver,
             equipment.FoodDays,
-            new Gear(equipment.Container, equipment.Gear1, equipment.Gear2),
+            new Inventory(equipment.Container, inventoryCapacity, items),
             equipment.Weapon,
             equipment.Armor,
             equipment.Shield,

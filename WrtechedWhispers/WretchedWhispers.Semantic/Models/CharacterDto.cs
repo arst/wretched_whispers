@@ -1,4 +1,4 @@
-using WretchedWhispers.Core.Characters.Inventory.Weapon;
+using WretchedWhispers.Core.Characters.Posessions.Weapon;
 
 namespace WretchedWhispers.Semantic.Models;
 
@@ -43,4 +43,6 @@ public class CharacterDto
 
     // Known Scrolls
     public List<ScrollDto> KnownScrolls { get; set; } = new();
+
+    public required InventoryDto Inventory { get; set; }
 }
