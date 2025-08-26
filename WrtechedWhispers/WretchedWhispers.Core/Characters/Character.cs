@@ -134,6 +134,21 @@ public sealed class Character
                 FumbleDoubleDamage = outcome.IsFumble
             };
 
+        var damage = CalculateDamageAfterDefense(attackDie, outcome);
+
+        // TODO: Implement armor tier degradation + shield break
+
+        return new DefenceOutcome
+        {
+            DamageDealt = damage,
+            Avoided = outcome.IsAvoided,
+            CriticalFreeAttack = outcome.IsCritFree,
+            FumbleDoubleDamage = outcome.IsFumble
+        };
+    }
+
+    private int CalculateDamageAfterDefense(DiceExpr attackDie, (bool IsAvoided, bool IsCritFree, bool IsFumble) outcome)
+    {
         var damage = Dice.Roll(attackDie);
 
         if (outcome.IsFumble) damage *= 2; // Fumble doubles the damage
@@ -151,16 +166,7 @@ public sealed class Character
                 : 0); // Shield adds +1 to armor reduction or completely blocks one attack and breaks, model as +1 to armor reduction fo now
 
         damage -= armorReduction;
-
-        // TODO: Implement armor tier degradation + shield break
-
-        return new DefenceOutcome
-        {
-            DamageDealt = damage,
-            Avoided = outcome.IsAvoided,
-            CriticalFreeAttack = outcome.IsCritFree,
-            FumbleDoubleDamage = outcome.IsFumble
-        };
+        return damage;
     }
 
     private (bool IsAvoided, bool IsCritFree, bool IsFumble) ResolveDefence()
