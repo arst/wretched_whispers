@@ -29,6 +29,7 @@ public sealed class Character
         Armor armor,
         Shield? shield,
         List<Scroll> scrolls,
+        PowerPool powers,
         int currentHp,
         int maxHp,
         int omenCount = 0)
@@ -41,6 +42,7 @@ public sealed class Character
         Weapon = weapon;
         Armor = armor;
         Shield = shield;
+        Powers = powers;
         Omens = new Omens(omenCount);
         Hp = new HitPoints(currentHp, maxHp);
         _scrolls = scrolls;
@@ -60,7 +62,7 @@ public sealed class Character
     public Shield? Shield { get; }
     public Weapon Weapon { get; private set; }
     public Omens Omens { get; private set; }
-    public PowerPool Powers { get; } = new();
+    public PowerPool Powers { get; }
 
     public bool IsInfected { get; private set; }
     public bool IsDizzyFromMagic { get; private set; }
@@ -94,7 +96,7 @@ public sealed class Character
 
     public void StartNewDay()
     {
-        Powers.ResetForNewDay(Abilities.Presence);
+        Powers.ResetForNewDay(Abilities);
         IsDizzyFromMagic = false;
     }
 
@@ -436,6 +438,7 @@ public sealed class Character
             equipment.Armor,
             equipment.Shield,
             equipment.Scrolls,
+            PowerPool.Create(abilities), 
             maxHp,
             maxHp,
             startingOmensCount);

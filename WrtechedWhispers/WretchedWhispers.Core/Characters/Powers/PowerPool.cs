@@ -5,13 +5,14 @@ namespace WretchedWhispers.Core.Characters.Powers;
 
 public sealed class PowerPool
 {
+    private PowerPool() { }
     // Re-rolled each dawn: Presence + d4 uses
     public int UsesRemaining { get; private set; }
-    public int MaxUses { get; set; }
+    public int MaxUses { get; private set; }
 
-    public void ResetForNewDay(AbilityScore presence)
+    public void ResetForNewDay(Abilities.Abilities abilities)
     {
-        MaxUses = Math.Max(0, presence.Modifier) + Dice.Roll(DiceExpr.D4);
+        MaxUses = Math.Max(0, abilities.Presence.Modifier) + Dice.Roll(DiceExpr.D4);
         UsesRemaining = MaxUses;
     }
 
@@ -20,5 +21,12 @@ public sealed class PowerPool
         if (UsesRemaining <= 0) return false;
         UsesRemaining--;
         return true;
+    }
+
+    public static PowerPool Create(Abilities.Abilities abilities)
+    {
+        var pool = new PowerPool();
+        pool.ResetForNewDay(abilities);
+        return pool;
     }
 }
