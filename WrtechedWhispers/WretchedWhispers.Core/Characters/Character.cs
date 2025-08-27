@@ -1,16 +1,16 @@
-﻿using WretchedWhispers.Core.Abilities;
-using WretchedWhispers.Core.CharacterCreation;
+﻿using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
+using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Posessions;
 using WretchedWhispers.Core.Characters.Posessions.Armor;
 using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
 using WretchedWhispers.Core.Characters.Posessions.Scrolls;
 using WretchedWhispers.Core.Characters.Posessions.Weapon;
+using WretchedWhispers.Core.Characters.Powers;
 using WretchedWhispers.Core.Characters.Status.Broken;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.Outcomes;
-using WretchedWhispers.Core.Powers;
 
 namespace WretchedWhispers.Core.Characters;
 
@@ -335,9 +335,9 @@ public sealed class Character
         if (!Powers.TryConsumeOne())
             return CastOutcome.Fail("No daily power uses remaining");
 
-        var test = Challenge(new Dr(12), AbilityKind.Presence);
+        var challengeOutcome = Challenge(new Dr(12), AbilityKind.Presence);
         
-        if (test.IsSuccess) return CastOutcome.Success(scroll.Description);
+        if (challengeOutcome.IsSuccess) return CastOutcome.Success(scroll.Description);
 
         var loss = Dice.Roll(DiceExpr.D2);
         ReceiveDamage(loss);

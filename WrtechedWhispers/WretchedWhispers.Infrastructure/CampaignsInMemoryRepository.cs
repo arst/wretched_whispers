@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
+using WretchedWhispers.Core.Campaigns;
 
-namespace WretchedWhispers.Core;
+namespace WretchedWhispers.Infrastructure;
 
-public class CampaignsRepository : ICampaignsRepository
+public class CampaignsInMemoryRepository : ICampaignsRepository
 {
     private static readonly ConcurrentDictionary<Guid, Campaign> Characters = new();
 

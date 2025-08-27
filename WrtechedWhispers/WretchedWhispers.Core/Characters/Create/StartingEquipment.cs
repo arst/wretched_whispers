@@ -1,10 +1,9 @@
-using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Posessions;
 using WretchedWhispers.Core.Characters.Posessions.Armor;
 using WretchedWhispers.Core.Characters.Posessions.Scrolls;
 using WretchedWhispers.Core.Characters.Posessions.Weapon;
 
-namespace WretchedWhispers.Core.CharacterCreation;
+namespace WretchedWhispers.Core.Characters.Create;
 
 public readonly record struct StartingEquipment(
     int Silver,

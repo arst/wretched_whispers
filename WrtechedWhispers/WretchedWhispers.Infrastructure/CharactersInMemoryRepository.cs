@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using WretchedWhispers.Core.Characters;
 
-namespace WretchedWhispers.Core;
+namespace WretchedWhispers.Infrastructure;
 
-public class CharactersRepository : ICharactersRepository
+public class CharactersInMemoryRepository : ICharactersRepository
 {
     private static readonly ConcurrentDictionary<Guid, Character> Characters = new();
 

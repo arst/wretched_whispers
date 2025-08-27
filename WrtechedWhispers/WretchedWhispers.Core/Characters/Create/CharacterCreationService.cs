@@ -1,5 +1,4 @@
-using WretchedWhispers.Core.Abilities;
-using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Posessions;
 using WretchedWhispers.Core.Characters.Posessions.Armor;
 using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
@@ -8,10 +7,9 @@ using WretchedWhispers.Core.Characters.Posessions.Weapon;
 using WretchedWhispers.Core.Dices;
 using Scroll = WretchedWhispers.Core.Characters.Posessions.Scrolls.Scroll;
 
-namespace WretchedWhispers.Core.CharacterCreation;
+namespace WretchedWhispers.Core.Characters.Create;
 
 public class CharacterCreationService(ICharactersRepository charactersRepository)
-    : ICharacterCreationService
 {
     public async Task<Character> Create(string name)
     {

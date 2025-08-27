@@ -6,9 +6,11 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using WretchedWhispers.Console;
 using WretchedWhispers.Core;
-using WretchedWhispers.Core.CharacterCreation;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Services;
+using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Semantic;
 
 #pragma warning disable SKEXP0001
@@ -113,15 +115,7 @@ void RegisterServices(IKernelBuilder builder)
         deploymentName: settings.AzureOpenAi.ChatModelDeployment,
         endpoint: settings.AzureOpenAi.Endpoint,
         apiKey: settings.AzureOpenAi.ApiKey);
-
-    builder.Services.AddSingleton<IRandomService>(_ => new SeededRandomService());
-    builder.Services.AddSingleton<ICharactersRepository, CharactersRepository>();
-    builder.Services.AddSingleton<ICharacterCreationService, CharacterCreationService>();
-    builder.Services.AddSingleton<ICampaignsRepository, CampaignsRepository>();
-    builder.Services.AddSingleton<IEncountersRepository, EncountersRepository>();
-    builder.Services.AddSingleton<CharacterService>();
-    builder.Services.AddSingleton<EncounterService>();
-    builder.Services.AddSingleton<CampaignService>();
+    builder.Services.AddInMemoryInfrastructure();
     builder.Services.AddLogging(lb =>
     {
         lb.AddConsole();

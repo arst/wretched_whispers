@@ -1,4 +1,4 @@
-namespace WretchedWhispers.Core;
+namespace WretchedWhispers.Core.Campaigns;
 
 public interface ICampaignsRepository
 {

@@ -1,6 +1,4 @@
-using WretchedWhispers.Core.Encounters;
-
-namespace WretchedWhispers.Core;
+namespace WretchedWhispers.Core.Encounters;
 
 public interface IEncountersRepository
 {

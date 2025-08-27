@@ -1,7 +1,8 @@
+using WretchedWhispers.Core.Campaigns.Time;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Core.Services;
+namespace WretchedWhispers.Core.Campaigns;
 
 public class CampaignService(
     IRandomService rng,

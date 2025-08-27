@@ -1,3 +1,3 @@
-namespace WretchedWhispers.Core.World;
+namespace WretchedWhispers.Core.Campaigns.World;
 
 public record DawnResult(bool IsMiseryTriggered, Misery misery);

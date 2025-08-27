@@ -1,4 +1,4 @@
-using WretchedWhispers.Core.Abilities;
+using WretchedWhispers.Core.Characters.Abilities;
 
 namespace WretchedWhispers.Core.Characters.Posessions;
 

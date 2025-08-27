@@ -7,7 +7,6 @@ using WretchedWhispers.Core.Characters.Posessions.Armor;
 using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
-using WretchedWhispers.Core.Services;
 using WretchedWhispers.Semantic.Models;
 
 namespace WretchedWhispers.Semantic;

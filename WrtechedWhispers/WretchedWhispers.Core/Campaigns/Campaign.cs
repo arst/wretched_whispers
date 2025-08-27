@@ -1,7 +1,8 @@
+using WretchedWhispers.Core.Campaigns.Time;
+using WretchedWhispers.Core.Campaigns.World;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.World;
 
-namespace WretchedWhispers.Core;
+namespace WretchedWhispers.Core.Campaigns;
 /*
 1. Session zero / setup
 

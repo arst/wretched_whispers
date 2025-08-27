@@ -1,9 +1,8 @@
-using WretchedWhispers.Core.Abilities;
-using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Core.Services;
+namespace WretchedWhispers.Core.Characters;
 
 public class CharacterService(ICharactersRepository charactersRepository)
 {

@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using WretchedWhispers.Core.Encounters;
 
-namespace WretchedWhispers.Core;
+namespace WretchedWhispers.Infrastructure;
 
-public class EncountersRepository : IEncountersRepository
+public class EncountersInMemoryRepository : IEncountersRepository
 {
     private static readonly ConcurrentDictionary<Guid, Encounter> Encounters = new();
 

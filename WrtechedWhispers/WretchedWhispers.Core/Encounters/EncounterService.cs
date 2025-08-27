@@ -1,9 +1,9 @@
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Combat;
-using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Core.Services;
+namespace WretchedWhispers.Core.Encounters;
 
 public class EncounterService(
     IRandomService rng,

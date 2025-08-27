@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using Microsoft.SemanticKernel;
 using WretchedWhispers.Core;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.Services;
 using WretchedWhispers.Semantic.Models;
 
 namespace WretchedWhispers.Semantic;

@@ -1,11 +1,10 @@
 using System.ComponentModel;
 using Microsoft.SemanticKernel;
-using WretchedWhispers.Core.Abilities;
-using WretchedWhispers.Core.CharacterCreation;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.Services;
 using WretchedWhispers.Semantic.Models;
 
 namespace WretchedWhispers.Semantic;
@@ -14,7 +13,7 @@ namespace WretchedWhispers.Semantic;
     "Allow interacting with characters, such as creating a new character or viewing character stats, performing actions on characters, and more.")]
 public sealed class CharacterPlugin(
     ICharactersRepository charactersRepository,
-    ICharacterCreationService characterCreationService,
+    CharacterCreationService characterCreationService,
     CharacterService characterService)
 {
     [KernelFunction]
