@@ -1,3 +1,4 @@
+# ![Wretched Whispers Logo](logo.png)
 # wretched_whispers
 
 DISCLAIMER
