@@ -21,4 +21,4 @@ jobs:
       - name: Build
         run: dotnet build WrtechedWhispers/WrtechedWhispers.sln --no-restore --configuration Release
       - name: Test
-        run: dotnet test WrtechedWhispers/WretchedWhispers.Tests.csproj --no-build --configuration Release --logger "trx"
+        run: dotnet test WrtechedWhispers/WretchedWhispers.Tests/WretchedWhispers.Tests.csproj --no-build --configuration Release --logger "trx"
