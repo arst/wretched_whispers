@@ -316,7 +316,15 @@ public sealed class CharacterPlugin(
             PowersUsed = character.Powers.UsesRemaining,
             IsInfected = character.IsInfected,
             IsDizzyFromMagic = character.IsDizzyFromMagic,
-            KnownScrolls = character.Scrolls.Select(s => new ScrollDto
+            IsEncumbered = character.IsEncumbered,
+            IsDead = character.IsDead,
+            HasLostEye = character.HasLostEye,
+            HasStabbedLung = character.HasStabbedLung,
+            HasBrokenHand = character.HasBrokenHand,
+            HasCrushedFoot = character.HasCrushedFoot,
+            HasSeveredArm = character.HasSeveredArm,
+            HasSmashedFace = character.HasSmashedFace,
+            Scrolls = character.Scrolls.Select(s => new ScrollDto
             {
                 Key = s.Description,
                 School = s.School

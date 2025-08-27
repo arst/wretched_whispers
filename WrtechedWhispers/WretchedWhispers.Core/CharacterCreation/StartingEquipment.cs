@@ -1,8 +1,8 @@
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Posessions;
 using WretchedWhispers.Core.Characters.Posessions.Armor;
+using WretchedWhispers.Core.Characters.Posessions.Scrolls;
 using WretchedWhispers.Core.Characters.Posessions.Weapon;
-using WretchedWhispers.Core.Scrolls;
 
 namespace WretchedWhispers.Core.CharacterCreation;
 

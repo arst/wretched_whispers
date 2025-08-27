@@ -20,12 +20,7 @@ public class CharacterDto
     // Resources
     public int Silver { get; set; }
     public int FoodDays { get; set; }
-
-    // Gear
-    public string Container { get; set; } = string.Empty;
-    public string Gear1 { get; set; } = string.Empty;
-    public string Gear2 { get; set; } = string.Empty;
-
+    
     // Equipment
     public WeaponKind WeaponKind { get; set; }
     public ArmorTierDto ArmorTier { get; set; }
@@ -40,9 +35,19 @@ public class CharacterDto
     // Status Effects
     public bool IsInfected { get; set; }
     public bool IsDizzyFromMagic { get; set; }
+    public bool IsEncumbered { get; set; }
+    public bool IsDead { get; set; }
+
+    // Injuries/Conditions
+    public bool HasLostEye { get; set; }
+    public bool HasStabbedLung { get; set; }
+    public bool HasBrokenHand { get; set; }
+    public bool HasCrushedFoot { get; set; }
+    public bool HasSeveredArm { get; set; }
+    public bool HasSmashedFace { get; set; }
 
     // Known Scrolls
-    public List<ScrollDto> KnownScrolls { get; set; } = new();
+    public List<ScrollDto> Scrolls { get; set; } = new();
 
     public required InventoryDto Inventory { get; set; }
 }

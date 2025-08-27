@@ -5,11 +5,12 @@ using WretchedWhispers.Core.Characters.Combat;
 using WretchedWhispers.Core.Characters.Posessions;
 using WretchedWhispers.Core.Characters.Posessions.Armor;
 using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Posessions.Scrolls;
 using WretchedWhispers.Core.Characters.Posessions.Weapon;
+using WretchedWhispers.Core.Characters.Status.Broken;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Outcomes;
 using WretchedWhispers.Core.Powers;
-using WretchedWhispers.Core.Scrolls;
 
 namespace WretchedWhispers.Core.Characters;
 
@@ -64,6 +65,20 @@ public sealed class Character
     public bool IsInfected { get; private set; }
     public bool IsDizzyFromMagic { get; private set; }
     public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
+    
+    public bool IsDead { get; private set; }
+    
+    public bool HasLostEye { get; private set; }
+    
+    public bool HasStabbedLung { get; private set; }
+    
+    public bool HasBrokenHand { get; private set; }
+    
+    public bool HasCrushedFoot { get; private set; }
+    
+    public bool HasSeveredArm { get; private set; }
+    
+    public bool HasSmashedFace { get; private set; }
 
     public IReadOnlyCollection<Scroll> Scrolls => _scrolls;
     
@@ -142,6 +157,7 @@ public sealed class Character
             };
 
         var damage = CalculateDamageAfterDefense(attackDie, outcome);
+        ReceiveDamage(damage);
 
         // TODO: Implement armor tier degradation + shield break
 
@@ -153,6 +169,47 @@ public sealed class Character
             FumbleDoubleDamage = outcome.IsFumble
         };
     }
+
+    private void ReceiveDamage(int damage)
+    {
+        Hp = Hp.Damage(damage);
+
+        if (Hp.IsZero)
+        {
+            var brokenOutcome = ResolveBroken();
+            switch (brokenOutcome)
+            {
+                case null:
+                    break;
+                case BrokenHand:
+                    HasBrokenHand = true;
+                    break;
+                case CrushedFoot:
+                    HasCrushedFoot = true;
+                    break;
+                case DeadBroken:
+                    IsDead = true;
+                    break;
+                case EyeLost:
+                    HasLostEye = true;
+                    break;
+                case SeveredArm:
+                    HasSeveredArm = true;
+                    break;
+                case SmashedFace:
+                    HasSmashedFace = true;
+                    break;
+                case StabbedLung:
+                    HasStabbedLung = true;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(brokenOutcome));
+            }
+        }
+    }
+
+    
+
 
     private int CalculateDamageAfterDefense(DiceExpr attackDie, (bool IsAvoided, bool IsCritFree, bool IsFumble) outcome)
     {
@@ -199,18 +256,34 @@ public sealed class Character
         };
     }
 
-    public BrokenOutcome? ResolveBroken()
+    private BrokenOutcome? ResolveBroken()
     {
-        if (!Hp.IsZero) return null;
+        if (!Hp.IsZero)
+            return null;
+        
         var d4 = Dice.Roll(DiceExpr.D4);
-        return d4 switch
+
+        if (d4 is 1 or 2)
         {
-            1 => BrokenOutcome.Unconscious(Dice.Roll(DiceExpr.D4), Dice.Roll(DiceExpr.D4)),
-            2 => Dice.Roll(DiceExpr.D6) == 6
-                ? BrokenOutcome.LostEye(Dice.Roll(DiceExpr.D4))
-                : BrokenOutcome.BrokenOrSeveredLimb(Dice.Roll(DiceExpr.D4)),
-            3 => BrokenOutcome.Hemorrhage(),
-            _ => BrokenOutcome.Dead()
+            return BrokenOutcome.Dead();
+        }
+
+        if (d4 > 4)
+        {
+            return null;
+        }
+
+        var d6 = Dice.Roll(DiceExpr.D6);
+        
+        return d6 switch
+        {  
+            1 => BrokenOutcome.SeveredArm(),
+            2 => BrokenOutcome.CrushedFoot(),
+            3 => BrokenOutcome.SmashedFace(),
+            4 => BrokenOutcome.StabbedLung(),
+            5 => BrokenOutcome.BrokenHand(),
+            6 => BrokenOutcome.EyeLost(),
+            _ => throw new ArgumentOutOfRangeException()
         };
     }
 
@@ -218,7 +291,7 @@ public sealed class Character
     {
         if (IsInfected)
         {
-            Hp = Hp.Damage(Dice.Roll(DiceExpr.D6));
+            ReceiveDamage(Dice.Roll(DiceExpr.D6));
             return;
         }
 
@@ -267,17 +340,39 @@ public sealed class Character
         if (test.IsSuccess) return CastOutcome.Success(scroll.Description);
 
         var loss = Dice.Roll(DiceExpr.D2);
-        Hp = Hp.Damage(loss);
+        ReceiveDamage(loss);
         IsDizzyFromMagic = true;
         return CastOutcome.Fizzle(scroll.Description, loss);
     }
 
     public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, int penalty = 0)
     {
-        if (ability is AbilityKind.Strength or AbilityKind.Agility && IsEncumbered)
+        switch (ability)
         {
-            challenge = new Dr(challenge.Value + 2);
+            case AbilityKind.Strength or AbilityKind.Agility when IsEncumbered:
+                challenge = new Dr(challenge.Value + 2);
+                break;
+            case AbilityKind.Presence when HasSmashedFace:
+                penalty += Dice.Roll(DiceExpr.D4);
+                break;
         }
+        
+        switch (ability)
+        {
+            case AbilityKind.Strength when HasSeveredArm:
+                challenge = new Dr(challenge.Value + 4);
+                break;
+            case AbilityKind.Strength when HasBrokenHand:
+            case AbilityKind.Agility when HasStabbedLung || HasCrushedFoot:
+                challenge = new Dr(challenge.Value + 2);
+                break;
+        }
+
+        if (ability is AbilityKind.Agility && HasLostEye)
+        {
+            penalty += Dice.Roll(DiceExpr.D4);
+        }
+        
         challenge = new Dr(challenge.Value + penalty);
         
         var rollResults = Dice.Roll(DiceExpr.D20);

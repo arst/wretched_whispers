@@ -1,4 +1,4 @@
-using WretchedWhispers.Core.Scrolls;
+using WretchedWhispers.Core.Characters.Posessions.Scrolls;
 
 namespace WretchedWhispers.Semantic.Models;
 

@@ -3,9 +3,10 @@ using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Posessions;
 using WretchedWhispers.Core.Characters.Posessions.Armor;
 using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Posessions.Scrolls;
 using WretchedWhispers.Core.Characters.Posessions.Weapon;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.Scrolls;
+using Scroll = WretchedWhispers.Core.Characters.Posessions.Scrolls.Scroll;
 
 namespace WretchedWhispers.Core.CharacterCreation;
 
@@ -76,7 +77,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, ScrollSchool? ScrollSchool, bool IsShield, int Quantity) RollGearSlot1(
+    private static (string GearDescription, Characters.Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity) RollGearSlot1(
         Abilities.Abilities abilities)
     {
         var d = Dice.Roll(DiceExpr.D12);
@@ -97,7 +98,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, ScrollSchool? ScrollSchool, bool IsShield, int Quantity) RollGearSlot2()
+    private static (string GearDescription, Characters.Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity) RollGearSlot2()
     {
         var d = Dice.Roll(DiceExpr.D12);
         return d switch
