@@ -70,7 +70,7 @@ public class CampaignService(
 
             if (character is null) throw new InvalidOperationException("Player character not found.");
             
-            character.NewDawn();
+            character.StartNewDay();
             await charactersRepository.Save(character);
         }
 
@@ -94,7 +94,7 @@ public class CampaignService(
             
             if (outcome.IsNewDawn)
             {
-                character.NewDawn();
+                character.StartNewDay();
             }
             
             await charactersRepository.Save(character);

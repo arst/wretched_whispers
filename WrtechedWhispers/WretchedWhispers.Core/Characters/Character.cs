@@ -49,7 +49,7 @@ public sealed class Character
     public Guid Id { get; private set; }
     public string Name { get; private set; }
     public Abilities.Abilities Abilities { get; }
-    public int Silver { get; }
+    public int Silver { get; private set; }
     public int FoodDays { get; }
     
     public Inventory Inventory { get; private set; }
@@ -82,7 +82,7 @@ public sealed class Character
         IsInfected = false;
     }
 
-    public void NewDawn()
+    public void StartNewDay()
     {
         Powers.ResetForNewDay(Abilities.Presence);
         IsDizzyFromMagic = false;
@@ -230,6 +230,25 @@ public sealed class Character
         var isFullNightRest = hours >= 8;
         var heal = isFullNightRest ? Dice.Roll(DiceExpr.D6) : Dice.Roll(DiceExpr.D4);
         Hp = Hp.Heal(heal);
+    }
+
+    public void BuyItem(int price, InventoryItem item)
+    {
+        if (price <= 0)
+            throw new ArgumentOutOfRangeException(nameof(price), "Price must be positive.");
+
+        if (Inventory.IsFull)
+        {
+            throw new InvalidOperationException("Inventory is full, throw away another item to add a new one.");
+        }
+
+        if (Silver < price)
+        {
+            throw new InvalidOperationException("Not enough silver to buy the item.");
+        }
+        
+        Inventory = Inventory with { InventoryItems = Inventory.InventoryItems.Append(item).ToList() };
+        Silver -= price;
     }
 
     public CastOutcome Cast(Scroll scroll)
