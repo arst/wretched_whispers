@@ -15,7 +15,7 @@ namespace WretchedWhispers.Core.Characters;
 
 public sealed class Character
 {
-    private readonly List<Scroll> _knownScrolls;
+    private readonly List<Scroll> _scrolls;
 
     private Character(
         Guid id,
@@ -42,7 +42,7 @@ public sealed class Character
         Shield = shield;
         Omens = new Omens(omenCount);
         Hp = new HitPoints(currentHp, maxHp);
-        _knownScrolls = scrolls;
+        _scrolls = scrolls;
         Inventory = inventory;
     }
 
@@ -65,13 +65,8 @@ public sealed class Character
     public bool IsDizzyFromMagic { get; private set; }
     public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
 
-    public IReadOnlyCollection<Scroll> KnownScrolls => _knownScrolls;
-
-    public void LearnScroll(Scroll s)
-    {
-        _knownScrolls.Add(s);
-    }
-
+    public IReadOnlyCollection<Scroll> Scrolls => _scrolls;
+    
     public void Infect()
     {
         IsInfected = true;
@@ -251,8 +246,15 @@ public sealed class Character
         Silver -= price;
     }
 
-    public CastOutcome Cast(Scroll scroll)
+    public CastOutcome Cast(Guid scrollId)
     {
+        var scroll = _scrolls.FirstOrDefault(s => s.Id == scrollId);
+        
+        if (scroll is null)
+        {
+            throw new InvalidOperationException("Scroll not found in inventory.");
+        }
+        
         if (IsDizzyFromMagic)
             return CastOutcome.Fail("Dizzy from prior failure");
         if (ScrollRestrictionPolicy.CanUseScrolls(Weapon, Armor))
@@ -261,12 +263,13 @@ public sealed class Character
             return CastOutcome.Fail("No daily power uses remaining");
 
         var test = Challenge(new Dr(12), AbilityKind.Presence);
-        if (test.IsSuccess) return CastOutcome.Success(scroll.Key);
+        
+        if (test.IsSuccess) return CastOutcome.Success(scroll.Description);
 
         var loss = Dice.Roll(DiceExpr.D2);
         Hp = Hp.Damage(loss);
         IsDizzyFromMagic = true;
-        return CastOutcome.Fizzle(scroll.Key, loss);
+        return CastOutcome.Fizzle(scroll.Description, loss);
     }
 
     public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, int penalty = 0)

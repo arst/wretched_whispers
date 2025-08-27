@@ -45,9 +45,9 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         var armor = RollArmor(hasScroll);
         var scrolls = new List<Scroll>();
 
-        if (gear1.ScrollSchool is not null) scrolls.Add(new Scroll(gear1.ScrollSchool.Value, "random"));
+        if (gear1.ScrollSchool is not null) scrolls.Add(new Scroll( Guid.NewGuid(), gear1.ScrollSchool.Value, "random"));
 
-        if (gear2.ScrollSchool is not null) scrolls.Add(new Scroll(gear2.ScrollSchool.Value, "random"));
+        if (gear2.ScrollSchool is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear2.ScrollSchool.Value, "random"));
 
         return new StartingEquipment(
             silver,

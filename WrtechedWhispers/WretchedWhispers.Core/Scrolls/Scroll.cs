@@ -2,13 +2,14 @@
 
 public sealed class Scroll
 {
-    public Scroll(ScrollSchool school, string key)
+    public Scroll(Guid id, ScrollSchool school, string description)
     {
+        Id = id;
         School = school;
-        Key = key;
+        Description = description;
     }
 
+    public Guid Id { get; }
     public ScrollSchool School { get; }
-
-    public string Key { get; } // identifier such as "death", "levitation", etc. Implementation left open.
+    public string Description { get; }
 }

@@ -253,6 +253,33 @@ public sealed class CharacterPlugin(
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
+
+    [KernelFunction]
+    [Description("Cast a scroll spell that the character possesses. Requires daily power uses and cannot be done if dizzy from prior magic failure, wearing heavy armor, or wielding two-handed weapons. Success casts the spell, failure causes HP loss and dizziness.")]
+    public async Task<CastOutcomeDto> CastScroll(
+        [Description("Id of the character casting the scroll")]
+        Guid characterId,
+        [Description("Id of the scroll to cast")]
+        Guid scrollId)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        var outcome = character.Cast(scrollId);
+        
+        await charactersRepository.Save(character);
+        
+        return new CastOutcomeDto
+        {
+            Succeeded = outcome.Succeeded,
+            Reason = outcome.Reason,
+            PowerKey = outcome.PowerKey,
+            HpLost = outcome.HpLost
+        };
+    }
     
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier)
     {
@@ -289,9 +316,9 @@ public sealed class CharacterPlugin(
             PowersUsed = character.Powers.UsesRemaining,
             IsInfected = character.IsInfected,
             IsDizzyFromMagic = character.IsDizzyFromMagic,
-            KnownScrolls = character.KnownScrolls.Select(s => new ScrollDto
+            KnownScrolls = character.Scrolls.Select(s => new ScrollDto
             {
-                Key = s.Key,
+                Key = s.Description,
                 School = s.School
             }).ToList(),
             Inventory = new InventoryDto
