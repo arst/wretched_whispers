@@ -255,6 +255,7 @@ public sealed class Character
         {
             challenge = new Dr(challenge.Value + 2);
         }
+        challenge = new Dr(challenge.Value + penalty);
         
         var rollResults = Dice.Roll(DiceExpr.D20);
         var outcome = rollResults + Abilities[ability].Modifier;
