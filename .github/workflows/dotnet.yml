@@ -1,0 +1,24 @@
+name: .NET Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - name: Restore dependencies
+        run: dotnet restore WrtechedWhispers/WrtechedWhispers.sln
+      - name: Build
+        run: dotnet build WrtechedWhispers/WrtechedWhispers.sln --no-restore --configuration Release
+      - name: Test
+        run: dotnet test WrtechedWhispers.Tests/WretchedWhispers.Tests.csproj --no-build --configuration Release --logger "trx"
