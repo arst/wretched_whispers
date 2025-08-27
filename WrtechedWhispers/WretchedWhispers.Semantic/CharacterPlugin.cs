@@ -188,8 +188,72 @@ public sealed class CharacterPlugin(
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
-    
 
+    [KernelFunction]
+    [Description("Infect a character. Common causes: falling to 0 HP with untreated festering wounds, exposure to rot/corruption/sewage/blighted lands, failed Toughness/Presence saves after nasty injuries, bites/claws from diseased creatures (vermin/undead/horrors). Infection stops healing and causes daily damage.")]
+    public async Task<CharacterDto> InfectCharacter(
+        [Description("Id of the character to infect")]
+        Guid characterId)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        character.Infect();
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [KernelFunction]
+    [Description("Cure a character's infection. No natural recovery - requires prayers, unclean rituals, or rare remedies. Common methods: sacred/occult healing (priest's prayer, esoteric ritual, unholy pact), rare ingredients (boiled crow's tongue, powdered saint's bone, bizarre tonics), or NPC healer (surgeon/witch) often for a terrible price.")]
+    public async Task<CharacterDto> CureInfection(
+        [Description("Id of the character to cure infection from")]
+        Guid characterId)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        character.CureInfection();
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [KernelFunction]
+    [Description("Buy an item for a character, deducting silver and adding the item to inventory")]
+    public async Task<CharacterDto> BuyItem(
+        [Description("Id of the character buying the item")]
+        Guid characterId,
+        [Description("Description of the item to buy")]
+        string itemDescription,
+        [Description("Cost of the item in silver")]
+        int silverCost,
+        [Description("Whether the item is bulky and takes 2 inventory slots instead of 1")]
+        bool isBulky = false,
+        [Description("Whether the item is consumed after one use")]
+        bool isOneTimeUse = false,
+        [Description("Quantity of the item to buy")]
+        int quantity = 1)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        var newItem = new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity);
+        character.BuyItem(silverCost, newItem);
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+    
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier)
     {
         return armorTier switch
