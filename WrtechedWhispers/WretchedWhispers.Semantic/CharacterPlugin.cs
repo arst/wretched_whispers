@@ -112,6 +112,28 @@ public sealed class CharacterPlugin(
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
+
+    [KernelFunction]
+    [Description("Replenish an existing item in a character's inventory by adding to its quantity")]
+    public async Task<CharacterDto> ReplenishItemInCharacterInventory(
+        [Description("Id of the character whose item to replenish")]
+        Guid characterId,
+        [Description("Id of the inventory item to replenish")]
+        Guid itemId,
+        [Description("Amount to add to the item's quantity")]
+        int amount = 1)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        character.Inventory.ReplenishItem(itemId, amount);
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
     
 
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier)

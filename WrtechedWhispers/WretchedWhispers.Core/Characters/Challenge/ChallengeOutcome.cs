@@ -1,4 +1,5 @@
 using WretchedWhispers.Core.Abilities;
+using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters.Challenge;
 

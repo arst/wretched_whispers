@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Abilities;
+﻿namespace WretchedWhispers.Core.Dices;
 
 public enum Natural
 {

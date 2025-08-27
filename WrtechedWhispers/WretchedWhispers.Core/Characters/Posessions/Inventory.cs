@@ -50,6 +50,18 @@ public record Inventory(string Container, int MaxCapacity, List<InventoryItem> I
         return true;
     }
 
+    public void ReplenishItem(Guid itemId, int amount = 1)
+    {
+        var item = InventoryItems.FirstOrDefault(i => i.Id == itemId);
+
+        if (item is null)
+        {
+            throw new InvalidOperationException($"Item with id {itemId} is not in the inventory");
+        }
+
+        item.Add(amount);
+    }
+
     public int GetFreeSlots()
     {
         return MaxCapacity - CalculateOccupiedSlots();
