@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using Microsoft.SemanticKernel;
-using WretchedWhispers.Core;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Posessions.Armor;

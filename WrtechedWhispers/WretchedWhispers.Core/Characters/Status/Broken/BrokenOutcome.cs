@@ -6,12 +6,12 @@ public abstract record BrokenOutcome(string Kind)
     {
         return new BrokenHand();
     }
-    
+
     public static BrokenOutcome CrushedFoot()
     {
         return new CrushedFoot();
     }
-    
+
     public static BrokenOutcome SeveredArm()
     {
         return new SeveredArm();
@@ -21,7 +21,7 @@ public abstract record BrokenOutcome(string Kind)
     {
         return new SmashedFace();
     }
-    
+
     public static BrokenOutcome StabbedLung()
     {
         return new StabbedLung();

@@ -56,14 +56,11 @@ public sealed class CharacterPlugin(
         int quantity = 1)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         var newItem = new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity);
         character.Inventory.AddItem(newItem);
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
@@ -77,19 +74,17 @@ public sealed class CharacterPlugin(
         Guid itemId)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         character.Inventory.RemoveItem(itemId);
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
     [KernelFunction]
-    [Description("Consume one unit of an item from a character's inventory, reducing its quantity by 1 or removing it completely if quantity reaches 0")]
+    [Description(
+        "Consume one unit of an item from a character's inventory, reducing its quantity by 1 or removing it completely if quantity reaches 0")]
     public async Task<CharacterDto> ConsumeItemFromCharacterInventory(
         [Description("Id of the character whose item to consume")]
         Guid characterId,
@@ -97,17 +92,11 @@ public sealed class CharacterPlugin(
         Guid itemId)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         var wasConsumed = character.Inventory.ConsumeItem(itemId);
-        if (!wasConsumed)
-        {
-            throw new InvalidOperationException($"Item with id {itemId} has no quantity left to consume");
-        }
-        
+        if (!wasConsumed) throw new InvalidOperationException($"Item with id {itemId} has no quantity left to consume");
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
@@ -123,19 +112,17 @@ public sealed class CharacterPlugin(
         int amount = 1)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         character.Inventory.ReplenishItem(itemId, amount);
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
     [KernelFunction]
-    [Description("Improve a character's ability score by a specified amount, increasing their effectiveness in that ability")]
+    [Description(
+        "Improve a character's ability score by a specified amount, increasing their effectiveness in that ability")]
     public async Task<CharacterDto> ImproveCharacterAbility(
         [Description("Id of the character whose ability to improve")]
         Guid characterId,
@@ -145,24 +132,19 @@ public sealed class CharacterPlugin(
         int delta)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
-        if (delta <= 0)
-        {
-            throw new InvalidOperationException("Improvement delta must be positive");
-        }
+        if (delta <= 0) throw new InvalidOperationException("Improvement delta must be positive");
 
         character.Improve(abilityKind, delta);
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
     [KernelFunction]
-    [Description("Degrade a character's ability score by a specified amount, reducing their effectiveness in that ability")]
+    [Description(
+        "Degrade a character's ability score by a specified amount, reducing their effectiveness in that ability")]
     public async Task<CharacterDto> DegradeCharacterAbility(
         [Description("Id of the character whose ability to degrade")]
         Guid characterId,
@@ -172,54 +154,44 @@ public sealed class CharacterPlugin(
         int delta)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
-        if (delta >= 0)
-        {
-            throw new InvalidOperationException("Degradation delta must be negative");
-        }
+        if (delta >= 0) throw new InvalidOperationException("Degradation delta must be negative");
 
         character.Degrade(abilityKind, delta);
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
     [KernelFunction]
-    [Description("Infect a character. Common causes: falling to 0 HP with untreated festering wounds, exposure to rot/corruption/sewage/blighted lands, failed Toughness/Presence saves after nasty injuries, bites/claws from diseased creatures (vermin/undead/horrors). Infection stops healing and causes daily damage.")]
+    [Description(
+        "Infect a character. Common causes: falling to 0 HP with untreated festering wounds, exposure to rot/corruption/sewage/blighted lands, failed Toughness/Presence saves after nasty injuries, bites/claws from diseased creatures (vermin/undead/horrors). Infection stops healing and causes daily damage.")]
     public async Task<CharacterDto> InfectCharacter(
         [Description("Id of the character to infect")]
         Guid characterId)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         character.Infect();
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
     [KernelFunction]
-    [Description("Cure a character's infection. No natural recovery - requires prayers, unclean rituals, or rare remedies. Common methods: sacred/occult healing (priest's prayer, esoteric ritual, unholy pact), rare ingredients (boiled crow's tongue, powdered saint's bone, bizarre tonics), or NPC healer (surgeon/witch) often for a terrible price.")]
+    [Description(
+        "Cure a character's infection. No natural recovery - requires prayers, unclean rituals, or rare remedies. Common methods: sacred/occult healing (priest's prayer, esoteric ritual, unholy pact), rare ingredients (boiled crow's tongue, powdered saint's bone, bizarre tonics), or NPC healer (surgeon/witch) often for a terrible price.")]
     public async Task<CharacterDto> CureInfection(
         [Description("Id of the character to cure infection from")]
         Guid characterId)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         character.CureInfection();
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
@@ -241,20 +213,18 @@ public sealed class CharacterPlugin(
         int quantity = 1)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         var newItem = new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity);
         character.BuyItem(silverCost, newItem);
-        
+
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
     [KernelFunction]
-    [Description("Cast a scroll spell that the character possesses. Requires daily power uses and cannot be done if dizzy from prior magic failure, wearing heavy armor, or wielding two-handed weapons. Success casts the spell, failure causes HP loss and dizziness.")]
+    [Description(
+        "Cast a scroll spell that the character possesses. Requires daily power uses and cannot be done if dizzy from prior magic failure, wearing heavy armor, or wielding two-handed weapons. Success casts the spell, failure causes HP loss and dizziness.")]
     public async Task<CastOutcomeDto> CastScroll(
         [Description("Id of the character casting the scroll")]
         Guid characterId,
@@ -262,15 +232,12 @@ public sealed class CharacterPlugin(
         Guid scrollId)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character == null)
-        {
-            throw new InvalidOperationException($"Character with id {characterId} not found");
-        }
+        if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         var outcome = character.Cast(scrollId);
-        
+
         await charactersRepository.Save(character);
-        
+
         return new CastOutcomeDto
         {
             Succeeded = outcome.Succeeded,
@@ -279,7 +246,7 @@ public sealed class CharacterPlugin(
             HpLost = outcome.HpLost
         };
     }
-    
+
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier)
     {
         return armorTier switch
@@ -291,7 +258,7 @@ public sealed class CharacterPlugin(
             _ => throw new ArgumentOutOfRangeException(nameof(armorTier), armorTier, null)
         };
     }
-    
+
     private static CharacterDto CreateCharacterDto(Character character)
     {
         return new CharacterDto

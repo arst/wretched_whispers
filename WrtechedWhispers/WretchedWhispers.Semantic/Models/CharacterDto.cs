@@ -20,7 +20,7 @@ public class CharacterDto
     // Resources
     public int Silver { get; set; }
     public int FoodDays { get; set; }
-    
+
     // Equipment
     public WeaponKind WeaponKind { get; set; }
     public ArmorTierDto ArmorTier { get; set; }

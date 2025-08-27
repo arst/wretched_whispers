@@ -9,24 +9,26 @@ public class Settings
 
     private AzureOpenAiSettings _azureOpenAi;
 
-    public AzureOpenAiSettings AzureOpenAi => this._azureOpenAi ??= this.GetSettings<Settings.AzureOpenAiSettings>();
+    public Settings()
+    {
+        _configRoot =
+            new ConfigurationBuilder()
+                .AddEnvironmentVariables()
+                .AddUserSecrets(Assembly.GetExecutingAssembly(), true)
+                .Build();
+    }
+
+    public AzureOpenAiSettings AzureOpenAi => _azureOpenAi ??= GetSettings<AzureOpenAiSettings>();
+
+    public TSettings GetSettings<TSettings>()
+    {
+        return _configRoot.GetRequiredSection(typeof(TSettings).Name).Get<TSettings>()!;
+    }
 
     public class AzureOpenAiSettings
     {
         public string ChatModelDeployment { get; set; } = string.Empty;
         public string Endpoint { get; set; } = string.Empty;
         public string ApiKey { get; set; } = string.Empty;
-    }
-
-    public TSettings GetSettings<TSettings>() =>
-        this._configRoot.GetRequiredSection(typeof(TSettings).Name).Get<TSettings>()!;
-
-    public Settings()
-    {
-        _configRoot =
-            new ConfigurationBuilder()
-                .AddEnvironmentVariables()
-                .AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true)
-                .Build();
     }
 }

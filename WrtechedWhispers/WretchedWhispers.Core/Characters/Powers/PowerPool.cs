@@ -1,11 +1,13 @@
-﻿using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Core.Dices;
+﻿using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters.Powers;
 
 public sealed class PowerPool
 {
-    private PowerPool() { }
+    private PowerPool()
+    {
+    }
+
     // Re-rolled each dawn: Presence + d4 uses
     public int UsesRemaining { get; private set; }
     public int MaxUses { get; private set; }

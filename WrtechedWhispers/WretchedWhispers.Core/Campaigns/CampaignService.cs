@@ -60,24 +60,21 @@ public class CampaignService(
         var outcome = campaign.AdvanceTime(hours, rng);
         await campaignsRepository.SaveCampaign(campaign);
 
-        if (!outcome.IsNewDawn)
-        {
-            return outcome;
-        }
-        
+        if (!outcome.IsNewDawn) return outcome;
+
         foreach (var playerId in campaign.Players)
         {
             var character = await charactersRepository.Get(playerId);
 
             if (character is null) throw new InvalidOperationException("Player character not found.");
-            
+
             character.StartNewDay();
             await charactersRepository.Save(character);
         }
 
         return outcome;
     }
-    
+
     public async Task<AdvanceTimeOutcome> AdvanceTimeWithRest(Guid campaignId, int hours)
     {
         var campaign = await campaignsRepository.Get(campaignId);
@@ -92,12 +89,9 @@ public class CampaignService(
 
             if (character is null) throw new InvalidOperationException("Player character not found.");
             character.Rest(hours);
-            
-            if (outcome.IsNewDawn)
-            {
-                character.StartNewDay();
-            }
-            
+
+            if (outcome.IsNewDawn) character.StartNewDay();
+
             await charactersRepository.Save(character);
         }
 

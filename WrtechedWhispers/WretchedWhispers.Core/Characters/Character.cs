@@ -54,7 +54,7 @@ public sealed class Character
     public Abilities.Abilities Abilities { get; }
     public int Silver { get; private set; }
     public int FoodDays { get; }
-    
+
     public Inventory Inventory { get; private set; }
 
     public HitPoints Hp { get; private set; }
@@ -67,23 +67,23 @@ public sealed class Character
     public bool IsInfected { get; private set; }
     public bool IsDizzyFromMagic { get; private set; }
     public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
-    
+
     public bool IsDead { get; private set; }
-    
+
     public bool HasLostEye { get; private set; }
-    
+
     public bool HasStabbedLung { get; private set; }
-    
+
     public bool HasBrokenHand { get; private set; }
-    
+
     public bool HasCrushedFoot { get; private set; }
-    
+
     public bool HasSeveredArm { get; private set; }
-    
+
     public bool HasSmashedFace { get; private set; }
 
     public IReadOnlyCollection<Scroll> Scrolls => _scrolls;
-    
+
     public void Infect()
     {
         IsInfected = true;
@@ -210,10 +210,9 @@ public sealed class Character
         }
     }
 
-    
 
-
-    private int CalculateDamageAfterDefense(DiceExpr attackDie, (bool IsAvoided, bool IsCritFree, bool IsFumble) outcome)
+    private int CalculateDamageAfterDefense(DiceExpr attackDie,
+        (bool IsAvoided, bool IsCritFree, bool IsFumble) outcome)
     {
         var damage = Dice.Roll(attackDie);
 
@@ -262,23 +261,17 @@ public sealed class Character
     {
         if (!Hp.IsZero)
             return null;
-        
+
         var d4 = Dice.Roll(DiceExpr.D4);
 
-        if (d4 is 1 or 2)
-        {
-            return BrokenOutcome.Dead();
-        }
+        if (d4 is 1 or 2) return BrokenOutcome.Dead();
 
-        if (d4 > 4)
-        {
-            return null;
-        }
+        if (d4 > 4) return null;
 
         var d6 = Dice.Roll(DiceExpr.D6);
-        
+
         return d6 switch
-        {  
+        {
             1 => BrokenOutcome.SeveredArm(),
             2 => BrokenOutcome.CrushedFoot(),
             3 => BrokenOutcome.SmashedFace(),
@@ -308,15 +301,10 @@ public sealed class Character
             throw new ArgumentOutOfRangeException(nameof(price), "Price must be positive.");
 
         if (Inventory.IsFull)
-        {
             throw new InvalidOperationException("Inventory is full, throw away another item to add a new one.");
-        }
 
-        if (Silver < price)
-        {
-            throw new InvalidOperationException("Not enough silver to buy the item.");
-        }
-        
+        if (Silver < price) throw new InvalidOperationException("Not enough silver to buy the item.");
+
         Inventory = Inventory with { InventoryItems = Inventory.InventoryItems.Append(item).ToList() };
         Silver -= price;
     }
@@ -324,12 +312,9 @@ public sealed class Character
     public CastOutcome Cast(Guid scrollId)
     {
         var scroll = _scrolls.FirstOrDefault(s => s.Id == scrollId);
-        
-        if (scroll is null)
-        {
-            throw new InvalidOperationException("Scroll not found in inventory.");
-        }
-        
+
+        if (scroll is null) throw new InvalidOperationException("Scroll not found in inventory.");
+
         if (IsDizzyFromMagic)
             return CastOutcome.Fail("Dizzy from prior failure");
         if (ScrollRestrictionPolicy.CanUseScrolls(Weapon, Armor))
@@ -338,7 +323,7 @@ public sealed class Character
             return CastOutcome.Fail("No daily power uses remaining");
 
         var challengeOutcome = Challenge(new Dr(12), AbilityKind.Presence);
-        
+
         if (challengeOutcome.IsSuccess) return CastOutcome.Success(scroll.Description);
 
         var loss = Dice.Roll(DiceExpr.D2);
@@ -358,7 +343,7 @@ public sealed class Character
                 penalty += Dice.Roll(DiceExpr.D4);
                 break;
         }
-        
+
         switch (ability)
         {
             case AbilityKind.Strength when HasSeveredArm:
@@ -370,22 +355,19 @@ public sealed class Character
                 break;
         }
 
-        if (ability is AbilityKind.Agility && HasLostEye)
-        {
-            penalty += Dice.Roll(DiceExpr.D4);
-        }
-        
+        if (ability is AbilityKind.Agility && HasLostEye) penalty += Dice.Roll(DiceExpr.D4);
+
         challenge = new Dr(challenge.Value + penalty);
-        
+
         var rollResults = Dice.Roll(DiceExpr.D20);
         var outcome = rollResults + Abilities[ability].Modifier;
         var nat = rollResults switch { 1 => Natural.One, 20 => Natural.Twenty, _ => Natural.None };
-        
-        return nat is Natural.One ? ChallengeOutcome.Fail(nat) 
-            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat) 
+
+        return nat is Natural.One ? ChallengeOutcome.Fail(nat)
+            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat)
             : outcome >= challenge.Value ? ChallengeOutcome.Success(nat) : ChallengeOutcome.Fail(nat);
     }
-    
+
     public void Improve(AbilityKind kind, int delta)
     {
         Abilities.ModifyAbility(kind, delta);
@@ -395,14 +377,11 @@ public sealed class Character
         var newCapacity = 2 * (Abilities.Strength.Modifier + 8);
         Inventory = Inventory with { MaxCapacity = newCapacity };
     }
-    
+
     public void Degrade(AbilityKind kind, int delta)
     {
-        if (delta >= 0)
-        {
-            throw new InvalidOperationException("Degrade delta must be negative.");
-        }
-        
+        if (delta >= 0) throw new InvalidOperationException("Degrade delta must be negative.");
+
         Abilities.ModifyAbility(kind, delta);
 
         if (kind != AbilityKind.Strength)
@@ -415,18 +394,12 @@ public sealed class Character
         StartingEquipment equipment, int startingOmensCount = 0)
     {
         var items = new List<InventoryItem>();
-        
-        if (equipment.Gear1 is not null)
-        {
-            items.Add(equipment.Gear1);
-        }
 
-        if (equipment.Gear2 is not null)
-        {
-            items.Add(equipment.Gear2);
-        }
+        if (equipment.Gear1 is not null) items.Add(equipment.Gear1);
+
+        if (equipment.Gear2 is not null) items.Add(equipment.Gear2);
         var inventoryCapacity = 2 * (abilities.Strength.Modifier + 8);
-        
+
         return new Character(
             id,
             name,
@@ -438,7 +411,7 @@ public sealed class Character
             equipment.Armor,
             equipment.Shield,
             equipment.Scrolls,
-            PowerPool.Create(abilities), 
+            PowerPool.Create(abilities),
             maxHp,
             maxHp,
             startingOmensCount);

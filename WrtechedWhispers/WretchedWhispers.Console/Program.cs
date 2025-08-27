@@ -5,11 +5,6 @@ using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using WretchedWhispers.Console;
-using WretchedWhispers.Core;
-using WretchedWhispers.Core.Campaigns;
-using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Semantic;
 
@@ -74,7 +69,8 @@ ChatCompletionAgent gameMasterAgent =
             """,
         Kernel = campaignKernel,
         Arguments =
-            new KernelArguments(new AzureOpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() })
+            new KernelArguments(new AzureOpenAIPromptExecutionSettings
+                { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() })
     };
 
 ChatHistoryAgentThread agentThread = new();
@@ -85,24 +81,19 @@ do
     Console.WriteLine();
     Console.Write("> ");
     var input = Console.ReadLine();
-    
-    if (string.IsNullOrWhiteSpace(input))
-    {
-        continue;
-    }
-    
+
+    if (string.IsNullOrWhiteSpace(input)) continue;
+
     if (input.Trim().Equals("EXIT", StringComparison.OrdinalIgnoreCase))
     {
         isComplete = true;
         break;
     }
-    
+
     var message = new ChatMessageContent(AuthorRole.User, input);
-    
+
     await foreach (ChatMessageContent response in gameMasterAgent.InvokeAsync(message, agentThread))
-    {
         Console.WriteLine($"{response.Content}");
-    }
 
     Console.WriteLine();
 } while (!isComplete);
@@ -112,9 +103,9 @@ return;
 void RegisterServices(IKernelBuilder builder)
 {
     builder.AddAzureOpenAIChatCompletion(
-        deploymentName: settings.AzureOpenAi.ChatModelDeployment,
-        endpoint: settings.AzureOpenAi.Endpoint,
-        apiKey: settings.AzureOpenAi.ApiKey);
+        settings.AzureOpenAi.ChatModelDeployment,
+        settings.AzureOpenAi.Endpoint,
+        settings.AzureOpenAi.ApiKey);
     builder.Services.AddInMemoryInfrastructure();
     builder.Services.AddLogging(lb =>
     {

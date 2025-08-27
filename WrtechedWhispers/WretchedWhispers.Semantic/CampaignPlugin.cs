@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using Microsoft.SemanticKernel;
-using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
@@ -87,7 +86,8 @@ public class CampaignPlugin(
     }
 
     [KernelFunction]
-    [Description("Advances time in a campaign while characters deliberately rest to recover health and powers. Unlike AdvanceTime which is used for passive time progression during game actions or events, Rest is a deliberate character action where they choose to rest for recovery. Characters will heal HP and restore magical abilities during the rest period.")]
+    [Description(
+        "Advances time in a campaign while characters deliberately rest to recover health and powers. Unlike AdvanceTime which is used for passive time progression during game actions or events, Rest is a deliberate character action where they choose to rest for recovery. Characters will heal HP and restore magical abilities during the rest period.")]
     public async Task<AdvanceTimeOutcomeDto> Rest(
         [Description("The unique identifier of the campaign to advance time in while resting")]
         Guid campaignId,

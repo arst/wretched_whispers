@@ -44,7 +44,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         var armor = RollArmor(hasScroll);
         var scrolls = new List<Scroll>();
 
-        if (gear1.ScrollSchool is not null) scrolls.Add(new Scroll( Guid.NewGuid(), gear1.ScrollSchool.Value, "random"));
+        if (gear1.ScrollSchool is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear1.ScrollSchool.Value, "random"));
 
         if (gear2.ScrollSchool is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear2.ScrollSchool.Value, "random"));
 
@@ -52,8 +52,12 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
             silver,
             foodDays,
             container,
-            gear1 .ScrollSchool is null && !gear1.IsShield ? new InventoryItem( Guid.NewGuid(), gear1.GearDescription, false, true, gear1.Quantity) : null,
-            gear2 .ScrollSchool is null && !gear2.IsShield ? new InventoryItem( Guid.NewGuid(), gear2.GearDescription, false, true, gear2.Quantity) : null,
+            gear1.ScrollSchool is null && !gear1.IsShield
+                ? new InventoryItem(Guid.NewGuid(), gear1.GearDescription, false, true, gear1.Quantity)
+                : null,
+            gear2.ScrollSchool is null && !gear2.IsShield
+                ? new InventoryItem(Guid.NewGuid(), gear2.GearDescription, false, true, gear2.Quantity)
+                : null,
             weapon,
             armor,
             hasShield ? new Shield() : null,
@@ -75,15 +79,16 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, Characters.Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity) RollGearSlot1(
-        Abilities.Abilities abilities)
+    private static (string GearDescription, Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+        RollGearSlot1(
+            Abilities.Abilities abilities)
     {
         var d = Dice.Roll(DiceExpr.D12);
         return d switch
         {
             1 => ("rope 30 ft", null, false, 1),
             2 => ("torches", null, false, abilities.Presence.Modifier + 4),
-            3 => ("lantern + oil", null, false, abilities.Presence.Modifier+ 6),
+            3 => ("lantern + oil", null, false, abilities.Presence.Modifier + 6),
             4 => ("magnesium strip", null, false, 1),
             5 => ("random unclean scroll", ScrollSchool: ScrollSchool.Unclean, false, 1),
             6 => ("sharp needle", null, false, 1),
@@ -96,7 +101,8 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, Characters.Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity) RollGearSlot2()
+    private static (string GearDescription, Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+        RollGearSlot2()
     {
         var d = Dice.Roll(DiceExpr.D12);
         return d switch
