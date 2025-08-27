@@ -219,7 +219,7 @@ public sealed class Character
         };
     }
 
-    public void Rest(bool isFullNightRest)
+    public void Rest(int hours)
     {
         if (IsInfected)
         {
@@ -227,6 +227,7 @@ public sealed class Character
             return;
         }
 
+        var isFullNightRest = hours >= 8;
         var heal = isFullNightRest ? Dice.Roll(DiceExpr.D6) : Dice.Roll(DiceExpr.D4);
         Hp = Hp.Heal(heal);
     }

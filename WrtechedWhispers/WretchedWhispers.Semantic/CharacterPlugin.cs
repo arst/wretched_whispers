@@ -134,6 +134,60 @@ public sealed class CharacterPlugin(
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
+
+    [KernelFunction]
+    [Description("Improve a character's ability score by a specified amount, increasing their effectiveness in that ability")]
+    public async Task<CharacterDto> ImproveCharacterAbility(
+        [Description("Id of the character whose ability to improve")]
+        Guid characterId,
+        [Description("The ability to improve - one of: 'Strength', 'Agility', 'Presence', 'Toughness'")]
+        AbilityKind abilityKind,
+        [Description("The positive amount to improve the ability by")]
+        int delta)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        if (delta <= 0)
+        {
+            throw new InvalidOperationException("Improvement delta must be positive");
+        }
+
+        character.Improve(abilityKind, delta);
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [KernelFunction]
+    [Description("Degrade a character's ability score by a specified amount, reducing their effectiveness in that ability")]
+    public async Task<CharacterDto> DegradeCharacterAbility(
+        [Description("Id of the character whose ability to degrade")]
+        Guid characterId,
+        [Description("The ability to degrade - one of: 'Strength', 'Agility', 'Presence', 'Toughness'")]
+        AbilityKind abilityKind,
+        [Description("The negative amount to degrade the ability by (must be negative)")]
+        int delta)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character == null)
+        {
+            throw new InvalidOperationException($"Character with id {characterId} not found");
+        }
+
+        if (delta >= 0)
+        {
+            throw new InvalidOperationException("Degradation delta must be negative");
+        }
+
+        character.Degrade(abilityKind, delta);
+        
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
     
 
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier)

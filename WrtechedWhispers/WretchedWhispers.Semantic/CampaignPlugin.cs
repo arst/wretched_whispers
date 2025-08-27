@@ -87,6 +87,23 @@ public class CampaignPlugin(
     }
 
     [KernelFunction]
+    [Description("Advances time in a campaign while characters deliberately rest to recover health and powers. Unlike AdvanceTime which is used for passive time progression during game actions or events, Rest is a deliberate character action where they choose to rest for recovery. Characters will heal HP and restore magical abilities during the rest period.")]
+    public async Task<AdvanceTimeOutcomeDto> Rest(
+        [Description("The unique identifier of the campaign to advance time in while resting")]
+        Guid campaignId,
+        [Description("The number of hours characters will rest and recover")]
+        int hours)
+    {
+        var outcome = await campaignService.AdvanceTimeWithRest(campaignId, hours);
+
+        var existingCampaign = await campaignsRepository.Get(campaignId);
+
+        return existingCampaign is null
+            ? throw new ArgumentException($"Campaign with {campaignId} doesn't exist.")
+            : new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
+    }
+
+    [KernelFunction]
     [Description("Ends a campaign with the specified ID. The campaign must already exist and started.")]
     public async Task<CampaignDto> EndCampaign(Guid campaignId)
     {
