@@ -130,7 +130,7 @@ public class Campaign
 
     public IReadOnlyCollection<Guid> Players => _characters.AsReadOnly();
 
-    internal AdvanceTimeOutcome AdvanceTime(int hours, IRandomService rng)
+    internal AdvanceTimeOutcome AdvanceTime(int hours)
     {
         CurrentHour += hours;
 

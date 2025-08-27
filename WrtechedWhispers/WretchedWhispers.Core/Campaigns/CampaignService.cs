@@ -57,7 +57,7 @@ public class CampaignService(
         var campaign = await campaignsRepository.Get(campaignId);
         if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
 
-        var outcome = campaign.AdvanceTime(hours, rng);
+        var outcome = campaign.AdvanceTime(hours);
         await campaignsRepository.SaveCampaign(campaign);
 
         if (!outcome.IsNewDawn) return outcome;
@@ -80,7 +80,7 @@ public class CampaignService(
         var campaign = await campaignsRepository.Get(campaignId);
         if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
 
-        var outcome = campaign.AdvanceTime(hours, rng);
+        var outcome = campaign.AdvanceTime(hours);
         await campaignsRepository.SaveCampaign(campaign);
 
         foreach (var playerId in campaign.Players)
