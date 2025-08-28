@@ -17,7 +17,7 @@ public abstract class TestBase : IDisposable
         Dice.SetRandomGenerator(MockRandomService.Object);
     }
 
-    private Mock<IRandomService> MockRandomService { get; }
+    protected Mock<IRandomService> MockRandomService { get; }
 
     public virtual void Dispose()
     {

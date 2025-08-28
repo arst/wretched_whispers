@@ -7,7 +7,7 @@ public class Settings
 {
     private readonly IConfigurationRoot _configRoot;
 
-    private AzureOpenAiSettings _azureOpenAi;
+    private AzureOpenAiSettings? _azureOpenAi;
 
     public Settings()
     {

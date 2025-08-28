@@ -5,7 +5,6 @@ using WretchedWhispers.Core.Dices;
 namespace WretchedWhispers.Core.Campaigns;
 
 public class CampaignService(
-    IRandomService rng,
     ICampaignsRepository campaignsRepository,
     ICharactersRepository charactersRepository)
 {
