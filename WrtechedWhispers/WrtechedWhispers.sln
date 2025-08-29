@@ -4,7 +4,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Core", "Wr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Semantic", "WretchedWhispers.Semantic\WretchedWhispers.Semantic.csproj", "{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Console", "WretchedWhispers.Console\WretchedWhispers.Console.csproj", "{5C58FF0A-C00A-4BCC-A050-09F6735E62DC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.SingleAgent.Console", "WretchedWhispers.SingleAgent.Console\WretchedWhispers.SingleAgent.Console.csproj", "{5C58FF0A-C00A-4BCC-A050-09F6735E62DC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Infrastructure", "WretchedWhispers.Infrastructure\WretchedWhispers.Infrastructure.csproj", "{20176251-4671-4CA1-BC0E-928DBA9155B7}"
 EndProject
