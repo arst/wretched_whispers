@@ -15,7 +15,7 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
 {
     [KernelFunction]
     [Description("Create a new encounter with the specified name, description, and initial type. ")]
-    public EncounterDto CreateEncounter(
+    public async Task<EncounterDto> CreateEncounter(
         [Description("The name of the encounter")]
         string name,
         [Description("A description of the encounter setting, circumstances, or narrative context")]
@@ -30,29 +30,26 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
                 $"Encounter type {initialEncounterType} is not valid. Expected one of: Friendly, Hostile, Unknown.");
 
         var encounter = Encounter.Create(name, description, type, rng);
+        await repository.Save(encounter);
 
         return CreateEncounterDto(encounter);
     }
 
     [KernelFunction]
-    [Description("Add adversaries to an encounter with the specified name, description, and initial type. ")]
-    public async Task<EncounterDto> AddAdversariesToEncounter(Guid encounterId, List<NewAdversaryDto> adversaries)
+    [Description("Add adversary to an encounter with the specified name, description, and initial type. Each encounter usually have multiple adversaries.")]
+    public async Task<EncounterDto> AddAdversaryToEncounter(Guid encounterId, NewAdversaryDto adversary)
     {
-        if (adversaries.Count == 0) throw new ArgumentException("At least one adversary must be provided.");
-
         await encounterService.AddAdversaries(
             encounterId,
-            adversaries.Select(a =>
-                new Adversary(
-                    a.Name,
-                    new HitPoints(a.HitPoints, a.HitPoints),
-                    GenerateArmor(a.ArmorTier),
-                    a.Morale,
-                    new AttackProfile(
-                        a.WeaponDescription,
-                        DiceExpr.Parse(a.WeaponDamageDie))
-                )
-            ));
+            [new Adversary(
+                adversary.Name,
+                new HitPoints(adversary.HitPoints, adversary.HitPoints),
+                GenerateArmor(adversary.ArmorTier),
+                adversary.Morale,
+                new AttackProfile(
+                    adversary.WeaponDescription,
+                    DiceExpr.Parse(adversary.WeaponDamageDie))
+            )]);
         var encounter = await repository.Get(encounterId) ?? throw new InvalidOperationException("Encounter not found");
 
         return CreateEncounterDto(encounter);
@@ -174,14 +171,14 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
         };
     }
 
-    private static Armor GenerateArmor(string armorType)
+    private static Armor GenerateArmor(ArmorTierDto armorType)
     {
         return armorType switch
         {
-            "light" => new Armor(LightArmorTier.Instance),
-            "medium" => new Armor(MediumArmorTier.Instance),
-            "heavy" => new Armor(HeavyArmorTier.Instance),
-            "none" => new Armor(NoArmorTier.Instance),
+            ArmorTierDto.Light => new Armor(LightArmorTier.Instance),
+            ArmorTierDto.Medium => new Armor(MediumArmorTier.Instance),
+            ArmorTierDto.Heavy => new Armor(HeavyArmorTier.Instance),
+            ArmorTierDto.None => new Armor(NoArmorTier.Instance),
             _ => throw new ArgumentException(
                 $"Unknown armor type: {armorType}. Expected one of: light, medium, heavy, none.")
         };

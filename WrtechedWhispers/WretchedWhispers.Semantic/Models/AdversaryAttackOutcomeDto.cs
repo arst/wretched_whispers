@@ -1,3 +1,9 @@
+using System.ComponentModel;
+using System.Text.Json.Serialization;
+
 namespace WretchedWhispers.Semantic.Models;
 
-public record AdversaryAttackOutcomeDto(int DamageDealt);
+public record AdversaryAttackOutcomeDto(
+    [property: JsonPropertyName("DamageDealt")]
+    [property: Description("Amount of damage dealt by the adversary's attack")]
+    int DamageDealt);
