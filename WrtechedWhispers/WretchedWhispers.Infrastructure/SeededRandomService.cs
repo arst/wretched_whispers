@@ -8,6 +8,6 @@ public sealed class SeededRandomService(int? seed = null) : IRandomService
 
     public int GenerateRandomRoll(int sides)
     {
-        return 1 + _rng.Next(sides);
+        return _rng.Next(sides);
     }
 }
