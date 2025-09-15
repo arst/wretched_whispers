@@ -1,13 +1,7 @@
 ﻿namespace WretchedWhispers.Core.Campaigns.World;
 
-public sealed class Misery
+public sealed class Misery(string code, string psalm = "")
 {
-    public Misery(string code, string psalm = "")
-    {
-        Code = code;
-        Psalm = psalm;
-    }
-
-    public string Code { get; }
-    public string Psalm { get; }
+    public string Code { get; } = code;
+    public string Psalm { get; } = psalm;
 }

@@ -36,20 +36,23 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
     }
 
     [KernelFunction]
-    [Description("Add adversary to an encounter with the specified name, description, and initial type. Each encounter usually have multiple adversaries.")]
+    [Description(
+        "Add adversary to an encounter with the specified name, description, and initial type. Each encounter usually have multiple adversaries.")]
     public async Task<EncounterDto> AddAdversaryToEncounter(Guid encounterId, NewAdversaryDto adversary)
     {
         await encounterService.AddAdversaries(
             encounterId,
-            [new Adversary(
-                adversary.Name,
-                new HitPoints(adversary.HitPoints, adversary.HitPoints),
-                GenerateArmor(adversary.ArmorTier),
-                adversary.Morale,
-                new AttackProfile(
-                    adversary.WeaponDescription,
-                    DiceExpr.Parse(adversary.WeaponDamageDie))
-            )]);
+            [
+                new Adversary(
+                    adversary.Name,
+                    new HitPoints(adversary.HitPoints, adversary.HitPoints),
+                    GenerateArmor(adversary.ArmorTier),
+                    adversary.Morale,
+                    new AttackProfile(
+                        adversary.WeaponDescription,
+                        DiceExpr.Parse(adversary.WeaponDamageDie))
+                )
+            ]);
         var encounter = await repository.Get(encounterId) ?? throw new InvalidOperationException("Encounter not found");
 
         return CreateEncounterDto(encounter);
