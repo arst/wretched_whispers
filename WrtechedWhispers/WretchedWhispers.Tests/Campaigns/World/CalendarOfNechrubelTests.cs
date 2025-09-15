@@ -66,7 +66,7 @@ public class CalendarOfNechrubelTests : TestBase
         // Arrange
         var calendar = CreateCalendar();
         // Dawn=1, first misery attempt=34, second misery attempt=34 (duplicate), third attempt=56
-        SetupDiceRolls(0,0,3,0,0,3,1,4); // Dawn=2, misery=2+1=3, 4+1=5, etc.
+        SetupDiceRolls(0, 0, 3, 0, 0, 3, 1, 4); // Dawn=2, misery=2+1=3, 4+1=5, etc.
 
         // Act
         calendar.DawnRoll(DiceExpr.D20);
@@ -85,22 +85,19 @@ public class CalendarOfNechrubelTests : TestBase
         // Arrange
         var calendar = CreateCalendar();
         var rolls = new List<int>();
-        
+
         // Setup 7 dawn rolls (all return 1) and unique misery codes
-        for (int i = 0; i < 7; i++)
+        for (var i = 0; i < 7; i++)
         {
             rolls.Add(0); // Dawn roll
             rolls.Add(i + 1); // First die for misery
             rolls.Add(1); // Second die for misery (results in codes 11, 21, 31, etc.)
         }
-        
+
         SetupDiceRolls(rolls.ToArray());
 
         // Act - Perform 7 dawn rolls
-        for (int i = 0; i < 7; i++)
-        {
-            calendar.DawnRoll(DiceExpr.D20);
-        }
+        for (var i = 0; i < 7; i++) calendar.DawnRoll(DiceExpr.D20);
 
         // Assert
         Assert.True(calendar.WorldEnded);
@@ -113,22 +110,19 @@ public class CalendarOfNechrubelTests : TestBase
         // Arrange
         var calendar = CreateCalendar();
         var rolls = new List<int>();
-        
+
         // Setup 7 dawn rolls to end the world
-        for (int i = 0; i < 7; i++)
+        for (var i = 0; i < 7; i++)
         {
             rolls.Add(0); // Dawn roll
             rolls.Add(i + 1); // First die for misery
             rolls.Add(1); // Second die for misery
         }
-        
+
         SetupDiceRolls(rolls.ToArray());
 
         // Trigger world end
-        for (int i = 0; i < 7; i++)
-        {
-            calendar.DawnRoll(DiceExpr.D20);
-        }
+        for (var i = 0; i < 7; i++) calendar.DawnRoll(DiceExpr.D20);
 
         // Act & Assert
         var exception = Assert.Throws<InvalidOperationException>(() => calendar.DawnRoll(DiceExpr.D20));
@@ -150,17 +144,17 @@ public class CalendarOfNechrubelTests : TestBase
         Assert.False(calendar.WorldEnded);
         Assert.Equal("45", calendar.Miseries.First().Code);
     }
-    
+
     [Fact]
     public void DawnRoll_TooManyAttemptsToPickMisery_ThrowsInvalidOperationException()
     {
         // Arrange
         var calendar = new CalendarOfNechrubel();
         MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(0); // Always return 1 for both dice
-        
+
         // Act
         calendar.DawnRoll(DiceExpr.D20);
-        
+
         // Assert
         var ex = Assert.Throws<InvalidOperationException>(() => calendar.DawnRoll(DiceExpr.D20));
         Assert.Equal("Too many attempts to pick a misery, something is wrong.", ex.Message);
