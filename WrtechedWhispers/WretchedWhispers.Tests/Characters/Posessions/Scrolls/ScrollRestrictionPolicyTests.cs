@@ -10,7 +10,7 @@ public class ScrollRestrictionPolicyTests
     [Fact]
     public void CanUseScrolls_OnlyAllowsIfWeaponIsNotTwoHandedAndArmorIsNoOrLight()
     {
-        var weapon = Weapon.Create(WeaponKind.Knife);
+        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(WeaponKind.Knife);
         var armorNo = new Core.Characters.Posessions.Armor.Armor(NoArmorTier.Instance);
         var armorLight = new Core.Characters.Posessions.Armor.Armor(LightArmorTier.Instance);
         var armorMedium = new Core.Characters.Posessions.Armor.Armor(MediumArmorTier.Instance);
@@ -25,7 +25,7 @@ public class ScrollRestrictionPolicyTests
     [Fact]
     public void CanUseScrolls_DoesNotAllowIfWeaponIsTwoHandedRegardlessOfArmor()
     {
-        var weapon = Weapon.Create(WeaponKind.Zweihander);
+        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(WeaponKind.Zweihander);
         var armorNo = new Core.Characters.Posessions.Armor.Armor(NoArmorTier.Instance);
         var armorLight = new Core.Characters.Posessions.Armor.Armor(LightArmorTier.Instance);
         var armorHeavy = new Core.Characters.Posessions.Armor.Armor(HeavyArmorTier.Instance);

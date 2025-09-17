@@ -1,0 +1,72 @@
+using Xunit;
+using WretchedWhispers.Core.Characters.Posessions.Weapon;
+
+namespace WretchedWhispers.Tests.Characters.Posessions.Weapon;
+
+public class WeaponTests
+{
+    [Theory]
+    [InlineData(WeaponKind.Femur, 4)]
+    [InlineData(WeaponKind.Staff, 4)]
+    [InlineData(WeaponKind.ShortSword, 4)]
+    [InlineData(WeaponKind.Knife, 4)]
+    [InlineData(WeaponKind.Warhammer, 6)]
+    [InlineData(WeaponKind.Sword, 6)]
+    [InlineData(WeaponKind.Bow, 6)]
+    [InlineData(WeaponKind.Flail, 8)]
+    [InlineData(WeaponKind.Crossbow, 8)]
+    [InlineData(WeaponKind.Zweihander, 10)]
+    [InlineData(WeaponKind.Improvised, 4)]
+    public void Create_SetsCorrectKindAndDamageDie(WeaponKind kind, int expectedDie)
+    {
+        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(kind);
+        Assert.Equal(kind, weapon.Kind);
+        Assert.Equal(expectedDie, weapon.DamageDie.Sides);
+    }
+
+    [Theory]
+    [InlineData(WeaponKind.Zweihander, true)]
+    [InlineData(WeaponKind.Femur, false)]
+    [InlineData(WeaponKind.Staff, false)]
+    [InlineData(WeaponKind.ShortSword, false)]
+    [InlineData(WeaponKind.Knife, false)]
+    [InlineData(WeaponKind.Warhammer, false)]
+    [InlineData(WeaponKind.Sword, false)]
+    [InlineData(WeaponKind.Bow, false)]
+    [InlineData(WeaponKind.Flail, false)]
+    [InlineData(WeaponKind.Crossbow, false)]
+    [InlineData(WeaponKind.Improvised, false)]
+    public void IsTwoHanded_OnlyTrueForZweihander(WeaponKind kind, bool expected)
+    {
+        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(kind);
+        Assert.Equal(expected, weapon.IsTwoHanded);
+    }
+
+    [Theory]
+    [InlineData(WeaponKind.Bow, true)]
+    [InlineData(WeaponKind.Crossbow, true)]
+    [InlineData(WeaponKind.Femur, false)]
+    [InlineData(WeaponKind.Staff, false)]
+    [InlineData(WeaponKind.ShortSword, false)]
+    [InlineData(WeaponKind.Knife, false)]
+    [InlineData(WeaponKind.Warhammer, false)]
+    [InlineData(WeaponKind.Sword, false)]
+    [InlineData(WeaponKind.Flail, false)]
+    [InlineData(WeaponKind.Zweihander, false)]
+    [InlineData(WeaponKind.Improvised, false)]
+    public void IsRanged_TrueOnlyForBowAndCrossbow(WeaponKind kind, bool expected)
+    {
+        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(kind);
+        Assert.Equal(expected, weapon.IsRanged);
+    }
+
+    [Fact]
+    public void Create_UnknownKindDefaultsToImprovised()
+    {
+        var unknownKind = (WeaponKind)999;
+        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(unknownKind);
+        Assert.Equal(WeaponKind.Improvised, weapon.Kind);
+        Assert.Equal(4, weapon.DamageDie.Sides);
+    }
+}
+
