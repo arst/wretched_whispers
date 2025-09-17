@@ -1,7 +1,7 @@
 using Moq;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Create;
-using WretchedWhispers.Core.Characters.Posessions.Weapon;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Characters.Create;

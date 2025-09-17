@@ -1,6 +1,6 @@
 using WretchedWhispers.Core.Characters.Abilities;
 
-namespace WretchedWhispers.Core.Characters.Posessions;
+namespace WretchedWhispers.Core.Characters.Possessions;
 
 public record Inventory(string Container, int MaxCapacity, List<InventoryItem> InventoryItems)
 {

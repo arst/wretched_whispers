@@ -1,8 +1,9 @@
-using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using Xunit;
 
-namespace WretchedWhispers.Tests.Characters.Posessions.Armor;
+namespace WretchedWhispers.Tests.Characters.Possessions.Armors;
 
 public class ArmorTests
 {
@@ -14,14 +15,14 @@ public class ArmorTests
     public void Constructor_SetsTierCorrectly(Type tierType)
     {
         var tier = (ArmorTier)Activator.CreateInstance(tierType, true)!;
-        var armor = new Core.Characters.Posessions.Armor.Armor(tier);
+        var armor = new Armor(tier);
         Assert.Equal(tier, armor.Tier);
     }
 
     [Fact]
     public void Degrade_TransitionsCorrectly()
     {
-        var armor = new Core.Characters.Posessions.Armor.Armor(HeavyArmorTier.Instance);
+        var armor = new Armor(HeavyArmorTier.Instance);
         armor.Degrade();
         Assert.IsType<MediumArmorTier>(armor.Tier);
         armor.Degrade();
@@ -35,7 +36,7 @@ public class ArmorTests
     [Fact]
     public void Repair_RestoresToOriginalTier()
     {
-        var armor = new Core.Characters.Posessions.Armor.Armor(HeavyArmorTier.Instance);
+        var armor = new Armor(HeavyArmorTier.Instance);
         armor.Degrade(); // Medium
         armor.Degrade(); // Light
         armor.Repair();
@@ -47,7 +48,7 @@ public class ArmorTests
     [Fact]
     public void Repair_DoesNotUpgradePastOriginal()
     {
-        var armor = new Core.Characters.Posessions.Armor.Armor(MediumArmorTier.Instance);
+        var armor = new Armor(MediumArmorTier.Instance);
         armor.Degrade(); // Light
         armor.Repair();
         Assert.IsType<MediumArmorTier>(armor.Tier);
@@ -58,7 +59,7 @@ public class ArmorTests
     [Fact]
     public void Repair_NoArmorEdgeCases()
     {
-        var armor = new Core.Characters.Posessions.Armor.Armor(NoArmorTier.Instance);
+        var armor = new Armor(NoArmorTier.Instance);
         armor.Repair();
         Assert.IsType<NoArmorTier>(armor.Tier);
     }
@@ -66,7 +67,7 @@ public class ArmorTests
     [Fact]
     public void Properties_ReflectCurrentTier()
     {
-        var armor = new Core.Characters.Posessions.Armor.Armor(HeavyArmorTier.Instance);
+        var armor = new Armor(HeavyArmorTier.Instance);
         Assert.Equal(HeavyArmorTier.Instance.DefencePenalty, armor.DefencePenalty);
         Assert.Equal(HeavyArmorTier.Instance.AgilityPenalty, armor.AgilityPenalty);
         Assert.Equal(HeavyArmorTier.Instance.DamageReduction, armor.DamageReduction);
@@ -77,14 +78,14 @@ public class ArmorTests
     [Fact]
     public void Degrade_ThrowsOnUnknownTier()
     {
-        var armor = new Core.Characters.Posessions.Armor.Armor(new DummyTier());
+        var armor = new Armor(new DummyTier());
         Assert.Throws<ArgumentOutOfRangeException>(() => armor.Degrade());
     }
 
     [Fact]
     public void Repair_ThrowsOnUnknownTier()
     {
-        var armor = new Core.Characters.Posessions.Armor.Armor(new DummyTier());
+        var armor = new Armor(new DummyTier());
         Assert.Throws<ArgumentOutOfRangeException>(() => armor.Repair());
     }
 

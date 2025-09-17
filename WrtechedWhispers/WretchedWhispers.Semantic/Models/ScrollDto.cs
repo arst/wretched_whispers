@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using WretchedWhispers.Core.Characters.Posessions.Scrolls;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 
 namespace WretchedWhispers.Semantic.Models;
 

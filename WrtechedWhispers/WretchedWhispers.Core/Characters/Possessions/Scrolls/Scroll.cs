@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters.Posessions.Scrolls;
+﻿namespace WretchedWhispers.Core.Characters.Possessions.Scrolls;
 
 public sealed class Scroll
 {

@@ -1,6 +1,6 @@
 ﻿using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Core.Characters.Posessions.Weapon;
+namespace WretchedWhispers.Core.Characters.Possessions.Weapons;
 
 public sealed class Weapon
 {

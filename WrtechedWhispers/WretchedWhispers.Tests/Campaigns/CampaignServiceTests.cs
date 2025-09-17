@@ -3,9 +3,9 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Create;
-using WretchedWhispers.Core.Characters.Posessions.Armor;
-using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
-using WretchedWhispers.Core.Characters.Posessions.Weapon;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using Xunit;
 

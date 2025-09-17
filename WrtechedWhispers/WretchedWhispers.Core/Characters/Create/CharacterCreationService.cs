@@ -1,11 +1,11 @@
 using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Core.Characters.Posessions;
-using WretchedWhispers.Core.Characters.Posessions.Armor;
-using WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
-using WretchedWhispers.Core.Characters.Posessions.Scrolls;
-using WretchedWhispers.Core.Characters.Posessions.Weapon;
+using WretchedWhispers.Core.Characters.Possessions;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
-using Scroll = WretchedWhispers.Core.Characters.Posessions.Scrolls.Scroll;
+using Scroll = WretchedWhispers.Core.Characters.Possessions.Scrolls.Scroll;
 
 namespace WretchedWhispers.Core.Characters.Create;
 
@@ -79,7 +79,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+    private static (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
         RollGearSlot1(
             Abilities.Abilities abilities)
     {
@@ -101,7 +101,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, Posessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+    private static (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
         RollGearSlot2()
     {
         var d = Dice.Roll(DiceExpr.D12);

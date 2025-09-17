@@ -1,5 +1,5 @@
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Posessions.Armor;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
 
 namespace WretchedWhispers.Core.Adversaries;
 

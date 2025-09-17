@@ -1,6 +1,6 @@
 ﻿using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Core.Characters.Posessions.Armor.Tiers;
+namespace WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 
 public abstract class ArmorTier
 {

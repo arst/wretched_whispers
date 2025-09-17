@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using WretchedWhispers.Core.Characters.Posessions.Weapon;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 
 namespace WretchedWhispers.Semantic.Models;
 

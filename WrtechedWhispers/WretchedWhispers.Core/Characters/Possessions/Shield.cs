@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters.Posessions;
+﻿namespace WretchedWhispers.Core.Characters.Possessions;
 
 public sealed class Shield
 {

@@ -1,7 +1,7 @@
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using Xunit;
-using WretchedWhispers.Core.Characters.Posessions.Weapon;
 
-namespace WretchedWhispers.Tests.Characters.Posessions.Weapon;
+namespace WretchedWhispers.Tests.Characters.Possessions.Weapons;
 
 public class WeaponTests
 {
@@ -19,7 +19,7 @@ public class WeaponTests
     [InlineData(WeaponKind.Improvised, 4)]
     public void Create_SetsCorrectKindAndDamageDie(WeaponKind kind, int expectedDie)
     {
-        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(kind);
+        var weapon = Weapon.Create(kind);
         Assert.Equal(kind, weapon.Kind);
         Assert.Equal(expectedDie, weapon.DamageDie.Sides);
     }
@@ -38,7 +38,7 @@ public class WeaponTests
     [InlineData(WeaponKind.Improvised, false)]
     public void IsTwoHanded_OnlyTrueForZweihander(WeaponKind kind, bool expected)
     {
-        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(kind);
+        var weapon = Weapon.Create(kind);
         Assert.Equal(expected, weapon.IsTwoHanded);
     }
 
@@ -56,7 +56,7 @@ public class WeaponTests
     [InlineData(WeaponKind.Improvised, false)]
     public void IsRanged_TrueOnlyForBowAndCrossbow(WeaponKind kind, bool expected)
     {
-        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(kind);
+        var weapon = Weapon.Create(kind);
         Assert.Equal(expected, weapon.IsRanged);
     }
 
@@ -64,9 +64,8 @@ public class WeaponTests
     public void Create_UnknownKindDefaultsToImprovised()
     {
         var unknownKind = (WeaponKind)999;
-        var weapon = Core.Characters.Posessions.Weapon.Weapon.Create(unknownKind);
+        var weapon = Weapon.Create(unknownKind);
         Assert.Equal(WeaponKind.Improvised, weapon.Kind);
         Assert.Equal(4, weapon.DamageDie.Sides);
     }
 }
-
