@@ -63,7 +63,7 @@ public class WeaponTests
     [Fact]
     public void Create_UnknownKindDefaultsToImprovised()
     {
-        var unknownKind = (WeaponKind)999;
+        const WeaponKind unknownKind = (WeaponKind)999;
         var weapon = Weapon.Create(unknownKind);
         Assert.Equal(WeaponKind.Improvised, weapon.Kind);
         Assert.Equal(4, weapon.DamageDie.Sides);

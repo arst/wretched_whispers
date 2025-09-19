@@ -56,6 +56,6 @@ public record Inventory(string Container, int MaxCapacity, List<InventoryItem> I
 
     public bool IsEncumbered(AbilityScore abilitiesStrength)
     {
-        return abilitiesStrength.Modifier + 8 >= CalculateOccupiedSlots();
+        return abilitiesStrength.Modifier + 8 <= CalculateOccupiedSlots();
     }
 }
