@@ -43,10 +43,51 @@ foreach (var message in initialMessage) Console.WriteLine(message.Content);
 
 Console.WriteLine(initialMessage);
 
+var summarizationReducer = new ChatHistorySummarizationReducer(
+    chatCompletionService, 
+    targetCount: 100, 
+    thresholdCount: 150)
+{
+    SummarizationInstructions = 
+        """
+        When summarizing this MÖRK BORG game session, preserve these critical elements:
+
+        ESSENTIAL GAME STATE:
+        - Character names, current hit points, abilities, scars, and omens
+        - Current campaign location and time of day/season
+        - Active encounters (adversaries, their status, ongoing combat)
+        - Important NPCs the characters have met and their relationships
+        - Key items, weapons, or artifacts in possession
+        - Current goals, quests, or destinations
+        - Recent significant events that affect the narrative
+
+        PRESERVE THE ATMOSPHERE:
+        - Maintain the doom-laden, apocalyptic tone of MÖRK BORG
+        - Keep descriptions of the decaying world and mounting dread
+        - Retain any omens, prophecies, or signs of the coming end
+        - Preserve the dark humor and grim moments
+
+        CONDENSE BUT KEEP:
+        - Dialogue that reveals character or advances plot
+        - Combat outcomes and their consequences (wounds, deaths, victories)
+        - Environmental hazards or threats still present
+        - Any clues, mysteries, or plot hooks still unresolved
+
+        DISCARD:
+        - Repetitive descriptions unless they build atmosphere
+        - Resolved minor encounters with no lasting impact
+        - Excessive back-and-forth without narrative progress
+        - Redundant explanations of rules or mechanics
+
+        Format the summary as a narrative that maintains the MÖRK BORG tone while clearly stating the current game state.
+        """
+};
+
 ChatCompletionAgent gameMasterAgent =
     new()
     {
         Name = "Game_Master",
+        HistoryReducer = summarizationReducer,
         Instructions =
             """
             You are a Game Master that leads games in the MÖRK BORG setting. You have all the tools available for you to lead the game, use them to create characters, roll dice, challenge characters, and so on.
@@ -89,7 +130,6 @@ ChatCompletionAgent gameMasterAgent =
     };
 
 ChatHistoryAgentThread agentThread = new();
-
 var isComplete = false;
 do
 {
