@@ -1,9 +1,10 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Semantic;
 
@@ -26,6 +27,26 @@ Kernel BuildCampaignKernel()
     return kernel;
 }
 
+var resourceBuilder = ResourceBuilder
+    .CreateDefault()
+    .AddService("WretchedWhispers.SingleAgent.Console");
+
+AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
+
+using var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddOpenTelemetry(options =>
+    {
+        options.SetResourceBuilder(resourceBuilder);
+        options.AddConsoleExporter();
+        options.IncludeFormattedMessage = true;
+        options.IncludeScopes = true;
+    });
+    builder.AddConsole();
+    builder.SetMinimumLevel(LogLevel.Trace);
+});
+
+
 var campaignKernel = BuildCampaignKernel();
 
 var chatCompletionService = campaignKernel.GetRequiredService<IChatCompletionService>();
@@ -39,9 +60,11 @@ var initialMessage = await chatCompletionService.GetChatMessageContentsAsync(his
     {
         FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
     }, campaignKernel);
-foreach (var message in initialMessage) Console.WriteLine(message.Content);
 
-Console.WriteLine(initialMessage);
+Console.ForegroundColor = ConsoleColor.Cyan;
+foreach (var message in initialMessage)
+    Console.WriteLine(message.Content);
+Console.ResetColor();
 
 var summarizationReducer = new ChatHistorySummarizationReducer(
     chatCompletionService, 
@@ -134,7 +157,9 @@ var isComplete = false;
 do
 {
     Console.WriteLine();
+    Console.ForegroundColor = ConsoleColor.Magenta;
     Console.Write("> ");
+    Console.ResetColor();
     var input = Console.ReadLine();
 
     if (string.IsNullOrWhiteSpace(input)) continue;
@@ -162,12 +187,5 @@ void RegisterServices(IKernelBuilder builder)
         settings.AzureOpenAi.Endpoint,
         settings.AzureOpenAi.ApiKey);
     builder.Services.AddInMemoryInfrastructure();
-    builder.Services.AddLogging(lb =>
-    {
-        lb.AddConsole();
-        lb.SetMinimumLevel(LogLevel.Trace);
-        lb.AddFilter("Microsoft.SemanticKernel", LogLevel.Trace);
-        lb.AddFilter("Microsoft.SemanticKernel.Agents", LogLevel.Trace);
-        lb.AddFilter("Microsoft.SemanticKernel.Agents.Orchestration", LogLevel.Trace);
-    });
+    //builder.Services.AddSingleton(loggerFactory);
 }
