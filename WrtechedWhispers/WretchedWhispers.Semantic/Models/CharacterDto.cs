@@ -52,6 +52,7 @@ public class CharacterDto
     // Equipment
     [JsonPropertyName("WeaponKind")]
     [Description("Type of weapon the character is wielding")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public WeaponKind WeaponKind { get; set; }
 
     [JsonPropertyName("ArmorTier")]
