@@ -1,4 +1,5 @@
-﻿using WretchedWhispers.Core.Characters.Abilities;
+﻿using System.Text.Json.Serialization;
+using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
@@ -16,7 +17,56 @@ namespace WretchedWhispers.Core.Characters;
 
 public sealed class Character
 {
-    private readonly List<Scroll> _scrolls;
+    [JsonIgnore] private List<Scroll> _scrolls;
+
+    [JsonConstructor]
+    private Character(
+        Guid id,
+        string name,
+        Abilities.Abilities abilities,
+        int silver,
+        int foodDays,
+        Inventory inventory,
+        Weapon weapon,
+        Armor armor,
+        Shield? shield,
+        List<Scroll> scrolls,
+        PowerPool powers,
+        HitPoints hp,
+        Omens omens,
+        bool isInfected = false,
+        bool isDizzyFromMagic = false,
+        bool isDead = false,
+        bool hasLostEye = false,
+        bool hasStabbedLung = false,
+        bool hasBrokenHand = false,
+        bool hasCrushedFoot = false,
+        bool hasSeveredArm = false,
+        bool hasSmashedFace = false)
+    {
+        Id = id;
+        Name = name;
+        Abilities = abilities;
+        Silver = silver;
+        FoodDays = foodDays;
+        Weapon = weapon;
+        Armor = armor;
+        Shield = shield;
+        Powers = powers;
+        Omens = omens;
+        Hp = hp;
+        _scrolls = scrolls;
+        Inventory = inventory;
+        IsInfected = isInfected;
+        IsDizzyFromMagic = isDizzyFromMagic;
+        IsDead = isDead;
+        HasLostEye = hasLostEye;
+        HasStabbedLung = hasStabbedLung;
+        HasBrokenHand = hasBrokenHand;
+        HasCrushedFoot = hasCrushedFoot;
+        HasSeveredArm = hasSeveredArm;
+        HasSmashedFace = hasSmashedFace;
+    }
 
     private Character(
         Guid id,
@@ -33,56 +83,45 @@ public sealed class Character
         int currentHp,
         int maxHp,
         int omenCount = 0)
+        : this(id, name, abilities, silver, foodDays, inventory, weapon, armor, shield,
+            scrolls, powers, new HitPoints(currentHp, maxHp), new Omens(omenCount))
     {
-        Id = id;
-        Name = name;
-        Abilities = abilities;
-        Silver = silver;
-        FoodDays = foodDays;
-        Weapon = weapon;
-        Armor = armor;
-        Shield = shield;
-        Powers = powers;
-        Omens = new Omens(omenCount);
-        Hp = new HitPoints(currentHp, maxHp);
-        _scrolls = scrolls;
-        Inventory = inventory;
     }
 
-    public Guid Id { get; private set; }
-    public string Name { get; private set; }
+    [JsonInclude] public Guid Id { get; private set; }
+    [JsonInclude] public string Name { get; private set; }
     public Abilities.Abilities Abilities { get; }
-    public int Silver { get; private set; }
+    [JsonInclude] public int Silver { get; private set; }
     public int FoodDays { get; }
 
-    public Inventory Inventory { get; private set; }
+    [JsonInclude] public Inventory Inventory { get; private set; }
 
-    public HitPoints Hp { get; private set; }
+    [JsonInclude] public HitPoints Hp { get; private set; }
     public Armor Armor { get; }
     public Shield? Shield { get; }
-    public Weapon Weapon { get; private set; }
-    public Omens Omens { get; private set; }
+    [JsonInclude] public Weapon Weapon { get; private set; }
+    [JsonInclude] public Omens Omens { get; private set; }
     public PowerPool Powers { get; }
 
-    public bool IsInfected { get; private set; }
-    public bool IsDizzyFromMagic { get; private set; }
-    public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
+    [JsonInclude] public bool IsInfected { get; private set; }
+    [JsonInclude] public bool IsDizzyFromMagic { get; private set; }
+    [JsonIgnore] public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
 
-    public bool IsDead { get; private set; }
+    [JsonInclude] public bool IsDead { get; private set; }
 
-    public bool HasLostEye { get; private set; }
+    [JsonInclude] public bool HasLostEye { get; private set; }
 
-    public bool HasStabbedLung { get; private set; }
+    [JsonInclude] public bool HasStabbedLung { get; private set; }
 
-    public bool HasBrokenHand { get; private set; }
+    [JsonInclude] public bool HasBrokenHand { get; private set; }
 
-    public bool HasCrushedFoot { get; private set; }
+    [JsonInclude] public bool HasCrushedFoot { get; private set; }
 
-    public bool HasSeveredArm { get; private set; }
+    [JsonInclude] public bool HasSeveredArm { get; private set; }
 
-    public bool HasSmashedFace { get; private set; }
+    [JsonInclude] public bool HasSmashedFace { get; private set; }
 
-    public IReadOnlyCollection<Scroll> Scrolls => _scrolls;
+    [JsonInclude] public List<Scroll> Scrolls { get => _scrolls; private set => _scrolls = value; }
 
     public void Infect()
     {

@@ -1,16 +1,24 @@
-﻿using WretchedWhispers.Core.Dices;
+﻿using System.Text.Json.Serialization;
+using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters.Powers;
 
 public sealed class PowerPool
 {
-    private PowerPool()
+    [JsonConstructor]
+    private PowerPool(int usesRemaining, int maxUses)
+    {
+        UsesRemaining = usesRemaining;
+        MaxUses = maxUses;
+    }
+
+    private PowerPool() : this(0, 0)
     {
     }
 
     // Re-rolled each dawn: Presence + d4 uses
-    public int UsesRemaining { get; private set; }
-    public int MaxUses { get; private set; }
+    [JsonInclude] public int UsesRemaining { get; private set; }
+    [JsonInclude] public int MaxUses { get; private set; }
 
     public void ResetForNewDay(Abilities.Abilities abilities)
     {

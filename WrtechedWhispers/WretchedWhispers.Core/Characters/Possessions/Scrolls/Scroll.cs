@@ -1,7 +1,10 @@
-﻿namespace WretchedWhispers.Core.Characters.Possessions.Scrolls;
+﻿using System.Text.Json.Serialization;
+
+namespace WretchedWhispers.Core.Characters.Possessions.Scrolls;
 
 public sealed class Scroll
 {
+    [JsonConstructor]
     public Scroll(Guid id, ScrollSchool school, string description)
     {
         Id = id;

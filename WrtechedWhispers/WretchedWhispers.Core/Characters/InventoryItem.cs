@@ -1,16 +1,28 @@
+using System.Text.Json.Serialization;
+
 namespace WretchedWhispers.Core.Characters;
 
-public class InventoryItem(Guid id, string description, bool isBulky, bool isOneTimeUse, int quantity = 1)
+public class InventoryItem
 {
-    public Guid Id { get; } = id;
+    [JsonConstructor]
+    public InventoryItem(Guid id, string description, bool isBulky, bool isOneTimeUse, int quantity = 1)
+    {
+        Id = id;
+        Description = description;
+        IsBulky = isBulky;
+        IsOneTimeUse = isOneTimeUse;
+        Quantity = quantity;
+    }
 
-    public string Description { get; } = description;
+    public Guid Id { get; }
 
-    public bool IsBulky { get; } = isBulky;
+    public string Description { get; }
 
-    public int Quantity { get; private set; } = quantity;
+    public bool IsBulky { get; }
 
-    public bool IsOneTimeUse { get; } = isOneTimeUse;
+    [JsonInclude] public int Quantity { get; private set; }
+
+    public bool IsOneTimeUse { get; }
 
     public void Add(int amount)
     {

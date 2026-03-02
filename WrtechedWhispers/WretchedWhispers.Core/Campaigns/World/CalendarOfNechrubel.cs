@@ -1,14 +1,21 @@
-﻿using WretchedWhispers.Core.Dices;
+﻿using System.Text.Json.Serialization;
+using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Campaigns.World;
 
 public sealed class CalendarOfNechrubel
 {
-    private readonly List<Misery> _triggeredMiseries = [];
+    [JsonConstructor]
+    public CalendarOfNechrubel(List<Misery>? triggeredMiseries = null)
+    {
+        TriggeredMiseries = triggeredMiseries ?? [];
+    }
 
-    public IReadOnlyCollection<Misery> Miseries => _triggeredMiseries.AsReadOnly();
+    [JsonInclude] internal List<Misery> TriggeredMiseries { get; }
 
-    public bool WorldEnded => _triggeredMiseries.Count >= 7;
+    [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => TriggeredMiseries.AsReadOnly();
+
+    [JsonIgnore] public bool WorldEnded => TriggeredMiseries.Count >= 7;
 
     public void DawnRoll(DiceExpr dawnDiceExpr)
     {
@@ -27,9 +34,9 @@ public sealed class CalendarOfNechrubel
                 guard++;
                 if (guard >= 100)
                     throw new InvalidOperationException("Too many attempts to pick a misery, something is wrong.");
-                if (_triggeredMiseries.All(m => m.Code != picked.Code))
+                if (TriggeredMiseries.All(m => m.Code != picked.Code))
                 {
-                    _triggeredMiseries.Add(picked);
+                    TriggeredMiseries.Add(picked);
                     break;
                 }
             }

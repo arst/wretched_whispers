@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Campaigns.Time;
 using WretchedWhispers.Core.Campaigns.World;
 using WretchedWhispers.Core.Dices;
@@ -87,48 +88,52 @@ Miseries accumulate until 7:7 triggers apocalypse.
 
 public class Campaign
 {
-    private readonly CalendarOfNechrubel _calender;
-
-    private readonly List<Guid> _characters;
-
-    private readonly DiceExpr _dawnDice;
-
-    private readonly List<Guid> _encounters;
-
-    private bool _isEnded;
-
-    private bool _isStarted;
-
+    [JsonConstructor]
     private Campaign(Guid id, string name, string description, int currentDay, int currentHour,
         List<Guid> characters, CalendarOfNechrubel calender,
-        DiceExpr dawnDice, List<Guid> encounters)
+        DiceExpr dawnDice, List<Guid> encounters,
+        bool isStarted = false, bool isEnded = false)
     {
         Id = id;
         Name = name;
         Description = description;
         CurrentDay = currentDay;
         CurrentHour = currentHour;
-        _characters = characters;
-        _calender = calender;
-        _dawnDice = dawnDice;
-        _encounters = encounters;
+        Characters = characters;
+        Calender = calender;
+        DawnDice = dawnDice;
+        Encounters = encounters;
+        IsStarted = isStarted;
+        IsEnded = isEnded;
     }
 
-    public Guid Id { get; private set; }
+    [JsonInclude] public Guid Id { get; private set; }
 
     public string Name { get; }
 
     public string Description { get; }
 
-    public int CurrentDay { get; private set; }
+    [JsonInclude] public int CurrentDay { get; private set; }
 
-    public int CurrentHour { get; private set; }
+    [JsonInclude] public int CurrentHour { get; private set; }
 
-    public IReadOnlyCollection<Misery> Miseries => _calender.Miseries;
+    [JsonInclude] internal CalendarOfNechrubel Calender { get; }
 
-    public IReadOnlyCollection<Guid> EncounterIds => _encounters.AsReadOnly();
+    [JsonInclude] internal List<Guid> Characters { get; }
 
-    public IReadOnlyCollection<Guid> Players => _characters.AsReadOnly();
+    [JsonInclude] internal DiceExpr DawnDice { get; }
+
+    [JsonInclude] internal List<Guid> Encounters { get; }
+
+    [JsonInclude] internal bool IsStarted { get; private set; }
+
+    [JsonInclude] internal bool IsEnded { get; private set; }
+
+    [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calender.Miseries;
+
+    [JsonIgnore] public IReadOnlyCollection<Guid> EncounterIds => Encounters.AsReadOnly();
+
+    [JsonIgnore] public IReadOnlyCollection<Guid> Players => Characters.AsReadOnly();
 
     internal AdvanceTimeOutcome AdvanceTime(int hours)
     {
@@ -138,16 +143,16 @@ public class Campaign
         {
             CurrentDay += CurrentHour / 24;
             CurrentHour %= 24;
-            _calender.DawnRoll(_dawnDice);
-            return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), _calender.WorldEnded, true);
+            Calender.DawnRoll(DawnDice);
+            return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calender.WorldEnded, true);
         }
 
-        return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), _calender.WorldEnded, false);
+        return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calender.WorldEnded, false);
     }
 
     public void JoinGame(Guid characterId)
     {
-        _characters.Add(characterId);
+        Characters.Add(characterId);
     }
 
     public static Campaign Create(DiceExpr dawnDice, string name, string description)
@@ -157,21 +162,21 @@ public class Campaign
 
     public void Start()
     {
-        if (_isStarted) throw new InvalidOperationException("Campaign is already started.");
+        if (IsStarted) throw new InvalidOperationException("Campaign is already started.");
         if (Players.Count == 0) throw new InvalidOperationException("Cannot start a campaign without players.");
 
-        _isStarted = true;
+        IsStarted = true;
     }
 
     public void End()
     {
-        if (!_isStarted) throw new InvalidOperationException("Campaign is not started yet.");
+        if (!IsStarted) throw new InvalidOperationException("Campaign is not started yet.");
 
-        _isEnded = true;
+        IsEnded = true;
     }
 
     public bool IsActive()
     {
-        return _isStarted && !_isEnded;
+        return IsStarted && !IsEnded;
     }
 }

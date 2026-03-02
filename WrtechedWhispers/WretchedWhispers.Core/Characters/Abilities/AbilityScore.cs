@@ -2,10 +2,11 @@
 
 public readonly record struct AbilityScore
 {
-    public AbilityScore(int value)
+    [System.Text.Json.Serialization.JsonConstructor]
+    public AbilityScore(int modifier)
     {
-        Validate(value);
-        Modifier = value;
+        Validate(modifier);
+        Modifier = modifier;
     }
 
     public int Modifier { get; }
