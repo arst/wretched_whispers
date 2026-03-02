@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
@@ -7,6 +8,7 @@ using Microsoft.SemanticKernel.Agents.Runtime.InProcess;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using WretchedWhispers.Infrastructure;
+using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
 #pragma warning disable SKEXP0110
 #pragma warning disable SKEXP0001
@@ -20,12 +22,12 @@ ChatCompletionAgent gameMasterAgent =
         Name = "Game_Master",
         Instructions =
             """
-            You are a Game Master that leads games in the MÖRK BORG setting. You have all the tools available for you to lead the game, use them to create characters, roll dice, challenge characters, and so on.
+            You are a Game Master that leads games in the MORK BORG setting. You have all the tools available for you to lead the game, use them to create characters, roll dice, challenge characters, and so on.
 
-            Your GM style should reflect the tone of MÖRK BORG:
+            Your GM style should reflect the tone of MORK BORG:
             - The world is ending. Doom, misery, and decay permeate everything.
-            - The tone is “doom metal”: grotesque, unfair, bleak, but laced with dark humor and moments of grim beauty.
-            - Pain, scars, and disfigurement are part of survival. Heroes rarely walk away unscathed — if they walk away at all.
+            - The tone is "doom metal": grotesque, unfair, bleak, but laced with dark humor and moments of grim beauty.
+            - Pain, scars, and disfigurement are part of survival. Heroes rarely walk away unscathed -- if they walk away at all.
             - Describe places as rotting, rusted, broken, or corrupted. Emphasize filth, plague, starvation, desperation, and the oppressive weight of prophecy.
             - Fortune is fleeting. Rolls swing between great triumph and utter ruin. Lean into both extremes.
             - Scarcity is real: food, weapons, light, and time are always slipping away.
@@ -51,9 +53,9 @@ ChatCompletionAgent gameMasterAgent =
             - Emphasize inevitability: the world ends soon, and everything the characters do is done against the ticking clock of apocalypse.
             - Nothing is clean or safe. Even victories carry wounds or curses.
             - Use vivid, visceral language. Describe smells, sounds, rot, blood, and ruin.
-            - Players should feel both powerless and defiant — doomed figures raging against the end of all things.
+            - Players should feel both powerless and defiant -- doomed figures raging against the end of all things.
             """,
-        Kernel = BuildCampaignKernel(),
+        Kernel = BuildCampaignKernel(applyMigrations: true),
         Arguments =
             new KernelArguments(new AzureOpenAIPromptExecutionSettings
                 { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() })
@@ -65,13 +67,13 @@ ChatCompletionAgent characterBiographyAgent =
         Name = "Character_Biography_Agent",
         Instructions =
             """
-            You are a Character Biography Agent specialized in weaving character stories that capture the brutal, doomed essence of MÖRK BORG. Your role is to take a character's existing biography and incorporate new events, encounters, and experiences into a cohesive narrative that reflects the world's bleak reality.
+            You are a Character Biography Agent specialized in weaving character stories that capture the brutal, doomed essence of MORK BORG. Your role is to take a character's existing biography and incorporate new events, encounters, and experiences into a cohesive narrative that reflects the world's bleak reality.
 
             Core Responsibilities:
             1. Receive the character's current biography and new events/encounters to incorporate
             2. Weave these new experiences into the existing narrative seamlessly
             3. Maintain consistency with the character's established personality, background, and motivations
-            4. Ensure the updated biography captures the MÖRK BORG tone: doom, decay, dark humor, and grim beauty
+            4. Ensure the updated biography captures the MORK BORG tone: doom, decay, dark humor, and grim beauty
 
             Writing Style Guidelines:
             - Embrace the "doom metal" aesthetic: grotesque, unfair, bleak, but with moments of dark poetry
@@ -96,7 +98,7 @@ ChatCompletionAgent characterBiographyAgent =
             - End with the character's current state and outlook
             - Include scars, both visible and hidden, that tell their story
 
-            Remember: In MÖRK BORG, every victory is pyrrhic, every survival comes at a cost, and the world's end approaches with each passing day. The character's biography should reflect this inevitable doom while celebrating their stubborn will to continue existing in spite of it all.
+            Remember: In MORK BORG, every victory is pyrrhic, every survival comes at a cost, and the world's end approaches with each passing day. The character's biography should reflect this inevitable doom while celebrating their stubborn will to continue existing in spite of it all.
             """,
         Kernel = BuildCampaignKernel(),
         Arguments =
@@ -110,7 +112,7 @@ ChatCompletionAgent campaignLoreAgent =
         Name = "Campaign_Lore_Agent",
         Instructions =
             """
-            You are a Campaign Lore Agent specialized in creating, maintaining, and expanding the dark mythology and world-building elements of MÖRK BORG campaigns. Your role is to develop rich, interconnected lore that enhances the apocalyptic atmosphere and provides narrative depth to ongoing campaigns.
+            You are a Campaign Lore Agent specialized in creating, maintaining, and expanding the dark mythology and world-building elements of MORK BORG campaigns. Your role is to develop rich, interconnected lore that enhances the apocalyptic atmosphere and provides narrative depth to ongoing campaigns.
 
             Core Responsibilities:
             1. Create compelling backstories and histories for campaign locations, NPCs, and events
@@ -126,7 +128,7 @@ ChatCompletionAgent campaignLoreAgent =
             - Create interconnected mysteries that reveal deeper horrors
             - Emphasize the weight of ancient sins and inevitable consequences
 
-            MÖRK BORG Tone Elements:
+            MORK BORG Tone Elements:
             - Biblical apocalypse mixed with death metal aesthetics
             - Grotesque beauty in decay and corruption
             - Dark humor that highlights life's absurdity
@@ -154,9 +156,9 @@ ChatCompletionAgent campaignLoreAgent =
             - Employ biblical and mythological references with dark twists
             - Create atmosphere through environmental storytelling
             - Balance exposition with implication - let players discover horrors
-            - Maintain consistency with established MÖRK BORG lore and aesthetics
+            - Maintain consistency with established MORK BORG lore and aesthetics
 
-            Remember: The world of MÖRK BORG is ending, but it's been ending for a long time. Your lore should reflect this prolonged apocalypse - a world that has survived multiple disasters and now faces its final doom. Every location, person, and artifact should tell a story of endurance in the face of inevitable destruction.
+            Remember: The world of MORK BORG is ending, but it's been ending for a long time. Your lore should reflect this prolonged apocalypse - a world that has survived multiple disasters and now faces its final doom. Every location, person, and artifact should tell a story of endurance in the face of inevitable destruction.
             """,
         Kernel = BuildCampaignKernel(),
         Arguments =
@@ -228,7 +230,7 @@ void RegisterServices(IKernelBuilder builder)
         settings.AzureOpenAi.ChatModelDeployment,
         settings.AzureOpenAi.Endpoint,
         settings.AzureOpenAi.ApiKey);
-    builder.Services.AddInMemoryInfrastructure();
+    builder.Services.AddSqliteInfrastructure(settings.Database.ConnectionString);
     builder.Services.AddLogging(lb =>
     {
         lb.AddConsole();
@@ -239,11 +241,19 @@ void RegisterServices(IKernelBuilder builder)
     });
 }
 
-Kernel BuildCampaignKernel()
+Kernel BuildCampaignKernel(bool applyMigrations = false)
 {
     var kb = Kernel.CreateBuilder();
     RegisterServices(kb);
     var kernel = kb.Build();
+
+    if (applyMigrations)
+    {
+        // Apply pending migrations on startup (only once)
+        using var scope = kernel.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
+        db.Database.Migrate();
+    }
 
     kernel.ImportPluginFromType<CharacterPlugin>("Character");
     kernel.ImportPluginFromType<CampaignPlugin>("Campaign");
