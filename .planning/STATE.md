@@ -65,7 +65,9 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+2 pending:
+- **Fix flaky tests caused by shared static Dice mock state** (testing)
+- **Review and improve domain design** (general)
 
 ### Blockers/Concerns
 
