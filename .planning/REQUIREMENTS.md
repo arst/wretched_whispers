@@ -51,7 +51,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Infrastructure
 
 - [ ] **INFR-01**: .NET API layer with SSE streaming for LLM responses
-- [ ] **INFR-02**: SQLite persistence for all game state (character, chat history, world state)
+- [x] **INFR-02**: SQLite persistence for all game state (character, chat history, world state)
 - [ ] **INFR-03**: Multi-tenant session isolation (each player's games are private)
 - [ ] **INFR-04**: OpenTelemetry observability for API and LLM calls
 

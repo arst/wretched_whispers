@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — EF Core setup, entity wrappers, DbContext, JSON serialization, aggregate SQLite repositories, round-trip tests
+- [x] 01-01-PLAN.md — EF Core setup, entity wrappers, DbContext, JSON serialization, aggregate SQLite repositories, round-trip tests
 - [ ] 01-02-PLAN.md — Chat history persistence, DI wiring, Settings, migrations, console app switchover, in-memory removal
 
 ### Phase 2: Authentication and Multi-Tenancy
@@ -123,7 +123,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Persistence Foundation | 0/0 | Not started | - |
+| 1. Persistence Foundation | 1/2 | In progress | - |
 | 2. Authentication and Multi-Tenancy | 0/0 | Not started | - |
 | 3. API Layer and Streaming | 0/0 | Not started | - |
 | 4. Frontend Foundation and Character Creation | 0/0 | Not started | - |
