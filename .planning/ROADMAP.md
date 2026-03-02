@@ -30,11 +30,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Campaign and Encounter aggregates persist and reload with correct relationships
   3. Chat history persists alongside domain state and loads back into SemanticKernel ChatHistory
   4. Existing console application works against SQLite storage instead of in-memory repositories
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — EF Core setup, entity wrappers, DbContext, JSON serialization, aggregate SQLite repositories, round-trip tests
+- [ ] 01-02-PLAN.md — Chat history persistence, DI wiring, Settings, migrations, console app switchover, in-memory removal
 
 ### Phase 2: Authentication and Multi-Tenancy
 **Goal**: Players can create accounts, log in, and have their game sessions isolated from other players
