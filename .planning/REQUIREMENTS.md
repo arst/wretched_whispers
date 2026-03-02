@@ -127,7 +127,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-02 | Phase 4 | Pending |
 | UI-03 | Phase 4 | Pending |
 | INFR-01 | Phase 3 | Pending |
-| INFR-02 | Phase 1 | Pending |
+| INFR-02 | Phase 1 | Complete |
 | INFR-03 | Phase 2 | Pending |
 | INFR-04 | Phase 3 | Pending |
 
