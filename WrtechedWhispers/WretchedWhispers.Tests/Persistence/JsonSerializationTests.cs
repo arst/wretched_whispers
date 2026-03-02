@@ -42,7 +42,7 @@ public class JsonSerializationTests : TestBase
             new StartingEquipment(50, 3, "Sack", null, null,
                 Weapon.Create(WeaponKind.Sword),
                 new Armor(LightArmorTier.Instance),
-                null, []));
+                null, []), Dice);
 
         var json = JsonSerializer.Serialize(character, _options);
         var deserialized = JsonSerializer.Deserialize<Character>(json, _options)!;
@@ -70,7 +70,7 @@ public class JsonSerializationTests : TestBase
             Guid.NewGuid(), "BrokenHero", 10, abilities,
             new StartingEquipment(0, 1, "Sack", null, null,
                 Weapon.Create(WeaponKind.Knife),
-                new Armor(NoArmorTier.Instance), null, []));
+                new Armor(NoArmorTier.Instance), null, []), Dice);
 
         character.Infect();
 
@@ -104,7 +104,7 @@ public class JsonSerializationTests : TestBase
                 gear1, gear2,
                 Weapon.Create(WeaponKind.Zweihander),
                 new Armor(HeavyArmorTier.Instance),
-                new Shield(), scrolls));
+                new Shield(), scrolls), Dice);
 
         var json = JsonSerializer.Serialize(character, _options);
         var deserialized = JsonSerializer.Deserialize<Character>(json, _options)!;
@@ -143,7 +143,7 @@ public class JsonSerializationTests : TestBase
     {
         SetupDiceRolls(7, 7); // Initial reaction roll (2d6 = 7+7 = 14 = Helpful), then for any other dice
         var encounter = Encounter.Create("Dark Cave", "A cave full of evil",
-            EncounterType.Hostile, MockRandomService.Object);
+            EncounterType.Hostile, Dice);
 
         var adversary = new Adversary("Goblin",
             new HitPoints(5, 5),

@@ -31,7 +31,7 @@ public class EncounterRoundTripTests : TestBase
     {
         SetupDiceRolls(7, 7); // Reaction roll (2d6)
         var encounter = Encounter.Create("Dark Cave", "A cave full of evil",
-            EncounterType.Hostile, MockRandomService.Object);
+            EncounterType.Hostile, Dice);
 
         var adversary = new Adversary("Goblin",
             new HitPoints(5, 5),

@@ -17,19 +17,19 @@ public sealed class CalendarOfNechrubel
 
     [JsonIgnore] public bool WorldEnded => TriggeredMiseries.Count >= 7;
 
-    public void DawnRoll(DiceExpr dawnDiceExpr)
+    public void DawnRoll(DiceExpr dawnDiceExpr, Dice dice)
     {
         if (WorldEnded)
             throw new InvalidOperationException("The world has already ended.");
 
-        var dawnRollResult = Dice.Roll(dawnDiceExpr);
+        var dawnRollResult = dice.Roll(dawnDiceExpr);
 
         if (dawnRollResult == 1)
         {
             var guard = 0;
             while (true)
             {
-                var miseryIndex = Dice.Roll(DiceExpr.D6) * 10 + Dice.Roll(DiceExpr.D6);
+                var miseryIndex = dice.Roll(DiceExpr.D6) * 10 + dice.Roll(DiceExpr.D6);
                 var picked = new Misery($"{miseryIndex}");
                 guard++;
                 if (guard >= 100)

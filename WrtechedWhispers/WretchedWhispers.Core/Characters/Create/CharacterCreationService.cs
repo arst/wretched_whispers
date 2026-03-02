@@ -9,7 +9,7 @@ using Scroll = WretchedWhispers.Core.Characters.Possessions.Scrolls.Scroll;
 
 namespace WretchedWhispers.Core.Characters.Create;
 
-public class CharacterCreationService(ICharactersRepository charactersRepository)
+public class CharacterCreationService(ICharactersRepository charactersRepository, Dice dice)
 {
     public async Task<Character> Create(string name)
     {
@@ -19,7 +19,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         var maxHp = RollStartingHealthPoints(abilities);
         const int numberOfOmens = 0; // TODO: Implement as d2 roll when enabled
 
-        var character = Character.Create(id, name, maxHp, abilities, equipment);
+        var character = Character.Create(id, name, maxHp, abilities, equipment, dice);
         await charactersRepository.Save(character);
 
         return character;
@@ -27,13 +27,13 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
 
     private int RollStartingHealthPoints(Abilities.Abilities abilities)
     {
-        return Math.Max(1, abilities.Toughness.Modifier + Dice.Roll(DiceExpr.D8));
+        return Math.Max(1, abilities.Toughness.Modifier + dice.Roll(DiceExpr.D8));
     }
 
     private StartingEquipment RollStartingEquipment(Abilities.Abilities abilities)
     {
-        var silver = Dice.Roll(DiceExpr.D(2, 6)) * 10; // 2d6 × 10 silver
-        var foodDays = Dice.Roll(DiceExpr.D4); // d4 days of food
+        var silver = dice.Roll(DiceExpr.D(2, 6)) * 10; // 2d6 × 10 silver
+        var foodDays = dice.Roll(DiceExpr.D4); // d4 days of food
         var container = RollContainer(); // d6: nothing/backpack/sack/wagon/donkey
         var gear1 = RollGearSlot1(abilities);
         var gear2 = RollGearSlot2();
@@ -65,9 +65,9 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         );
     }
 
-    private static string RollContainer()
+    private string RollContainer()
     {
-        var containerRoll = Dice.Roll(DiceExpr.D6);
+        var containerRoll = dice.Roll(DiceExpr.D6);
         return containerRoll switch
         {
             1 or 2 => "nothing",
@@ -79,11 +79,11 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+    private (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
         RollGearSlot1(
             Abilities.Abilities abilities)
     {
-        var d = Dice.Roll(DiceExpr.D12);
+        var d = dice.Roll(DiceExpr.D12);
         return d switch
         {
             1 => ("rope 30 ft", null, false, 1),
@@ -101,16 +101,16 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private static (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+    private (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
         RollGearSlot2()
     {
-        var d = Dice.Roll(DiceExpr.D12);
+        var d = dice.Roll(DiceExpr.D12);
         return d switch
         {
-            1 => ("life elixir", null, false, Dice.Roll(DiceExpr.D4)),
+            1 => ("life elixir", null, false, dice.Roll(DiceExpr.D4)),
             2 => ("random sacred scroll", ScrollSchool: ScrollSchool.Sacred, false, 1),
             3 => ("small but vicious dog", null, false, 1),
-            4 => ("monkeys that ignore but love you", null, false, Dice.Roll(DiceExpr.D4)),
+            4 => ("monkeys that ignore but love you", null, false, dice.Roll(DiceExpr.D4)),
             5 => ("exquisite perfume (25s)", null, false, 1),
             6 => ("toolbox", null, false, 1),
             7 => ("heavy chain 15 ft", null, false, 1),
@@ -125,7 +125,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
     private Weapon RollWeapon(bool hasScroll)
     {
         // Weapons d10 (d6 if you begin with a scroll)
-        var d = hasScroll ? Dice.Roll(DiceExpr.D6) : Dice.Roll(DiceExpr.D10);
+        var d = hasScroll ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D10);
         return Weapon.Create(d switch
         {
             1 => WeaponKind.Femur,
@@ -145,7 +145,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
     private Armor RollArmor(bool hasScroll)
     {
         // Armor d4 (d2 if you begin with a scroll)
-        var d = hasScroll ? Dice.Roll(DiceExpr.D2) : Dice.Roll(DiceExpr.D4);
+        var d = hasScroll ? dice.Roll(DiceExpr.D2) : dice.Roll(DiceExpr.D4);
         ArmorTier tier = d switch
         {
             1 => NoArmorTier.Instance,
@@ -182,7 +182,7 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
 
         int Roll()
         {
-            return Dice.Roll(DiceExpr.D(3, 6));
+            return dice.Roll(DiceExpr.D(3, 6));
         }
     }
 }

@@ -135,7 +135,7 @@ public class Campaign
 
     [JsonIgnore] public IReadOnlyCollection<Guid> Players => Characters.AsReadOnly();
 
-    internal AdvanceTimeOutcome AdvanceTime(int hours)
+    internal AdvanceTimeOutcome AdvanceTime(int hours, Dice dice)
     {
         CurrentHour += hours;
 
@@ -143,7 +143,7 @@ public class Campaign
         {
             CurrentDay += CurrentHour / 24;
             CurrentHour %= 24;
-            Calender.DawnRoll(DawnDice);
+            Calender.DawnRoll(DawnDice, dice);
             return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calender.WorldEnded, true);
         }
 

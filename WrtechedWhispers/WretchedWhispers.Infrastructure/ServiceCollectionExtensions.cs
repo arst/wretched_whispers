@@ -29,9 +29,8 @@ public static class ServiceCollectionExtensions
             options => options.UseSqlite(connectionString),
             ServiceLifetime.Transient);
 
-        var randomService = new SeededRandomService();
-        services.AddSingleton<IRandomService>(_ => randomService);
-        Dice.SetRandomGenerator(randomService);
+        services.AddSingleton<IRandomService, SeededRandomService>();
+        services.AddSingleton<Dice>();
 
         // Repositories as Transient (compatible with SK's root-provider plugin resolution)
         services.AddTransient<ICharactersRepository, SqliteCharactersRepository>();

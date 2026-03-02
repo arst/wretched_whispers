@@ -14,7 +14,8 @@ namespace WretchedWhispers.Semantic;
 public sealed class CharacterPlugin(
     ICharactersRepository charactersRepository,
     CharacterCreationService characterCreationService,
-    CharacterService characterService)
+    CharacterService characterService,
+    Dice dice)
 {
     [KernelFunction]
     [Description("Create a new character with starting stats and gear")]
@@ -234,7 +235,7 @@ public sealed class CharacterPlugin(
         var character = await charactersRepository.Get(characterId);
         if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
-        var outcome = character.Cast(scrollId);
+        var outcome = character.Cast(scrollId, dice);
 
         await charactersRepository.Save(character);
 

@@ -11,7 +11,7 @@ using WretchedWhispers.Semantic.Models;
 namespace WretchedWhispers.Semantic;
 
 [Description("Allow interactions with encounters in the game: start them, finish them, perform actions and so on.")]
-public class EncounterPlugin(EncounterService encounterService, IEncountersRepository repository, IRandomService rng)
+public class EncounterPlugin(EncounterService encounterService, IEncountersRepository repository, Dice dice)
 {
     [KernelFunction]
     [Description("Create a new encounter with the specified name, description, and initial type. ")]
@@ -29,7 +29,7 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
             : throw new ArgumentException(
                 $"Encounter type {initialEncounterType} is not valid. Expected one of: Friendly, Hostile, Unknown.");
 
-        var encounter = Encounter.Create(name, description, type, rng);
+        var encounter = Encounter.Create(name, description, type, dice);
         await repository.Save(encounter);
 
         return CreateEncounterDto(encounter);

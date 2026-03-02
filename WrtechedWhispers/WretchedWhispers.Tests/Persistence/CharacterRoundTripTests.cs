@@ -40,7 +40,7 @@ public class CharacterRoundTripTests : TestBase
             Guid.NewGuid(), "SavedHero", 10, abilities,
             new StartingEquipment(50, 3, "Sack", null, null,
                 Weapon.Create(WeaponKind.Sword),
-                new Armor(LightArmorTier.Instance), null, []));
+                new Armor(LightArmorTier.Instance), null, []), Dice);
 
         await _repo.Save(character);
         var loaded = await _repo.Get(character.Id);
@@ -72,7 +72,7 @@ public class CharacterRoundTripTests : TestBase
             Guid.NewGuid(), "MutableHero", 10, abilities,
             new StartingEquipment(0, 1, "Sack", null, null,
                 Weapon.Create(WeaponKind.Knife),
-                new Armor(NoArmorTier.Instance), null, []));
+                new Armor(NoArmorTier.Instance), null, []), Dice);
 
         await _repo.Save(character);
 
@@ -116,7 +116,7 @@ public class CharacterRoundTripTests : TestBase
                 gear1, gear2,
                 Weapon.Create(WeaponKind.Zweihander),
                 new Armor(HeavyArmorTier.Instance),
-                new Shield(), scrolls));
+                new Shield(), scrolls), Dice);
 
         await _repo.Save(character);
         var loaded = await _repo.Get(character.Id);

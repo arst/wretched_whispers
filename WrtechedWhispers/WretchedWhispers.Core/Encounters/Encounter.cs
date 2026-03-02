@@ -37,10 +37,10 @@ public sealed class Encounter
     public bool IsStarted { get; set; }
     public bool IsEnded { get; set; }
 
-    public static Encounter Create(string name, string description, EncounterType initialType, IRandomService rng)
+    public static Encounter Create(string name, string description, EncounterType initialType, Dice dice)
     {
         var encounter = new Encounter(Guid.NewGuid(), initialType, name, description);
-        encounter.Initiate(initialType);
+        encounter.Initiate(initialType, dice);
 
         return encounter;
     }
@@ -67,7 +67,7 @@ public sealed class Encounter
         Adversaries.Add(e);
     }
 
-    public void ProcessPlayerAttackOutcome(AttackOutcome outcome, Guid adversaryId)
+    public void ProcessPlayerAttackOutcome(AttackOutcome outcome, Guid adversaryId, Dice dice)
     {
         var adversary = Adversaries.Single(a => a.Id == adversaryId);
 
@@ -77,7 +77,7 @@ public sealed class Encounter
             return;
 
         var moraleDiceExpr = DiceExpr.D(2, 6);
-        var moraleRoll = Dice.Roll(moraleDiceExpr);
+        var moraleRoll = dice.Roll(moraleDiceExpr);
 
         if (moraleRoll >= adversary.Morale)
             return;
@@ -89,12 +89,12 @@ public sealed class Encounter
     {
     }
 
-    private void Initiate(EncounterType initialType)
+    private void Initiate(EncounterType initialType, Dice dice)
     {
         if (initialType is not EncounterType.Unknown)
             return;
 
-        var reaction = RollInitialReaction();
+        var reaction = RollInitialReaction(dice);
         if (reaction is InitialReaction.Kill or InitialReaction.Angered)
             ElevateToHostile();
         else
@@ -111,10 +111,10 @@ public sealed class Encounter
         CurrentType = EncounterType.Hostile;
     }
 
-    private static InitialReaction RollInitialReaction()
+    private static InitialReaction RollInitialReaction(Dice dice)
     {
         var initialReactionDiceExpr = DiceExpr.D(2, 6);
-        var rollResult = Dice.Roll(initialReactionDiceExpr);
+        var rollResult = dice.Roll(initialReactionDiceExpr);
 
         return rollResult switch
         {

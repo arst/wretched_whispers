@@ -133,15 +133,15 @@ public sealed class Character
         IsInfected = false;
     }
 
-    public void StartNewDay()
+    public void StartNewDay(Dice dice)
     {
-        Powers.ResetForNewDay(Abilities);
+        Powers.ResetForNewDay(Abilities, dice);
         IsDizzyFromMagic = false;
     }
 
-    public AttackOutcome Attack(Armor targetArmor)
+    public AttackOutcome Attack(Armor targetArmor, Dice dice)
     {
-        var outcome = ResolveAttack(targetArmor);
+        var outcome = ResolveAttack(targetArmor, dice);
 
         if (outcome.Fumble)
             // Weapon breaks => fallback to Improvised
@@ -153,10 +153,10 @@ public sealed class Character
             outcome.TargetArmorDegraded);
     }
 
-    private AttackOutcome ResolveAttack(Armor targetArmor)
+    private AttackOutcome ResolveAttack(Armor targetArmor, Dice dice)
     {
         var abilityKind = Weapon.IsRanged ? AbilityKind.Presence : AbilityKind.Strength;
-        var test = Challenge(new Dr(12), abilityKind);
+        var test = Challenge(new Dr(12), abilityKind, dice);
         var hit = test.IsSuccess;
         var crit = test.Natural == Natural.Twenty;
         var fumble = test.Natural == Natural.One;
@@ -166,10 +166,10 @@ public sealed class Character
         var dmg = Damage.Zero;
         if (hit)
         {
-            var raw = Dice.Roll(Weapon.DamageDie);
+            var raw = dice.Roll(Weapon.DamageDie);
             if (crit) raw *= 2;
             // Armor damage reduction
-            var reduction = targetArmor.DamageReduction.Sides == 0 ? 0 : Dice.Roll(targetArmor.DamageReduction);
+            var reduction = targetArmor.DamageReduction.Sides == 0 ? 0 : dice.Roll(targetArmor.DamageReduction);
             var final = Math.Max(0, raw - reduction);
             dmg = Damage.From(final);
 
@@ -184,9 +184,9 @@ public sealed class Character
         return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded);
     }
 
-    public DefenceOutcome Defend(DiceExpr attackDie)
+    public DefenceOutcome Defend(DiceExpr attackDie, Dice dice)
     {
-        var outcome = ResolveDefence();
+        var outcome = ResolveDefence(dice);
 
         if (outcome.IsAvoided)
             return new DefenceOutcome
@@ -197,8 +197,8 @@ public sealed class Character
                 FumbleDoubleDamage = outcome.IsFumble
             };
 
-        var damage = CalculateDamageAfterDefense(attackDie, outcome);
-        ReceiveDamage(damage);
+        var damage = CalculateDamageAfterDefense(attackDie, outcome, dice);
+        ReceiveDamage(damage, dice);
 
         // TODO: Implement armor tier degradation + shield break
 
@@ -211,13 +211,13 @@ public sealed class Character
         };
     }
 
-    private void ReceiveDamage(int damage)
+    private void ReceiveDamage(int damage, Dice dice)
     {
         Hp = Hp.Damage(damage);
 
         if (Hp.IsZero)
         {
-            var brokenOutcome = ResolveBroken();
+            var brokenOutcome = ResolveBroken(dice);
             switch (brokenOutcome)
             {
                 case null:
@@ -251,20 +251,20 @@ public sealed class Character
 
 
     private int CalculateDamageAfterDefense(DiceExpr attackDie,
-        (bool IsAvoided, bool IsCritFree, bool IsFumble) outcome)
+        (bool IsAvoided, bool IsCritFree, bool IsFumble) outcome, Dice dice)
     {
-        var damage = Dice.Roll(attackDie);
+        var damage = dice.Roll(attackDie);
 
         if (outcome.IsFumble) damage *= 2; // Fumble doubles the damage
 
         if (outcome.IsCritFree)
         {
-            var freeAttackResults = Defend(attackDie); // Crit grants a free attack
+            var freeAttackResults = Defend(attackDie, dice); // Crit grants a free attack
             damage += freeAttackResults.DamageDealt;
         }
 
         var armorReduction =
-            RollArmorReduction(Armor) +
+            RollArmorReduction(Armor, dice) +
             (Shield is not null
                 ? 1
                 : 0); // Shield adds +1 to armor reduction or completely blocks one attack and breaks, model as +1 to armor reduction fo now
@@ -273,10 +273,10 @@ public sealed class Character
         return damage;
     }
 
-    private (bool IsAvoided, bool IsCritFree, bool IsFumble) ResolveDefence()
+    private (bool IsAvoided, bool IsCritFree, bool IsFumble) ResolveDefence(Dice dice)
     {
         var dr = new Dr(new Dr(12).Value + Armor.DefencePenalty);
-        var test = Challenge(dr, AbilityKind.Agility, Armor.AgilityPenalty);
+        var test = Challenge(dr, AbilityKind.Agility, dice, Armor.AgilityPenalty);
         var avoided = test.IsSuccess;
         var critFree = test.Natural == Natural.Twenty;
         var fumble = test.Natural == Natural.One;
@@ -284,30 +284,30 @@ public sealed class Character
         return (avoided, critFree, fumble);
     }
 
-    private static int RollArmorReduction(Armor armor)
+    private static int RollArmorReduction(Armor armor, Dice dice)
     {
         return armor.Tier switch
         {
-            HeavyArmorTier => Dice.Roll(DiceExpr.D6),
-            LightArmorTier => Dice.Roll(DiceExpr.D4),
-            MediumArmorTier => Dice.Roll(DiceExpr.D3),
+            HeavyArmorTier => dice.Roll(DiceExpr.D6),
+            LightArmorTier => dice.Roll(DiceExpr.D4),
+            MediumArmorTier => dice.Roll(DiceExpr.D3),
             NoArmorTier => 0,
             _ => throw new ArgumentOutOfRangeException(nameof(armor.Tier), armor.Tier, null)
         };
     }
 
-    private BrokenOutcome? ResolveBroken()
+    private BrokenOutcome? ResolveBroken(Dice dice)
     {
         if (!Hp.IsZero)
             return null;
 
-        var d4 = Dice.Roll(DiceExpr.D4);
+        var d4 = dice.Roll(DiceExpr.D4);
 
         if (d4 is 1 or 2) return BrokenOutcome.Dead();
 
         if (d4 > 4) return null;
 
-        var d6 = Dice.Roll(DiceExpr.D6);
+        var d6 = dice.Roll(DiceExpr.D6);
 
         return d6 switch
         {
@@ -321,16 +321,16 @@ public sealed class Character
         };
     }
 
-    public void Rest(int hours)
+    public void Rest(int hours, Dice dice)
     {
         if (IsInfected)
         {
-            ReceiveDamage(Dice.Roll(DiceExpr.D6));
+            ReceiveDamage(dice.Roll(DiceExpr.D6), dice);
             return;
         }
 
         var isFullNightRest = hours >= 8;
-        var heal = isFullNightRest ? Dice.Roll(DiceExpr.D6) : Dice.Roll(DiceExpr.D4);
+        var heal = isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4);
         Hp = Hp.Heal(heal);
     }
 
@@ -348,7 +348,7 @@ public sealed class Character
         Silver -= price;
     }
 
-    public CastOutcome Cast(Guid scrollId)
+    public CastOutcome Cast(Guid scrollId, Dice dice)
     {
         var scroll = _scrolls.FirstOrDefault(s => s.Id == scrollId);
 
@@ -361,17 +361,17 @@ public sealed class Character
         if (!Powers.TryConsumeOne())
             return CastOutcome.Fail("No daily power uses remaining");
 
-        var challengeOutcome = Challenge(new Dr(12), AbilityKind.Presence);
+        var challengeOutcome = Challenge(new Dr(12), AbilityKind.Presence, dice);
 
         if (challengeOutcome.IsSuccess) return CastOutcome.Success(scroll.Description);
 
-        var loss = Dice.Roll(DiceExpr.D2);
-        ReceiveDamage(loss);
+        var loss = dice.Roll(DiceExpr.D2);
+        ReceiveDamage(loss, dice);
         IsDizzyFromMagic = true;
         return CastOutcome.Fizzle(scroll.Description, loss);
     }
 
-    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, int penalty = 0)
+    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int penalty = 0)
     {
         switch (ability)
         {
@@ -379,7 +379,7 @@ public sealed class Character
                 challenge = new Dr(challenge.Value + 2);
                 break;
             case AbilityKind.Presence when HasSmashedFace:
-                penalty += Dice.Roll(DiceExpr.D4);
+                penalty += dice.Roll(DiceExpr.D4);
                 break;
         }
 
@@ -394,11 +394,11 @@ public sealed class Character
                 break;
         }
 
-        if (ability is AbilityKind.Agility && HasLostEye) penalty += Dice.Roll(DiceExpr.D4);
+        if (ability is AbilityKind.Agility && HasLostEye) penalty += dice.Roll(DiceExpr.D4);
 
         challenge = new Dr(challenge.Value + penalty);
 
-        var rollResults = Dice.Roll(DiceExpr.D20);
+        var rollResults = dice.Roll(DiceExpr.D20);
         var outcome = rollResults + Abilities[ability].Modifier;
         var nat = rollResults switch { 1 => Natural.One, 20 => Natural.Twenty, _ => Natural.None };
 
@@ -430,7 +430,7 @@ public sealed class Character
     }
 
     public static Character Create(Guid id, string name, int maxHp, Abilities.Abilities abilities,
-        StartingEquipment equipment, int startingOmensCount = 0)
+        StartingEquipment equipment, Dice dice, int startingOmensCount = 0)
     {
         var items = new List<InventoryItem>();
 
@@ -450,7 +450,7 @@ public sealed class Character
             equipment.Armor,
             equipment.Shield,
             equipment.Scrolls,
-            PowerPool.Create(abilities),
+            PowerPool.Create(abilities, dice),
             maxHp,
             maxHp,
             startingOmensCount);
