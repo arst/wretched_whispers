@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\WretchedWhispers.Core\WretchedWhispers.Core.csproj" />
+        <ProjectReference Include="..\WretchedWhispers.Semantic\WretchedWhispers.Semantic.csproj" />
     </ItemGroup>
 
     <ItemGroup>
