@@ -1,13 +1,15 @@
-﻿using WretchedWhispers.Core.Dices;
+﻿using System.Text.Json.Serialization;
+using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters.Possessions.Weapons;
 
 public sealed class Weapon
 {
-    private Weapon(WeaponKind kind, DiceExpr dmg)
+    [JsonConstructor]
+    private Weapon(WeaponKind kind, DiceExpr damageDie)
     {
         Kind = kind;
-        DamageDie = dmg;
+        DamageDie = damageDie;
     }
 
     public WeaponKind Kind { get; }
@@ -23,11 +25,11 @@ public sealed class Weapon
         return kind switch
         {
             WeaponKind.Femur or WeaponKind.Staff or WeaponKind.ShortSword or WeaponKind.Knife => new Weapon(kind,
-                DiceExpr.D4),
-            WeaponKind.Warhammer or WeaponKind.Sword or WeaponKind.Bow => new Weapon(kind, DiceExpr.D6),
-            WeaponKind.Flail or WeaponKind.Crossbow => new Weapon(kind, DiceExpr.D8),
-            WeaponKind.Zweihander => new Weapon(kind, DiceExpr.D10),
-            _ => new Weapon(WeaponKind.Improvised, DiceExpr.D4)
+                damageDie: DiceExpr.D4),
+            WeaponKind.Warhammer or WeaponKind.Sword or WeaponKind.Bow => new Weapon(kind, damageDie: DiceExpr.D6),
+            WeaponKind.Flail or WeaponKind.Crossbow => new Weapon(kind, damageDie: DiceExpr.D8),
+            WeaponKind.Zweihander => new Weapon(kind, damageDie: DiceExpr.D10),
+            _ => new Weapon(WeaponKind.Improvised, damageDie: DiceExpr.D4)
         };
     }
 }

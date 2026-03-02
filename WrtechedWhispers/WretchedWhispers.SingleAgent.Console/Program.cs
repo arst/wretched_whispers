@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -6,6 +8,7 @@ using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
 using WretchedWhispers.Infrastructure;
+using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
 
 #pragma warning disable SKEXP0001
@@ -49,6 +52,13 @@ using var loggerFactory = LoggerFactory.Create(builder =>
 
 var campaignKernel = BuildCampaignKernel();
 
+// Apply pending migrations on startup
+using (var scope = campaignKernel.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
+    db.Database.Migrate();
+}
+
 var chatCompletionService = campaignKernel.GetRequiredService<IChatCompletionService>();
 
 var history = new ChatHistory();
@@ -67,13 +77,13 @@ foreach (var message in initialMessage)
 Console.ResetColor();
 
 var summarizationReducer = new ChatHistorySummarizationReducer(
-    chatCompletionService, 
-    targetCount: 100, 
+    chatCompletionService,
+    targetCount: 100,
     thresholdCount: 150)
 {
-    SummarizationInstructions = 
+    SummarizationInstructions =
         """
-        When summarizing this MÖRK BORG game session, preserve these critical elements:
+        When summarizing this MORK BORG game session, preserve these critical elements:
 
         ESSENTIAL GAME STATE:
         - Character names, current hit points, abilities, scars, and omens
@@ -85,7 +95,7 @@ var summarizationReducer = new ChatHistorySummarizationReducer(
         - Recent significant events that affect the narrative
 
         PRESERVE THE ATMOSPHERE:
-        - Maintain the doom-laden, apocalyptic tone of MÖRK BORG
+        - Maintain the doom-laden, apocalyptic tone of MORK BORG
         - Keep descriptions of the decaying world and mounting dread
         - Retain any omens, prophecies, or signs of the coming end
         - Preserve the dark humor and grim moments
@@ -102,7 +112,7 @@ var summarizationReducer = new ChatHistorySummarizationReducer(
         - Excessive back-and-forth without narrative progress
         - Redundant explanations of rules or mechanics
 
-        Format the summary as a narrative that maintains the MÖRK BORG tone while clearly stating the current game state.
+        Format the summary as a narrative that maintains the MORK BORG tone while clearly stating the current game state.
         """
 };
 
@@ -113,12 +123,12 @@ ChatCompletionAgent gameMasterAgent =
         HistoryReducer = summarizationReducer,
         Instructions =
             """
-            You are a Game Master that leads games in the MÖRK BORG setting. You have all the tools available for you to lead the game, use them to create characters, roll dice, challenge characters, and so on.
+            You are a Game Master that leads games in the MORK BORG setting. You have all the tools available for you to lead the game, use them to create characters, roll dice, challenge characters, and so on.
 
-            Your GM style should reflect the tone of MÖRK BORG:
+            Your GM style should reflect the tone of MORK BORG:
             - The world is ending. Doom, misery, and decay permeate everything.
-            - The tone is “doom metal”: grotesque, unfair, bleak, but laced with dark humor and moments of grim beauty.
-            - Pain, scars, and disfigurement are part of survival. Heroes rarely walk away unscathed — if they walk away at all.
+            - The tone is "doom metal": grotesque, unfair, bleak, but laced with dark humor and moments of grim beauty.
+            - Pain, scars, and disfigurement are part of survival. Heroes rarely walk away unscathed -- if they walk away at all.
             - Describe places as rotting, rusted, broken, or corrupted. Emphasize filth, plague, starvation, desperation, and the oppressive weight of prophecy.
             - Fortune is fleeting. Rolls swing between great triumph and utter ruin. Lean into both extremes.
             - Scarcity is real: food, weapons, light, and time are always slipping away.
@@ -144,7 +154,7 @@ ChatCompletionAgent gameMasterAgent =
             - Emphasize inevitability: the world ends soon, and everything the characters do is done against the ticking clock of apocalypse.
             - Nothing is clean or safe. Even victories carry wounds or curses.
             - Use vivid, visceral language. Describe smells, sounds, rot, blood, and ruin.
-            - Players should feel both powerless and defiant — doomed figures raging against the end of all things.
+            - Players should feel both powerless and defiant -- doomed figures raging against the end of all things.
             """,
         Kernel = campaignKernel,
         Arguments =
@@ -186,6 +196,6 @@ void RegisterServices(IKernelBuilder builder)
         settings.AzureOpenAi.ChatModelDeployment,
         settings.AzureOpenAi.Endpoint,
         settings.AzureOpenAi.ApiKey);
-    builder.Services.AddInMemoryInfrastructure();
+    builder.Services.AddSqliteInfrastructure(settings.Database.ConnectionString);
     //builder.Services.AddSingleton(loggerFactory);
 }

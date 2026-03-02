@@ -1,7 +1,16 @@
-﻿namespace WretchedWhispers.Core.Campaigns.World;
+﻿using System.Text.Json.Serialization;
 
-public sealed class Misery(string code, string psalm = "")
+namespace WretchedWhispers.Core.Campaigns.World;
+
+public sealed class Misery
 {
-    public string Code { get; } = code;
-    public string Psalm { get; } = psalm;
+    [JsonConstructor]
+    public Misery(string code, string psalm = "")
+    {
+        Code = code;
+        Psalm = psalm;
+    }
+
+    public string Code { get; }
+    public string Psalm { get; }
 }

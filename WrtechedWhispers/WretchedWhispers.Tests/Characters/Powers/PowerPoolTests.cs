@@ -19,7 +19,7 @@ public class PowerPoolTests : TestBase
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(2); // D4 roll returns 1+2=3
 
         // Act
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
 
         // Assert
         Assert.Equal(5, powerPool.MaxUses); // 2 (Presence) + 3 (D4) = 5
@@ -39,7 +39,7 @@ public class PowerPoolTests : TestBase
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(3); // D4 roll returns 1+3=4
 
         // Act
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
 
         // Assert
         Assert.Equal(4, powerPool.MaxUses); // Max(0, -2) + 4 = 0 + 4 = 4
@@ -59,7 +59,7 @@ public class PowerPoolTests : TestBase
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(1); // D4 roll returns 1+1=2
 
         // Act
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
 
         // Assert
         Assert.Equal(2, powerPool.MaxUses); // 0 (Presence) + 2 (D4) = 2
@@ -77,7 +77,7 @@ public class PowerPoolTests : TestBase
             new AbilityScore(0)  // Toughness
         );
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(2); // Initial D4 roll returns 1+2=3
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
         
         // Consume some uses
         powerPool.TryConsumeOne();
@@ -88,7 +88,7 @@ public class PowerPoolTests : TestBase
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(0); // New D4 roll returns 1+0=1
 
         // Act
-        powerPool.ResetForNewDay(abilities);
+        powerPool.ResetForNewDay(abilities, Dice);
 
         // Assert
         Assert.Equal(2, powerPool.MaxUses); // 1 (Presence) + 1 (D4) = 2
@@ -106,7 +106,7 @@ public class PowerPoolTests : TestBase
             new AbilityScore(0)  // Toughness
         );
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(1); // Initial D4 roll returns 1+1=2
-        var powerPool = PowerPool.Create(originalAbilities);
+        var powerPool = PowerPool.Create(originalAbilities, Dice);
         Assert.Equal(3, powerPool.MaxUses); // 1 + 2 = 3
 
         var newAbilities = new WretchedWhispers.Core.Characters.Abilities.Abilities(
@@ -118,7 +118,7 @@ public class PowerPoolTests : TestBase
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(3); // New D4 roll returns 1+3=4
 
         // Act
-        powerPool.ResetForNewDay(newAbilities);
+        powerPool.ResetForNewDay(newAbilities, Dice);
 
         // Assert
         Assert.Equal(7, powerPool.MaxUses); // 3 (new Presence) + 4 (D4) = 7
@@ -136,7 +136,7 @@ public class PowerPoolTests : TestBase
             new AbilityScore(0)  // Toughness
         );
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(2); // D4 roll returns 1+2=3
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
         Assert.Equal(5, powerPool.UsesRemaining);
 
         // Act
@@ -159,7 +159,7 @@ public class PowerPoolTests : TestBase
             new AbilityScore(0)  // Toughness
         );
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(0); // D4 roll returns 1+0=1
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
         Assert.Equal(1, powerPool.UsesRemaining);
 
         // Consume the only use
@@ -185,7 +185,7 @@ public class PowerPoolTests : TestBase
             new AbilityScore(0)  // Toughness
         );
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(3); // D4 roll returns 1+3=4
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
         Assert.Equal(5, powerPool.UsesRemaining); // 1 + 4 = 5
 
         // Act & Assert - consume uses one by one
@@ -229,7 +229,7 @@ public class PowerPoolTests : TestBase
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(diceRoll);
 
         // Act
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
 
         // Assert
         Assert.Equal(expectedMaxUses, powerPool.MaxUses);
@@ -249,7 +249,7 @@ public class PowerPoolTests : TestBase
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(2); // Initial D4 roll returns 1+2=3
         
         // Act & Assert - Create pool
-        var powerPool = PowerPool.Create(abilities);
+        var powerPool = PowerPool.Create(abilities, Dice);
         Assert.Equal(5, powerPool.MaxUses);
         Assert.Equal(5, powerPool.UsesRemaining);
 
@@ -260,7 +260,7 @@ public class PowerPoolTests : TestBase
 
         // Reset for new day with different dice roll
         MockRandomService.Setup(x => x.GenerateRandomRoll(4)).Returns(0); // New D4 roll returns 1+0=1
-        powerPool.ResetForNewDay(abilities);
+        powerPool.ResetForNewDay(abilities, Dice);
         Assert.Equal(3, powerPool.MaxUses); // 2 + 1 = 3
         Assert.Equal(3, powerPool.UsesRemaining);
 

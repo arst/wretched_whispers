@@ -1,32 +1,25 @@
 namespace WretchedWhispers.Core.Dices;
 
-public static class Dice
+public sealed class Dice
 {
-    private static IRandomService? _randomService;
+    private readonly IRandomService _randomService;
 
-    public static void SetRandomGenerator(IRandomService randomService)
+    public Dice(IRandomService randomService)
     {
-        _randomService = randomService;
+        _randomService = randomService ?? throw new ArgumentNullException(nameof(randomService));
     }
 
-    public static int Roll(DiceExpr expr)
+    public int Roll(DiceExpr expr)
     {
         return D(expr.Count, expr.Sides) + expr.Constant;
     }
 
-    private static int D(int sides)
+    private int D(int sides)
     {
-        CheckRandomServiceInitialization();
-        return 1 + _randomService!.GenerateRandomRoll(sides);
+        return 1 + _randomService.GenerateRandomRoll(sides);
     }
 
-    private static void CheckRandomServiceInitialization()
-    {
-        if (_randomService is null)
-            throw new InvalidOperationException("Dice must be initialized with a random service before use.");
-    }
-
-    private static int D(int count, int sides)
+    private int D(int count, int sides)
     {
         var sum = 0;
         for (var i = 0; i < count; i++) sum += D(sides);

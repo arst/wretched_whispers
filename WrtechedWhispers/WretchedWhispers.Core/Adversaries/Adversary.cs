@@ -1,25 +1,43 @@
+using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 
 namespace WretchedWhispers.Core.Adversaries;
 
-public class Adversary(string name, HitPoints hp, Armor armor, int morale, AttackProfile attack)
+public class Adversary
 {
-    public Guid Id { get; } = Guid.NewGuid();
+    [JsonConstructor]
+    public Adversary(Guid id, string name, HitPoints hp, Armor armor, int morale, AttackProfile attack, bool isFled = false)
+    {
+        Id = id;
+        Name = name;
+        Hp = hp;
+        Armor = armor;
+        Morale = morale;
+        Attack = attack;
+        IsFled = isFled;
+    }
 
-    public string Name { get; } = name;
+    public Adversary(string name, HitPoints hp, Armor armor, int morale, AttackProfile attack)
+        : this(Guid.NewGuid(), name, hp, armor, morale, attack)
+    {
+    }
 
-    public HitPoints Hp { get; private set; } = hp;
+    public Guid Id { get; }
 
-    public Armor Armor { get; private set; } = armor;
+    public string Name { get; }
 
-    public int Morale { get; } = morale;
+    [JsonInclude] public HitPoints Hp { get; private set; }
 
-    public AttackProfile Attack { get; } = attack;
+    [JsonInclude] public Armor Armor { get; private set; }
 
-    public bool IsDead => Hp.Current <= 0;
+    public int Morale { get; }
 
-    public bool IsFled { get; private set; }
+    public AttackProfile Attack { get; }
+
+    [JsonIgnore] public bool IsDead => Hp.Current <= 0;
+
+    [JsonInclude] public bool IsFled { get; private set; }
 
     public void ReceiveDamage(int amount)
     {

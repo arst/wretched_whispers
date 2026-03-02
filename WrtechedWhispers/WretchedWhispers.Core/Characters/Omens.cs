@@ -1,13 +1,16 @@
-﻿namespace WretchedWhispers.Core.Characters;
+﻿using System.Text.Json.Serialization;
+
+namespace WretchedWhispers.Core.Characters;
 
 public sealed class Omens
 {
+    [JsonConstructor]
     public Omens(int count)
     {
         Count = Math.Max(0, count);
     }
 
-    public int Count { get; private set; }
+    [JsonInclude] public int Count { get; private set; }
 
     public bool TrySpend()
     {

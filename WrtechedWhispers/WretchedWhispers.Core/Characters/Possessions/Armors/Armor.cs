@@ -1,13 +1,21 @@
-﻿using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+﻿using System.Text.Json.Serialization;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters.Possessions.Armors;
 
-public sealed class Armor(ArmorTier tier)
+public sealed class Armor
 {
-    private ArmorTier OriginalTier { get; } = tier;
+    [JsonConstructor]
+    public Armor(ArmorTier tier, ArmorTier? originalTier = null)
+    {
+        Tier = tier;
+        OriginalTier = originalTier ?? tier;
+    }
 
-    public ArmorTier Tier { get; private set; } = tier;
+    [JsonInclude] private ArmorTier OriginalTier { get; }
+
+    [JsonInclude] public ArmorTier Tier { get; private set; }
 
     public int DefencePenalty => Tier.DefencePenalty;
 

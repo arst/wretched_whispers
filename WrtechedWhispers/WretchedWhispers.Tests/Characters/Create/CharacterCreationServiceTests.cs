@@ -12,7 +12,7 @@ public class CharacterCreationServiceTests : TestBase
     public async Task Create_ProducesValidCharacter()
     {
         var repoMock = new Mock<ICharactersRepository>();
-        var service = new CharacterCreationService(repoMock.Object);
+        var service = new CharacterCreationService(repoMock.Object, Dice);
         var character = await service.Create("Hero");
 
         Assert.NotNull(character);
@@ -37,7 +37,7 @@ public class CharacterCreationServiceTests : TestBase
     public async Task Create_AlwaysHasAWeapon()
     {
         var repoMock = new Mock<ICharactersRepository>();
-        var service = new CharacterCreationService(repoMock.Object);
+        var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
             var character = await service.Create($"Hero{i}");
@@ -50,7 +50,7 @@ public class CharacterCreationServiceTests : TestBase
     public async Task Create_AbilitiesWithinAllowedRange()
     {
         var repoMock = new Mock<ICharactersRepository>();
-        var service = new CharacterCreationService(repoMock.Object);
+        var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
             var character = await service.Create($"Hero{i}");
@@ -65,7 +65,7 @@ public class CharacterCreationServiceTests : TestBase
     public async Task Create_HpIsConsistentWithToughness()
     {
         var repoMock = new Mock<ICharactersRepository>();
-        var service = new CharacterCreationService(repoMock.Object);
+        var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
             var character = await service.Create($"Hero{i}");
@@ -78,7 +78,7 @@ public class CharacterCreationServiceTests : TestBase
     public async Task Create_InventoryDoesNotExceedContainerLimit()
     {
         var repoMock = new Mock<ICharactersRepository>();
-        var service = new CharacterCreationService(repoMock.Object);
+        var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
             var character = await service.Create($"Hero{i}");

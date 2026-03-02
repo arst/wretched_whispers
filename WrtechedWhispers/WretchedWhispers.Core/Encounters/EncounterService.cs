@@ -6,13 +6,13 @@ using WretchedWhispers.Core.Dices;
 namespace WretchedWhispers.Core.Encounters;
 
 public class EncounterService(
-    IRandomService rng,
+    Dice dice,
     ICharactersRepository charactersRepository,
     IEncountersRepository encountersRepository)
 {
     public async Task<Encounter> CreateEncounter(string name, string description, EncounterType encounterType)
     {
-        var encounter = Encounter.Create(name, description, encounterType, rng);
+        var encounter = Encounter.Create(name, description, encounterType, dice);
         await encountersRepository.Save(encounter);
         return encounter;
     }
@@ -61,10 +61,10 @@ public class EncounterService(
         var attacker = await charactersRepository.Get(characterId) ?? throw new InvalidOperationException();
         var adversary = encounter.Adversaries.Single(a => a.Id == adversaryId);
 
-        var outcome = attacker.Attack(adversary.Armor);
+        var outcome = attacker.Attack(adversary.Armor, dice);
         await charactersRepository.Save(attacker);
 
-        encounter.ProcessPlayerAttackOutcome(outcome, adversaryId);
+        encounter.ProcessPlayerAttackOutcome(outcome, adversaryId, dice);
         await encountersRepository.Save(encounter);
         return outcome;
     }
@@ -76,7 +76,7 @@ public class EncounterService(
         var defender = await charactersRepository.Get(characterId) ?? throw new InvalidOperationException();
         var adversary = encounter.Adversaries.Single(a => a.Id == adversaryId);
 
-        var defenceOutcome = defender.Defend(adversary.Attack.DamageDie);
+        var defenceOutcome = defender.Defend(adversary.Attack.DamageDie, dice);
         await charactersRepository.Save(defender);
 
         encounter.ProcessPlayerDefenceOutcome(defenceOutcome, adversaryId);

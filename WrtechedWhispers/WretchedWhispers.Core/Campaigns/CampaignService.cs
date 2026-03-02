@@ -6,7 +6,8 @@ namespace WretchedWhispers.Core.Campaigns;
 
 public class CampaignService(
     ICampaignsRepository campaignsRepository,
-    ICharactersRepository charactersRepository)
+    ICharactersRepository charactersRepository,
+    Dice dice)
 {
     public async Task CreateCampaign(DiceExpr dawnDice, string name, string description)
     {
@@ -56,7 +57,7 @@ public class CampaignService(
         var campaign = await campaignsRepository.Get(campaignId);
         if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
 
-        var outcome = campaign.AdvanceTime(hours);
+        var outcome = campaign.AdvanceTime(hours, dice);
         await campaignsRepository.SaveCampaign(campaign);
 
         if (!outcome.IsNewDawn) return outcome;
@@ -67,7 +68,7 @@ public class CampaignService(
 
             if (character is null) throw new InvalidOperationException("Player character not found.");
 
-            character.StartNewDay();
+            character.StartNewDay(dice);
             await charactersRepository.Save(character);
         }
 
@@ -79,7 +80,7 @@ public class CampaignService(
         var campaign = await campaignsRepository.Get(campaignId);
         if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
 
-        var outcome = campaign.AdvanceTime(hours);
+        var outcome = campaign.AdvanceTime(hours, dice);
         await campaignsRepository.SaveCampaign(campaign);
 
         foreach (var playerId in campaign.Players)
@@ -87,9 +88,9 @@ public class CampaignService(
             var character = await charactersRepository.Get(playerId);
 
             if (character is null) throw new InvalidOperationException("Player character not found.");
-            character.Rest(hours);
+            character.Rest(hours, dice);
 
-            if (outcome.IsNewDawn) character.StartNewDay();
+            if (outcome.IsNewDawn) character.StartNewDay(dice);
 
             await charactersRepository.Save(character);
         }

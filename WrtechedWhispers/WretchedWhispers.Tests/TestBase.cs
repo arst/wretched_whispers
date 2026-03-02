@@ -13,11 +13,12 @@ public abstract class TestBase : IDisposable
         // Create a mock random service for predictable test results
         MockRandomService = new Mock<IRandomService>();
 
-        // Initialize the Dice static class with our mock
-        Dice.SetRandomGenerator(MockRandomService.Object);
+        // Initialize a Dice instance with our mock
+        Dice = new Dice(MockRandomService.Object);
     }
 
     protected Mock<IRandomService> MockRandomService { get; }
+    protected Dice Dice { get; }
 
     public virtual void Dispose()
     {

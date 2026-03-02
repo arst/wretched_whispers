@@ -1,11 +1,22 @@
-﻿namespace WretchedWhispers.Core.Characters.Abilities;
+﻿using System.Text.Json.Serialization;
 
-public sealed class Abilities(AbilityScore agi, AbilityScore pre, AbilityScore str, AbilityScore tou)
+namespace WretchedWhispers.Core.Characters.Abilities;
+
+public sealed class Abilities
 {
-    public AbilityScore Agility { get; private set; } = agi;
-    public AbilityScore Presence { get; private set; } = pre;
-    public AbilityScore Strength { get; private set; } = str;
-    public AbilityScore Toughness { get; private set; } = tou;
+    [JsonConstructor]
+    public Abilities(AbilityScore agility, AbilityScore presence, AbilityScore strength, AbilityScore toughness)
+    {
+        Agility = agility;
+        Presence = presence;
+        Strength = strength;
+        Toughness = toughness;
+    }
+
+    [JsonInclude] public AbilityScore Agility { get; private set; }
+    [JsonInclude] public AbilityScore Presence { get; private set; }
+    [JsonInclude] public AbilityScore Strength { get; private set; }
+    [JsonInclude] public AbilityScore Toughness { get; private set; }
 
     public AbilityScore this[AbilityKind kind] => kind switch
     {

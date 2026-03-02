@@ -6,13 +6,16 @@ namespace WretchedWhispers.Infrastructure;
 public class Settings
 {
     private readonly IConfigurationRoot _configRoot = new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
         .AddEnvironmentVariables()
         .AddUserSecrets(Assembly.GetExecutingAssembly(), true)
         .Build();
 
     private AzureOpenAiSettings? _azureOpenAi;
+    private DatabaseSettings? _database;
 
     public AzureOpenAiSettings AzureOpenAi => _azureOpenAi ??= GetSettings<AzureOpenAiSettings>();
+    public DatabaseSettings Database => _database ??= GetSettings<DatabaseSettings>();
 
     public TSettings GetSettings<TSettings>()
     {
@@ -24,5 +27,10 @@ public class Settings
         public string ChatModelDeployment { get; set; } = string.Empty;
         public string Endpoint { get; set; } = string.Empty;
         public string ApiKey { get; set; } = string.Empty;
+    }
+
+    public class DatabaseSettings
+    {
+        public string ConnectionString { get; set; } = "Data Source=./wretched-whispers.db";
     }
 }

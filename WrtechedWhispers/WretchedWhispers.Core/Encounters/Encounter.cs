@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Characters.Combat;
 using WretchedWhispers.Core.Dices;
@@ -6,39 +7,47 @@ namespace WretchedWhispers.Core.Encounters;
 
 public sealed class Encounter
 {
-    private readonly List<Adversary> _adversaries = [];
-
-
-    private Encounter(Guid id, EncounterType initialType, string name, string description)
+    [JsonConstructor]
+    private Encounter(Guid id, EncounterType initialType, EncounterType currentType, string name, string description,
+        List<Adversary> adversaries, bool isStarted = false, bool isEnded = false)
     {
         Id = id;
         InitialType = initialType;
+        CurrentType = currentType;
         Name = name;
         Description = description;
+        Adversaries = adversaries ?? [];
+        IsStarted = isStarted;
+        IsEnded = isEnded;
+    }
+
+    private Encounter(Guid id, EncounterType initialType, string name, string description)
+        : this(id, initialType, default, name, description, [])
+    {
     }
 
     public Guid Id { get; }
     public EncounterType InitialType { get; }
-    public EncounterType CurrentType { get; private set; }
+    [JsonInclude] public EncounterType CurrentType { get; private set; }
     public string Name { get; }
     public string Description { get; }
-    public IReadOnlyList<Adversary> Adversaries => _adversaries;
-    public IReadOnlyList<Adversary> LivingAdversaries => _adversaries.Where(a => !a.IsDead).ToList().AsReadOnly();
-    public IReadOnlyList<Adversary> DeadAdversaries => _adversaries.Where(a => a.IsDead).ToList().AsReadOnly();
+    [JsonInclude] public List<Adversary> Adversaries { get; private set; }
+    [JsonIgnore] public IReadOnlyList<Adversary> LivingAdversaries => Adversaries.Where(a => !a.IsDead).ToList().AsReadOnly();
+    [JsonIgnore] public IReadOnlyList<Adversary> DeadAdversaries => Adversaries.Where(a => a.IsDead).ToList().AsReadOnly();
     public bool IsStarted { get; set; }
     public bool IsEnded { get; set; }
 
-    public static Encounter Create(string name, string description, EncounterType initialType, IRandomService rng)
+    public static Encounter Create(string name, string description, EncounterType initialType, Dice dice)
     {
         var encounter = new Encounter(Guid.NewGuid(), initialType, name, description);
-        encounter.Initiate(initialType);
+        encounter.Initiate(initialType, dice);
 
         return encounter;
     }
 
     public void StartEncounter()
     {
-        if (_adversaries.Count == 0)
+        if (Adversaries.Count == 0)
             throw new InvalidOperationException("Can't start an encounter without adversaries.");
         IsStarted = true;
         IsEnded = false;
@@ -47,7 +56,7 @@ public sealed class Encounter
     public void EndEncounter()
     {
         if (!IsStarted) throw new InvalidOperationException("Can't end an encounter that hasn't started.");
-        var anyActiveAdversaries = _adversaries.Any(a => a is { IsDead: false, IsFled: false });
+        var anyActiveAdversaries = Adversaries.Any(a => a is { IsDead: false, IsFled: false });
         if (anyActiveAdversaries)
             throw new InvalidOperationException("Can't end an encounter with active adversaries.");
         IsEnded = true;
@@ -55,12 +64,12 @@ public sealed class Encounter
 
     public void AddAdversary(Adversary e)
     {
-        _adversaries.Add(e);
+        Adversaries.Add(e);
     }
 
-    public void ProcessPlayerAttackOutcome(AttackOutcome outcome, Guid adversaryId)
+    public void ProcessPlayerAttackOutcome(AttackOutcome outcome, Guid adversaryId, Dice dice)
     {
-        var adversary = _adversaries.Single(a => a.Id == adversaryId);
+        var adversary = Adversaries.Single(a => a.Id == adversaryId);
 
         if (outcome.Hit) adversary.ReceiveDamage(outcome.Damage.Amount);
 
@@ -68,7 +77,7 @@ public sealed class Encounter
             return;
 
         var moraleDiceExpr = DiceExpr.D(2, 6);
-        var moraleRoll = Dice.Roll(moraleDiceExpr);
+        var moraleRoll = dice.Roll(moraleDiceExpr);
 
         if (moraleRoll >= adversary.Morale)
             return;
@@ -80,12 +89,12 @@ public sealed class Encounter
     {
     }
 
-    private void Initiate(EncounterType initialType)
+    private void Initiate(EncounterType initialType, Dice dice)
     {
         if (initialType is not EncounterType.Unknown)
             return;
 
-        var reaction = RollInitialReaction();
+        var reaction = RollInitialReaction(dice);
         if (reaction is InitialReaction.Kill or InitialReaction.Angered)
             ElevateToHostile();
         else
@@ -102,10 +111,10 @@ public sealed class Encounter
         CurrentType = EncounterType.Hostile;
     }
 
-    private static InitialReaction RollInitialReaction()
+    private static InitialReaction RollInitialReaction(Dice dice)
     {
         var initialReactionDiceExpr = DiceExpr.D(2, 6);
-        var rollResult = Dice.Roll(initialReactionDiceExpr);
+        var rollResult = dice.Roll(initialReactionDiceExpr);
 
         return rollResult switch
         {
@@ -119,11 +128,11 @@ public sealed class Encounter
 
     private bool ShouldCheckMorale()
     {
-        var groupSize = _adversaries.Count;
+        var groupSize = Adversaries.Count;
 
         if (groupSize == 1)
         {
-            var adversary = _adversaries.First();
+            var adversary = Adversaries.First();
             var hasLessThanThirdHp = adversary.Hp.Current < adversary.Hp.Max * 0.3;
 
             return hasLessThanThirdHp;

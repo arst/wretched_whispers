@@ -1,8 +1,10 @@
-﻿namespace WretchedWhispers.Core.Characters.Possessions;
+﻿using System.Text.Json.Serialization;
+
+namespace WretchedWhispers.Core.Characters.Possessions;
 
 public sealed class Shield
 {
-    public bool IsBroken { get; private set; }
+    [JsonInclude] public bool IsBroken { get; private set; }
 
     public void Break()
     {

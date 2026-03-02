@@ -21,7 +21,7 @@ public class CampaignServiceTests : TestBase
     {
         _campaignsRepository = new Mock<ICampaignsRepository>();
         _charactersRepository = new Mock<ICharactersRepository>();
-        _service = new CampaignService(_campaignsRepository.Object, _charactersRepository.Object);
+        _service = new CampaignService(_campaignsRepository.Object, _charactersRepository.Object, Dice);
     }
 
     [Fact]
@@ -347,6 +347,6 @@ public class CampaignServiceTests : TestBase
             []
         );
 
-        return Character.Create(characterId, "Test Character", 10, abilities, equipment);
+        return Character.Create(characterId, "Test Character", 10, abilities, equipment, Dice);
     }
 }
