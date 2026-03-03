@@ -16,9 +16,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Session Management
 
 - [x] **SESS-01**: User can create a new game session
-- [x] **SESS-02**: User can view list of their existing game sessions
-- [x] **SESS-03**: User can continue a saved game session from where they left off
-- [x] **SESS-04**: Game state auto-saves after each player action
+- [ ] **SESS-02**: User can view list of their existing game sessions
+- [ ] **SESS-03**: User can continue a saved game session from where they left off
+- [ ] **SESS-04**: Game state auto-saves after each player action
 
 ### Gameplay
 
@@ -51,8 +51,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Infrastructure
 
 - [x] **INFR-01**: .NET API layer with SSE streaming for LLM responses
-- [x] **INFR-02**: SQLite persistence for all game state (character, chat history, world state)
-- [x] **INFR-03**: Multi-tenant session isolation (each player's games are private)
+- [ ] **INFR-02**: SQLite persistence for all game state (character, chat history, world state)
+- [ ] **INFR-03**: Multi-tenant session isolation (each player's games are private)
 - [x] **INFR-04**: OpenTelemetry observability for API and LLM calls
 
 ## v2 Requirements
@@ -107,9 +107,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-02 | Phase 2 | Complete |
 | AUTH-03 | Phase 2 | Complete |
 | SESS-01 | Phase 3 | Complete |
-| SESS-02 | Phase 3 | Complete |
-| SESS-03 | Phase 3 | Complete |
-| SESS-04 | Phase 3 | Complete |
+| SESS-02 | Phase 03.1 | Pending |
+| SESS-03 | Phase 03.1 | Pending |
+| SESS-04 | Phase 03.1 | Pending |
 | GAME-01 | Phase 5 | Pending |
 | GAME-02 | Phase 5 | Pending |
 | GAME-03 | Phase 5 | Pending |
@@ -127,8 +127,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-02 | Phase 4 | Pending |
 | UI-03 | Phase 4 | Pending |
 | INFR-01 | Phase 3 | Complete |
-| INFR-02 | Phase 1 | Complete |
-| INFR-03 | Phase 2 | Complete |
+| INFR-02 | Phase 03.1 | Pending |
+| INFR-03 | Phase 03.1 | Pending |
 | INFR-04 | Phase 3 | Complete |
 
 **Coverage:**

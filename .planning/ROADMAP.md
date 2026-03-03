@@ -80,6 +80,17 @@ Plans:
 - [x] 03-02-PLAN.md — GameSessionService with SK agent streaming, SSE action endpoint, concurrency guard, transactional state, resilience pipeline, integration tests
 - [ ] 03-03-PLAN.md — Gap closure: true token-by-token SSE streaming via Channel<SseEvent>, ownership verification on action endpoint
 
+### Phase 03.1: Persistence Multi-Tenancy Fix (INSERTED)
+
+**Goal:** Fix cross-phase integration gaps — SaveCampaign preserves tenant ownership during agent turns and Web API auto-creates database on first launch
+**Requirements**: INFR-02, INFR-03, SESS-02, SESS-03, SESS-04
+**Depends on:** Phase 3
+**Gap Closure:** Closes gaps from v1.0 milestone audit
+**Plans:** 0/0 plans
+
+Plans:
+- [ ] 03.1-01: TBD
+
 ### Phase 4: Frontend Foundation and Character Creation
 **Goal**: Players open the web app, see the Mork Borg aesthetic, and create a character through a guided narrator conversation
 **Depends on**: Phase 3
