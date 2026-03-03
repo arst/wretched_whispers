@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3
 status: Phase Complete
-last_updated: "2026-03-03T14:35:13.000Z"
+last_updated: "2026-03-03T15:11:15.000Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  current_plan: 2
-  total_plans_in_phase: 2
+  total_plans: 10
+  completed_plans: 10
+  current_plan: 3
+  total_plans_in_phase: 3
 ---
 
 # Session State
@@ -24,13 +24,13 @@ See: .planning/PROJECT.md
 
 **Milestone:** v1.0 milestone
 **Current phase:** Phase 3 — API Layer and Streaming
-**Current Plan:** 2 of 2 in phase (complete)
-**Status:** Phase 3 complete - All plans executed
+**Current Plan:** 3 of 3 in phase (complete)
+**Status:** Phase 3 complete - All plans executed (including gap closure)
 
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 03-02-PLAN.md (Phase 3 complete)
+Stopped at: Completed 03-03-PLAN.md (Phase 3 gap closure complete)
 Resume file: N/A (phase complete)
 
 ## Decisions
@@ -40,7 +40,8 @@ Resume file: N/A (phase complete)
 - OTel sensitive diagnostics enabled via AppContext switch for dev tracing
 - Ownership verification returns 404 (not 403) to avoid information leakage
 - Plugins registered as Scoped and resolved via ImportPluginFromObject for request-scoped DbContext alignment
-- Events buffered in list then yielded (C# prohibits yield in try/catch)
+- Channel<SseEvent> bridge pattern replaces buffered List (enables true token-by-token streaming despite C# yield/try-catch limitation)
+- Ownership check placed before concurrency guard to avoid locking for unauthorized requests
 - Transactional agent turn: BeginTransaction/CommitTransaction/RollbackTransaction wraps entire agent invocation
 
 ## Performance Metrics
@@ -49,6 +50,7 @@ Resume file: N/A (phase complete)
 |-------|------|----------|-------|-------|
 | 03    | 01   | 6min     | 3     | 10    |
 | 03    | 02   | 7min     | 3     | 8     |
+| 03    | 03   | 3min     | 2     | 3     |
 
 ## Session Log
 
@@ -56,3 +58,4 @@ Resume file: N/A (phase complete)
 - 2026-03-03: Phase 3 context gathered (session API, streaming, actions, failure handling)
 - 2026-03-03: Plan 03-01 executed (session CRUD endpoints, OTel, 8 integration tests)
 - 2026-03-03: Plan 03-02 executed (streaming action endpoint, GameSessionService, concurrency guard, 9 tests)
+- 2026-03-03: Plan 03-03 executed (gap closure: Channel-based streaming, ownership verification on actions endpoint)
