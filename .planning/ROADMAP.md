@@ -36,6 +36,18 @@ Plans:
 - [x] 01-01-PLAN.md — EF Core setup, entity wrappers, DbContext, JSON serialization, aggregate SQLite repositories, round-trip tests
 - [x] 01-02-PLAN.md — Chat history persistence, DI wiring, Settings, migrations, console app switchover, in-memory removal
 
+### Phase 01.1: Domain Design Improvements (INSERTED)
+
+**Goal:** Fix critical bugs and structural design issues in the domain layer (WretchedWhispers.Core) before building features on top of it — inverted scroll restriction, public Encounter setters, Character god-class decomposition, injury flag consolidation, aggregate boundary enforcement, and entity sealing
+**Requirements**: INTERNAL-REFACTOR
+**Depends on:** Phase 1
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01.1-01-PLAN.md — Fix critical bugs (scroll restriction, Encounter setters), create InjuryKind/InjurySet foundation types, seal all domain entities
+- [ ] 01.1-02-PLAN.md — Character decomposition: migrate injury booleans to InjurySet, ArmorTier strategy delegation, Inventory to sealed class, Abilities immutability
+- [ ] 01.1-03-PLAN.md — Aggregate boundary enforcement (CharacterPlugin routing), serialization test updates, full round-trip verification
+
 ### Phase 2: Authentication and Multi-Tenancy
 **Goal**: Players can create accounts, log in, and have their game sessions isolated from other players
 **Depends on**: Phase 1
