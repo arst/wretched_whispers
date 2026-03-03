@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using WretchedWhispers.Api.Models;
+using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
@@ -18,6 +19,68 @@ public static class SessionEndpoints
         group.MapGet("/", ListSessions);
         group.MapGet("/{sessionId:guid}", GetSessionDetail);
         group.MapGet("/{sessionId:guid}/messages", GetSessionMessages);
+
+        group.MapPost("/{sessionId:guid}/actions", async (
+            Guid sessionId,
+            PlayerActionRequest request,
+            GameSessionService gameService,
+            SessionConcurrencyGuard guard,
+            HttpContext http,
+            CancellationToken ct) =>
+        {
+            // 409 check BEFORE any response writes (per research Pitfall 6)
+            if (!await guard.TryAcquire(sessionId))
+                return Results.Conflict(new { error = "GM response already in progress" });
+
+            try
+            {
+                // Verify ownership before streaming
+                var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                    return Results.Unauthorized();
+
+                // Set SSE headers
+                http.Response.ContentType = "text/event-stream";
+                http.Response.Headers.CacheControl = "no-cache";
+                http.Response.Headers.Connection = "keep-alive";
+
+                await foreach (var sseEvent in gameService.ProcessAction(sessionId, request.Message, ct))
+                {
+                    await http.Response.WriteAsync($"event: {sseEvent.EventType}\n", ct);
+                    await http.Response.WriteAsync($"data: {sseEvent.JsonData}\n\n", ct);
+                    await http.Response.Body.FlushAsync(ct);
+                }
+
+                // Signal stream completion
+                await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
+                await http.Response.Body.FlushAsync(ct);
+                return Results.Empty;
+            }
+            catch (OperationCanceledException)
+            {
+                // Client disconnected -- no error needed, just stop
+                return Results.Empty;
+            }
+            catch (Exception)
+            {
+                // If response has started (headers sent), use SSE error event
+                try
+                {
+                    await http.Response.WriteAsync("event: error\ndata: {\"message\":\"An unexpected error occurred\"}\n\n", ct);
+                    await http.Response.Body.FlushAsync(ct);
+                }
+                catch
+                {
+                    // Response may be closed, swallow
+                }
+
+                return Results.Empty;
+            }
+            finally
+            {
+                guard.Release(sessionId);
+            }
+        });
 
         return app;
     }

@@ -42,6 +42,8 @@ builder.Services.AddAuthorization();
 
 builder.AddWretchedWhispersOpenTelemetry();
 
+builder.Services.AddSemanticKernel(builder.Configuration);
+
 var app = builder.Build();
 
 app.UseAuthentication();
