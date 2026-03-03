@@ -16,10 +16,8 @@ namespace WretchedWhispers.Infrastructure;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers SQLite-backed persistence, domain services, and the dice random generator.
-    /// All services use Transient lifetime for compatibility with SemanticKernel's plugin
-    /// resolution (ImportPluginFromType resolves from root provider). When a web API host
-    /// is added in Phase 3, consider switching to Scoped lifetime with proper scope management.
+    /// Registers SQLite DbContext (Transient) plus all domain services.
+    /// Transient lifetime needed for SemanticKernel's root-provider plugin resolution.
     /// </summary>
     public static IServiceCollection AddSqliteInfrastructure(
         this IServiceCollection services,
@@ -45,6 +43,30 @@ public static class ServiceCollectionExtensions
         services.AddTransient<CampaignService>();
 
         // Register JsonSerializerOptions for aggregate serialization
+        services.AddSingleton<JsonSerializerOptions>(_ => AggregateJsonOptions.Create());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers repositories, domain services, dice, and JSON options as Scoped.
+    /// DbContext must be registered separately by the host (web API uses Scoped lifetime).
+    /// </summary>
+    public static IServiceCollection AddDomainServices(this IServiceCollection services)
+    {
+        services.AddSingleton<IRandomService, SeededRandomService>();
+        services.AddSingleton<Dice>();
+
+        services.AddScoped<ICharactersRepository, SqliteCharactersRepository>();
+        services.AddScoped<ICampaignsRepository, SqliteCampaignsRepository>();
+        services.AddScoped<IEncountersRepository, SqliteEncountersRepository>();
+        services.AddScoped<IChatHistoryRepository, SqliteChatHistoryRepository>();
+
+        services.AddScoped<CharacterCreationService>();
+        services.AddScoped<CharacterService>();
+        services.AddScoped<EncounterService>();
+        services.AddScoped<CampaignService>();
+
         services.AddSingleton<JsonSerializerOptions>(_ => AggregateJsonOptions.Create());
 
         return services;

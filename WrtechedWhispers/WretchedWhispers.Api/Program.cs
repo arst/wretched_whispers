@@ -2,13 +2,17 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// EF Core + SQLite
+// EF Core + SQLite (Scoped lifetime for web API)
 builder.Services.AddDbContext<WretchedWhispersDbContext>(
     options => options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
+
+// Repositories, domain services, dice, JSON options (Scoped)
+builder.Services.AddDomainServices();
 
 // Identity API endpoints (register, login, refresh)
 builder.Services.AddIdentityApiEndpoints<IdentityUser>(options =>
