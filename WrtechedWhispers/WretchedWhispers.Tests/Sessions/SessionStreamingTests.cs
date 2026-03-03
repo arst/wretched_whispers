@@ -40,7 +40,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
     }
 
     [Fact]
-    public async Task PostAction_WithNonExistentSession_ReturnsStreamWithError()
+    public async Task PostAction_WithNonExistentSession_Returns404()
     {
         var token = await RegisterAndLogin("stream-nonexistent@test.com");
         var nonExistentId = Guid.NewGuid();
@@ -52,14 +52,10 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
             Encoding.UTF8,
             "application/json");
 
-        var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        var response = await _client.SendAsync(request);
 
-        // The endpoint streams SSE; it should contain an error event for non-existent session
-        var body = await response.Content.ReadAsStringAsync();
-
-        // Should contain an error event (campaign not found)
-        Assert.Contains("event: error", body);
-        Assert.Contains("Session not found", body);
+        // Ownership check returns 404 before SSE headers (non-existent session not in user's campaigns)
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -117,19 +113,10 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
             Encoding.UTF8,
             "application/json");
 
-        var response = await _client.SendAsync(actionRequest, HttpCompletionOption.ResponseHeadersRead);
+        var response = await _client.SendAsync(actionRequest);
 
-        // The GameSessionService loads campaign by sessionId regardless of ownership.
-        // Since the session exists, it will proceed to streaming and hit an LLM error.
-        // The important thing is it streams SSE events (the ownership check is at the
-        // campaign repository level -- the campaign exists but is owned by User A).
-        // Note: Full ownership verification on the action endpoint would require
-        // additional logic in the endpoint handler. For now, the error event
-        // from the LLM failure is acceptable behavior.
-        var body = await response.Content.ReadAsStringAsync();
-
-        // Should contain some SSE event (either error from LLM or ownership)
-        Assert.Contains("event:", body);
+        // Ownership check returns 404 before SSE headers -- not an SSE stream
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     private async Task<string> RegisterAndLogin(string email)

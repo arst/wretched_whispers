@@ -25,19 +25,26 @@ public static class SessionEndpoints
             PlayerActionRequest request,
             GameSessionService gameService,
             SessionConcurrencyGuard guard,
+            ICampaignsRepository campaignsRepo,
             HttpContext http,
             CancellationToken ct) =>
         {
+            // Verify ownership before acquiring concurrency lock or setting SSE headers
+            var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Results.Unauthorized();
+
+            // Ownership check: returns 404 (not 403) to avoid information leakage, matching GetSessionDetail pattern
+            var userCampaigns = await campaignsRepo.GetForUser(userId);
+            if (!userCampaigns.Any(c => c.Id == sessionId))
+                return Results.NotFound();
+
             // 409 check BEFORE any response writes (per research Pitfall 6)
             if (!await guard.TryAcquire(sessionId))
                 return Results.Conflict(new { error = "GM response already in progress" });
 
             try
             {
-                // Verify ownership before streaming
-                var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId))
-                    return Results.Unauthorized();
 
                 // Set SSE headers
                 http.Response.ContentType = "text/event-stream";
