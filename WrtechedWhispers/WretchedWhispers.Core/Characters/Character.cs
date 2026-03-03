@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
@@ -10,6 +10,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Characters.Powers;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Characters.Status.Broken;
 using WretchedWhispers.Core.Dices;
 
@@ -34,15 +35,10 @@ public sealed class Character
         PowerPool powers,
         HitPoints hp,
         Omens omens,
+        InjurySet injuries = default,
         bool isInfected = false,
         bool isDizzyFromMagic = false,
-        bool isDead = false,
-        bool hasLostEye = false,
-        bool hasStabbedLung = false,
-        bool hasBrokenHand = false,
-        bool hasCrushedFoot = false,
-        bool hasSeveredArm = false,
-        bool hasSmashedFace = false)
+        bool isDead = false)
     {
         Id = id;
         Name = name;
@@ -57,15 +53,10 @@ public sealed class Character
         Hp = hp;
         _scrolls = scrolls;
         Inventory = inventory;
+        Injuries = injuries;
         IsInfected = isInfected;
         IsDizzyFromMagic = isDizzyFromMagic;
         IsDead = isDead;
-        HasLostEye = hasLostEye;
-        HasStabbedLung = hasStabbedLung;
-        HasBrokenHand = hasBrokenHand;
-        HasCrushedFoot = hasCrushedFoot;
-        HasSeveredArm = hasSeveredArm;
-        HasSmashedFace = hasSmashedFace;
     }
 
     private Character(
@@ -90,7 +81,7 @@ public sealed class Character
 
     [JsonInclude] public Guid Id { get; private set; }
     [JsonInclude] public string Name { get; private set; }
-    public Abilities.Abilities Abilities { get; }
+    [JsonInclude] public Abilities.Abilities Abilities { get; private set; }
     [JsonInclude] public int Silver { get; private set; }
     public int FoodDays { get; }
 
@@ -109,17 +100,15 @@ public sealed class Character
 
     [JsonInclude] public bool IsDead { get; private set; }
 
-    [JsonInclude] public bool HasLostEye { get; private set; }
+    [JsonInclude] public InjurySet Injuries { get; private set; }
 
-    [JsonInclude] public bool HasStabbedLung { get; private set; }
-
-    [JsonInclude] public bool HasBrokenHand { get; private set; }
-
-    [JsonInclude] public bool HasCrushedFoot { get; private set; }
-
-    [JsonInclude] public bool HasSeveredArm { get; private set; }
-
-    [JsonInclude] public bool HasSmashedFace { get; private set; }
+    // Backward-compatible computed properties for CharacterPlugin and other consumers
+    [JsonIgnore] public bool HasLostEye => Injuries.Has(InjuryKind.LostEye);
+    [JsonIgnore] public bool HasStabbedLung => Injuries.Has(InjuryKind.StabbedLung);
+    [JsonIgnore] public bool HasBrokenHand => Injuries.Has(InjuryKind.BrokenHand);
+    [JsonIgnore] public bool HasCrushedFoot => Injuries.Has(InjuryKind.CrushedFoot);
+    [JsonIgnore] public bool HasSeveredArm => Injuries.Has(InjuryKind.SeveredArm);
+    [JsonIgnore] public bool HasSmashedFace => Injuries.Has(InjuryKind.SmashedFace);
 
     [JsonInclude] public List<Scroll> Scrolls { get => _scrolls; private set => _scrolls = value; }
 
@@ -168,8 +157,8 @@ public sealed class Character
         {
             var raw = dice.Roll(Weapon.DamageDie);
             if (crit) raw *= 2;
-            // Armor damage reduction
-            var reduction = targetArmor.DamageReduction.Sides == 0 ? 0 : dice.Roll(targetArmor.DamageReduction);
+            // Armor damage reduction delegated to ArmorTier
+            var reduction = targetArmor.Tier.RollDamageReduction(dice);
             var final = Math.Max(0, raw - reduction);
             dmg = Damage.From(final);
 
@@ -222,26 +211,26 @@ public sealed class Character
             {
                 case null:
                     break;
-                case BrokenHand:
-                    HasBrokenHand = true;
-                    break;
-                case CrushedFoot:
-                    HasCrushedFoot = true;
-                    break;
                 case DeadBroken:
                     IsDead = true;
                     break;
+                case BrokenHand:
+                    Injuries = Injuries.Add(InjuryKind.BrokenHand);
+                    break;
+                case CrushedFoot:
+                    Injuries = Injuries.Add(InjuryKind.CrushedFoot);
+                    break;
                 case EyeLost:
-                    HasLostEye = true;
+                    Injuries = Injuries.Add(InjuryKind.LostEye);
                     break;
                 case SeveredArm:
-                    HasSeveredArm = true;
+                    Injuries = Injuries.Add(InjuryKind.SeveredArm);
                     break;
                 case SmashedFace:
-                    HasSmashedFace = true;
+                    Injuries = Injuries.Add(InjuryKind.SmashedFace);
                     break;
                 case StabbedLung:
-                    HasStabbedLung = true;
+                    Injuries = Injuries.Add(InjuryKind.StabbedLung);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(brokenOutcome));
@@ -264,7 +253,7 @@ public sealed class Character
         }
 
         var armorReduction =
-            RollArmorReduction(Armor, dice) +
+            Armor.Tier.RollDamageReduction(dice) +
             (Shield is not null
                 ? 1
                 : 0); // Shield adds +1 to armor reduction or completely blocks one attack and breaks, model as +1 to armor reduction fo now
@@ -282,18 +271,6 @@ public sealed class Character
         var fumble = test.Natural == Natural.One;
 
         return (avoided, critFree, fumble);
-    }
-
-    private static int RollArmorReduction(Armor armor, Dice dice)
-    {
-        return armor.Tier switch
-        {
-            HeavyArmorTier => dice.Roll(DiceExpr.D6),
-            LightArmorTier => dice.Roll(DiceExpr.D4),
-            MediumArmorTier => dice.Roll(DiceExpr.D3),
-            NoArmorTier => 0,
-            _ => throw new ArgumentOutOfRangeException(nameof(armor.Tier), armor.Tier, null)
-        };
     }
 
     private BrokenOutcome? ResolveBroken(Dice dice)
@@ -373,28 +350,29 @@ public sealed class Character
 
     public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int penalty = 0)
     {
+        // Encumbrance penalty
+        if (ability is AbilityKind.Strength or AbilityKind.Agility && IsEncumbered)
+            challenge = new Dr(challenge.Value + 2);
+
+        // Injury-based DR increases (fixed penalties)
         switch (ability)
         {
-            case AbilityKind.Strength or AbilityKind.Agility when IsEncumbered:
-                challenge = new Dr(challenge.Value + 2);
+            case AbilityKind.Strength:
+                challenge = new Dr(challenge.Value + Injuries.GetStrengthPenalty());
                 break;
-            case AbilityKind.Presence when HasSmashedFace:
-                penalty += dice.Roll(DiceExpr.D4);
+            case AbilityKind.Agility:
+                challenge = new Dr(challenge.Value + Injuries.GetAgilityPenalty());
                 break;
         }
 
-        switch (ability)
-        {
-            case AbilityKind.Strength when HasSeveredArm:
-                challenge = new Dr(challenge.Value + 4);
-                break;
-            case AbilityKind.Strength when HasBrokenHand:
-            case AbilityKind.Agility when HasStabbedLung || HasCrushedFoot:
-                challenge = new Dr(challenge.Value + 2);
-                break;
-        }
+        // Injury-based dice penalties
+        var presencePenaltyDice = Injuries.GetPresencePenaltyDice();
+        if (ability is AbilityKind.Presence && presencePenaltyDice.Sides > 0)
+            penalty += dice.Roll(presencePenaltyDice);
 
-        if (ability is AbilityKind.Agility && HasLostEye) penalty += dice.Roll(DiceExpr.D4);
+        var agilityPenaltyDice = Injuries.GetAgilityPenaltyDice();
+        if (ability is AbilityKind.Agility && agilityPenaltyDice.Sides > 0)
+            penalty += dice.Roll(agilityPenaltyDice);
 
         challenge = new Dr(challenge.Value + penalty);
 
@@ -409,7 +387,7 @@ public sealed class Character
 
     public void Improve(AbilityKind kind, int delta)
     {
-        Abilities.ModifyAbility(kind, delta);
+        Abilities = Abilities.ModifyAbility(kind, delta);
 
         if (kind != AbilityKind.Strength)
             return;
@@ -421,7 +399,7 @@ public sealed class Character
     {
         if (delta >= 0) throw new InvalidOperationException("Degrade delta must be negative.");
 
-        Abilities.ModifyAbility(kind, delta);
+        Abilities = Abilities.ModifyAbility(kind, delta);
 
         if (kind != AbilityKind.Strength)
             return;
