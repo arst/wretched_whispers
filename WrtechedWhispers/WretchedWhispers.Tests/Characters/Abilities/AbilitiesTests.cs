@@ -46,13 +46,42 @@ public class AbilitiesTests
     [InlineData(AbilityKind.Presence, 1, 2, 3, 4, AbilityKind.Presence, 6)] // 2+4=6
     [InlineData(AbilityKind.Strength, 1, 2, 3, 4, AbilityKind.Strength, 6)] // 3+3=6
     [InlineData(AbilityKind.Toughness, 1, 2, 3, 4, AbilityKind.Toughness, 6)] // 4+2=6
-    public void ModifyAbility_UpdatesCorrectAbility(AbilityKind kind, int agi, int pre, int str, int tou,
+    public void ModifyAbility_ReturnsNewInstanceWithUpdatedAbility(AbilityKind kind, int agi, int pre, int str, int tou,
         AbilityKind checkKind, int expected)
     {
         var abilities = new Core.Characters.Abilities.Abilities(new AbilityScore(agi), new AbilityScore(pre),
             new AbilityScore(str), new AbilityScore(tou));
-        abilities.ModifyAbility(kind, expected - abilities[kind].Modifier); // Only update within valid range
-        Assert.Equal(expected, abilities[checkKind].Modifier);
+        var modified = abilities.ModifyAbility(kind, expected - abilities[kind].Modifier);
+        Assert.Equal(expected, modified[checkKind].Modifier);
+    }
+
+    [Fact]
+    public void ModifyAbility_ReturnsNewInstance_OriginalUnchanged()
+    {
+        var original = new Core.Characters.Abilities.Abilities(
+            new AbilityScore(1), new AbilityScore(2), new AbilityScore(3), new AbilityScore(4));
+
+        var modified = original.ModifyAbility(AbilityKind.Strength, 2);
+
+        // Original is unchanged
+        Assert.Equal(3, original.Strength.Modifier);
+        // Modified has the new value
+        Assert.Equal(5, modified.Strength.Modifier);
+        // Other abilities are preserved
+        Assert.Equal(1, modified.Agility.Modifier);
+        Assert.Equal(2, modified.Presence.Modifier);
+        Assert.Equal(4, modified.Toughness.Modifier);
+    }
+
+    [Fact]
+    public void ModifyAbility_ReturnsNewInstance_NotSameReference()
+    {
+        var original = new Core.Characters.Abilities.Abilities(
+            new AbilityScore(1), new AbilityScore(2), new AbilityScore(3), new AbilityScore(4));
+
+        var modified = original.ModifyAbility(AbilityKind.Agility, 1);
+
+        Assert.NotSame(original, modified);
     }
 
     [Theory]

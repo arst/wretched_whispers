@@ -344,7 +344,7 @@ public sealed class Character
 
         if (Silver < price) throw new InvalidOperationException("Not enough silver to buy the item.");
 
-        Inventory = Inventory with { InventoryItems = Inventory.InventoryItems.Append(item).ToList() };
+        Inventory.AddItem(item);
         Silver -= price;
     }
 
@@ -414,7 +414,7 @@ public sealed class Character
         if (kind != AbilityKind.Strength)
             return;
         var newCapacity = 2 * (Abilities.Strength.Modifier + 8);
-        Inventory = Inventory with { MaxCapacity = newCapacity };
+        Inventory.MaxCapacity = newCapacity;
     }
 
     public void Degrade(AbilityKind kind, int delta)
@@ -426,7 +426,7 @@ public sealed class Character
         if (kind != AbilityKind.Strength)
             return;
         var newCapacity = 2 * (Abilities.Strength.Modifier + 8);
-        Inventory = Inventory with { MaxCapacity = newCapacity };
+        Inventory.MaxCapacity = newCapacity;
     }
 
     public static Character Create(Guid id, string name, int maxHp, Abilities.Abilities abilities,

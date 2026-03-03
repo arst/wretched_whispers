@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace WretchedWhispers.Core.Characters.Abilities;
 
@@ -13,10 +13,10 @@ public sealed class Abilities
         Toughness = toughness;
     }
 
-    [JsonInclude] public AbilityScore Agility { get; private set; }
-    [JsonInclude] public AbilityScore Presence { get; private set; }
-    [JsonInclude] public AbilityScore Strength { get; private set; }
-    [JsonInclude] public AbilityScore Toughness { get; private set; }
+    public AbilityScore Agility { get; }
+    public AbilityScore Presence { get; }
+    public AbilityScore Strength { get; }
+    public AbilityScore Toughness { get; }
 
     public AbilityScore this[AbilityKind kind] => kind switch
     {
@@ -27,24 +27,15 @@ public sealed class Abilities
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
-    public void ModifyAbility(AbilityKind kind, int delta)
+    public Abilities ModifyAbility(AbilityKind kind, int delta)
     {
-        switch (kind)
+        return kind switch
         {
-            case AbilityKind.Agility:
-                Agility = new AbilityScore(Agility.Modifier + delta);
-                break;
-            case AbilityKind.Presence:
-                Presence = new AbilityScore(Presence.Modifier + delta);
-                break;
-            case AbilityKind.Strength:
-                Strength = new AbilityScore(Strength.Modifier + delta);
-                break;
-            case AbilityKind.Toughness:
-                Toughness = new AbilityScore(Toughness.Modifier + delta);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
-        }
+            AbilityKind.Agility => new Abilities(new AbilityScore(Agility.Modifier + delta), Presence, Strength, Toughness),
+            AbilityKind.Presence => new Abilities(Agility, new AbilityScore(Presence.Modifier + delta), Strength, Toughness),
+            AbilityKind.Strength => new Abilities(Agility, Presence, new AbilityScore(Strength.Modifier + delta), Toughness),
+            AbilityKind.Toughness => new Abilities(Agility, Presence, Strength, new AbilityScore(Toughness.Modifier + delta)),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
     }
 }
