@@ -7,6 +7,8 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
+using WretchedWhispers.Core.Characters.Status;
+using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure.Persistence.Repositories;
 
 namespace WretchedWhispers.Tests.Persistence;
@@ -91,6 +93,43 @@ public class CharacterRoundTripTests : TestBase
     {
         var loaded = await _repo.Get(Guid.NewGuid());
         Assert.Null(loaded);
+    }
+
+    [Fact]
+    public async Task Save_CharacterWithInjuries_RoundTripsInjurySet()
+    {
+        // Dice sequence (values are 0-based, actual roll = 1 + value):
+        // 1. PowerPool.Create: returns 3 -> roll 4
+        // 2. Defend -> ResolveDefence -> Challenge D20: returns 4 -> roll 5 (fail)
+        // 3. CalculateDamageAfterDefense -> attack D4: returns 0 -> roll 1 (1 damage)
+        // 4. ReceiveDamage -> ResolveBroken -> D4: returns 2 -> roll 3 (proceed to injury)
+        // 5. ResolveBroken -> D6: returns 4 -> roll 5 (BrokenHand)
+        SetupDiceRolls(3, 4, 0, 2, 4);
+
+        var abilities = new Abilities(
+            new AbilityScore(0), new AbilityScore(0),
+            new AbilityScore(0), new AbilityScore(0));
+
+        var character = Character.Create(
+            Guid.NewGuid(), "InjuredPersistence", 1, abilities,
+            new StartingEquipment(0, 1, "Sack", null, null,
+                Weapon.Create(WeaponKind.Knife),
+                new Armor(NoArmorTier.Instance), null, []), Dice);
+
+        // Force injury
+        character.Defend(DiceExpr.D4, Dice);
+
+        Assert.True(character.Injuries.Has(InjuryKind.BrokenHand));
+
+        await _repo.Save(character);
+        var loaded = await _repo.Get(character.Id);
+
+        Assert.NotNull(loaded);
+        Assert.True(loaded.Injuries.Has(InjuryKind.BrokenHand));
+        Assert.True(loaded.HasBrokenHand);
+        Assert.False(loaded.HasLostEye);
+        Assert.False(loaded.HasSeveredArm);
+        Assert.Equal(character.Hp.Current, loaded.Hp.Current);
     }
 
     [Fact]

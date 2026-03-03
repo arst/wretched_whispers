@@ -10,6 +10,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
@@ -117,6 +118,50 @@ public class JsonSerializationTests : TestBase
         Assert.Equal(character.Inventory.InventoryItems.Count, deserialized.Inventory.InventoryItems.Count);
         Assert.Equal(character.Powers.MaxUses, deserialized.Powers.MaxUses);
         Assert.Equal(character.Powers.UsesRemaining, deserialized.Powers.UsesRemaining);
+    }
+
+    [Fact]
+    public void Character_RoundTrips_InjurySet()
+    {
+        // Dice sequence (values are 0-based, actual roll = 1 + value):
+        // 1. PowerPool.Create: returns 3 -> roll 4
+        // 2. Defend -> ResolveDefence -> Challenge D20: returns 4 -> roll 5 (fail, not nat1/nat20)
+        // 3. CalculateDamageAfterDefense -> attack D4: returns 0 -> roll 1 (1 damage, enough to reach 0 HP)
+        // 4. ReceiveDamage -> ResolveBroken -> D4: returns 2 -> roll 3 (not dead, proceed to injury)
+        // 5. ResolveBroken -> D6: returns 4 -> roll 5 (BrokenHand)
+        SetupDiceRolls(3, 4, 0, 2, 4);
+
+        var abilities = new Abilities(
+            new AbilityScore(0), new AbilityScore(0),
+            new AbilityScore(0), new AbilityScore(0));
+
+        var character = Character.Create(
+            Guid.NewGuid(), "InjuredHero", 1, abilities,
+            new StartingEquipment(0, 1, "Sack", null, null,
+                Weapon.Create(WeaponKind.Knife),
+                new Armor(NoArmorTier.Instance), null, []), Dice);
+
+        // Force injury by defending with 1 HP against an attack
+        character.Defend(DiceExpr.D4, Dice);
+
+        // Verify the injury was applied
+        Assert.True(character.HasBrokenHand);
+        Assert.True(character.Injuries.Has(InjuryKind.BrokenHand));
+
+        // Serialize and deserialize with AggregateJsonOptions
+        var json = JsonSerializer.Serialize(character, _options);
+        var deserialized = JsonSerializer.Deserialize<Character>(json, _options)!;
+
+        // Verify injury round-trips through JSON
+        Assert.True(deserialized.Injuries.Has(InjuryKind.BrokenHand));
+        Assert.True(deserialized.HasBrokenHand);
+        Assert.False(deserialized.HasLostEye);
+        Assert.False(deserialized.HasSeveredArm);
+
+        // Verify other state preserved
+        Assert.Equal(character.Id, deserialized.Id);
+        Assert.Equal(character.Name, deserialized.Name);
+        Assert.Equal(character.Hp.Current, deserialized.Hp.Current);
     }
 
     [Fact]
