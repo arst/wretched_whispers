@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using WretchedWhispers.Api.Configuration;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 
@@ -37,6 +38,8 @@ builder.Services.Configure<BearerTokenOptions>(IdentityConstants.BearerScheme, o
 });
 
 builder.Services.AddAuthorization();
+
+builder.AddWretchedWhispersOpenTelemetry();
 
 var app = builder.Build();
 
