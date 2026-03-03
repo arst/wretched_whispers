@@ -41,7 +41,7 @@ Plans:
 **Goal:** Fix critical bugs and structural design issues in the domain layer (WretchedWhispers.Core) before building features on top of it — inverted scroll restriction, public Encounter setters, Character god-class decomposition, injury flag consolidation, aggregate boundary enforcement, and entity sealing
 **Requirements**: INTERNAL-REFACTOR
 **Depends on:** Phase 1
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 01.1-01-PLAN.md — Fix critical bugs (scroll restriction, Encounter setters), create InjuryKind/InjurySet foundation types, seal all domain entities

@@ -8,7 +8,7 @@ progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -23,28 +23,28 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 Phase: 1.1 of 6 (Domain Design Improvements)
-Plan: 1 of 3 in current phase -- COMPLETE
+Plan: 2 of 3 in current phase -- COMPLETE
 Status: Executing Phase 1.1
-Last activity: 2026-03-03 -- Completed 01.1-01-PLAN.md
+Last activity: 2026-03-03 -- Completed 01.1-02-PLAN.md
 
-Progress: [███░░░░░░░] 30%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 7min
-- Total execution time: 0.35 hours
+- Total plans completed: 4
+- Average duration: 6.75min
+- Total execution time: 0.45 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 2 | 15min | 7.5min |
-| 1.1 | 1 | 6min | 6min |
+| 1.1 | 2 | 12min | 6min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3min), 01-02 (12min), 01.1-01 (6min)
+- Last 5 plans: 01-01 (3min), 01-02 (12min), 01.1-01 (6min), 01.1-02 (6min)
 - Trend: Steady
 
 *Updated after each plan completion*
@@ -67,6 +67,10 @@ Recent decisions affecting current work:
 - SeveredArm dominates BrokenHand for Strength penalty (max=4, not sum) per existing code structure
 - DiceExpr.Zero added as canonical "no dice" representation
 - Calendar typo fixed in Campaign.cs (pre-release, no migration needed)
+- Inventory.InventoryItems typed as List<InventoryItem> (not IReadOnlyList) for STJ constructor parameter binding compatibility
+- Abilities.ModifyAbility returns new immutable instance; Character reassigns via Abilities = Abilities.ModifyAbility(kind, delta)
+- ArmorTier.RollDamageReduction on abstract base class (uses polymorphic DamageReduction property)
+- Character.Injuries (InjurySet) replaces 6 boolean injury flags; backward-compatible computed properties added with [JsonIgnore]
 
 ### Pending Todos
 
@@ -84,5 +88,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 01.1-01-PLAN.md
+Stopped at: Completed 01.1-02-PLAN.md
 Resume file: None
