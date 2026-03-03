@@ -57,11 +57,11 @@ Plans:
   2. User can log in and receive a JWT token that authenticates subsequent API requests
   3. User session persists across browser refresh (token stored and reused)
   4. User cannot access or see another user's game sessions
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Identity infrastructure: DbContext to IdentityUserContext, CampaignEntity UserId FK, Identity EF Core package, combined migration
+- [ ] 02-02-PLAN.md — Web API project with Identity auth endpoints, multi-tenant campaign repository, integration tests for auth flow and tenant isolation
 
 ### Phase 3: API Layer and Streaming
 **Goal**: Backend exposes all game operations over HTTP with real-time streaming of LLM narrator responses
@@ -137,7 +137,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 |-------|----------------|--------|-----------|
 | 1. Persistence Foundation | 2/2 | Complete | 2026-03-02 |
 | 1.1. Domain Design Improvements | 3/3 | Complete | 2026-03-03 |
-| 2. Authentication and Multi-Tenancy | 0/0 | Not started | - |
+| 2. Authentication and Multi-Tenancy | 0/2 | Planned | - |
 | 3. API Layer and Streaming | 0/0 | Not started | - |
 | 4. Frontend Foundation and Character Creation | 0/0 | Not started | - |
 | 5. Core Gameplay Interface | 0/0 | Not started | - |
