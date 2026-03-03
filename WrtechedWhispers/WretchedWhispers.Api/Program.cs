@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Api.Configuration;
+using WretchedWhispers.Api.Endpoints;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 
@@ -56,6 +57,8 @@ app.MapGet("/health", () => Results.Ok("alive"));
 app.MapGet("/auth/me", (HttpContext http) =>
     Results.Ok(new { userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) }))
     .RequireAuthorization();
+
+app.MapSessionEndpoints();
 
 app.Run();
 
