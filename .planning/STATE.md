@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-03-03T12:42:15.000Z"
+last_updated: "2026-03-03T12:53:57.000Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** A player can play through a complete Mork Borg session with an AI Game Master that feels like playing with a friend, while the domain guarantees the rules are always correct.
-**Current focus:** Phase 2: Authentication and Multi-Tenancy -- IN PROGRESS
+**Current focus:** Phase 2: Authentication and Multi-Tenancy -- COMPLETE
 
 ## Current Position
 
-Phase: 2 of 6 (Authentication and Multi-Tenancy) -- IN PROGRESS
-Plan: 1 of 2 in current phase -- COMPLETE
-Status: Executing Phase 2
-Last activity: 2026-03-03 -- Completed 02-01-PLAN.md
+Phase: 2 of 6 (Authentication and Multi-Tenancy) -- COMPLETE
+Plan: 2 of 2 in current phase -- COMPLETE
+Status: Phase 2 Complete
+Last activity: 2026-03-03 -- Completed 02-02-PLAN.md
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 6.5min
-- Total execution time: 0.65 hours
+- Total plans completed: 7
+- Average duration: 6.7min
+- Total execution time: 0.78 hours
 
 **By Phase:**
 
@@ -42,11 +42,11 @@ Progress: [██████░░░░] 60%
 |-------|-------|-------|----------|
 | 1 | 2 | 15min | 7.5min |
 | 1.1 | 3 | 20min | 6.7min |
-| 2 | 1 | 4min | 4min |
+| 2 | 2 | 12min | 6min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (12min), 01.1-01 (6min), 01.1-02 (6min), 01.1-03 (8min), 02-01 (4min)
-- Trend: Improving
+- Last 5 plans: 01.1-01 (6min), 01.1-02 (6min), 01.1-03 (8min), 02-01 (4min), 02-02 (8min)
+- Trend: Stable
 
 *Updated after each plan completion*
 
@@ -78,6 +78,9 @@ Recent decisions affecting current work:
 - IdentityUserContext<IdentityUser> (no roles) as DbContext base class; base.OnModelCreating called before ApplyConfigurationsFromAssembly
 - UserId string property on CampaignEntity for multi-tenant FK (maxLength 450, indexed)
 - Fresh combined migration replaces old InitialCreate (pre-release, no real data to preserve)
+- BearerTokenOptions configured via Configure<BearerTokenOptions>(IdentityConstants.BearerScheme) with 60min access + 14-day refresh
+- WebApplicationFactory with in-memory SQLite and EnsureCreated for auth integration tests
+- Partial Program class declaration for WebApplicationFactory accessibility from test project
 
 ### Pending Todos
 
@@ -95,5 +98,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 02-01-PLAN.md
+Stopped at: Completed 02-02-PLAN.md (Phase 2 complete)
 Resume file: None
