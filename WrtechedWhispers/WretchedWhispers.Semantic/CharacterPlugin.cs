@@ -60,7 +60,7 @@ public sealed class CharacterPlugin(
         if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
         var newItem = new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity);
-        character.Inventory.AddItem(newItem);
+        character.AddItem(newItem);
 
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
@@ -77,7 +77,7 @@ public sealed class CharacterPlugin(
         var character = await charactersRepository.Get(characterId);
         if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
-        character.Inventory.RemoveItem(itemId);
+        character.RemoveItem(itemId);
 
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
@@ -95,7 +95,7 @@ public sealed class CharacterPlugin(
         var character = await charactersRepository.Get(characterId);
         if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
-        var wasConsumed = character.Inventory.ConsumeItem(itemId);
+        var wasConsumed = character.ConsumeItem(itemId);
         if (!wasConsumed) throw new InvalidOperationException($"Item with id {itemId} has no quantity left to consume");
 
         await charactersRepository.Save(character);
@@ -115,7 +115,7 @@ public sealed class CharacterPlugin(
         var character = await charactersRepository.Get(characterId);
         if (character == null) throw new InvalidOperationException($"Character with id {characterId} not found");
 
-        character.Inventory.ReplenishItem(itemId, amount);
+        character.ReplenishItem(itemId, amount);
 
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);

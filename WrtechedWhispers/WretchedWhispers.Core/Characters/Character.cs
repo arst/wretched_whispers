@@ -112,6 +112,12 @@ public sealed class Character
 
     [JsonInclude] public List<Scroll> Scrolls { get => _scrolls; private set => _scrolls = value; }
 
+    // Aggregate delegate methods for Inventory operations
+    public void AddItem(InventoryItem item) => Inventory.AddItem(item);
+    public void RemoveItem(Guid itemId) => Inventory.RemoveItem(itemId);
+    public bool ConsumeItem(Guid itemId) => Inventory.ConsumeItem(itemId);
+    public void ReplenishItem(Guid itemId, int amount = 1) => Inventory.ReplenishItem(itemId, amount);
+
     public void Infect()
     {
         IsInfected = true;
