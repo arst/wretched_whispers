@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <UserSecretsId>WretchedWhispers.Console-dev</UserSecretsId>
@@ -13,6 +13,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.*" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.*" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.*">
             <PrivateAssets>all</PrivateAssets>

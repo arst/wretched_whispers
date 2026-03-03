@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Infrastructure.Persistence;
 
-public class WretchedWhispersDbContext : DbContext
+public class WretchedWhispersDbContext : IdentityUserContext<IdentityUser>
 {
     public WretchedWhispersDbContext(DbContextOptions<WretchedWhispersDbContext> options)
         : base(options)
@@ -18,6 +20,7 @@ public class WretchedWhispersDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(WretchedWhispersDbContext).Assembly);
     }
 }
