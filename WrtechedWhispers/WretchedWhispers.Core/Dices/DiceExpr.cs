@@ -2,6 +2,7 @@
 
 public readonly record struct DiceExpr(int Count, int Sides, int Constant = 0)
 {
+    public static DiceExpr Zero => new(0, 0);
     public static DiceExpr D2 => new(1, 2);
     public static DiceExpr D3 => new(1, 3);
     public static DiceExpr D4 => new(1, 4);
