@@ -12,5 +12,8 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.Data).IsRequired().HasColumnType("TEXT");
+
+        builder.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+        builder.HasIndex(e => e.UserId);
     }
 }
