@@ -41,4 +41,34 @@ public class SqliteCampaignsRepository : ICampaignsRepository
 
         await _db.SaveChangesAsync();
     }
+
+    public async Task<List<Campaign>> GetForUser(string userId)
+    {
+        var entities = await _db.Campaigns
+            .Where(c => c.UserId == userId)
+            .ToListAsync();
+
+        return entities
+            .Select(e => JsonSerializer.Deserialize<Campaign>(e.Data, _jsonOptions)!)
+            .ToList();
+    }
+
+    public async Task SaveCampaign(Campaign campaign, string userId)
+    {
+        var json = JsonSerializer.Serialize(campaign, _jsonOptions);
+        var entity = await _db.Campaigns.FindAsync(campaign.Id);
+
+        if (entity is not null)
+        {
+            entity.Data = json;
+            entity.UserId = userId;
+        }
+        else
+        {
+            entity = new CampaignEntity { Id = campaign.Id, Data = json, UserId = userId };
+            _db.Campaigns.Add(entity);
+        }
+
+        await _db.SaveChangesAsync();
+    }
 }
