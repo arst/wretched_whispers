@@ -73,11 +73,12 @@ Plans:
   3. User can resume a saved session and the game state matches where they left off (character, inventory, encounter, narrative context)
   4. LLM narrator responses stream as SSE events that a client can consume token-by-token
   5. When LLM fails or times out, the API returns a structured error and game state remains consistent (no half-applied actions)
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Session CRUD endpoints (create, list, resume, message pagination), response DTOs, NuGet packages, OTel configuration
-- [ ] 03-02-PLAN.md — GameSessionService with SK agent streaming, SSE action endpoint, concurrency guard, transactional state, resilience pipeline, integration tests
+- [x] 03-01-PLAN.md — Session CRUD endpoints (create, list, resume, message pagination), response DTOs, NuGet packages, OTel configuration
+- [x] 03-02-PLAN.md — GameSessionService with SK agent streaming, SSE action endpoint, concurrency guard, transactional state, resilience pipeline, integration tests
+- [ ] 03-03-PLAN.md — Gap closure: true token-by-token SSE streaming via Channel<SseEvent>, ownership verification on action endpoint
 
 ### Phase 4: Frontend Foundation and Character Creation
 **Goal**: Players open the web app, see the Mork Borg aesthetic, and create a character through a guided narrator conversation
@@ -137,7 +138,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1. Persistence Foundation | 2/2 | Complete | 2026-03-02 |
 | 1.1. Domain Design Improvements | 3/3 | Complete | 2026-03-03 |
 | 2. Authentication and Multi-Tenancy | 1/2 | In Progress | - |
-| 3. API Layer and Streaming | 0/2 | Planned | - |
+| 3. API Layer and Streaming | 2/3 | In Progress | - |
 | 4. Frontend Foundation and Character Creation | 0/0 | Not started | - |
 | 5. Core Gameplay Interface | 0/0 | Not started | - |
 | 6. Mechanical Visibility and Session Lifecycle | 0/0 | Not started | - |
