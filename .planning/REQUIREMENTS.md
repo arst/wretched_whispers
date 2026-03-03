@@ -52,7 +52,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **INFR-01**: .NET API layer with SSE streaming for LLM responses
 - [x] **INFR-02**: SQLite persistence for all game state (character, chat history, world state)
-- [ ] **INFR-03**: Multi-tenant session isolation (each player's games are private)
+- [x] **INFR-03**: Multi-tenant session isolation (each player's games are private)
 - [ ] **INFR-04**: OpenTelemetry observability for API and LLM calls
 
 ## v2 Requirements
@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-03 | Phase 4 | Pending |
 | INFR-01 | Phase 3 | Pending |
 | INFR-02 | Phase 1 | Complete |
-| INFR-03 | Phase 2 | Pending |
+| INFR-03 | Phase 2 | Complete |
 | INFR-04 | Phase 3 | Pending |
 
 **Coverage:**

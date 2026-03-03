@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-03T10:28:20.234Z"
+status: in-progress
+last_updated: "2026-03-03T12:42:15.000Z"
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 6
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** A player can play through a complete Mork Borg session with an AI Game Master that feels like playing with a friend, while the domain guarantees the rules are always correct.
-**Current focus:** Phase 1.1: Domain Design Improvements -- COMPLETE
+**Current focus:** Phase 2: Authentication and Multi-Tenancy -- IN PROGRESS
 
 ## Current Position
 
-Phase: 1.1 of 6 (Domain Design Improvements) -- COMPLETE
-Plan: 3 of 3 in current phase -- COMPLETE
-Status: Phase 1.1 Complete
-Last activity: 2026-03-03 -- Completed 01.1-03-PLAN.md
+Phase: 2 of 6 (Authentication and Multi-Tenancy) -- IN PROGRESS
+Plan: 1 of 2 in current phase -- COMPLETE
+Status: Executing Phase 2
+Last activity: 2026-03-03 -- Completed 02-01-PLAN.md
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 7min
-- Total execution time: 0.58 hours
+- Total plans completed: 6
+- Average duration: 6.5min
+- Total execution time: 0.65 hours
 
 **By Phase:**
 
@@ -42,10 +42,11 @@ Progress: [█████░░░░░] 50%
 |-------|-------|-------|----------|
 | 1 | 2 | 15min | 7.5min |
 | 1.1 | 3 | 20min | 6.7min |
+| 2 | 1 | 4min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3min), 01-02 (12min), 01.1-01 (6min), 01.1-02 (6min), 01.1-03 (8min)
-- Trend: Steady
+- Last 5 plans: 01-02 (12min), 01.1-01 (6min), 01.1-02 (6min), 01.1-03 (8min), 02-01 (4min)
+- Trend: Improving
 
 *Updated after each plan completion*
 
@@ -73,6 +74,10 @@ Recent decisions affecting current work:
 - Character.Injuries (InjurySet) replaces 6 boolean injury flags; backward-compatible computed properties added with [JsonIgnore]
 - Character aggregate delegate methods (AddItem/RemoveItem/ConsumeItem/ReplenishItem) enforce boundary; CharacterPlugin routes through aggregate root
 - CharacterDto keeps individual boolean injury fields for LLM readability; AggregateJsonOptions handles InjurySet without custom converter
+- Downgraded all project TFMs from net10.0 to net9.0 (SDK 10.0 not available, only 9.0.311 installed)
+- IdentityUserContext<IdentityUser> (no roles) as DbContext base class; base.OnModelCreating called before ApplyConfigurationsFromAssembly
+- UserId string property on CampaignEntity for multi-tenant FK (maxLength 450, indexed)
+- Fresh combined migration replaces old InitialCreate (pre-release, no real data to preserve)
 
 ### Pending Todos
 
@@ -90,5 +95,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 01.1-03-PLAN.md (Phase 1.1 complete)
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None
