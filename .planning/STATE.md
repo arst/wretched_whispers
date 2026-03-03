@@ -8,7 +8,7 @@ progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -18,33 +18,33 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** A player can play through a complete Mork Borg session with an AI Game Master that feels like playing with a friend, while the domain guarantees the rules are always correct.
-**Current focus:** Phase 1.1: Domain Design Improvements -- IN PROGRESS
+**Current focus:** Phase 1.1: Domain Design Improvements -- COMPLETE
 
 ## Current Position
 
-Phase: 1.1 of 6 (Domain Design Improvements)
-Plan: 2 of 3 in current phase -- COMPLETE
-Status: Executing Phase 1.1
-Last activity: 2026-03-03 -- Completed 01.1-02-PLAN.md
+Phase: 1.1 of 6 (Domain Design Improvements) -- COMPLETE
+Plan: 3 of 3 in current phase -- COMPLETE
+Status: Phase 1.1 Complete
+Last activity: 2026-03-03 -- Completed 01.1-03-PLAN.md
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 6.75min
-- Total execution time: 0.45 hours
+- Total plans completed: 5
+- Average duration: 7min
+- Total execution time: 0.58 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 2 | 15min | 7.5min |
-| 1.1 | 2 | 12min | 6min |
+| 1.1 | 3 | 20min | 6.7min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3min), 01-02 (12min), 01.1-01 (6min), 01.1-02 (6min)
+- Last 5 plans: 01-01 (3min), 01-02 (12min), 01.1-01 (6min), 01.1-02 (6min), 01.1-03 (8min)
 - Trend: Steady
 
 *Updated after each plan completion*
@@ -71,6 +71,8 @@ Recent decisions affecting current work:
 - Abilities.ModifyAbility returns new immutable instance; Character reassigns via Abilities = Abilities.ModifyAbility(kind, delta)
 - ArmorTier.RollDamageReduction on abstract base class (uses polymorphic DamageReduction property)
 - Character.Injuries (InjurySet) replaces 6 boolean injury flags; backward-compatible computed properties added with [JsonIgnore]
+- Character aggregate delegate methods (AddItem/RemoveItem/ConsumeItem/ReplenishItem) enforce boundary; CharacterPlugin routes through aggregate root
+- CharacterDto keeps individual boolean injury fields for LLM readability; AggregateJsonOptions handles InjurySet without custom converter
 
 ### Pending Todos
 
@@ -88,5 +90,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 01.1-02-PLAN.md
+Stopped at: Completed 01.1-03-PLAN.md (Phase 1.1 complete)
 Resume file: None
