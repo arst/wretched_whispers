@@ -44,7 +44,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01.1-01-PLAN.md — Fix critical bugs (scroll restriction, Encounter setters), create InjuryKind/InjurySet foundation types, seal all domain entities
+- [x] 01.1-01-PLAN.md — Fix critical bugs (scroll restriction, Encounter setters), create InjuryKind/InjurySet foundation types, seal all domain entities
 - [ ] 01.1-02-PLAN.md — Character decomposition: migrate injury booleans to InjurySet, ArmorTier strategy delegation, Inventory to sealed class, Abilities immutability
 - [ ] 01.1-03-PLAN.md — Aggregate boundary enforcement (CharacterPlugin routing), serialization test updates, full round-trip verification
 
@@ -136,6 +136,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Persistence Foundation | 2/2 | Complete | 2026-03-02 |
+| 1.1. Domain Design Improvements | 1/3 | In Progress | - |
 | 2. Authentication and Multi-Tenancy | 0/0 | Not started | - |
 | 3. API Layer and Streaming | 0/0 | Not started | - |
 | 4. Frontend Foundation and Character Creation | 0/0 | Not started | - |
