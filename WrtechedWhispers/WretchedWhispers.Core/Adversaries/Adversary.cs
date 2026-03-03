@@ -4,7 +4,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 
 namespace WretchedWhispers.Core.Adversaries;
 
-public class Adversary
+public sealed class Adversary
 {
     [JsonConstructor]
     public Adversary(Guid id, string name, HitPoints hp, Armor armor, int morale, AttackProfile attack, bool isFled = false)

@@ -356,7 +356,7 @@ public sealed class Character
 
         if (IsDizzyFromMagic)
             return CastOutcome.Fail("Dizzy from prior failure");
-        if (ScrollRestrictionPolicy.CanUseScrolls(Weapon, Armor))
+        if (!ScrollRestrictionPolicy.CanUseScrolls(Weapon, Armor))
             return CastOutcome.Fail("Can't use scrolls, because armor is too heavy or weapon is two-handed");
         if (!Powers.TryConsumeOne())
             return CastOutcome.Fail("No daily power uses remaining");

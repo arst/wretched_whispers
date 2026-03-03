@@ -86,11 +86,11 @@ Days pass → more dawn rolls.
 Miseries accumulate until 7:7 triggers apocalypse.
  */
 
-public class Campaign
+public sealed class Campaign
 {
     [JsonConstructor]
     private Campaign(Guid id, string name, string description, int currentDay, int currentHour,
-        List<Guid> characters, CalendarOfNechrubel calender,
+        List<Guid> characters, CalendarOfNechrubel calendar,
         DiceExpr dawnDice, List<Guid> encounters,
         bool isStarted = false, bool isEnded = false)
     {
@@ -100,7 +100,7 @@ public class Campaign
         CurrentDay = currentDay;
         CurrentHour = currentHour;
         Characters = characters;
-        Calender = calender;
+        Calendar = calendar;
         DawnDice = dawnDice;
         Encounters = encounters;
         IsStarted = isStarted;
@@ -117,7 +117,7 @@ public class Campaign
 
     [JsonInclude] public int CurrentHour { get; private set; }
 
-    [JsonInclude] internal CalendarOfNechrubel Calender { get; }
+    [JsonInclude] internal CalendarOfNechrubel Calendar { get; }
 
     [JsonInclude] internal List<Guid> Characters { get; }
 
@@ -129,7 +129,7 @@ public class Campaign
 
     [JsonInclude] internal bool IsEnded { get; private set; }
 
-    [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calender.Miseries;
+    [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calendar.Miseries;
 
     [JsonIgnore] public IReadOnlyCollection<Guid> EncounterIds => Encounters.AsReadOnly();
 
@@ -143,11 +143,11 @@ public class Campaign
         {
             CurrentDay += CurrentHour / 24;
             CurrentHour %= 24;
-            Calender.DawnRoll(DawnDice, dice);
-            return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calender.WorldEnded, true);
+            Calendar.DawnRoll(DawnDice, dice);
+            return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calendar.WorldEnded, true);
         }
 
-        return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calender.WorldEnded, false);
+        return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calendar.WorldEnded, false);
     }
 
     public void JoinGame(Guid characterId)

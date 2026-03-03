@@ -34,8 +34,8 @@ public sealed class Encounter
     [JsonInclude] public List<Adversary> Adversaries { get; private set; }
     [JsonIgnore] public IReadOnlyList<Adversary> LivingAdversaries => Adversaries.Where(a => !a.IsDead).ToList().AsReadOnly();
     [JsonIgnore] public IReadOnlyList<Adversary> DeadAdversaries => Adversaries.Where(a => a.IsDead).ToList().AsReadOnly();
-    public bool IsStarted { get; set; }
-    public bool IsEnded { get; set; }
+    [JsonInclude] public bool IsStarted { get; private set; }
+    [JsonInclude] public bool IsEnded { get; private set; }
 
     public static Encounter Create(string name, string description, EncounterType initialType, Dice dice)
     {

@@ -1,3 +1,3 @@
 namespace WretchedWhispers.Core.Characters.Status.Broken;
 
-public record SmashedFace() : BrokenOutcome("SmashedFace");
+public sealed record SmashedFace() : BrokenOutcome("SmashedFace");

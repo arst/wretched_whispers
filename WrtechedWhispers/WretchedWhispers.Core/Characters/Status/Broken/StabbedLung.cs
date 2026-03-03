@@ -1,3 +1,3 @@
 namespace WretchedWhispers.Core.Characters.Status.Broken;
 
-public record StabbedLung() : BrokenOutcome("Stabbed lung");
+public sealed record StabbedLung() : BrokenOutcome("Stabbed lung");
