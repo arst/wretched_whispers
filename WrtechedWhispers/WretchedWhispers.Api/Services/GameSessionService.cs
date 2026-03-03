@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -46,158 +47,178 @@ public sealed class GameSessionService(
             yield break;
         }
 
-        // Buffer all events and yield after try/catch (C# doesn't allow yield in try/catch)
-        var events = await ExecuteAgentTurn(sessionId, chatSessionId, playerMessage, ct);
+        // Channel bridge: producer writes events, consumer yields them
+        var channel = Channel.CreateUnbounded<SseEvent>(new UnboundedChannelOptions
+        {
+            SingleWriter = true,
+            SingleReader = true
+        });
 
-        foreach (var sseEvent in events)
+        // Fire-and-forget the agent turn -- writes events to channel
+        _ = ExecuteAgentTurnAsync(sessionId, chatSessionId, playerMessage, channel.Writer, ct);
+
+        // Yield events as they arrive from the channel
+        await foreach (var sseEvent in channel.Reader.ReadAllAsync(ct))
         {
             yield return sseEvent;
         }
     }
 
-    private async Task<List<SseEvent>> ExecuteAgentTurn(
+    private async Task ExecuteAgentTurnAsync(
         Guid sessionId,
         Guid chatSessionId,
         string playerMessage,
+        ChannelWriter<SseEvent> writer,
         CancellationToken ct)
     {
-        var events = new List<SseEvent>();
-
-        // Load existing chat history
-        var chatHistory = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? new ChatHistory();
-
-        // Build Kernel per-turn
-        var kernel = BuildKernelForSession();
-        var agent = CreateGameMasterAgent(kernel);
-
-        // Begin a database transaction for transactional buffering
-        await dbContext.Database.BeginTransactionAsync(ct);
-
         try
         {
-            // Add user message to chat history and persist
-            await chatHistoryRepository.SaveMessage(
-                chatSessionId,
-                new ChatMessageContent(AuthorRole.User, playerMessage),
-                ct);
+            // Load existing chat history
+            var chatHistory = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? new ChatHistory();
 
-            // Wrap agent invocation in resilience pipeline
-            var pipeline = resilienceProvider.GetPipeline("llm-retry");
+            // Build Kernel per-turn
+            var kernel = BuildKernelForSession();
+            var agent = CreateGameMasterAgent(kernel);
 
-            var fullResponseText = new System.Text.StringBuilder();
-            var toolResults = new List<SseEvent>();
+            // Begin a database transaction for transactional buffering
+            await dbContext.Database.BeginTransactionAsync(ct);
 
-            await pipeline.ExecuteAsync(async token =>
+            try
             {
-                fullResponseText.Clear();
-                toolResults.Clear();
+                // Add user message to chat history and persist
+                await chatHistoryRepository.SaveMessage(
+                    chatSessionId,
+                    new ChatMessageContent(AuthorRole.User, playerMessage),
+                    ct);
 
-                // Create thread and populate from loaded chat history
-                ChatHistoryAgentThread thread = new(chatHistory);
+                // Wrap agent invocation in resilience pipeline
+                var pipeline = resilienceProvider.GetPipeline("llm-retry");
 
-                var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
+                var fullResponseText = new System.Text.StringBuilder();
+                var toolResults = new List<SseEvent>();
 
-                // Stream the agent response
-                await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
+                await pipeline.ExecuteAsync(async token =>
                 {
-                    var content = response.Message.Content;
-                    if (!string.IsNullOrEmpty(content))
-                    {
-                        fullResponseText.Append(content);
-                        events.Add(new SseEvent("narrative", new { text = content }));
-                    }
-                }
+                    fullResponseText.Clear();
+                    toolResults.Clear();
 
-                // After streaming completes, read thread messages for tool results
-                await foreach (var completed in thread.GetMessagesAsync(token))
-                {
-                    foreach (var item in completed.Items)
+                    // Create thread and populate from loaded chat history
+                    ChatHistoryAgentThread thread = new(chatHistory);
+
+                    var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
+
+                    // Stream the agent response -- write each chunk to channel immediately
+                    await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
                     {
-                        if (item is FunctionResultContent funcResult)
+                        var content = response.Message.Content;
+                        if (!string.IsNullOrEmpty(content))
                         {
-                            toolResults.Add(new SseEvent("tool_result", new
-                            {
-                                function = funcResult.FunctionName,
-                                result = funcResult.Result
-                            }));
+                            fullResponseText.Append(content);
+                            writer.TryWrite(new SseEvent("narrative", new { text = content }));
                         }
                     }
-                }
-            }, ct);
 
-            // Add tool results after narrative
-            events.AddRange(toolResults);
-
-            // Save the full assistant response to chat history
-            await chatHistoryRepository.SaveMessage(
-                chatSessionId,
-                new ChatMessageContent(AuthorRole.Assistant, fullResponseText.ToString())
-                {
-                    AuthorName = "Game_Master"
-                },
-                ct);
-
-            // Commit the database transaction
-            await dbContext.Database.CommitTransactionAsync(ct);
-
-            // Build state snapshot from current campaign + character state
-            // Reload campaign after potential mutations
-            var updatedCampaign = await campaignsRepository.Get(sessionId);
-            if (updatedCampaign is not null)
-            {
-                var firstPlayerId = updatedCampaign.Players.FirstOrDefault();
-                int? characterHp = null;
-                int? characterMaxHp = null;
-                Guid? characterId = null;
-
-                if (firstPlayerId != Guid.Empty)
-                {
-                    var character = await charactersRepository.Get(firstPlayerId, ct);
-                    if (character is not null)
+                    // After streaming completes, read thread messages for tool results
+                    await foreach (var completed in thread.GetMessagesAsync(token))
                     {
-                        characterId = character.Id;
-                        characterHp = character.Hp.Current;
-                        characterMaxHp = character.Hp.Max;
+                        foreach (var item in completed.Items)
+                        {
+                            if (item is FunctionResultContent funcResult)
+                            {
+                                toolResults.Add(new SseEvent("tool_result", new
+                                {
+                                    function = funcResult.FunctionName,
+                                    result = funcResult.Result
+                                }));
+                            }
+                        }
                     }
+                }, ct);
+
+                // Write tool results after narrative
+                foreach (var toolResult in toolResults)
+                {
+                    writer.TryWrite(toolResult);
                 }
 
-                events.Add(new SseEvent("state_update", new
+                // Save the full assistant response to chat history
+                await chatHistoryRepository.SaveMessage(
+                    chatSessionId,
+                    new ChatMessageContent(AuthorRole.Assistant, fullResponseText.ToString())
+                    {
+                        AuthorName = "Game_Master"
+                    },
+                    ct);
+
+                // Commit the database transaction
+                await dbContext.Database.CommitTransactionAsync(ct);
+
+                // Build state snapshot from current campaign + character state
+                var updatedCampaign = await campaignsRepository.Get(sessionId);
+                if (updatedCampaign is not null)
                 {
-                    campaignId = updatedCampaign.Id,
-                    currentDay = updatedCampaign.CurrentDay,
-                    currentHour = updatedCampaign.CurrentHour,
-                    characterId,
-                    characterHp,
-                    characterMaxHp,
-                    miseryCount = updatedCampaign.Miseries.Count,
-                    status = DeriveStatus(updatedCampaign)
+                    var firstPlayerId = updatedCampaign.Players.FirstOrDefault();
+                    int? characterHp = null;
+                    int? characterMaxHp = null;
+                    Guid? characterId = null;
+
+                    if (firstPlayerId != Guid.Empty)
+                    {
+                        var character = await charactersRepository.Get(firstPlayerId, ct);
+                        if (character is not null)
+                        {
+                            characterId = character.Id;
+                            characterHp = character.Hp.Current;
+                            characterMaxHp = character.Hp.Max;
+                        }
+                    }
+
+                    writer.TryWrite(new SseEvent("state_update", new
+                    {
+                        campaignId = updatedCampaign.Id,
+                        currentDay = updatedCampaign.CurrentDay,
+                        currentHour = updatedCampaign.CurrentHour,
+                        characterId,
+                        characterHp,
+                        characterMaxHp,
+                        miseryCount = updatedCampaign.Miseries.Count,
+                        status = DeriveStatus(updatedCampaign)
+                    }));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Rollback transaction on any failure -- game state not modified
+                try
+                {
+                    await dbContext.Database.RollbackTransactionAsync();
+                }
+                catch
+                {
+                    // Rollback may fail if connection is already closed
+                }
+
+                writer.TryWrite(new SseEvent("error", new
+                {
+                    message = ex is OperationCanceledException
+                        ? "Request was cancelled"
+                        : "An error occurred while processing your action"
                 }));
             }
         }
-        catch (Exception ex)
+        catch
         {
-            // Rollback transaction on any failure -- game state not modified
-            try
+            // Outer catch for errors before transaction starts (loading history, building kernel)
+            writer.TryWrite(new SseEvent("error", new
             {
-                await dbContext.Database.RollbackTransactionAsync();
-            }
-            catch
-            {
-                // Rollback may fail if connection is already closed
-            }
-
-            // Clear any partial events on error
-            events.Clear();
-
-            events.Add(new SseEvent("error", new
-            {
-                message = ex is OperationCanceledException
-                    ? "Request was cancelled"
-                    : "An error occurred while processing your action"
+                message = "An error occurred while processing your action"
             }));
         }
-
-        return events;
+        finally
+        {
+            // CRITICAL: Always complete the channel so the consumer loop exits
+            writer.Complete();
+        }
     }
 
     private Kernel BuildKernelForSession()
