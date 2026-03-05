@@ -35,3 +35,15 @@ body::before {
     transparent 100%
   ) 1;
 }
+
+/* Doom thinking indicator pulse animation */
+@keyframes doom-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* Doom breathing animation for splash screen */
+@keyframes doom-breathe {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
