@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 3.1 — Persistence Multi-Tenancy Fix
-current_plan: Not started
-status: planning
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-05T08:01:43.475Z"
+current_phase: Phase 04 — Frontend Foundation and Character Creation
+current_plan: Plan 2 of 3
+status: executing
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-05T09:07:27Z"
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 14
+  completed_plans: 12
 ---
 
 # Session State
@@ -23,15 +23,15 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** Phase 3.1 — Persistence Multi-Tenancy Fix
-**Current Plan:** Not started
-**Status:** Ready to plan
+**Current phase:** Phase 04 — Frontend Foundation and Character Creation
+**Current Plan:** Plan 2 of 3
+**Status:** Executing
 
 ## Session Continuity
 
-Last session: 2026-03-05T08:01:43.469Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-CONTEXT.md
+Last session: 2026-03-05T09:07:27Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-02-PLAN.md
 
 ## Decisions
 
@@ -47,6 +47,11 @@ Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-C
 - Endpoint filter on /sessions group sets ITenantContext from JWT claims before handlers run
 - Test factories delegate DB schema creation to Program.cs MigrateAsync instead of EnsureCreated
 - SqliteCampaignsRepository uses primary constructor with ITenantContext; parameterless SaveCampaign delegates to userId overload
+- UnifrakturMaguntia Google Font for blackletter display headers (weight 400 only available)
+- Zustand persist with skipHydration:true to avoid SSR hydration mismatches
+- apiFetch wrapper reads tokens via useAuthStore.getState() (non-hook access for lib code)
+- Doom color palette: yellow #ffe000, pink #ff1493, bone #e8e0d4, ash #8a8a8a, blood #8b0000
+- .env.example committed, .env.local gitignored for local dev config
 
 ## Performance Metrics
 
@@ -56,6 +61,7 @@ Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-C
 | 03    | 02   | 7min     | 3     | 8     |
 | 03    | 03   | 3min     | 2     | 3     |
 | 03.1  | 01   | 8min     | 2     | 15    |
+| 04    | 01   | 6min     | 3     | 19    |
 
 ## Session Log
 
@@ -65,3 +71,4 @@ Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-C
 - 2026-03-03: Plan 03-02 executed (streaming action endpoint, GameSessionService, concurrency guard, 9 tests)
 - 2026-03-03: Plan 03-03 executed (gap closure: Channel-based streaming, ownership verification on actions endpoint)
 - 2026-03-05: Plan 03.1-01 executed (ITenantContext tenant propagation, MigrateAsync, endpoint filter, 5 new tests)
+- 2026-03-05: Plan 04-01 executed (Next.js scaffold, doom design system, CORS, auth store, API client)

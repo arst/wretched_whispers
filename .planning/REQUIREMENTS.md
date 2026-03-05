@@ -45,8 +45,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### UI & Aesthetic
 
 - [ ] **UI-01**: Responsive layout readable on desktop and tablet
-- [ ] **UI-02**: Dark theme suitable for grim game atmosphere
-- [ ] **UI-03**: Mork Borg doom-metal visual aesthetic (yellow/black/pink palette, textures)
+- [x] **UI-02**: Dark theme suitable for grim game atmosphere
+- [x] **UI-03**: Mork Borg doom-metal visual aesthetic (yellow/black/pink palette, textures)
 
 ### Infrastructure
 
@@ -124,8 +124,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MORK-02 | Phase 6 | Pending |
 | MORK-03 | Phase 6 | Pending |
 | UI-01 | Phase 4 | Pending |
-| UI-02 | Phase 4 | Pending |
-| UI-03 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Complete |
+| UI-03 | Phase 4 | Complete |
 | INFR-01 | Phase 3 | Complete |
 | INFR-02 | Phase 03.1 | Complete |
 | INFR-03 | Phase 03.1 | Complete |
