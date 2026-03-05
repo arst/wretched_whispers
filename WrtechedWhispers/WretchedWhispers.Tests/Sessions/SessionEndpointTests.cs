@@ -307,12 +307,6 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
                 services.AddDbContext<WretchedWhispersDbContext>(options =>
                     options.UseSqlite(_connection));
-
-                // Create database schema
-                var sp = services.BuildServiceProvider();
-                using var scope = sp.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-                db.Database.EnsureCreated();
             });
 
             builder.UseEnvironment("Development");
