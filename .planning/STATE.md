@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 04 — Frontend Foundation and Character Creation
-current_plan: Plan 2 of 3
+current_plan: Plan 3 of 3
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-05T09:07:27Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-05T09:15:41.927Z"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Session State
@@ -24,14 +24,14 @@ See: .planning/PROJECT.md
 
 **Milestone:** v1.0 milestone
 **Current phase:** Phase 04 — Frontend Foundation and Character Creation
-**Current Plan:** Plan 2 of 3
+**Current Plan:** Plan 3 of 3
 **Status:** Executing
 
 ## Session Continuity
 
-Last session: 2026-03-05T09:07:27Z
-Stopped at: Completed 04-01-PLAN.md
-Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-02-PLAN.md
+Last session: 2026-03-05T09:15:41.922Z
+Stopped at: Completed 04-02-PLAN.md
+Resume file: None
 
 ## Decisions
 
@@ -52,6 +52,9 @@ Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-0
 - apiFetch wrapper reads tokens via useAuthStore.getState() (non-hook access for lib code)
 - Doom color palette: yellow #ffe000, pink #ff1493, bone #e8e0d4, ash #8a8a8a, blood #8b0000
 - .env.example committed, .env.local gitignored for local dev config
+- [Phase 04]: StoreHydration provider pattern: client component calling useAuthStore.persist.rehydrate() in root layout for skipHydration stores
+- [Phase 04]: Auth layout route group (auth) with centered card container for clean atmospheric login/register pages
+- [Phase 04]: Landing page uses 'use client' to read auth state for conditional Begin CTA destination
 
 ## Performance Metrics
 
@@ -62,6 +65,7 @@ Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-0
 | 03    | 03   | 3min     | 2     | 3     |
 | 03.1  | 01   | 8min     | 2     | 15    |
 | 04    | 01   | 6min     | 3     | 19    |
+| 04    | 02   | 3min     | 3     | 13    |
 
 ## Session Log
 
@@ -72,3 +76,4 @@ Resume file: .planning/phases/04-frontend-foundation-and-character-creation/04-0
 - 2026-03-03: Plan 03-03 executed (gap closure: Channel-based streaming, ownership verification on actions endpoint)
 - 2026-03-05: Plan 03.1-01 executed (ITenantContext tenant propagation, MigrateAsync, endpoint filter, 5 new tests)
 - 2026-03-05: Plan 04-01 executed (Next.js scaffold, doom design system, CORS, auth store, API client)
+- 2026-03-05: Plan 04-02 executed (landing page, auth screens, session list, UI primitives, AuthGuard)
