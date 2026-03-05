@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, UnifrakturMaguntia } from "next/font/google";
+import { Inter, Cinzel } from "next/font/google";
 import StoreHydration from "@/components/providers/StoreHydration";
 import "./globals.css";
 
@@ -8,8 +8,8 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const doomDisplay = UnifrakturMaguntia({
-  weight: "400",
+const doomDisplay = Cinzel({
+  weight: ["400", "700", "900"],
   subsets: ["latin"],
   variable: "--font-doom-display",
   display: "swap",
