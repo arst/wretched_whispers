@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 3 — API Layer and Streaming
-current_plan: Not started
+current_phase: Phase 3.1 — Persistence Multi-Tenancy Fix
+current_plan: 1 of 1
 status: completed
-stopped_at: Phase 3.1 context gathered
-last_updated: "2026-03-03T15:44:50.333Z"
+stopped_at: Completed 03.1-01-PLAN.md
+last_updated: "2026-03-05T07:40:25Z"
 progress:
   total_phases: 8
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 5
+  total_plans: 11
+  completed_plans: 11
 ---
 
 # Session State
@@ -23,15 +23,15 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** Phase 3 — API Layer and Streaming
-**Current Plan:** Not started
-**Status:** Milestone complete
+**Current phase:** Phase 3.1 — Persistence Multi-Tenancy Fix
+**Current Plan:** 1 of 1 (complete)
+**Status:** Phase complete
 
 ## Session Continuity
 
-Last session: 2026-03-03T15:44:50.330Z
-Stopped at: Phase 3.1 context gathered
-Resume file: .planning/phases/03.1-persistence-multi-tenancy-fix/03.1-CONTEXT.md
+Last session: 2026-03-05T07:40:25Z
+Stopped at: Completed 03.1-01-PLAN.md
+Resume file: .planning/phases/03.1-persistence-multi-tenancy-fix/03.1-01-SUMMARY.md
 
 ## Decisions
 
@@ -43,6 +43,10 @@ Resume file: .planning/phases/03.1-persistence-multi-tenancy-fix/03.1-CONTEXT.md
 - Channel<SseEvent> bridge pattern replaces buffered List (enables true token-by-token streaming despite C# yield/try-catch limitation)
 - Ownership check placed before concurrency guard to avoid locking for unauthorized requests
 - Transactional agent turn: BeginTransaction/CommitTransaction/RollbackTransaction wraps entire agent invocation
+- ITenantContext registered as Scoped in web API and Singleton in console apps
+- Endpoint filter on /sessions group sets ITenantContext from JWT claims before handlers run
+- Test factories delegate DB schema creation to Program.cs MigrateAsync instead of EnsureCreated
+- SqliteCampaignsRepository uses primary constructor with ITenantContext; parameterless SaveCampaign delegates to userId overload
 
 ## Performance Metrics
 
@@ -51,6 +55,7 @@ Resume file: .planning/phases/03.1-persistence-multi-tenancy-fix/03.1-CONTEXT.md
 | 03    | 01   | 6min     | 3     | 10    |
 | 03    | 02   | 7min     | 3     | 8     |
 | 03    | 03   | 3min     | 2     | 3     |
+| 03.1  | 01   | 8min     | 2     | 15    |
 
 ## Session Log
 
@@ -59,3 +64,4 @@ Resume file: .planning/phases/03.1-persistence-multi-tenancy-fix/03.1-CONTEXT.md
 - 2026-03-03: Plan 03-01 executed (session CRUD endpoints, OTel, 8 integration tests)
 - 2026-03-03: Plan 03-02 executed (streaming action endpoint, GameSessionService, concurrency guard, 9 tests)
 - 2026-03-03: Plan 03-03 executed (gap closure: Channel-based streaming, ownership verification on actions endpoint)
+- 2026-03-05: Plan 03.1-01 executed (ITenantContext tenant propagation, MigrateAsync, endpoint filter, 5 new tests)

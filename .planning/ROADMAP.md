@@ -86,10 +86,10 @@ Plans:
 **Requirements**: INFR-02, INFR-03, SESS-02, SESS-03, SESS-04
 **Depends on:** Phase 3
 **Gap Closure:** Closes gaps from v1.0 milestone audit
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 03.1-01-PLAN.md — ITenantContext ambient tenant propagation, repository fix, API MigrateAsync startup, endpoint filter, console app updates, tenant preservation tests
+- [x] 03.1-01-PLAN.md — ITenantContext ambient tenant propagation, repository fix, API MigrateAsync startup, endpoint filter, console app updates, tenant preservation tests
 
 ### Phase 4: Frontend Foundation and Character Creation
 **Goal**: Players open the web app, see the Mork Borg aesthetic, and create a character through a guided narrator conversation
@@ -150,7 +150,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1.1. Domain Design Improvements | 3/3 | Complete | 2026-03-03 |
 | 2. Authentication and Multi-Tenancy | 1/2 | In Progress | - |
 | 3. API Layer and Streaming | 2/3 | In Progress | - |
-| 3.1. Persistence Multi-Tenancy Fix | 0/1 | Not started | - |
+| 3.1. Persistence Multi-Tenancy Fix | 1/1 | Complete | 2026-03-05 |
 | 4. Frontend Foundation and Character Creation | 0/0 | Not started | - |
 | 5. Core Gameplay Interface | 0/0 | Not started | - |
 | 6. Mechanical Visibility and Session Lifecycle | 0/0 | Not started | - |
