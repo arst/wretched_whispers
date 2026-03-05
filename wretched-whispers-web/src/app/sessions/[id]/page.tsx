@@ -72,8 +72,8 @@ export default function GameSessionPage({
         if (data.status === "character-creation" && data.messages.length === 0) {
           setShowSplash(true);
           setLoading(false);
-          // Kick off the narrator's opening message
-          sendAction("begin");
+          // Kick off the narrator's opening message (silent = no player bubble)
+          sendAction("begin", { silent: true });
         } else {
           setLoading(false);
         }

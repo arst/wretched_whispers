@@ -24,7 +24,7 @@ export function useSseStream(sessionId: string) {
   }, []);
 
   const sendAction = useCallback(
-    async (message: string) => {
+    async (message: string, { silent = false }: { silent?: boolean } = {}) => {
       const { accessToken } = useAuthStore.getState();
       const store = useSessionStore.getState();
 
@@ -36,8 +36,8 @@ export function useSseStream(sessionId: string) {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
-      // Optimistic UI: add player message and start streaming state
-      if (message.trim()) {
+      // Optimistic UI: add player message (skip for silent system kicks)
+      if (message.trim() && !silent) {
         store.addPlayerMessage(message);
       }
       store.startStreaming();
