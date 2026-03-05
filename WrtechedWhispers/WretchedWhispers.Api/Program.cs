@@ -67,9 +67,9 @@ using (var scope = app.Services.CreateScope())
         .LogInformation("Database migrated successfully");
 }
 
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors();
 
 // Map Identity endpoints under /auth prefix
 app.MapGroup("/auth").MapIdentityApi<IdentityUser>();
