@@ -26,12 +26,12 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **GAME-02**: Narrator responses stream word-by-word as generated
 - [ ] **GAME-03**: User can scroll back through message history
 - [ ] **GAME-04**: Message history persists across sessions
-- [ ] **GAME-05**: Loading/thinking indicator shows while LLM is processing
+- [x] **GAME-05**: Loading/thinking indicator shows while LLM is processing
 - [x] **GAME-06**: Graceful error recovery when LLM fails or times out
 
 ### Character
 
-- [ ] **CHAR-01**: User creates character through guided narrator conversation
+- [x] **CHAR-01**: User creates character through guided narrator conversation
 - [ ] **CHAR-02**: Character sheet sidebar displays HP, abilities, inventory, armor
 - [ ] **CHAR-03**: Visual injury/status indicators (broken limbs, infection, severed parts)
 - [ ] **CHAR-04**: Equipment condition visible (armor degradation, weapon state)
@@ -114,9 +114,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GAME-02 | Phase 5 | Pending |
 | GAME-03 | Phase 5 | Pending |
 | GAME-04 | Phase 5 | Pending |
-| GAME-05 | Phase 4 | Pending |
+| GAME-05 | Phase 4 | Complete |
 | GAME-06 | Phase 3 | Complete |
-| CHAR-01 | Phase 4 | Pending |
+| CHAR-01 | Phase 4 | Complete |
 | CHAR-02 | Phase 5 | Pending |
 | CHAR-03 | Phase 6 | Pending |
 | CHAR-04 | Phase 6 | Pending |
