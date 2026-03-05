@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, UnifrakturMaguntia } from "next/font/google";
+import StoreHydration from "@/components/providers/StoreHydration";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${doomDisplay.variable}`}>
       <body className="bg-doom-black text-doom-bone font-body min-h-screen antialiased">
+        <StoreHydration />
         {children}
       </body>
     </html>
