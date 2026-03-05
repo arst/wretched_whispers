@@ -65,7 +65,7 @@ export default function SessionsPage() {
   }
 
   return (
-    <div>
+    <div className="max-w-2xl mx-auto px-4 pt-20 pb-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="font-display text-doom-yellow text-2xl tracking-wider">
           YOUR SESSIONS

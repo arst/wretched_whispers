@@ -11,9 +11,7 @@ export default function SessionsLayout({
   return (
     <AuthGuard>
       <Header />
-      <div className="max-w-2xl mx-auto px-4 pt-20 pb-8">
-        {children}
-      </div>
+      {children}
     </AuthGuard>
   );
 }
