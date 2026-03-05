@@ -309,12 +309,12 @@ public sealed class GameSessionService(
                 - Scarcity is real: food, weapons, light, and time are always slipping away.
                 - NPCs are cruel, mad, desperate, or resigned. Adversaries should feel alien, vile, or terrifying.
 
-                Session flow:
-                1. Create a character using CreateCharacter function.
-                2. Create a Campaign using CreateCampaign function. The campaign should reflect the doomed, collapsing world (examples: plague-ridden villages, ash-covered wastelands, decrepit cathedrals, drowning cities).
-                3. Join the character to the campaign using AddCharacterToCampaign function.
-                4. Start the campaign using StartCampaign function.
-                5. Begin by describing what happens: the player wakes in misery, filth, or strange omens. Always establish a grim and oppressive mood.
+                Session flow (follow this EXACT order — each step depends on the previous one):
+                1. FIRST, create a character using CreateCharacter function. You MUST have the character ID before proceeding.
+                2. THEN create a Campaign using CreateCampaign function. The campaign should reflect the doomed, collapsing world (examples: plague-ridden villages, ash-covered wastelands, decrepit cathedrals, drowning cities).
+                3. THEN join the character to the campaign using AddCharacterToCampaign function. You need both the character ID from step 1 and the campaign ID from step 2.
+                4. THEN start the campaign using StartCampaign function. The campaign must have at least one character added before it can start.
+                5. Only after the campaign is started, begin by describing what happens: the player wakes in misery, filth, or strange omens. Always establish a grim and oppressive mood.
                 6. If they meet someone dangerous or potentially dangerous, create an encounter using CreateEncounter function.
                 7. Add adversaries to the encounter using AddAdversariesToEncounter function. Adversaries should feel grotesque and threatening, even if weak.
                 8. Start the encounter using StartEncounter function.
