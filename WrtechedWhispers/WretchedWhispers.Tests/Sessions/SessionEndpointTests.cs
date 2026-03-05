@@ -7,7 +7,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using WretchedWhispers.Core;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Semantic;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Sessions;
@@ -173,6 +176,76 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var messages = json.GetProperty("messages");
         Assert.Equal(JsonValueKind.Array, messages.ValueKind);
         Assert.Equal(0, messages.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task CampaignPlugin_SaveCampaign_PreservesTenantUserId_ThroughScopedDI()
+    {
+        // Arrange: Create a DI scope from the real application (same as GameSessionService)
+        using var scope = _factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+
+        // Set tenant context (same as endpoint filter does from JWT claims)
+        var tenantContext = sp.GetRequiredService<ITenantContext>();
+        tenantContext.SetUserId("e2e-test-user");
+
+        // Resolve CampaignPlugin from the SAME scope (same as ImportPluginFromObject)
+        var campaignPlugin = sp.GetRequiredService<CampaignPlugin>();
+
+        // Act: Call plugin method that uses parameterless SaveCampaign internally
+        var result = await campaignPlugin.CreateCampaign("d6", "E2E Tenant Test", "Verifying tenant propagation");
+
+        // Assert: Check the database entity has the correct UserId
+        var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+        var entity = await db.Campaigns.FindAsync(result.Id);
+        Assert.NotNull(entity);
+        Assert.Equal("e2e-test-user", entity!.UserId);
+    }
+
+    [Fact]
+    public async Task SessionSurvivesPluginSave_UserIdPreservedAfterCampaignModification()
+    {
+        // Arrange: User A creates a session via HTTP
+        var tokenA = await RegisterAndLogin("plugin-save-test@test.com");
+        var createRequest = AuthPost("/sessions", tokenA);
+        var createResponse = await _client.SendAsync(createRequest);
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+
+        // Act: Simulate what happens during an agent turn --
+        // resolve services from a scoped DI container with tenant context set
+        using var scope = _factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+
+        var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+        var entityBefore = await db.Campaigns.FindAsync(campaignId);
+        Assert.NotNull(entityBefore);
+        var originalUserId = entityBefore!.UserId;
+        Assert.False(string.IsNullOrEmpty(originalUserId), "UserId should be set from session creation");
+
+        // Set tenant to same userId as the original creator, then call parameterless save
+        var tenantContext = sp.GetRequiredService<ITenantContext>();
+        tenantContext.SetUserId(originalUserId);
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var campaign = await campaignsRepo.Get(campaignId);
+        Assert.NotNull(campaign);
+
+        // Save via parameterless (the previously broken path)
+        await campaignsRepo.SaveCampaign(campaign!);
+
+        // Assert: UserId is preserved after parameterless save
+        db.ChangeTracker.Clear();
+        var entityAfter = await db.Campaigns.FindAsync(campaignId);
+        Assert.NotNull(entityAfter);
+        Assert.Equal(originalUserId, entityAfter!.UserId);
+
+        // Final assertion: User A can still see the session via HTTP (UserId survived)
+        var listRequest = AuthGet("/sessions", tokenA);
+        var listResponse = await _client.SendAsync(listRequest);
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        var listJson = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(listJson.GetArrayLength() >= 1, "User A should still see their session after plugin save");
     }
 
     private async Task<string> RegisterAndLogin(string email)
