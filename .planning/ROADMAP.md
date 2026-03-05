@@ -100,11 +100,12 @@ Plans:
   2. Layout is readable and functional on both desktop and tablet screen sizes
   3. User can create a character through an interactive narrator-guided conversation that reveals stats, name, and equipment
   4. Loading/thinking indicator is visible while the LLM processes during character creation
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — CORS backend fix, Next.js scaffold, doom-metal design system (fonts, colors, textures), TypeScript API types, auth store, API client
+- [ ] 04-02-PLAN.md — Landing page, themed auth screens (login/register), session list with create, UI primitives, protected routing
+- [ ] 04-03-PLAN.md — Chat interface with SSE streaming, session store, chat components (narrator/player messages, dice callouts, thinking indicator, splash screen), character creation flow
 
 ### Phase 5: Core Gameplay Interface
 **Goal**: Players can play the game -- type actions, see streaming narrator responses, review history, and monitor their character's state
@@ -151,6 +152,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 2. Authentication and Multi-Tenancy | 1/2 | In Progress | - |
 | 3. API Layer and Streaming | 2/3 | In Progress | - |
 | 3.1. Persistence Multi-Tenancy Fix | 1/1 | Complete | 2026-03-05 |
-| 4. Frontend Foundation and Character Creation | 0/0 | Not started | - |
+| 4. Frontend Foundation and Character Creation | 0/3 | Planned | - |
 | 5. Core Gameplay Interface | 0/0 | Not started | - |
 | 6. Mechanical Visibility and Session Lifecycle | 0/0 | Not started | - |
