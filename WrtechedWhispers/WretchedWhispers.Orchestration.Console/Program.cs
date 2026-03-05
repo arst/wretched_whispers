@@ -7,6 +7,7 @@ using Microsoft.SemanticKernel.Agents.Orchestration.Handoff;
 using Microsoft.SemanticKernel.Agents.Runtime.InProcess;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using WretchedWhispers.Core;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
@@ -253,6 +254,10 @@ Kernel BuildCampaignKernel(bool applyMigrations = false)
         using var scope = kernel.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
         db.Database.Migrate();
+
+        // Set tenant context for console app (Singleton -- set once)
+        var tenantContext = kernel.Services.GetRequiredService<ITenantContext>();
+        tenantContext.SetUserId("system");
     }
 
     kernel.ImportPluginFromType<CharacterPlugin>("Character");

@@ -13,7 +13,7 @@ public class CampaignRoundTripTests : TestBase
     public CampaignRoundTripTests()
     {
         _db = new SqliteTestBase();
-        _repo = new SqliteCampaignsRepository(_db.Db, _db.JsonOptions);
+        _repo = new SqliteCampaignsRepository(_db.Db, _db.JsonOptions, _db.TenantContext);
     }
 
     public override void Dispose()

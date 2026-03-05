@@ -11,7 +11,7 @@ public class CampaignMultiTenancyTests : SqliteTestBase
 
     public CampaignMultiTenancyTests()
     {
-        _repo = new SqliteCampaignsRepository(Db, JsonOptions);
+        _repo = new SqliteCampaignsRepository(Db, JsonOptions, TenantContext);
     }
 
     [Fact]

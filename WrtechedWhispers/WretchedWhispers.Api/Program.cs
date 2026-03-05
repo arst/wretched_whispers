@@ -6,6 +6,7 @@ using WretchedWhispers.Api.Configuration;
 using WretchedWhispers.Api.Endpoints;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +46,15 @@ builder.AddWretchedWhispersOpenTelemetry();
 builder.Services.AddSemanticKernel(builder.Configuration);
 
 var app = builder.Build();
+
+// Auto-create/migrate database on first launch
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
+    await db.Database.MigrateAsync();
+    scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
+        .LogInformation("Database migrated successfully");
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

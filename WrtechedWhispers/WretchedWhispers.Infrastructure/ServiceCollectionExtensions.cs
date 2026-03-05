@@ -8,6 +8,7 @@ using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Repositories;
+using WretchedWhispers.Core;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
 using WretchedWhispers.Semantic;
 
@@ -29,6 +30,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IRandomService, SeededRandomService>();
         services.AddSingleton<Dice>();
+        services.AddSingleton<ITenantContext, TenantContext>();
 
         // Repositories as Transient (compatible with SK's root-provider plugin resolution)
         services.AddTransient<ICharactersRepository, SqliteCharactersRepository>();
@@ -56,6 +58,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IRandomService, SeededRandomService>();
         services.AddSingleton<Dice>();
+        services.AddScoped<ITenantContext, TenantContext>();
 
         services.AddScoped<ICharactersRepository, SqliteCharactersRepository>();
         services.AddScoped<ICampaignsRepository, SqliteCampaignsRepository>();

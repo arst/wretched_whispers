@@ -7,6 +7,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
+using WretchedWhispers.Core;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
@@ -58,6 +59,10 @@ using (var scope = campaignKernel.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
     db.Database.Migrate();
 }
+
+// Set tenant context for console app (Singleton -- one user for entire process)
+var tenantContext = campaignKernel.Services.GetRequiredService<ITenantContext>();
+tenantContext.SetUserId("system");
 
 var chatCompletionService = campaignKernel.GetRequiredService<IChatCompletionService>();
 

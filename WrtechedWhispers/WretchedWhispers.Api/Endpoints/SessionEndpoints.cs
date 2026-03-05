@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
@@ -13,7 +14,18 @@ public static class SessionEndpoints
     public static WebApplication MapSessionEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/sessions")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .AddEndpointFilter(async (context, next) =>
+            {
+                var http = context.HttpContext;
+                var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                    return Results.Unauthorized();
+
+                var tenantContext = http.RequestServices.GetRequiredService<ITenantContext>();
+                tenantContext.SetUserId(userId);
+                return await next(context);
+            });
 
         group.MapPost("/", CreateSession);
         group.MapGet("/", ListSessions);
