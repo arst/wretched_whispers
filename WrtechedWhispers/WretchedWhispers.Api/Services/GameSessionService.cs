@@ -108,8 +108,12 @@ public sealed class GameSessionService(
                     var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
 
                     // Stream the agent response -- write each chunk to channel immediately
+                    // Filter to only assistant-role content to avoid leaking tool call/result text
                     await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
                     {
+                        if (response.Message.Role is not null && response.Message.Role != AuthorRole.Assistant)
+                            continue;
+
                         var content = response.Message.Content;
                         if (!string.IsNullOrEmpty(content))
                         {
@@ -324,6 +328,11 @@ public sealed class GameSessionService(
                 12. Continue the game until the campaign ends in doom, despair, or some fleeting triumph against the inevitable.
                 13. You can create more encounters, if/when players meet more adversaries.
                 14. After each action that takes players some time (no less than 1 hour), advance campaign time using AdvanceTime function. Time matters: darkness falls, hunger gnaws, omens approach.
+
+                Output rules:
+                - NEVER output raw JSON, function results, IDs, or technical data to the player. The player must only see narrative prose.
+                - When a tool returns data (character stats, campaign info, dice rolls), weave the results into your narration in-character. For example, instead of showing {"Name":"Test","Agility":-1}, say something like "Your wretched body is frail — barely able to swing a blade (Agility -1), though your stubborn will keeps you standing."
+                - GUIDs, object structures, and function names must never appear in your text.
 
                 Tone reminders:
                 - Emphasize inevitability: the world ends soon, and everything the characters do is done against the ticking clock of apocalypse.
