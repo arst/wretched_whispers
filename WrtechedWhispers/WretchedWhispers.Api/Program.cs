@@ -10,6 +10,17 @@ using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// CORS: allow Next.js dev server to communicate cross-origin
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 // EF Core + SQLite (Scoped lifetime for web API)
 builder.Services.AddDbContext<WretchedWhispersDbContext>(
     options => options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
@@ -58,6 +69,7 @@ using (var scope = app.Services.CreateScope())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseCors();
 
 // Map Identity endpoints under /auth prefix
 app.MapGroup("/auth").MapIdentityApi<IdentityUser>();
