@@ -5,9 +5,10 @@ import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 interface ChatInputProps {
   onSend: (message: string) => void;
   disabled: boolean;
+  status?: string | null;
 }
 
-export default function ChatInput({ onSend, disabled }: ChatInputProps) {
+export default function ChatInput({ onSend, disabled, status }: ChatInputProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -52,7 +53,7 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
             handleInput();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Speak, wretch..."
+          placeholder={status === "in-progress" ? "What do you do?" : "Speak, wretch..."}
           disabled={disabled}
           rows={1}
           className={`flex-1 resize-none bg-doom-black text-doom-bone border border-doom-card rounded px-3 py-2 font-body text-sm leading-relaxed placeholder:text-doom-ash focus:outline-none focus:border-doom-yellow/60 transition-colors ${

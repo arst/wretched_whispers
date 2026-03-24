@@ -17,7 +17,7 @@ export default function ChatWindow() {
   const sessionId = useSessionStore((s) => s.sessionId);
   const hasMoreMessages = useSessionStore((s) => s.hasMoreMessages);
 
-  const { containerRef, bottomRef, scrollToBottom: _scrollToBottom } = useAutoScroll([
+  const { containerRef, bottomRef, scrollToBottom: _scrollToBottom, isPrepend } = useAutoScroll([
     messages.length,
     streamingText,
   ]);
@@ -29,8 +29,9 @@ export default function ChatWindow() {
     const container = containerRef.current;
     if (container) {
       prevScrollHeightRef.current = container.scrollHeight;
+      isPrepend.current = true; // Prevent auto-scroll on this update
     }
-  }, [containerRef]);
+  }, [containerRef, isPrepend]);
 
   const handleLoadMoreComplete = useCallback(() => {
     const container = containerRef.current;

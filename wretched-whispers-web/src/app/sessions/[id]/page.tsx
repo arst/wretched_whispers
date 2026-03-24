@@ -66,7 +66,61 @@ export default function GameSessionPage({
 
         const data: SessionDetailDto = await res.json();
         const store = useSessionStore.getState();
-        store.setSession(data.sessionId, data.status, data.messages);
+
+        // If there are more messages than one page, load the LAST page
+        // so the user sees the most recent messages first
+        if (data.totalMessages > data.pageSize) {
+          const lastPage = Math.ceil(data.totalMessages / data.pageSize);
+          const latestRes = await apiFetch(`/sessions/${id}?page=${lastPage}&pageSize=${data.pageSize}`);
+          if (cancelled) return;
+
+          if (latestRes.ok) {
+            const latestData: SessionDetailDto = await latestRes.json();
+            store.setSession(latestData.sessionId, latestData.status, latestData.messages, latestData.totalMessages);
+
+            // Hydrate character data from enriched SessionDetailDto
+            if (latestData.characterName && latestData.characterHp != null) {
+              store.setCharacterData({
+                name: latestData.characterName,
+                currentHp: latestData.characterHp,
+                maxHp: latestData.characterMaxHp!,
+                abilities: {
+                  strength: latestData.characterStrength ?? 0,
+                  agility: latestData.characterAgility ?? 0,
+                  presence: latestData.characterPresence ?? 0,
+                  toughness: latestData.characterToughness ?? 0,
+                },
+                weapon: latestData.characterWeapon ?? null,
+                armor: latestData.characterArmor ?? null,
+                inventory: latestData.characterInventory ?? [],
+              });
+            }
+          } else {
+            // Fallback to first page if last page request fails
+            store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+          }
+        } else {
+          // Session fits in one page, use as-is
+          store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+
+          // Hydrate character data from enriched SessionDetailDto
+          if (data.characterName && data.characterHp != null) {
+            store.setCharacterData({
+              name: data.characterName,
+              currentHp: data.characterHp,
+              maxHp: data.characterMaxHp!,
+              abilities: {
+                strength: data.characterStrength ?? 0,
+                agility: data.characterAgility ?? 0,
+                presence: data.characterPresence ?? 0,
+                toughness: data.characterToughness ?? 0,
+              },
+              weapon: data.characterWeapon ?? null,
+              armor: data.characterArmor ?? null,
+              inventory: data.characterInventory ?? [],
+            });
+          }
+        }
 
         // New character-creation session with no messages: show splash and trigger narrator
         if (data.status === "character-creation" && data.messages.length === 0) {
@@ -180,7 +234,7 @@ export default function GameSessionPage({
       <ChatWindow />
 
       {/* Input bar */}
-      <ChatInput onSend={handleSend} disabled={isStreaming} />
+      <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
     </div>
   );
 }
