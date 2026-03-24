@@ -6,6 +6,8 @@ import HpBar from "./HpBar";
 import AbilityScore from "./AbilityScore";
 import EquipmentSlot from "./EquipmentSlot";
 import InventoryList from "./InventoryList";
+import InjuryBadges from "./InjuryBadges";
+import StatusIndicators from "./StatusIndicators";
 
 export default function CharacterDrawer() {
   const characterData = useSessionStore((s) => s.characterData);
@@ -130,6 +132,28 @@ export default function CharacterDrawer() {
           />
         </div>
 
+        {/* Injuries section */}
+        {(characterData.hasLostEye || characterData.hasStabbedLung || characterData.hasBrokenHand || characterData.hasCrushedFoot || characterData.hasSeveredArm || characterData.hasSmashedFace) && (
+          <div className="px-8 pt-6">
+            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-pink">
+              <InjuryBadges characterData={characterData} />
+            </div>
+          </div>
+        )}
+
+        {/* Status section */}
+        {(characterData.isInfected || characterData.isDizzyFromMagic || characterData.isEncumbered) && (
+          <div className="px-8 pt-6">
+            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
+              <StatusIndicators
+                isInfected={characterData.isInfected}
+                isDizzyFromMagic={characterData.isDizzyFromMagic}
+                isEncumbered={characterData.isEncumbered}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Abilities section */}
         <div className="px-8 pt-6">
           <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
@@ -153,7 +177,10 @@ export default function CharacterDrawer() {
             </span>
             <div className="mt-2 space-y-1">
               <EquipmentSlot label="WEAPON" value={characterData.weapon} />
-              <EquipmentSlot label="ARMOR" value={characterData.armor} />
+              <EquipmentSlot label="ARMOR" value={characterData.armor} tier={characterData.armorTier as "none" | "light" | "medium" | "heavy"} />
+              {characterData.hasShield && (
+                <EquipmentSlot label="SHIELD" value="Shield" isBroken={characterData.isShieldBroken} />
+              )}
             </div>
           </div>
         </div>

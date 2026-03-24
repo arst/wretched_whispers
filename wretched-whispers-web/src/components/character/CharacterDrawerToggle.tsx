@@ -2,6 +2,7 @@
 
 import { useSessionStore } from "@/stores/sessionStore";
 import HpBar from "./HpBar";
+import MiseryTracker from "./MiseryTracker";
 
 function getHpTextColor(currentHp: number, maxHp: number): string {
   if (currentHp <= 0) return "text-[#8a8a8a]";
@@ -17,7 +18,9 @@ export default function CharacterDrawerToggle() {
   const status = useSessionStore((s) => s.status);
   const drawerOpen = useSessionStore((s) => s.drawerOpen);
 
-  const isVisible = status === "in-progress" && characterData !== null;
+  const miseryCount = useSessionStore((s) => s.miseryCount);
+
+  const isVisible = (status === "in-progress" || status === "ended") && characterData !== null;
 
   return (
     <div
@@ -45,6 +48,7 @@ export default function CharacterDrawerToggle() {
             />
           </div>
         )}
+        <MiseryTracker count={miseryCount} />
       </button>
     </div>
   );

@@ -33,6 +33,20 @@ export interface SessionDetailDto {
   characterWeapon?: string | null;
   characterArmor?: string | null;
   characterInventory?: string[] | null;
+  characterHasLostEye?: boolean | null;
+  characterHasStabbedLung?: boolean | null;
+  characterHasBrokenHand?: boolean | null;
+  characterHasCrushedFoot?: boolean | null;
+  characterHasSeveredArm?: boolean | null;
+  characterHasSmashedFace?: boolean | null;
+  characterIsInfected?: boolean | null;
+  characterIsDizzyFromMagic?: boolean | null;
+  characterIsEncumbered?: boolean | null;
+  characterIsDead?: boolean | null;
+  characterArmorTier?: string | null;
+  characterHasShield?: boolean | null;
+  characterIsShieldBroken?: boolean | null;
+  worldEnded?: boolean | null;
 }
 
 export interface ChatMessageDto {
@@ -90,6 +104,24 @@ export interface StateUpdateEvent {
   characterInventory?: string[];
   miseryCount: number;
   status: "character-creation" | "in-progress" | "ended";
+  // Injuries (from Plan 01 backend enrichment, per D-08)
+  hasLostEye?: boolean;
+  hasStabbedLung?: boolean;
+  hasBrokenHand?: boolean;
+  hasCrushedFoot?: boolean;
+  hasSeveredArm?: boolean;
+  hasSmashedFace?: boolean;
+  // Status effects
+  isInfected?: boolean;
+  isDizzyFromMagic?: boolean;
+  isEncumbered?: boolean;
+  isDead?: boolean;
+  // Equipment condition
+  armorTier?: string;
+  hasShield?: boolean;
+  isShieldBroken?: boolean;
+  // World state
+  worldEnded?: boolean;
 }
 
 export interface CharacterData {
@@ -105,6 +137,22 @@ export interface CharacterData {
   weapon: string | null;
   armor: string | null;
   inventory: string[];
+  // Injuries
+  hasLostEye: boolean;
+  hasStabbedLung: boolean;
+  hasBrokenHand: boolean;
+  hasCrushedFoot: boolean;
+  hasSeveredArm: boolean;
+  hasSmashedFace: boolean;
+  // Status effects
+  isInfected: boolean;
+  isDizzyFromMagic: boolean;
+  isEncumbered: boolean;
+  isDead: boolean;
+  // Equipment condition
+  armorTier: string;
+  hasShield: boolean;
+  isShieldBroken: boolean;
 }
 
 export interface SseErrorEvent {

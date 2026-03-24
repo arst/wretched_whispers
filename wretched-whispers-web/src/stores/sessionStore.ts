@@ -23,6 +23,8 @@ interface SessionState {
   currentPage: number;
   hasMoreMessages: boolean;
   loadingMore: boolean;
+  miseryCount: number;
+  worldEnded: boolean;
 
   // Actions
   setSession: (sessionId: string, status: string, messages: ChatMessageDto[], totalMessages?: number) => void;
@@ -59,6 +61,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   currentPage: 1,
   hasMoreMessages: false,
   loadingMore: false,
+  miseryCount: 0,
+  worldEnded: false,
 
   setSession: (sessionId, status, dtos, totalMessages = 0) =>
     set({
@@ -132,7 +136,11 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   },
 
   setStateUpdate: (update) => {
-    const newState: Partial<SessionState> = { status: update.status };
+    const newState: Partial<SessionState> = {
+      status: update.status,
+      miseryCount: update.miseryCount,
+      worldEnded: update.worldEnded ?? false,
+    };
 
     if (update.characterName && update.characterHp != null) {
       newState.characterData = {
@@ -148,6 +156,22 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         weapon: update.characterWeapon ?? null,
         armor: update.characterArmor ?? null,
         inventory: update.characterInventory ?? [],
+        // Injuries
+        hasLostEye: update.hasLostEye ?? false,
+        hasStabbedLung: update.hasStabbedLung ?? false,
+        hasBrokenHand: update.hasBrokenHand ?? false,
+        hasCrushedFoot: update.hasCrushedFoot ?? false,
+        hasSeveredArm: update.hasSeveredArm ?? false,
+        hasSmashedFace: update.hasSmashedFace ?? false,
+        // Status effects
+        isInfected: update.isInfected ?? false,
+        isDizzyFromMagic: update.isDizzyFromMagic ?? false,
+        isEncumbered: update.isEncumbered ?? false,
+        isDead: update.isDead ?? false,
+        // Equipment condition
+        armorTier: update.armorTier ?? "none",
+        hasShield: update.hasShield ?? false,
+        isShieldBroken: update.isShieldBroken ?? false,
       };
     }
 
@@ -193,6 +217,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       currentPage: 1,
       hasMoreMessages: false,
       loadingMore: false,
+      miseryCount: 0,
+      worldEnded: false,
     }),
 
   setCharacterData: (data) => set({ characterData: data }),
