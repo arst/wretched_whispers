@@ -19,7 +19,7 @@ const statusStyles: Record<SessionPreviewDto["status"], string> = {
 const statusLabels: Record<SessionPreviewDto["status"], string> = {
   "character-creation": "Creating Character",
   "in-progress": "In Progress",
-  ended: "Ended",
+  ended: "\u2620 Ended",
 };
 
 function formatRelativeTime(dateStr: string): string {
@@ -44,7 +44,9 @@ export default function SessionCard({ session }: SessionCardProps) {
   return (
     <Link
       href={`/sessions/${session.sessionId}`}
-      className="block bg-doom-card border border-doom-card hover:border-doom-yellow/30 transition-colors p-5"
+      className={`block bg-doom-card border border-doom-card hover:border-doom-yellow/30 transition-colors p-5 ${
+        session.status === "ended" ? "opacity-75" : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <h3 className="font-display text-doom-yellow text-lg tracking-wider leading-tight">
