@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 4: Frontend Foundation and Character Creation** - React/Next.js app with Mork Borg aesthetic and guided character creation as first playable experience
 - [ ] **Phase 5: Core Gameplay Interface** - Chat-based gameplay with streaming narrator responses, message history, and character sheet display
 - [ ] **Phase 6: Mechanical Visibility and Session Lifecycle** - Dice rolls, Misery tracker, injury indicators, and complete game lifecycle from creation through doom
+- [ ] **Phase 7: Deterministic State Machine and Context Injection** - Plugin calls drive stage transitions; session context injected into model prompts; AI narrates, system manages state
 
 ## Phase Details
 
@@ -157,3 +158,13 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 4. Frontend Foundation and Character Creation | 0/3 | Planned | - |
 | 5. Core Gameplay Interface | 1/3 | In Progress|  |
 | 6. Mechanical Visibility and Session Lifecycle | 0/3 | Planned    |  |
+
+### Phase 7: Deterministic State Machine and Context Injection
+
+**Goal**: Session stages advance deterministically through plugin tool call side effects, with a session context object injected into model prompts so the AI never manages IDs, state, or transitions directly
+**Requirements**: MORK-01
+**Depends on**: Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 7 to break down)
