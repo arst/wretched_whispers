@@ -9,6 +9,7 @@ using WretchedWhispers.Api.Models;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Semantic;
 
 #pragma warning disable SKEXP0001
@@ -165,6 +166,14 @@ public sealed class GameSessionService(
                     int? characterHp = null;
                     int? characterMaxHp = null;
                     Guid? characterId = null;
+                    string? characterName = null;
+                    int? characterStrength = null;
+                    int? characterAgility = null;
+                    int? characterPresence = null;
+                    int? characterToughness = null;
+                    string? characterWeapon = null;
+                    string? characterArmor = null;
+                    string[]? characterInventory = null;
 
                     if (firstPlayerId != Guid.Empty)
                     {
@@ -174,6 +183,22 @@ public sealed class GameSessionService(
                             characterId = character.Id;
                             characterHp = character.Hp.Current;
                             characterMaxHp = character.Hp.Max;
+                            characterName = character.Name;
+                            characterStrength = character.Abilities.Strength.Modifier;
+                            characterAgility = character.Abilities.Agility.Modifier;
+                            characterPresence = character.Abilities.Presence.Modifier;
+                            characterToughness = character.Abilities.Toughness.Modifier;
+                            characterWeapon = character.Weapon.Kind.ToString();
+                            characterArmor = character.Armor.Tier switch
+                            {
+                                NoArmorTier => "None",
+                                LightArmorTier => "Light Armor",
+                                MediumArmorTier => "Medium Armor",
+                                HeavyArmorTier => "Heavy Armor",
+                                _ => "Unknown"
+                            };
+                            characterInventory = character.Inventory.InventoryItems
+                                .Select(i => i.Description).ToArray();
                         }
                     }
 
@@ -183,8 +208,16 @@ public sealed class GameSessionService(
                         currentDay = updatedCampaign.CurrentDay,
                         currentHour = updatedCampaign.CurrentHour,
                         characterId,
+                        characterName,
                         characterHp,
                         characterMaxHp,
+                        characterStrength,
+                        characterAgility,
+                        characterPresence,
+                        characterToughness,
+                        characterWeapon,
+                        characterArmor,
+                        characterInventory,
                         miseryCount = updatedCampaign.Miseries.Count,
                         status = DeriveStatus(updatedCampaign)
                     }));

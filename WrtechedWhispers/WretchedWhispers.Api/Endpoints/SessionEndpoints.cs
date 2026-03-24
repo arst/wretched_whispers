@@ -5,6 +5,7 @@ using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Semantic;
 
 namespace WretchedWhispers.Api.Endpoints;
@@ -186,6 +187,7 @@ public static class SessionEndpoints
         Guid sessionId,
         HttpContext http,
         ICampaignsRepository campaignsRepo,
+        ICharactersRepository charactersRepo,
         IChatHistoryRepository chatHistoryRepo,
         int page = 1,
         int pageSize = 50)
@@ -226,6 +228,45 @@ public static class SessionEndpoints
 
         var status = DeriveStatus(campaign);
 
+        // Load character data for enriched DTO
+        string? characterName = null;
+        int? currentHp = null;
+        int? maxHp = null;
+        int? charStrength = null;
+        int? charAgility = null;
+        int? charPresence = null;
+        int? charToughness = null;
+        string? charWeapon = null;
+        string? charArmor = null;
+        string[]? charInventory = null;
+
+        var firstPlayerId = campaign.Players.FirstOrDefault();
+        if (firstPlayerId != Guid.Empty)
+        {
+            var character = await charactersRepo.Get(firstPlayerId);
+            if (character is not null)
+            {
+                characterName = character.Name;
+                currentHp = character.Hp.Current;
+                maxHp = character.Hp.Max;
+                charStrength = character.Abilities.Strength.Modifier;
+                charAgility = character.Abilities.Agility.Modifier;
+                charPresence = character.Abilities.Presence.Modifier;
+                charToughness = character.Abilities.Toughness.Modifier;
+                charWeapon = character.Weapon.Kind.ToString();
+                charArmor = character.Armor.Tier switch
+                {
+                    NoArmorTier => "None",
+                    LightArmorTier => "Light Armor",
+                    MediumArmorTier => "Medium Armor",
+                    HeavyArmorTier => "Heavy Armor",
+                    _ => "Unknown"
+                };
+                charInventory = character.Inventory.InventoryItems
+                    .Select(i => i.Description).ToArray();
+            }
+        }
+
         return Results.Ok(new SessionDetailDto(
             sessionId,
             campaign.Id,
@@ -237,7 +278,17 @@ public static class SessionEndpoints
             messages,
             totalMessages,
             page,
-            pageSize));
+            pageSize,
+            characterName,
+            currentHp,
+            maxHp,
+            charStrength,
+            charAgility,
+            charPresence,
+            charToughness,
+            charWeapon,
+            charArmor,
+            charInventory));
     }
 
     private static async Task<IResult> GetSessionMessages(

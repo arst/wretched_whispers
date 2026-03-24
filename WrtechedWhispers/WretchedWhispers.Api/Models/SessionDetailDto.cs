@@ -11,5 +11,15 @@ public record SessionDetailDto(
     List<ChatMessageDto> Messages,
     int TotalMessages,
     int Page,
-    int PageSize
+    int PageSize,
+    string? CharacterName = null,
+    int? CharacterHp = null,
+    int? CharacterMaxHp = null,
+    int? CharacterStrength = null,
+    int? CharacterAgility = null,
+    int? CharacterPresence = null,
+    int? CharacterToughness = null,
+    string? CharacterWeapon = null,
+    string? CharacterArmor = null,
+    string[]? CharacterInventory = null
 );
