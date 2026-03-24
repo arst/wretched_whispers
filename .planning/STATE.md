@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 06 — Mechanical Visibility and Session Lifecycle
+current_phase: Phase 06 -- Mechanical Visibility and Session Lifecycle
 current_plan: Plan 1 of 3
-status: in-progress
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-24T11:34:50.126Z"
+status: executing
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-24T13:05:00.873Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:53:36Z
-Stopped at: Completed 06-01-PLAN.md
-Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-02-PLAN.md
+Last session: 2026-03-24T13:04:52.805Z
+Stopped at: Completed 06-02-PLAN.md
+Resume file: None
 
 ## Decisions
 
@@ -62,6 +62,7 @@ Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-
 - [Phase 06]: Campaign.WorldEnded public property exposes Calendar.WorldEnded without InternalsVisibleTo
 - [Phase 06]: DeriveStatus tests verify observable Campaign state rather than private static method
 - [Phase 06]: Lowercase armorTier (none/light/medium/heavy) in SSE/DTO for machine consumption
+- [Phase 06]: CharacterDrawerToggle visible for ended sessions to allow reviewing character state
 
 ## Performance Metrics
 
@@ -76,6 +77,7 @@ Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-
 | 04    | 03   | 12min    | 4     | 15    |
 | Phase 05 P02 | 2min | 2 tasks | 8 files |
 | 06    | 01   | 8min     | 2     | 9     |
+| Phase 06 P02 | 5min | 2 tasks | 10 files |
 
 ## Session Log
 
