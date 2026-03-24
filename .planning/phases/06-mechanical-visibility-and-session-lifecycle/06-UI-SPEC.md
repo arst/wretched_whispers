@@ -50,13 +50,13 @@ Exceptions: Misery pips at 8px diameter (w-2 h-2). Touch target on "Begin Anew" 
 | Body | 14px (text-sm) | 400 | 1.625 (leading-relaxed) | Inter |
 | Label | 12px (text-xs) | 700 | 1.5 | Inter |
 | Heading | 18px (text-lg) | 700 | 1.2 | Cinzel |
-| Display | 24px (text-2xl) | 900 | 1.2 | Cinzel |
+| Display | 24px (text-2xl) | 700 | 1.2 | Cinzel |
 
 Usage in this phase:
 - **Body (14px/400)**: Dice callout result text, injury badge labels, equipment condition text, end card stats
 - **Label (12px/700)**: Section headers ("INJURIES", "STATUS", "FATE DECIDES"), Misery pip aria-labels, equipment tier labels
 - **Heading (18px/700)**: End card character name, drawer section headers (existing)
-- **Display (24px/900)**: End card title ("YOUR WRETCH HAS FALLEN" / "THE WORLD HAS ENDED")
+- **Display (24px/700)**: End card title ("YOUR WRETCH HAS FALLEN" / "THE WORLD HAS ENDED")
 
 ---
 
@@ -127,10 +127,10 @@ Accent reserved for:
 - **Props**: `characterName: string`, `isDead: boolean`, `worldEnded: boolean`, `miseryCount: number`, `currentDay: number`, `onRestart: () => void`
 - **Layout**: Centered panel over a `bg-doom-black/80` backdrop, max-width 400px
 - **Death variant** (`isDead && !worldEnded`):
-  - Title: "YOUR WRETCH HAS FALLEN" in `font-display text-2xl font-black text-doom-pink uppercase tracking-widest`
+  - Title: "YOUR WRETCH HAS FALLEN" in `font-display text-2xl font-bold text-doom-pink uppercase tracking-widest`
   - Accent border: `border-doom-pink`
 - **Apocalypse variant** (`worldEnded`):
-  - Title: "THE WORLD HAS ENDED" in `font-display text-2xl font-black text-doom-yellow uppercase tracking-widest`
+  - Title: "THE WORLD HAS ENDED" in `font-display text-2xl font-bold text-doom-yellow uppercase tracking-widest`
   - Accent border: `border-doom-yellow`
 - **Priority**: If both `isDead` and `worldEnded` are true, show apocalypse variant (world ending trumps individual death)
 - **Content**:
