@@ -12,18 +12,17 @@ A player can sit down and play through a complete Mork Borg session — characte
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Persistent game state (character sheet, conversation history, world state) — Validated in Phase 1
+- [x] SQLite storage for simple deployment — Validated in Phase 1
+- [x] Email/password authentication — Validated in Phase 2
+- [x] Multi-tenant support (multiple players, each with their own games) — Validated in Phase 2
+- [x] API layer exposing game operations (.NET backend) — Validated in Phase 3
+- [x] Streamed LLM narrator responses (words appear as generated) — Validated in Phase 3
+- [x] Game session management (create new, list existing, continue saved) — Validated in Phase 4
+- [x] Web-based UI for gameplay (React/Next.js frontend) — Validated in Phase 5
 
 ### Active
 
-- [ ] Web-based UI for gameplay (React/Next.js frontend)
-- [ ] API layer exposing game operations (.NET backend)
-- [ ] Email/password authentication
-- [ ] Game session management (create new, list existing, continue saved)
-- [ ] Persistent game state (character sheet, conversation history, world state)
-- [ ] SQLite storage for simple deployment
-- [ ] Streamed LLM narrator responses (words appear as generated)
-- [ ] Multi-tenant support (multiple players, each with their own games)
 - [ ] Full Mork Borg session lifecycle (character creation through 7th Misery)
 - [ ] Core Mork Borg rules: classes, combat, items, Miseries calendar
 
@@ -62,4 +61,4 @@ A player can sit down and play through a complete Mork Borg session — characte
 | Streamed responses | Text appearing word-by-word feels alive and matches the GM-at-the-table experience | — Pending |
 
 ---
-*Last updated: 2026-03-02 after initialization*
+*Last updated: 2026-03-24 after Phase 5 completion*
