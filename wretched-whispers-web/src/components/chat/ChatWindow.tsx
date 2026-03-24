@@ -1,10 +1,12 @@
 "use client";
 
+import { useRef, useCallback } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import NarratorMessage from "./NarratorMessage";
 import PlayerMessage from "./PlayerMessage";
 import ThinkingIndicator from "./ThinkingIndicator";
+import LoadMoreButton from "./LoadMoreButton";
 
 export default function ChatWindow() {
   // Select messages with a stable selector to avoid re-render on streamingText changes
@@ -12,11 +14,32 @@ export default function ChatWindow() {
   const isStreaming = useSessionStore((s) => s.isStreaming);
   const streamingMessageId = useSessionStore((s) => s.streamingMessageId);
   const streamingText = useSessionStore((s) => s.streamingText);
+  const sessionId = useSessionStore((s) => s.sessionId);
+  const hasMoreMessages = useSessionStore((s) => s.hasMoreMessages);
 
-  const { containerRef, bottomRef, scrollToBottom: _scrollToBottom } = useAutoScroll([
+  const { containerRef, bottomRef, scrollToBottom: _scrollToBottom, isPrepend } = useAutoScroll([
     messages.length,
     streamingText,
   ]);
+
+  // Scroll preservation for load-more (prepend) operations
+  const prevScrollHeightRef = useRef(0);
+
+  const handleBeforeLoadMore = useCallback(() => {
+    const container = containerRef.current;
+    if (container) {
+      prevScrollHeightRef.current = container.scrollHeight;
+      isPrepend.current = true; // Prevent auto-scroll on this update
+    }
+  }, [containerRef, isPrepend]);
+
+  const handleLoadMoreComplete = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    requestAnimationFrame(() => {
+      container.scrollTop += container.scrollHeight - prevScrollHeightRef.current;
+    });
+  }, [containerRef]);
 
   return (
     <div
@@ -24,6 +47,14 @@ export default function ChatWindow() {
       className="flex-1 overflow-y-auto px-4 pb-24 pt-4"
     >
       <div className="max-w-2xl mx-auto">
+        {sessionId && hasMoreMessages && (
+          <LoadMoreButton
+            sessionId={sessionId}
+            onBeforeLoad={handleBeforeLoadMore}
+            onLoadComplete={handleLoadMoreComplete}
+          />
+        )}
+
         {messages.map((msg) => {
           if (msg.role === "assistant") {
             const isCurrentlyStreaming =

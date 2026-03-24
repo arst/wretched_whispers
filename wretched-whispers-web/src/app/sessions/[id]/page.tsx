@@ -67,24 +67,47 @@ export default function GameSessionPage({
 
         const data: SessionDetailDto = await res.json();
         const store = useSessionStore.getState();
-        store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
 
-        // Hydrate character data from enriched SessionDetailDto
-        if (data.characterName && data.characterHp != null) {
-          store.setCharacterData({
-            name: data.characterName,
-            currentHp: data.characterHp,
-            maxHp: data.characterMaxHp!,
-            abilities: {
-              strength: data.characterStrength ?? 0,
-              agility: data.characterAgility ?? 0,
-              presence: data.characterPresence ?? 0,
-              toughness: data.characterToughness ?? 0,
-            },
-            weapon: data.characterWeapon ?? null,
-            armor: data.characterArmor ?? null,
-            inventory: data.characterInventory ?? [],
-          });
+        // Helper to hydrate character data from enriched DTO
+        function hydrateCharacter(dto: SessionDetailDto) {
+          if (dto.characterName && dto.characterHp != null) {
+            store.setCharacterData({
+              name: dto.characterName,
+              currentHp: dto.characterHp,
+              maxHp: dto.characterMaxHp!,
+              abilities: {
+                strength: dto.characterStrength ?? 0,
+                agility: dto.characterAgility ?? 0,
+                presence: dto.characterPresence ?? 0,
+                toughness: dto.characterToughness ?? 0,
+              },
+              weapon: dto.characterWeapon ?? null,
+              armor: dto.characterArmor ?? null,
+              inventory: dto.characterInventory ?? [],
+            });
+          }
+        }
+
+        // If there are more messages than one page, load the LAST page
+        // so the user sees the most recent messages first
+        if (data.totalMessages > data.pageSize) {
+          const lastPage = Math.ceil(data.totalMessages / data.pageSize);
+          const latestRes = await apiFetch(`/sessions/${id}?page=${lastPage}&pageSize=${data.pageSize}`);
+          if (cancelled) return;
+
+          if (latestRes.ok) {
+            const latestData: SessionDetailDto = await latestRes.json();
+            store.setSession(latestData.sessionId, latestData.status, latestData.messages, latestData.totalMessages);
+            hydrateCharacter(latestData);
+          } else {
+            // Fallback to first page if last page request fails
+            store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+            hydrateCharacter(data);
+          }
+        } else {
+          // Session fits in one page, use as-is
+          store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+          hydrateCharacter(data);
         }
 
         // New character-creation session with no messages: show splash and trigger narrator
