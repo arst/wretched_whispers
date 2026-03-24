@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 06 — Mechanical Visibility and Session Lifecycle
-current_plan: Plan 2 of 3
-status: in-progress
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-24T11:34:50.126Z"
+current_plan: Plan 3 of 3 (complete)
+status: completed
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-24T14:45:33Z"
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Session State
@@ -24,14 +24,14 @@ See: .planning/PROJECT.md
 
 **Milestone:** v1.0 milestone
 **Current phase:** Phase 06 -- Mechanical Visibility and Session Lifecycle
-**Current Plan:** Plan 1 of 3
-**Status:** In Progress
+**Current Plan:** Plan 3 of 3 (complete)
+**Status:** Phase Complete
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:53:36Z
-Stopped at: Completed 06-01-PLAN.md
-Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-02-PLAN.md
+Last session: 2026-03-24T14:45:33Z
+Stopped at: Completed 06-03-PLAN.md (Phase 06 complete)
+Resume file: N/A (all phases complete)
 
 ## Decisions
 
@@ -62,6 +62,9 @@ Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-
 - [Phase 06]: Campaign.WorldEnded public property exposes Calendar.WorldEnded without InternalsVisibleTo
 - [Phase 06]: DeriveStatus tests verify observable Campaign state rather than private static method
 - [Phase 06]: Lowercase armorTier (none/light/medium/heavy) in SSE/DTO for machine consumption
+- [Phase 06]: End card gated on status===ended && !isStreaming to avoid interrupting narrator farewell
+- [Phase 06]: Apocalypse variant (yellow) takes priority over death (pink) when worldEnded is true
+- [Phase 06]: EndCard handles restart internally via apiFetch + router.push
 
 ## Performance Metrics
 
@@ -76,6 +79,7 @@ Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-
 | 04    | 03   | 12min    | 4     | 15    |
 | Phase 05 P02 | 2min | 2 tasks | 8 files |
 | 06    | 01   | 8min     | 2     | 9     |
+| 06    | 03   | 12min    | 3     | 5     |
 
 ## Session Log
 
@@ -88,3 +92,4 @@ Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-
 - 2026-03-05: Plan 04-01 executed (Next.js scaffold, doom design system, CORS, auth store, API client)
 - 2026-03-05: Plan 04-02 executed (landing page, auth screens, session list, UI primitives, AuthGuard)
 - 2026-03-05: Plan 04-03 executed (chat interface, SSE streaming, character creation flow, doom UI components)
+- 2026-03-24: Plan 06-03 executed (EndCard overlay, session lifecycle, read-only ended sessions, Begin Anew restart)
