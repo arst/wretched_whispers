@@ -117,11 +117,12 @@ Plans:
   3. User can scroll back through the full message history of the current session
   4. Message history persists -- closing the browser and resuming the session shows all previous messages
   5. Character sheet sidebar displays current HP, abilities, inventory, and armor in real time as the game progresses
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md — Backend state_update enrichment, SessionDetailDto character data, frontend types/store extension, ChatInput gameplay mode
+- [ ] 05-02-PLAN.md — Character sheet drawer overlay, sub-components (HpBar, AbilityScore, EquipmentSlot, InventoryList), header toggle with HP indicator
+- [ ] 05-03-PLAN.md — Message history pagination with LoadMoreButton, scroll position preservation, auto-scroll guard, initial load last-page fix
 
 ### Phase 6: Mechanical Visibility and Session Lifecycle
 **Goal**: Players can see the real dice rolls and mechanical outcomes behind the narrative, track the world's doom, monitor their character's physical state, and play through a complete Mork Borg session from creation to death or apocalypse
@@ -153,5 +154,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. API Layer and Streaming | 2/3 | In Progress | - |
 | 3.1. Persistence Multi-Tenancy Fix | 1/1 | Complete | 2026-03-05 |
 | 4. Frontend Foundation and Character Creation | 0/3 | Planned | - |
-| 5. Core Gameplay Interface | 0/0 | Not started | - |
+| 5. Core Gameplay Interface | 0/3 | Planned | - |
 | 6. Mechanical Visibility and Session Lifecycle | 0/0 | Not started | - |
