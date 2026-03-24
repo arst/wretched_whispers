@@ -32,12 +32,12 @@ Declared values (must be multiples of 4):
 | Token | Value | Usage |
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding, HP bar internal padding |
-| sm | 8px | Compact element spacing, drawer section gaps |
-| md | 12px | Inner padding for drawer sections, message card padding |
-| lg | 16px | Default element spacing, drawer body padding |
-| xl | 24px | Section padding, gap between drawer content groups |
-| 2xl | 32px | Layout gaps, drawer header/footer padding |
-| 3xl | 48px | Not used in this phase |
+| sm | 8px | Compact element spacing, drawer section gaps, inner padding for drawer sections, message card padding |
+| md | 16px | Default element spacing, drawer body padding |
+| lg | 24px | Section padding, gap between drawer content groups |
+| xl | 32px | Layout gaps, drawer header/footer padding |
+| 2xl | 48px | Not used in this phase |
+| 3xl | 64px | Not used in this phase |
 
 Exceptions: Touch target minimum 44px height for drawer toggle button and load-more button (accessibility).
 
@@ -48,7 +48,7 @@ Exceptions: Touch target minimum 44px height for drawer toggle button and load-m
 | Role | Size | Weight | Line Height | Font |
 |------|------|--------|-------------|------|
 | Body | 14px | 400 (regular) | 1.5 | Inter |
-| Label | 12px | 600 (semibold) | 1.4 | Inter |
+| Label | 12px | 700 (bold) | 1.4 | Inter |
 | Heading | 18px | 700 (bold) | 1.2 | Cinzel |
 | Display | 24px | 700 (bold) | 1.2 | Cinzel |
 
@@ -82,6 +82,15 @@ Accent reserved for: character sheet toggle button highlight, HP bar healthy fil
 | 26-50% | doom-pink | #ff1493 |
 | 1-25% | doom-blood | #8b0000 |
 | 0% (dead) | doom-ash | #8a8a8a |
+
+---
+
+## Visual Focal Points
+
+| Priority | Element | Rationale |
+|----------|---------|-----------|
+| Primary | Chat message stream (ChatWindow) | The narrative is the core experience; all other UI is secondary to the conversation |
+| Secondary | Chat input (ChatInput) | Player's point of interaction with the game world |
 
 ---
 
@@ -166,7 +175,7 @@ Each section separated by 24px vertical gap. Section cards use doom-card (#1a1a1
 |----------|-------|
 | Position | Right side of header nav, before Sessions/Logout links |
 | Content | Clickable button: Unicode shield character or "HP" label + "6/8" text |
-| Text style | Label (12px, semibold), color follows HP threshold logic |
+| Text style | Label (12px, bold), color follows HP threshold logic |
 | Click action | Opens/closes CharacterDrawer |
 | Visibility | Hidden during `character-creation`, fades in (200ms opacity transition) when status becomes `in-progress` |
 | Min touch target | 44px height |
@@ -175,12 +184,12 @@ Each section separated by 24px vertical gap. Section cards use doom-card (#1a1a1
 
 | Property | Value |
 |----------|-------|
-| Height | 8px in header (mini), 12px in drawer (full) |
+| Height | 8px in header (mini), 16px in drawer (full) |
 | Background | doom-card (#1a1a1a) |
 | Fill | Width = (currentHp / maxHp) * 100%, color per HP threshold table |
 | Border radius | 4px |
 | Transition | Width and color animate over 300ms ease-in-out |
-| Label | Overlaid text "HP {current}/{max}" centered, Label typography (12px semibold) -- drawer only |
+| Label | Overlaid text "HP {current}/{max}" centered, Label typography (12px bold) -- drawer only |
 
 ### Load More Button
 
@@ -219,7 +228,7 @@ Each section separated by 24px vertical gap. Section cards use doom-card (#1a1a1
 
 | Element | Copy |
 |---------|------|
-| Primary CTA | "SEND" (existing, retained) |
+| Primary CTA | "SEND" (single-word label; deliberate chat-convention shorthand -- universal chat UX pattern, context provided by adjacent input field) |
 | Input placeholder (creation) | "Speak, wretch..." |
 | Input placeholder (gameplay) | "What do you do?" |
 | Empty state heading | "The void awaits" |
