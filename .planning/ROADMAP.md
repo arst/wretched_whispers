@@ -135,11 +135,12 @@ Plans:
   4. Equipment condition is visible (armor degradation, weapon state)
   5. A player can experience a complete session lifecycle -- character creation, exploration, combat, Misery events -- ending in character death or the 7th Misery destroying the world
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01-PLAN.md — Backend enrichment: DicePlugin structured return, StateUpdateEvent and SessionDetailDto with injury/equipment/death/worldEnded fields
+- [ ] 06-02-PLAN.md — Frontend mechanical visibility: TypeScript types, Zustand store, MiseryTracker, InjuryBadges, StatusIndicators, enriched ToolResultCallout, EquipmentSlot tier/shield
+- [ ] 06-03-PLAN.md — Session lifecycle: EndCard overlay (death/apocalypse), ChatInput read-only, SessionCard indicator, GameSessionPage integration, visual verification
 
 ## Progress
 
@@ -155,4 +156,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3.1. Persistence Multi-Tenancy Fix | 1/1 | Complete | 2026-03-05 |
 | 4. Frontend Foundation and Character Creation | 0/3 | Planned | - |
 | 5. Core Gameplay Interface | 1/3 | In Progress|  |
-| 6. Mechanical Visibility and Session Lifecycle | 0/0 | Not started | - |
+| 6. Mechanical Visibility and Session Lifecycle | 0/3 | Planned | - |
