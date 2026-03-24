@@ -24,7 +24,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **GAME-01**: User can type free-text actions for their character
 - [x] **GAME-02**: Narrator responses stream word-by-word as generated
-- [ ] **GAME-03**: User can scroll back through message history
+- [x] **GAME-03**: User can scroll back through message history
 - [x] **GAME-04**: Message history persists across sessions
 - [x] **GAME-05**: Loading/thinking indicator shows while LLM is processing
 - [x] **GAME-06**: Graceful error recovery when LLM fails or times out
@@ -112,7 +112,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SESS-04 | Phase 03.1 | Complete |
 | GAME-01 | Phase 5 | Complete |
 | GAME-02 | Phase 5 | Complete |
-| GAME-03 | Phase 5 | Pending |
+| GAME-03 | Phase 5 | Complete |
 | GAME-04 | Phase 5 | Complete |
 | GAME-05 | Phase 4 | Complete |
 | GAME-06 | Phase 3 | Complete |
