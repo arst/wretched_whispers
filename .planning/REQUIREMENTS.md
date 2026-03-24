@@ -33,14 +33,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **CHAR-01**: User creates character through guided narrator conversation
 - [x] **CHAR-02**: Character sheet sidebar displays HP, abilities, inventory, armor
-- [ ] **CHAR-03**: Visual injury/status indicators (broken limbs, infection, severed parts)
-- [ ] **CHAR-04**: Equipment condition visible (armor degradation, weapon state)
+- [x] **CHAR-03**: Visual injury/status indicators (broken limbs, infection, severed parts)
+- [x] **CHAR-04**: Equipment condition visible (armor degradation, weapon state)
 
 ### Mork Borg Mechanics
 
-- [ ] **MORK-01**: Full session lifecycle from character creation through 7th Misery or death
+- [x] **MORK-01**: Full session lifecycle from character creation through 7th Misery or death
 - [ ] **MORK-02**: Visual Misery tracker showing doom clock progress (7 slots)
-- [ ] **MORK-03**: Visible dice rolls and mechanical outcomes alongside narrative
+- [x] **MORK-03**: Visible dice rolls and mechanical outcomes alongside narrative
 
 ### UI & Aesthetic
 
@@ -118,11 +118,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GAME-06 | Phase 3 | Complete |
 | CHAR-01 | Phase 4 | Complete |
 | CHAR-02 | Phase 5 | Complete |
-| CHAR-03 | Phase 6 | Pending |
-| CHAR-04 | Phase 6 | Pending |
-| MORK-01 | Phase 6 | Pending |
+| CHAR-03 | Phase 6 | Complete |
+| CHAR-04 | Phase 6 | Complete |
+| MORK-01 | Phase 6 | Complete |
 | MORK-02 | Phase 6 | Pending |
-| MORK-03 | Phase 6 | Pending |
+| MORK-03 | Phase 6 | Complete |
 | UI-01 | Phase 4 | Complete |
 | UI-02 | Phase 4 | Complete |
 | UI-03 | Phase 4 | Complete |
