@@ -23,6 +23,16 @@ export interface SessionDetailDto {
   totalMessages: number;
   page: number;
   pageSize: number;
+  characterName?: string | null;
+  characterHp?: number | null;
+  characterMaxHp?: number | null;
+  characterStrength?: number | null;
+  characterAgility?: number | null;
+  characterPresence?: number | null;
+  characterToughness?: number | null;
+  characterWeapon?: string | null;
+  characterArmor?: string | null;
+  characterInventory?: string[] | null;
 }
 
 export interface ChatMessageDto {
@@ -68,10 +78,33 @@ export interface StateUpdateEvent {
   currentDay: number;
   currentHour: number;
   characterId?: string;
+  characterName?: string;
   characterHp?: number;
   characterMaxHp?: number;
+  characterStrength?: number;
+  characterAgility?: number;
+  characterPresence?: number;
+  characterToughness?: number;
+  characterWeapon?: string | null;
+  characterArmor?: string | null;
+  characterInventory?: string[];
   miseryCount: number;
   status: "character-creation" | "in-progress" | "ended";
+}
+
+export interface CharacterData {
+  name: string;
+  currentHp: number;
+  maxHp: number;
+  abilities: {
+    strength: number;
+    agility: number;
+    presence: number;
+    toughness: number;
+  };
+  weapon: string | null;
+  armor: string | null;
+  inventory: string[];
 }
 
 export interface SseErrorEvent {

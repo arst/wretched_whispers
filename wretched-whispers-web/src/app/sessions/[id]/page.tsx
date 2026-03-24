@@ -66,7 +66,25 @@ export default function GameSessionPage({
 
         const data: SessionDetailDto = await res.json();
         const store = useSessionStore.getState();
-        store.setSession(data.sessionId, data.status, data.messages);
+        store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+
+        // Hydrate character data from enriched SessionDetailDto
+        if (data.characterName && data.characterHp != null) {
+          store.setCharacterData({
+            name: data.characterName,
+            currentHp: data.characterHp,
+            maxHp: data.characterMaxHp!,
+            abilities: {
+              strength: data.characterStrength ?? 0,
+              agility: data.characterAgility ?? 0,
+              presence: data.characterPresence ?? 0,
+              toughness: data.characterToughness ?? 0,
+            },
+            weapon: data.characterWeapon ?? null,
+            armor: data.characterArmor ?? null,
+            inventory: data.characterInventory ?? [],
+          });
+        }
 
         // New character-creation session with no messages: show splash and trigger narrator
         if (data.status === "character-creation" && data.messages.length === 0) {
@@ -180,7 +198,7 @@ export default function GameSessionPage({
       <ChatWindow />
 
       {/* Input bar */}
-      <ChatInput onSend={handleSend} disabled={isStreaming} />
+      <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
     </div>
   );
 }
