@@ -25,6 +25,7 @@ interface SessionState {
   loadingMore: boolean;
   miseryCount: number;
   worldEnded: boolean;
+  currentDay: number;
 
   // Actions
   setSession: (sessionId: string, status: string, messages: ChatMessageDto[], totalMessages?: number) => void;
@@ -63,6 +64,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   loadingMore: false,
   miseryCount: 0,
   worldEnded: false,
+  currentDay: 1,
 
   setSession: (sessionId, status, dtos, totalMessages = 0) =>
     set({
@@ -140,6 +142,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       status: update.status,
       miseryCount: update.miseryCount,
       worldEnded: update.worldEnded ?? false,
+      currentDay: update.currentDay,
     };
 
     if (update.characterName && update.characterHp != null) {
@@ -219,6 +222,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       loadingMore: false,
       miseryCount: 0,
       worldEnded: false,
+      currentDay: 1,
     }),
 
   setCharacterData: (data) => set({ characterData: data }),

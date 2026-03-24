@@ -9,6 +9,7 @@ import ChatWindow from "@/components/chat/ChatWindow";
 import ChatInput from "@/components/chat/ChatInput";
 import SplashScreen from "@/components/chat/SplashScreen";
 import CharacterDrawer from "@/components/character/CharacterDrawer";
+import EndCard from "@/components/session/EndCard";
 import type { SessionDetailDto } from "@/types/api";
 
 export default function GameSessionPage({
@@ -29,6 +30,13 @@ export default function GameSessionPage({
   const status = useSessionStore((s) => s.status);
   const streamingText = useSessionStore((s) => s.streamingText);
   const reset = useSessionStore((s) => s.reset);
+  const miseryCount = useSessionStore((s) => s.miseryCount);
+  const worldEnded = useSessionStore((s) => s.worldEnded);
+  const currentDay = useSessionStore((s) => s.currentDay);
+  const characterData = useSessionStore((s) => s.characterData);
+
+  const showEndCard = status === "ended" && !isStreaming;
+  const isDead = characterData?.isDead ?? false;
 
   const { sendAction } = useSseStream(id);
 
@@ -115,15 +123,18 @@ export default function GameSessionPage({
             const latestData: SessionDetailDto = await latestRes.json();
             store.setSession(latestData.sessionId, latestData.status, latestData.messages, latestData.totalMessages);
             hydrateCharacter(latestData);
+            useSessionStore.setState({ currentDay: latestData.currentDay });
           } else {
             // Fallback to first page if last page request fails
             store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
             hydrateCharacter(data);
+            useSessionStore.setState({ currentDay: data.currentDay });
           }
         } else {
           // Session fits in one page, use as-is
           store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
           hydrateCharacter(data);
+          useSessionStore.setState({ currentDay: data.currentDay });
         }
 
         // New character-creation session with no messages: show splash and trigger narrator
@@ -242,6 +253,18 @@ export default function GameSessionPage({
 
       {/* Input bar */}
       <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
+
+      {/* End card overlay */}
+      {showEndCard && characterData && (
+        <EndCard
+          characterName={characterData.name}
+          isDead={isDead}
+          worldEnded={worldEnded}
+          miseryCount={miseryCount}
+          currentDay={currentDay}
+          onRestart={() => {}}
+        />
+      )}
     </div>
   );
 }
