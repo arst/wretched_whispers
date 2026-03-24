@@ -154,5 +154,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. API Layer and Streaming | 2/3 | In Progress | - |
 | 3.1. Persistence Multi-Tenancy Fix | 1/1 | Complete | 2026-03-05 |
 | 4. Frontend Foundation and Character Creation | 0/3 | Planned | - |
-| 5. Core Gameplay Interface | 0/3 | Planned | - |
+| 5. Core Gameplay Interface | 1/3 | In Progress | - |
 | 6. Mechanical Visibility and Session Lifecycle | 0/0 | Not started | - |

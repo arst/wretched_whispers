@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 04 — Frontend Foundation and Character Creation
-current_plan: Plan 3 of 3 (complete)
-status: completed
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-23T11:12:12.599Z"
+current_phase: Phase 05 — Core Gameplay Interface
+current_plan: Plan 1 of 3 (complete)
+status: in-progress
+stopped_at: Plan 05-01 complete
+last_updated: "2026-03-24T10:59:36Z"
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 17
+  completed_plans: 15
 ---
 
 # Session State
@@ -23,15 +23,15 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** Phase 04 — Frontend Foundation and Character Creation
-**Current Plan:** Plan 3 of 3 (complete)
-**Status:** Phase Complete
+**Current phase:** Phase 05 — Core Gameplay Interface
+**Current Plan:** Plan 1 of 3 (complete)
+**Status:** In Progress
 
 ## Session Continuity
 
-Last session: 2026-03-23T11:12:12.571Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
+Last session: 2026-03-24T10:59:36Z
+Stopped at: Plan 05-01 complete
+Resume file: .planning/phases/05-core-gameplay-interface/05-01-SUMMARY.md
 
 ## Decisions
 
@@ -58,6 +58,9 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 - [Phase 04]: Zustand streamingText isolation pattern: separate field for streaming chunks avoids message list re-renders
 - [Phase 04]: Splash-to-chat transition driven by first narrative SSE event arrival
 - [Phase 04]: Character creation uses identical chat interface as gameplay (no separate UI)
+- [Phase 05]: Armor tier display via switch expression on concrete tier types (NoArmorTier/Light/Medium/Heavy)
+- [Phase 05]: Dual-path state hydration: SSE events update characterData in-flight, initial load hydrates on page mount
+- [Phase 05]: Pagination state added to sessionStore ahead of Plan 03 for forward compatibility
 
 ## Performance Metrics
 
@@ -70,6 +73,7 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 | 04    | 01   | 6min     | 3     | 19    |
 | 04    | 02   | 3min     | 3     | 13    |
 | 04    | 03   | 12min    | 4     | 15    |
+| 05    | 01   | 4min     | 2     | 7     |
 
 ## Session Log
 
@@ -82,3 +86,4 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 - 2026-03-05: Plan 04-01 executed (Next.js scaffold, doom design system, CORS, auth store, API client)
 - 2026-03-05: Plan 04-02 executed (landing page, auth screens, session list, UI primitives, AuthGuard)
 - 2026-03-05: Plan 04-03 executed (chat interface, SSE streaming, character creation flow, doom UI components)
+- 2026-03-24: Plan 05-01 executed (character data pipeline: enriched SSE/DTO backend, frontend types/store/ChatInput)
