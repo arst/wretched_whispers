@@ -39,7 +39,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Mork Borg Mechanics
 
 - [x] **MORK-01**: Full session lifecycle from character creation through 7th Misery or death
-- [ ] **MORK-02**: Visual Misery tracker showing doom clock progress (7 slots)
+- [x] **MORK-02**: Visual Misery tracker showing doom clock progress (7 slots)
 - [x] **MORK-03**: Visible dice rolls and mechanical outcomes alongside narrative
 
 ### UI & Aesthetic
@@ -121,7 +121,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHAR-03 | Phase 6 | Complete |
 | CHAR-04 | Phase 6 | Complete |
 | MORK-01 | Phase 6 | Complete |
-| MORK-02 | Phase 6 | Pending |
+| MORK-02 | Phase 6 | Complete |
 | MORK-03 | Phase 6 | Complete |
 | UI-01 | Phase 4 | Complete |
 | UI-02 | Phase 4 | Complete |

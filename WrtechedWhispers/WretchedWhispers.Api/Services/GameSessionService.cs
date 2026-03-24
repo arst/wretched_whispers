@@ -10,6 +10,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Semantic;
 
 #pragma warning disable SKEXP0001
@@ -308,10 +309,10 @@ public sealed class GameSessionService(
     private Kernel BuildKernelForSession()
     {
         var kernelBuilder = Kernel.CreateBuilder();
-
-        var deployment = configuration["AzureOpenAi:ChatModelDeployment"]!;
-        var endpoint = configuration["AzureOpenAi:Endpoint"]!;
-        var apiKey = configuration["AzureOpenAi:ApiKey"]!;
+        var settings = new Settings();
+        var deployment = settings.AzureOpenAi.ChatModelDeployment;
+        var endpoint = settings.AzureOpenAi.Endpoint;
+        var apiKey = settings.AzureOpenAi.ApiKey;
 
         kernelBuilder.AddAzureOpenAIChatCompletion(deployment, endpoint, apiKey);
 
