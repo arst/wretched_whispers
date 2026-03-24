@@ -8,6 +8,7 @@ import { useSseStream } from "@/hooks/useSseStream";
 import ChatWindow from "@/components/chat/ChatWindow";
 import ChatInput from "@/components/chat/ChatInput";
 import SplashScreen from "@/components/chat/SplashScreen";
+import CharacterDrawer from "@/components/character/CharacterDrawer";
 import type { SessionDetailDto } from "@/types/api";
 
 export default function GameSessionPage({
@@ -193,6 +194,9 @@ export default function GameSessionPage({
           Character Creation
         </div>
       )}
+
+      {/* Character sheet drawer */}
+      <CharacterDrawer />
 
       {/* Chat area */}
       <ChatWindow />
