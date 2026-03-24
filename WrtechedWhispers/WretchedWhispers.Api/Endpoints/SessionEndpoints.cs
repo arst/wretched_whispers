@@ -239,6 +239,20 @@ public static class SessionEndpoints
         string? charWeapon = null;
         string? charArmor = null;
         string[]? charInventory = null;
+        bool? charHasLostEye = null;
+        bool? charHasStabbedLung = null;
+        bool? charHasBrokenHand = null;
+        bool? charHasCrushedFoot = null;
+        bool? charHasSeveredArm = null;
+        bool? charHasSmashedFace = null;
+        bool? charIsInfected = null;
+        bool? charIsDizzyFromMagic = null;
+        bool? charIsEncumbered = null;
+        bool? charIsDead = null;
+        string? charArmorTier = null;
+        bool? charHasShield = null;
+        bool? charIsShieldBroken = null;
+        bool? worldEnded = null;
 
         var firstPlayerId = campaign.Players.FirstOrDefault();
         if (firstPlayerId != Guid.Empty)
@@ -264,8 +278,30 @@ public static class SessionEndpoints
                 };
                 charInventory = character.Inventory.InventoryItems
                     .Select(i => i.Description).ToArray();
+                charHasLostEye = character.HasLostEye;
+                charHasStabbedLung = character.HasStabbedLung;
+                charHasBrokenHand = character.HasBrokenHand;
+                charHasCrushedFoot = character.HasCrushedFoot;
+                charHasSeveredArm = character.HasSeveredArm;
+                charHasSmashedFace = character.HasSmashedFace;
+                charIsInfected = character.IsInfected;
+                charIsDizzyFromMagic = character.IsDizzyFromMagic;
+                charIsEncumbered = character.IsEncumbered;
+                charIsDead = character.IsDead;
+                charArmorTier = character.Armor.Tier switch
+                {
+                    NoArmorTier => "none",
+                    LightArmorTier => "light",
+                    MediumArmorTier => "medium",
+                    HeavyArmorTier => "heavy",
+                    _ => "none"
+                };
+                charHasShield = character.Shield is not null;
+                charIsShieldBroken = character.Shield?.IsBroken ?? false;
             }
         }
+
+        worldEnded = campaign.WorldEnded;
 
         return Results.Ok(new SessionDetailDto(
             sessionId,
@@ -288,7 +324,21 @@ public static class SessionEndpoints
             charToughness,
             charWeapon,
             charArmor,
-            charInventory));
+            charInventory,
+            charHasLostEye,
+            charHasStabbedLung,
+            charHasBrokenHand,
+            charHasCrushedFoot,
+            charHasSeveredArm,
+            charHasSmashedFace,
+            charIsInfected,
+            charIsDizzyFromMagic,
+            charIsEncumbered,
+            charIsDead,
+            charArmorTier,
+            charHasShield,
+            charIsShieldBroken,
+            worldEnded));
     }
 
     private static async Task<IResult> GetSessionMessages(

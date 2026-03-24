@@ -174,6 +174,19 @@ public sealed class GameSessionService(
                     string? characterWeapon = null;
                     string? characterArmor = null;
                     string[]? characterInventory = null;
+                    bool hasLostEye = false;
+                    bool hasStabbedLung = false;
+                    bool hasBrokenHand = false;
+                    bool hasCrushedFoot = false;
+                    bool hasSeveredArm = false;
+                    bool hasSmashedFace = false;
+                    bool isInfected = false;
+                    bool isDizzyFromMagic = false;
+                    bool isEncumbered = false;
+                    bool isDead = false;
+                    string armorTier = "none";
+                    bool hasShield = false;
+                    bool isShieldBroken = false;
 
                     if (firstPlayerId != Guid.Empty)
                     {
@@ -199,6 +212,26 @@ public sealed class GameSessionService(
                             };
                             characterInventory = character.Inventory.InventoryItems
                                 .Select(i => i.Description).ToArray();
+                            hasLostEye = character.HasLostEye;
+                            hasStabbedLung = character.HasStabbedLung;
+                            hasBrokenHand = character.HasBrokenHand;
+                            hasCrushedFoot = character.HasCrushedFoot;
+                            hasSeveredArm = character.HasSeveredArm;
+                            hasSmashedFace = character.HasSmashedFace;
+                            isInfected = character.IsInfected;
+                            isDizzyFromMagic = character.IsDizzyFromMagic;
+                            isEncumbered = character.IsEncumbered;
+                            isDead = character.IsDead;
+                            armorTier = character.Armor.Tier switch
+                            {
+                                NoArmorTier => "none",
+                                LightArmorTier => "light",
+                                MediumArmorTier => "medium",
+                                HeavyArmorTier => "heavy",
+                                _ => "none"
+                            };
+                            hasShield = character.Shield is not null;
+                            isShieldBroken = character.Shield?.IsBroken ?? false;
                         }
                     }
 
@@ -219,7 +252,21 @@ public sealed class GameSessionService(
                         characterArmor,
                         characterInventory,
                         miseryCount = updatedCampaign.Miseries.Count,
-                        status = DeriveStatus(updatedCampaign)
+                        status = DeriveStatus(updatedCampaign),
+                        hasLostEye,
+                        hasStabbedLung,
+                        hasBrokenHand,
+                        hasCrushedFoot,
+                        hasSeveredArm,
+                        hasSmashedFace,
+                        isInfected,
+                        isDizzyFromMagic,
+                        isEncumbered,
+                        isDead,
+                        armorTier,
+                        hasShield,
+                        isShieldBroken,
+                        worldEnded = updatedCampaign.WorldEnded
                     }));
                 }
             }

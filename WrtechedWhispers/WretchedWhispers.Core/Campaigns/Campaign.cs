@@ -131,6 +131,8 @@ public sealed class Campaign
 
     [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calendar.Miseries;
 
+    [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
+
     [JsonIgnore] public IReadOnlyCollection<Guid> EncounterIds => Encounters.AsReadOnly();
 
     [JsonIgnore] public IReadOnlyCollection<Guid> Players => Characters.AsReadOnly();
