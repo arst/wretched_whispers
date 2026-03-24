@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 6
-current_plan: Not started
-status: planning
-stopped_at: Phase 6 context gathered
+current_phase: Phase 06 — Mechanical Visibility and Session Lifecycle
+current_plan: Plan 1 of 3
+status: in-progress
+stopped_at: Completed 06-01-PLAN.md
 last_updated: "2026-03-24T11:34:50.126Z"
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 20
+  completed_plans: 18
 ---
 
 # Session State
@@ -23,15 +23,15 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** 6
-**Current Plan:** Not started
-**Status:** Ready to plan
+**Current phase:** Phase 06 -- Mechanical Visibility and Session Lifecycle
+**Current Plan:** Plan 1 of 3
+**Status:** In Progress
 
 ## Session Continuity
 
-Last session: 2026-03-24T11:34:50.122Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-CONTEXT.md
+Last session: 2026-03-24T12:53:36Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-02-PLAN.md
 
 ## Decisions
 
@@ -59,6 +59,9 @@ Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-
 - [Phase 04]: Splash-to-chat transition driven by first narrative SSE event arrival
 - [Phase 04]: Character creation uses identical chat interface as gameplay (no separate UI)
 - [Phase 05]: Focus trap implemented manually (no library) to avoid new dependency
+- [Phase 06]: Campaign.WorldEnded public property exposes Calendar.WorldEnded without InternalsVisibleTo
+- [Phase 06]: DeriveStatus tests verify observable Campaign state rather than private static method
+- [Phase 06]: Lowercase armorTier (none/light/medium/heavy) in SSE/DTO for machine consumption
 
 ## Performance Metrics
 
@@ -72,6 +75,7 @@ Resume file: .planning/phases/06-mechanical-visibility-and-session-lifecycle/06-
 | 04    | 02   | 3min     | 3     | 13    |
 | 04    | 03   | 12min    | 4     | 15    |
 | Phase 05 P02 | 2min | 2 tasks | 8 files |
+| 06    | 01   | 8min     | 2     | 9     |
 
 ## Session Log
 
