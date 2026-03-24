@@ -84,6 +84,22 @@ export default function GameSessionPage({
               weapon: dto.characterWeapon ?? null,
               armor: dto.characterArmor ?? null,
               inventory: dto.characterInventory ?? [],
+              // Injuries
+              hasLostEye: dto.characterHasLostEye ?? false,
+              hasStabbedLung: dto.characterHasStabbedLung ?? false,
+              hasBrokenHand: dto.characterHasBrokenHand ?? false,
+              hasCrushedFoot: dto.characterHasCrushedFoot ?? false,
+              hasSeveredArm: dto.characterHasSeveredArm ?? false,
+              hasSmashedFace: dto.characterHasSmashedFace ?? false,
+              // Status effects
+              isInfected: dto.characterIsInfected ?? false,
+              isDizzyFromMagic: dto.characterIsDizzyFromMagic ?? false,
+              isEncumbered: dto.characterIsEncumbered ?? false,
+              isDead: dto.characterIsDead ?? false,
+              // Equipment condition
+              armorTier: dto.characterArmorTier ?? "none",
+              hasShield: dto.characterHasShield ?? false,
+              isShieldBroken: dto.characterIsShieldBroken ?? false,
             });
           }
         }
