@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ChatMessageDto, ToolResultEvent, StateUpdateEvent } from "@/types/api";
+import type { ChatMessageDto, ToolResultEvent, StateUpdateEvent, CharacterData } from "@/types/api";
 
 export interface Message {
   id: string;
@@ -17,9 +17,15 @@ interface SessionState {
   streamingMessageId: string | null;
   streamingText: string;
   error: string | null;
+  characterData: CharacterData | null;
+  drawerOpen: boolean;
+  totalMessages: number;
+  currentPage: number;
+  hasMoreMessages: boolean;
+  loadingMore: boolean;
 
   // Actions
-  setSession: (sessionId: string, status: string, messages: ChatMessageDto[]) => void;
+  setSession: (sessionId: string, status: string, messages: ChatMessageDto[], totalMessages?: number) => void;
   addPlayerMessage: (content: string) => void;
   startStreaming: () => void;
   appendNarrativeChunk: (text: string) => void;
@@ -29,6 +35,10 @@ interface SessionState {
   setError: (message: string) => void;
   clearError: () => void;
   reset: () => void;
+  setCharacterData: (data: CharacterData) => void;
+  toggleDrawer: () => void;
+  prependMessages: (msgs: ChatMessageDto[], total: number) => void;
+  setLoadingMore: (loading: boolean) => void;
 }
 
 function generateId(): string {
@@ -43,8 +53,14 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   streamingMessageId: null,
   streamingText: "",
   error: null,
+  characterData: null,
+  drawerOpen: false,
+  totalMessages: 0,
+  currentPage: 1,
+  hasMoreMessages: false,
+  loadingMore: false,
 
-  setSession: (sessionId, status, dtos) =>
+  setSession: (sessionId, status, dtos, totalMessages = 0) =>
     set({
       sessionId,
       status,
@@ -55,6 +71,9 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         authorName: dto.authorName,
         toolResults: [],
       })),
+      totalMessages,
+      hasMoreMessages: dtos.length < totalMessages,
+      currentPage: 1,
       isStreaming: false,
       streamingMessageId: null,
       streamingText: "",
@@ -112,8 +131,28 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }));
   },
 
-  setStateUpdate: (update) =>
-    set({ status: update.status }),
+  setStateUpdate: (update) => {
+    const newState: Partial<SessionState> = { status: update.status };
+
+    if (update.characterName && update.characterHp != null) {
+      newState.characterData = {
+        name: update.characterName,
+        currentHp: update.characterHp,
+        maxHp: update.characterMaxHp!,
+        abilities: {
+          strength: update.characterStrength ?? 0,
+          agility: update.characterAgility ?? 0,
+          presence: update.characterPresence ?? 0,
+          toughness: update.characterToughness ?? 0,
+        },
+        weapon: update.characterWeapon ?? null,
+        armor: update.characterArmor ?? null,
+        inventory: update.characterInventory ?? [],
+      };
+    }
+
+    set(newState);
+  },
 
   finishStreaming: () => {
     const { streamingMessageId, streamingText } = get();
@@ -148,5 +187,34 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       streamingMessageId: null,
       streamingText: "",
       error: null,
+      characterData: null,
+      drawerOpen: false,
+      totalMessages: 0,
+      currentPage: 1,
+      hasMoreMessages: false,
+      loadingMore: false,
     }),
+
+  setCharacterData: (data) => set({ characterData: data }),
+
+  toggleDrawer: () => set((s) => ({ drawerOpen: !s.drawerOpen })),
+
+  prependMessages: (msgs, total) =>
+    set((state) => ({
+      messages: [
+        ...msgs.map((dto) => ({
+          id: generateId(),
+          role: dto.role,
+          content: dto.content ?? "",
+          authorName: dto.authorName,
+          toolResults: [],
+        })),
+        ...state.messages,
+      ],
+      totalMessages: total,
+      hasMoreMessages: state.messages.length + msgs.length < total,
+      loadingMore: false,
+    })),
+
+  setLoadingMore: (loading) => set({ loadingMore: loading }),
 }));
