@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 07 — Deterministic State Machine and Context Injection
-current_plan: Plan 1 of 4
+current_phase: 07
+current_plan: Plan 2 of 4
 status: in-progress
-stopped_at: Plan 07-01 completed
-last_updated: "2026-03-25T06:29:40Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-24T14:53:41.110Z"
 progress:
   total_phases: 8
-  completed_phases: 6
-  total_plans: 18
-  completed_plans: 15
+  completed_phases: 8
+  total_plans: 20
+  completed_plans: 20
 ---
 
 # Session State
@@ -23,15 +23,15 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** Phase 07 — Deterministic State Machine and Context Injection
-**Current Plan:** Plan 1 of 4
+**Current phase:** 07
+**Current Plan:** Plan 2 of 4
 **Status:** In Progress
 
 ## Session Continuity
 
-Last session: 2026-03-25T06:29:40Z
-Stopped at: Plan 07-01 completed
-Resume file: .planning/phases/07-deterministic-state-machine-and-context-injection/07-01-SUMMARY.md
+Last session: 2026-03-24T14:45:33Z
+Stopped at: Completed 06-03-PLAN.md (Phase 06 complete)
+Resume file: N/A (all phases complete)
 
 ## Decisions
 
@@ -58,9 +58,16 @@ Resume file: .planning/phases/07-deterministic-state-machine-and-context-injecti
 - [Phase 04]: Zustand streamingText isolation pattern: separate field for streaming chunks avoids message list re-renders
 - [Phase 04]: Splash-to-chat transition driven by first narrative SSE event arrival
 - [Phase 04]: Character creation uses identical chat interface as gameplay (no separate UI)
-- [Phase 07]: Campaign.IsEnded made public for SessionContext stage derivation across assembly boundary
-- [Phase 07]: Campaign.WorldEnded added as public proxy for CalendarOfNechrubel.WorldEnded
-- [Phase 07]: StageTransitionFilter validates transitions post-execution but does not force state changes
+- [Phase 05]: Focus trap implemented manually (no library) to avoid new dependency
+- [Phase 06]: Campaign.WorldEnded public property exposes Calendar.WorldEnded without InternalsVisibleTo
+- [Phase 06]: DeriveStatus tests verify observable Campaign state rather than private static method
+- [Phase 06]: Lowercase armorTier (none/light/medium/heavy) in SSE/DTO for machine consumption
+- [Phase 06]: End card gated on status===ended && !isStreaming to avoid interrupting narrator farewell
+- [Phase 06]: Apocalypse variant (yellow) takes priority over death (pink) when worldEnded is true
+- [Phase 06]: EndCard handles restart internally via apiFetch + router.push
+- [Phase 07]: Interface-based delegation (ICharacterOperations etc.) for wrapper plugin testability since original plugin methods are not virtual
+- [Phase 07]: SessionContext/SessionStage stubs created for cross-plan contract with Plan 01 (parallel wave)
+- [Phase 07]: ResolutionWrapperPlugin signals completion by clearing ActiveEncounterId (Encounter.Resolve does not exist)
 
 ## Performance Metrics
 
@@ -73,7 +80,10 @@ Resume file: .planning/phases/07-deterministic-state-machine-and-context-injecti
 | 04    | 01   | 6min     | 3     | 19    |
 | 04    | 02   | 3min     | 3     | 13    |
 | 04    | 03   | 12min    | 4     | 15    |
-| 07    | 01   | 13min    | 2     | 14    |
+| Phase 05 P02 | 2min | 2 tasks | 8 files |
+| 06    | 01   | 8min     | 2     | 9     |
+| 06    | 03   | 12min    | 3     | 5     |
+| 07    | 02   | 11min    | 2     | 14    |
 
 ## Session Log
 
@@ -86,4 +96,6 @@ Resume file: .planning/phases/07-deterministic-state-machine-and-context-injecti
 - 2026-03-05: Plan 04-01 executed (Next.js scaffold, doom design system, CORS, auth store, API client)
 - 2026-03-05: Plan 04-02 executed (landing page, auth screens, session list, UI primitives, AuthGuard)
 - 2026-03-05: Plan 04-03 executed (chat interface, SSE streaming, character creation flow, doom UI components)
-- 2026-03-25: Plan 07-01 executed (SessionStage enum, SessionContext, StageTransitions, StageTransitionFilter, 25 tests)
+- 2026-03-24: Plan 06-03 executed (EndCard overlay, session lifecycle, read-only ended sessions, Begin Anew restart)
+- 2026-03-24: Phase 7 added: Deterministic State Machine and Context Injection (plugin calls drive stage transitions, context injection)
+- 2026-03-25: Plan 07-02 executed (5 wrapper plugins, StagePluginRegistry, 23 tests, interface-based delegation)
