@@ -83,10 +83,12 @@ public static class StateUpdateMapper
         string status;
         if (campaign is null || campaign.Players.Count == 0)
             status = "character-creation";
+        else if (campaign.IsEnded || campaign.WorldEnded)
+            status = "ended";
         else if (campaign.IsActive())
             status = "in-progress";
         else
-            status = "ended";
+            status = "character-creation"; // has players but campaign not started yet
 
         return new StateUpdate(
             CampaignId: campaign?.Id,
