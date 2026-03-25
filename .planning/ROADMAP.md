@@ -151,10 +151,10 @@ Plans:
 **Plans:** 0/4 plans executed
 
 Plans:
-- [ ] 07-01-PLAN.md — State machine foundation: SessionStage enum, SessionContext with stage derivation, StageTransitions map, StageTransitionFilter, Encounter.IsResolved
-- [ ] 07-02-PLAN.md — Wrapper plugins with ID auto-fill and guardrails, ResolutionWrapperPlugin, StagePluginRegistry per-stage function filtering
-- [ ] 07-03-PLAN.md — Prompt composition (NarratorPersona, StagePrompts, PromptComposer), GameSessionService rewrite with stage machine integration
-- [ ] 07-04-PLAN.md — Combat sub-agent (CombatAgentService, CombatPrompts), GameSessionService combat routing, full gameplay loop verification
+- [x] 07-01-PLAN.md — State machine foundation: SessionStage enum, SessionContext with stage derivation, StageTransitions map, StageTransitionFilter, Encounter.IsResolved
+- [x] 07-02-PLAN.md — Wrapper plugins with ID auto-fill and guardrails, ResolutionWrapperPlugin, StagePluginRegistry per-stage function filtering
+- [x] 07-03-PLAN.md — Prompt composition (NarratorPersona, StagePrompts, PromptComposer), GameSessionService rewrite with stage machine integration
+- [x] 07-04-PLAN.md — Combat sub-agent (CombatAgentService, CombatPrompts), GameSessionService combat routing, full gameplay loop verification
 
 ## Progress
 
