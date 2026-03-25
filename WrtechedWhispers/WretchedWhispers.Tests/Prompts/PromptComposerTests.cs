@@ -1,0 +1,209 @@
+using Xunit;
+using WretchedWhispers.Api.Prompts;
+using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Adversaries;
+using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Encounters;
+
+namespace WretchedWhispers.Tests.Prompts;
+
+public class PromptComposerTests : TestBase
+{
+    private readonly PromptComposer _composer = new();
+
+    [Fact]
+    public void Compose_includes_narrator_persona_text()
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("doom metal", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(NarratorPersona.Text, result);
+    }
+
+    [Theory]
+    [InlineData(SessionStage.CharacterCreation)]
+    [InlineData(SessionStage.CampaignSetup)]
+    [InlineData(SessionStage.Exploration)]
+    [InlineData(SessionStage.Combat)]
+    [InlineData(SessionStage.Resolution)]
+    [InlineData(SessionStage.Ended)]
+    public void Compose_includes_stage_specific_instructions(SessionStage stage)
+    {
+        var context = BuildContextForStage(stage);
+
+        var result = _composer.Compose(context);
+
+        var expectedInstructions = StagePrompts.For(stage);
+        Assert.Contains(expectedInstructions, result);
+    }
+
+    [Fact]
+    public void Compose_includes_context_snapshot()
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+
+        var result = _composer.Compose(context);
+
+        // Snapshot may be empty for empty context, but compose should still work
+        Assert.NotNull(result);
+        Assert.Contains("Game State", result);
+    }
+
+    [Fact]
+    public void Compose_for_CharacterCreation_mentions_character_creation_tools()
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        // No character = CharacterCreation stage
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("CreateCharacter", result);
+    }
+
+    [Fact]
+    public void Compose_for_Combat_mentions_combat_resolution()
+    {
+        var context = BuildContextForStage(SessionStage.Combat);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("Combat", result);
+        Assert.Contains("AttackPlayer", result);
+    }
+
+    [Fact]
+    public void Compose_for_Ended_instructs_farewell_narration()
+    {
+        var context = BuildContextForStage(SessionStage.Ended);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("Do not call any tools", result);
+    }
+
+    [Fact]
+    public void NarratorPersona_Text_contains_doom_metal_tone_guidance()
+    {
+        Assert.Contains("doom metal", NarratorPersona.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("NEVER output raw JSON", NarratorPersona.Text);
+    }
+
+    [Theory]
+    [InlineData(SessionStage.CharacterCreation)]
+    [InlineData(SessionStage.CampaignSetup)]
+    [InlineData(SessionStage.Exploration)]
+    [InlineData(SessionStage.Combat)]
+    [InlineData(SessionStage.Resolution)]
+    [InlineData(SessionStage.Ended)]
+    public void StagePrompts_For_returns_non_empty_string_for_all_stages(SessionStage stage)
+    {
+        var result = StagePrompts.For(stage);
+
+        Assert.False(string.IsNullOrWhiteSpace(result));
+    }
+
+    private SessionContext BuildContextForStage(SessionStage targetStage)
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+
+        switch (targetStage)
+        {
+            case SessionStage.CharacterCreation:
+                break;
+
+            case SessionStage.CampaignSetup:
+                context.SetCharacterId(Guid.NewGuid());
+                break;
+
+            case SessionStage.Exploration:
+                context.SetCharacterId(Guid.NewGuid());
+                context.SetCampaignId(Guid.NewGuid());
+                context.Campaign = CreateActiveCampaign();
+                break;
+
+            case SessionStage.Combat:
+                context.SetCharacterId(Guid.NewGuid());
+                context.SetCampaignId(Guid.NewGuid());
+                context.Campaign = CreateActiveCampaign();
+                context.SetActiveEncounterId(Guid.NewGuid());
+                context.ActiveEncounter = CreateStartedEncounter();
+                break;
+
+            case SessionStage.Resolution:
+                context.SetCharacterId(Guid.NewGuid());
+                context.SetCampaignId(Guid.NewGuid());
+                context.Campaign = CreateActiveCampaign();
+                context.SetActiveEncounterId(Guid.NewGuid());
+                context.ActiveEncounter = CreateEndedUnresolvedEncounter();
+                break;
+
+            case SessionStage.Ended:
+                context.SetCharacterId(Guid.NewGuid());
+                context.SetCampaignId(Guid.NewGuid());
+                context.Campaign = CreateEndedCampaign();
+                break;
+        }
+
+        return context;
+    }
+
+    private static Campaign CreateActiveCampaign()
+    {
+        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "A test");
+        campaign.JoinGame(Guid.NewGuid());
+        campaign.Start();
+        return campaign;
+    }
+
+    private static Campaign CreateEndedCampaign()
+    {
+        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "A test");
+        campaign.JoinGame(Guid.NewGuid());
+        campaign.Start();
+        campaign.End();
+        return campaign;
+    }
+
+    private Encounter CreateStartedEncounter()
+    {
+        SetupDiceRolls(7); // For InitialReaction roll (2d6=7 => Indifferent)
+        var encounter = Encounter.Create("Test", "A test", EncounterType.Hostile, Dice);
+        var adversary = CreateMinimalAdversary();
+        encounter.AddAdversary(adversary);
+        encounter.StartEncounter();
+        return encounter;
+    }
+
+    private Encounter CreateEndedUnresolvedEncounter()
+    {
+        SetupDiceRolls(7); // For InitialReaction roll
+        var encounter = Encounter.Create("Test", "A test", EncounterType.Hostile, Dice);
+        var adversary = CreateMinimalAdversary();
+        encounter.AddAdversary(adversary);
+        encounter.StartEncounter();
+        KillAdversary(adversary);
+        encounter.EndEncounter();
+        // Not resolved - should be in Resolution stage
+        return encounter;
+    }
+
+    private static Adversary CreateMinimalAdversary()
+    {
+        return new Adversary(
+            "Goblin",
+            new Core.Characters.HitPoints(5, 5),
+            new Armor(NoArmorTier.Instance),
+            morale: 7,
+            new AttackProfile("Claw", DiceExpr.D6));
+    }
+
+    private static void KillAdversary(Adversary adversary)
+    {
+        adversary.ReceiveDamage(1000);
+    }
+}
