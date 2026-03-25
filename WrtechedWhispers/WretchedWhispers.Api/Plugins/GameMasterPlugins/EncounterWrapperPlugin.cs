@@ -64,19 +64,28 @@ public sealed class EncounterWrapperPlugin(
     }
 
     [KernelFunction]
-    [Description("Execute an attack from an adversary against the player character")]
-    public async Task<AdversaryAttackOutcomeDto> AttackPlayer(
-        [Description("The identifier of the adversary performing the attack")] Guid attackingAdversaryId)
+    [Description("A living adversary attacks the player character. The adversary is auto-selected.")]
+    public async Task<AdversaryAttackOutcomeDto> AttackPlayer()
     {
-        return await inner.AttackPlayer(RequireEncounterId(), attackingAdversaryId, RequireCharacterId());
+        var encounter = sessionContext.ActiveEncounter
+            ?? throw new InvalidOperationException("No active encounter.");
+        var adversary = encounter.LivingAdversaries.FirstOrDefault()
+            ?? throw new InvalidOperationException("No living adversaries remain.");
+        return await inner.AttackPlayer(RequireEncounterId(), adversary.Id, RequireCharacterId());
     }
 
     [KernelFunction]
-    [Description("Execute an attack from the player character against an adversary")]
+    [Description("The player character attacks an adversary by name.")]
     public async Task<CharacterAttackOutcomeDto> AttackAdversary(
-        [Description("The identifier of the adversary being attacked")] Guid adversaryBeingAttackedId)
+        [Description("Name of the adversary to attack")] string adversaryName)
     {
-        return await inner.AttackAdversary(RequireEncounterId(), RequireCharacterId(), adversaryBeingAttackedId);
+        var encounter = sessionContext.ActiveEncounter
+            ?? throw new InvalidOperationException("No active encounter.");
+        var adversary = encounter.LivingAdversaries
+            .FirstOrDefault(a => a.Name.Equals(adversaryName, StringComparison.OrdinalIgnoreCase))
+            ?? encounter.LivingAdversaries.FirstOrDefault()
+            ?? throw new InvalidOperationException("No living adversaries remain.");
+        return await inner.AttackAdversary(RequireEncounterId(), RequireCharacterId(), adversary.Id);
     }
 
     [KernelFunction]

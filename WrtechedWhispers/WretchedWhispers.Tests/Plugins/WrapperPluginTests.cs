@@ -1,8 +1,12 @@
 using Moq;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Semantic;
@@ -151,41 +155,56 @@ public class WrapperPluginTests
     }
 
     [Fact]
-    public async Task AttackPlayer_AutoFillsEncounterIdAndPlayerId()
+    public async Task AttackPlayer_AutoSelectsFirstLivingAdversary()
     {
-        var encId = Guid.NewGuid();
         var charId = Guid.NewGuid();
-        var advId = Guid.NewGuid();
-        _context.SetActiveEncounterId(encId);
         _context.SetCharacterId(charId);
+        var (encounter, advId) = CreateStartedEncounterWithAdversary("Thug");
+        _context.ActiveEncounter = encounter;
+        _context.SetActiveEncounterId(encounter.Id);
+
         var inner = new Mock<IEncounterOperations>();
-        inner.Setup(p => p.AttackPlayer(encId, advId, charId))
+        inner.Setup(p => p.AttackPlayer(encounter.Id, advId, charId))
             .ReturnsAsync(new AdversaryAttackOutcomeDto(3));
 
         var wrapper = new EncounterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
-        var result = await wrapper.AttackPlayer(advId);
+        var result = await wrapper.AttackPlayer();
 
         Assert.Equal(3, result.DamageDealt);
-        inner.Verify(p => p.AttackPlayer(encId, advId, charId), Times.Once);
+        inner.Verify(p => p.AttackPlayer(encounter.Id, advId, charId), Times.Once);
     }
 
     [Fact]
-    public async Task AttackAdversary_AutoFillsEncounterIdAndPlayerId()
+    public async Task AttackAdversary_MatchesByName()
     {
-        var encId = Guid.NewGuid();
         var charId = Guid.NewGuid();
-        var advId = Guid.NewGuid();
-        _context.SetActiveEncounterId(encId);
         _context.SetCharacterId(charId);
+        var (encounter, advId) = CreateStartedEncounterWithAdversary("Ragged Bandit");
+        _context.ActiveEncounter = encounter;
+        _context.SetActiveEncounterId(encounter.Id);
+
         var inner = new Mock<IEncounterOperations>();
-        inner.Setup(p => p.AttackAdversary(encId, charId, advId))
+        inner.Setup(p => p.AttackAdversary(encounter.Id, charId, advId))
             .ReturnsAsync(new CharacterAttackOutcomeDto(true, 5, false, false, false, false));
 
         var wrapper = new EncounterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
-        var result = await wrapper.AttackAdversary(advId);
+        var result = await wrapper.AttackAdversary("Ragged Bandit");
 
         Assert.True(result.IsHit);
-        inner.Verify(p => p.AttackAdversary(encId, charId, advId), Times.Once);
+        inner.Verify(p => p.AttackAdversary(encounter.Id, charId, advId), Times.Once);
+    }
+
+    private static (Encounter encounter, Guid adversaryId) CreateStartedEncounterWithAdversary(string adversaryName)
+    {
+        var dice = new Dice(new Mock<IRandomService>().Object);
+        var encounter = Encounter.Create("Test Encounter", "test", EncounterType.Hostile, dice);
+        var hp = new HitPoints(4, 4);
+        var armor = new Armor(NoArmorTier.Instance);
+        var attack = new AttackProfile("Knife", DiceExpr.Parse("1d4"));
+        var adversary = new Adversary(adversaryName, hp, armor, 7, attack);
+        encounter.AddAdversary(adversary);
+        encounter.StartEncounter();
+        return (encounter, adversary.Id);
     }
 
     // -- ResolutionWrapperPlugin --
