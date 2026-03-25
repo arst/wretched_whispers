@@ -33,14 +33,16 @@ public sealed class CharacterWrapperPlugin(
         var result = await inner.CreateCharacter(name);
         sessionContext.SetCharacterId(result.Id);
 
-        // Auto-join character to the existing campaign so the stage advances
-        // from CharacterCreation → CampaignSetup on the next turn
+        // Auto-join character to campaign AND start it — skips CampaignSetup stage entirely.
+        // The campaign already has defaults from session creation (d6 dawn dice).
+        // Next turn derives Exploration directly.
         if (sessionContext.CampaignId is { } campaignId)
         {
             var campaign = await campaignsRepository.Get(campaignId);
             if (campaign is not null)
             {
                 campaign.JoinGame(result.Id);
+                campaign.Start();
                 await campaignsRepository.SaveCampaign(campaign);
             }
         }

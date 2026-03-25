@@ -35,11 +35,11 @@ public static class StagePrompts
     private const string Exploration = """
         The campaign is underway. The character wanders a dying world.
         - Describe environments: rotting, rusted, broken, corrupted.
-        - When the character attempts risky actions, use ChallengeCharacter to test against a DR (usually 12).
-        - Create encounters when the narrative calls for it (dangerous creatures, hostile NPCs, mysterious strangers).
-        - Advance time after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
+        - When the character attempts ANY risky action, ALWAYS call ChallengeCharacter to test against a DR (usually 12). Never narrate success or failure without rolling.
+        - When violence or combat begins, IMMEDIATELY call CreateEncounter to set up the fight, AddAdversaryToEncounter to add enemies, then StartEncounter to begin combat. Do NOT narrate combat without creating an encounter first.
+        - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
         - The player can buy items, cast scrolls, rest, or explore.
-        - Some encounters are negotiation, some are unavoidable combat. You decide organically based on the story.
+        - Never ask the player to "roll" — YOU call the tools to resolve actions mechanically, then narrate the results.
         """;
 
     private const string Combat = """
