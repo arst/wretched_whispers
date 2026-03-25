@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 04 — Frontend Foundation and Character Creation
-current_plan: Plan 3 of 3 (complete)
-status: completed
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-23T11:12:12.599Z"
+current_phase: Phase 07 — Deterministic State Machine and Context Injection
+current_plan: Plan 1 of 4
+status: in-progress
+stopped_at: Plan 07-01 completed
+last_updated: "2026-03-25T06:29:40Z"
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 18
+  completed_plans: 15
 ---
 
 # Session State
@@ -23,15 +23,15 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** Phase 04 — Frontend Foundation and Character Creation
-**Current Plan:** Plan 3 of 3 (complete)
-**Status:** Phase Complete
+**Current phase:** Phase 07 — Deterministic State Machine and Context Injection
+**Current Plan:** Plan 1 of 4
+**Status:** In Progress
 
 ## Session Continuity
 
-Last session: 2026-03-23T11:12:12.571Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
+Last session: 2026-03-25T06:29:40Z
+Stopped at: Plan 07-01 completed
+Resume file: .planning/phases/07-deterministic-state-machine-and-context-injection/07-01-SUMMARY.md
 
 ## Decisions
 
@@ -58,6 +58,9 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 - [Phase 04]: Zustand streamingText isolation pattern: separate field for streaming chunks avoids message list re-renders
 - [Phase 04]: Splash-to-chat transition driven by first narrative SSE event arrival
 - [Phase 04]: Character creation uses identical chat interface as gameplay (no separate UI)
+- [Phase 07]: Campaign.IsEnded made public for SessionContext stage derivation across assembly boundary
+- [Phase 07]: Campaign.WorldEnded added as public proxy for CalendarOfNechrubel.WorldEnded
+- [Phase 07]: StageTransitionFilter validates transitions post-execution but does not force state changes
 
 ## Performance Metrics
 
@@ -70,6 +73,7 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 | 04    | 01   | 6min     | 3     | 19    |
 | 04    | 02   | 3min     | 3     | 13    |
 | 04    | 03   | 12min    | 4     | 15    |
+| 07    | 01   | 13min    | 2     | 14    |
 
 ## Session Log
 
@@ -82,3 +86,4 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 - 2026-03-05: Plan 04-01 executed (Next.js scaffold, doom design system, CORS, auth store, API client)
 - 2026-03-05: Plan 04-02 executed (landing page, auth screens, session list, UI primitives, AuthGuard)
 - 2026-03-05: Plan 04-03 executed (chat interface, SSE streaming, character creation flow, doom UI components)
+- 2026-03-25: Plan 07-01 executed (SessionStage enum, SessionContext, StageTransitions, StageTransitionFilter, 25 tests)
