@@ -9,7 +9,7 @@ public sealed class Encounter
 {
     [JsonConstructor]
     private Encounter(Guid id, EncounterType initialType, EncounterType currentType, string name, string description,
-        List<Adversary> adversaries, bool isStarted = false, bool isEnded = false)
+        List<Adversary> adversaries, bool isStarted = false, bool isEnded = false, bool isResolved = false)
     {
         Id = id;
         InitialType = initialType;
@@ -19,6 +19,7 @@ public sealed class Encounter
         Adversaries = adversaries ?? [];
         IsStarted = isStarted;
         IsEnded = isEnded;
+        IsResolved = isResolved;
     }
 
     private Encounter(Guid id, EncounterType initialType, string name, string description)
@@ -36,6 +37,7 @@ public sealed class Encounter
     [JsonIgnore] public IReadOnlyList<Adversary> DeadAdversaries => Adversaries.Where(a => a.IsDead).ToList().AsReadOnly();
     [JsonInclude] public bool IsStarted { get; private set; }
     [JsonInclude] public bool IsEnded { get; private set; }
+    [JsonInclude] public bool IsResolved { get; private set; }
 
     public static Encounter Create(string name, string description, EncounterType initialType, Dice dice)
     {
@@ -60,6 +62,12 @@ public sealed class Encounter
         if (anyActiveAdversaries)
             throw new InvalidOperationException("Can't end an encounter with active adversaries.");
         IsEnded = true;
+    }
+
+    public void Resolve()
+    {
+        if (!IsEnded) throw new InvalidOperationException("Can't resolve an encounter that hasn't ended.");
+        IsResolved = true;
     }
 
     public void AddAdversary(Adversary e)

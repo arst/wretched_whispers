@@ -127,7 +127,9 @@ public sealed class Campaign
 
     [JsonInclude] internal bool IsStarted { get; private set; }
 
-    [JsonInclude] internal bool IsEnded { get; private set; }
+    [JsonInclude] public bool IsEnded { get; private set; }
+
+    [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
     [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calendar.Miseries;
 
