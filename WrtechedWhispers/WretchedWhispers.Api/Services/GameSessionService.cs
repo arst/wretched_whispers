@@ -6,6 +6,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using Polly.Registry;
 using WretchedWhispers.Api.Models;
+using WretchedWhispers.Api.Plugins.CombatAgent;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins.Adapters;
 using WretchedWhispers.Core.Campaigns;
@@ -89,7 +90,7 @@ public sealed class GameSessionService(
 
             // Build Kernel per-turn with wrapper plugins
             var kernel = BuildKernelForSession(sessionContext);
-            var agent = CreateGameMasterAgent(kernel, sessionContext);
+            var stage = sessionContext.DeriveStage();
 
             // Begin a database transaction for transactional buffering
             await dbContext.Database.BeginTransactionAsync(ct);
@@ -102,58 +103,73 @@ public sealed class GameSessionService(
                     new ChatMessageContent(AuthorRole.User, playerMessage),
                     ct);
 
-                // Wrap agent invocation in resilience pipeline
-                var pipeline = resilienceProvider.GetPipeline("llm-retry");
-
                 var fullResponseText = new System.Text.StringBuilder();
-                var toolResults = new List<SseEvent>();
 
-                await pipeline.ExecuteAsync(async token =>
+                if (stage == SessionStage.Combat)
                 {
-                    fullResponseText.Clear();
-                    toolResults.Clear();
+                    // Combat sub-agent resolves the encounter (D-02)
+                    var combatService = new CombatAgentService();
+                    var combatNarrative = await combatService.ResolveCombat(
+                        sessionContext, kernel, stagePluginRegistry, writer, ct);
 
-                    // Create thread and populate from loaded chat history
-                    ChatHistoryAgentThread thread = new(chatHistory);
+                    fullResponseText.Append(combatNarrative);
+                }
+                else
+                {
+                    // Regular game master agent flow
+                    var agent = CreateGameMasterAgent(kernel, sessionContext);
 
-                    var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
+                    // Wrap agent invocation in resilience pipeline
+                    var pipeline = resilienceProvider.GetPipeline("llm-retry");
+                    var toolResults = new List<SseEvent>();
 
-                    // Stream the agent response -- write each chunk to channel immediately
-                    // Filter to only assistant-role content to avoid leaking tool call/result text
-                    await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
+                    await pipeline.ExecuteAsync(async token =>
                     {
-                        if (response.Message.Role is not null && response.Message.Role != AuthorRole.Assistant)
-                            continue;
+                        fullResponseText.Clear();
+                        toolResults.Clear();
 
-                        var content = response.Message.Content;
-                        if (!string.IsNullOrEmpty(content))
-                        {
-                            fullResponseText.Append(content);
-                            writer.TryWrite(new SseEvent("narrative", new { text = content }));
-                        }
-                    }
+                        // Create thread and populate from loaded chat history
+                        ChatHistoryAgentThread thread = new(chatHistory);
 
-                    // After streaming completes, read thread messages for tool results
-                    await foreach (var completed in thread.GetMessagesAsync(token))
-                    {
-                        foreach (var item in completed.Items)
+                        var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
+
+                        // Stream the agent response -- write each chunk to channel immediately
+                        // Filter to only assistant-role content to avoid leaking tool call/result text
+                        await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
                         {
-                            if (item is FunctionResultContent funcResult)
+                            if (response.Message.Role is not null && response.Message.Role != AuthorRole.Assistant)
+                                continue;
+
+                            var content = response.Message.Content;
+                            if (!string.IsNullOrEmpty(content))
                             {
-                                toolResults.Add(new SseEvent("tool_result", new
-                                {
-                                    function = funcResult.FunctionName,
-                                    result = funcResult.Result
-                                }));
+                                fullResponseText.Append(content);
+                                writer.TryWrite(new SseEvent("narrative", new { text = content }));
                             }
                         }
-                    }
-                }, ct);
 
-                // Write tool results after narrative
-                foreach (var toolResult in toolResults)
-                {
-                    writer.TryWrite(toolResult);
+                        // After streaming completes, read thread messages for tool results
+                        await foreach (var completed in thread.GetMessagesAsync(token))
+                        {
+                            foreach (var item in completed.Items)
+                            {
+                                if (item is FunctionResultContent funcResult)
+                                {
+                                    toolResults.Add(new SseEvent("tool_result", new
+                                    {
+                                        function = funcResult.FunctionName,
+                                        result = funcResult.Result
+                                    }));
+                                }
+                            }
+                        }
+                    }, ct);
+
+                    // Write tool results after narrative
+                    foreach (var toolResult in toolResults)
+                    {
+                        writer.TryWrite(toolResult);
+                    }
                 }
 
                 // Save the full assistant response to chat history
