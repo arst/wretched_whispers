@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 4: Frontend Foundation and Character Creation** - React/Next.js app with Mork Borg aesthetic and guided character creation as first playable experience
 - [ ] **Phase 5: Core Gameplay Interface** - Chat-based gameplay with streaming narrator responses, message history, and character sheet display
 - [ ] **Phase 6: Mechanical Visibility and Session Lifecycle** - Dice rolls, Misery tracker, injury indicators, and complete game lifecycle from creation through doom
+- [ ] **Phase 7: Deterministic State Machine and Context Injection** - Plugin calls drive stage transitions; session context injected into model prompts; AI narrates, system manages state
 
 ## Phase Details
 
@@ -117,11 +118,12 @@ Plans:
   3. User can scroll back through the full message history of the current session
   4. Message history persists -- closing the browser and resuming the session shows all previous messages
   5. Character sheet sidebar displays current HP, abilities, inventory, and armor in real time as the game progresses
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [x] 05-01-PLAN.md — Backend state_update enrichment, SessionDetailDto character data, frontend types/store extension, ChatInput gameplay mode
+- [ ] 05-02-PLAN.md — Character sheet drawer overlay, sub-components (HpBar, AbilityScore, EquipmentSlot, InventoryList), header toggle with HP indicator
+- [ ] 05-03-PLAN.md — Message history pagination with LoadMoreButton, scroll position preservation, auto-scroll guard, initial load last-page fix
 
 ### Phase 6: Mechanical Visibility and Session Lifecycle
 **Goal**: Players can see the real dice rolls and mechanical outcomes behind the narrative, track the world's doom, monitor their character's physical state, and play through a complete Mork Borg session from creation to death or apocalypse
@@ -134,16 +136,30 @@ Plans:
   4. Equipment condition is visible (armor degradation, weapon state)
   5. A player can experience a complete session lifecycle -- character creation, exploration, combat, Misery events -- ending in character death or the 7th Misery destroying the world
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [x] 06-01-PLAN.md — Backend enrichment: DicePlugin structured return, StateUpdateEvent and SessionDetailDto with injury/equipment/death/worldEnded fields
+- [ ] 06-02-PLAN.md — Frontend mechanical visibility: TypeScript types, Zustand store, MiseryTracker, InjuryBadges, StatusIndicators, enriched ToolResultCallout, EquipmentSlot tier/shield
+- [ ] 06-03-PLAN.md — Session lifecycle: EndCard overlay (death/apocalypse), ChatInput read-only, SessionCard indicator, GameSessionPage integration, visual verification
+
+### Phase 7: Deterministic State Machine and Context Injection
+
+**Goal**: Session stages advance deterministically through plugin tool call side effects, with a session context object injected into model prompts so the AI never manages IDs, state, or transitions directly
+**Requirements**: MORK-01
+**Depends on**: Phase 6
+**Plans:** 4 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — State machine foundation: SessionStage enum, SessionContext with stage derivation, StageTransitions map, StageTransitionFilter, Encounter.IsResolved
+- [ ] 07-02-PLAN.md — Wrapper plugins with ID auto-fill and guardrails, ResolutionWrapperPlugin, StagePluginRegistry per-stage function filtering
+- [ ] 07-03-PLAN.md — Prompt composition (NarratorPersona, StagePrompts, PromptComposer), GameSessionService rewrite with stage machine integration
+- [ ] 07-04-PLAN.md — Combat sub-agent (CombatAgentService, CombatPrompts), GameSessionService combat routing, full gameplay loop verification
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -153,5 +169,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. API Layer and Streaming | 2/3 | In Progress | - |
 | 3.1. Persistence Multi-Tenancy Fix | 1/1 | Complete | 2026-03-05 |
 | 4. Frontend Foundation and Character Creation | 0/3 | Planned | - |
-| 5. Core Gameplay Interface | 0/0 | Not started | - |
-| 6. Mechanical Visibility and Session Lifecycle | 0/0 | Not started | - |
+| 5. Core Gameplay Interface | 1/3 | In Progress|  |
+| 6. Mechanical Visibility and Session Lifecycle | 0/3 | Planned    |  |
+| 7. Deterministic State Machine | 0/4 | Planned | - |
