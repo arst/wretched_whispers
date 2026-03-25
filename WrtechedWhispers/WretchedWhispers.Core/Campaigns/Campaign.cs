@@ -166,6 +166,11 @@ public sealed class Campaign
         Characters.Add(characterId);
     }
 
+    public void AddEncounter(Guid encounterId)
+    {
+        Encounters.Add(encounterId);
+    }
+
     public static Campaign Create(DiceExpr dawnDice, string name, string description)
     {
         return new Campaign(Guid.NewGuid(), name, description, 1, 0, [], new CalendarOfNechrubel(), dawnDice, []);

@@ -143,7 +143,7 @@ public class WrapperPluginTests
         inner.Setup(p => p.CreateEncounter("Goblins", "A goblin ambush", "Hostile"))
             .ReturnsAsync(new EncounterDto { Id = encId, Name = "Goblins" });
 
-        var wrapper = new EncounterWrapperPlugin(inner.Object, _context);
+        var wrapper = new EncounterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
         var result = await wrapper.CreateEncounter("Goblins", "A goblin ambush", "Hostile");
 
         Assert.Equal(encId, result.Id);
@@ -162,7 +162,7 @@ public class WrapperPluginTests
         inner.Setup(p => p.AttackPlayer(encId, advId, charId))
             .ReturnsAsync(new AdversaryAttackOutcomeDto(3));
 
-        var wrapper = new EncounterWrapperPlugin(inner.Object, _context);
+        var wrapper = new EncounterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
         var result = await wrapper.AttackPlayer(advId);
 
         Assert.Equal(3, result.DamageDealt);
@@ -181,7 +181,7 @@ public class WrapperPluginTests
         inner.Setup(p => p.AttackAdversary(encId, charId, advId))
             .ReturnsAsync(new CharacterAttackOutcomeDto(true, 5, false, false, false, false));
 
-        var wrapper = new EncounterWrapperPlugin(inner.Object, _context);
+        var wrapper = new EncounterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
         var result = await wrapper.AttackAdversary(advId);
 
         Assert.True(result.IsHit);

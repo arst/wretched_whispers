@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.SemanticKernel;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Semantic.Models;
 
 namespace WretchedWhispers.Api.Plugins.GameMasterPlugins;
@@ -10,7 +11,10 @@ namespace WretchedWhispers.Api.Plugins.GameMasterPlugins;
 /// The model never sees encounter or player GUID parameters -- only adversary selection IDs remain.
 /// </summary>
 [Description("Manage encounters: create them, add adversaries, start combat, execute attacks, and end encounters.")]
-public sealed class EncounterWrapperPlugin(IEncounterOperations inner, SessionContext sessionContext)
+public sealed class EncounterWrapperPlugin(
+    IEncounterOperations inner,
+    SessionContext sessionContext,
+    ICampaignsRepository campaignsRepository)
 {
     private Guid RequireEncounterId() =>
         sessionContext.ActiveEncounterId
@@ -29,6 +33,18 @@ public sealed class EncounterWrapperPlugin(IEncounterOperations inner, SessionCo
     {
         var result = await inner.CreateEncounter(name, description, initialEncounterType);
         sessionContext.SetActiveEncounterId(result.Id);
+
+        // Link encounter to campaign so SessionContextLoader finds it on next turn
+        if (sessionContext.CampaignId is { } campaignId)
+        {
+            var campaign = await campaignsRepository.Get(campaignId);
+            if (campaign is not null)
+            {
+                campaign.AddEncounter(result.Id);
+                await campaignsRepository.SaveCampaign(campaign);
+            }
+        }
+
         return result;
     }
 

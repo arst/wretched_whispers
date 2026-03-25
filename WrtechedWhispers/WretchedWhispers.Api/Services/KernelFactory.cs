@@ -95,7 +95,7 @@ public sealed class KernelFactory(
                 campaignsRepo, sessionContext),
             ["Encounter"] = new EncounterWrapperPlugin(
                 new EncounterPluginAdapter(serviceProvider.GetRequiredService<EncounterPlugin>()),
-                sessionContext),
+                sessionContext, campaignsRepo),
             ["Dice"] = new DiceWrapperPlugin(
                 new DicePluginAdapter(serviceProvider.GetRequiredService<DicePlugin>())),
             ["Resolution"] = new ResolutionWrapperPlugin(sessionContext, encountersRepo)
