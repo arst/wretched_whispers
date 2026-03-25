@@ -108,11 +108,25 @@ public sealed class GameSessionService(
                 if (stage == SessionStage.Combat)
                 {
                     // Combat sub-agent resolves the encounter (D-02)
-                    var combatService = new CombatAgentService();
-                    var combatNarrative = await combatService.ResolveCombat(
-                        sessionContext, kernel, stagePluginRegistry, writer, ct);
-
-                    fullResponseText.Append(combatNarrative);
+                    var combatService = new CombatAgentService(
+                        serviceProvider.GetRequiredService<ILogger<CombatAgentService>>());
+                    await foreach (var evt in combatService.ResolveCombatAsync(
+                        sessionContext, kernel, ct))
+                    {
+                        if (evt is NarrativeChunk chunk)
+                        {
+                            fullResponseText.Append(chunk.Text);
+                            writer.TryWrite(new SseEvent("narrative", new { text = chunk.Text }));
+                        }
+                        else if (evt is ToolResult toolResult)
+                        {
+                            writer.TryWrite(new SseEvent("tool_result", new
+                            {
+                                function = toolResult.Function,
+                                result = toolResult.Result
+                            }));
+                        }
+                    }
                 }
                 else
                 {

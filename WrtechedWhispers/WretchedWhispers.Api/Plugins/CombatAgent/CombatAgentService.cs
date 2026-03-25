@@ -1,5 +1,8 @@
+#pragma warning disable SKEXP0001
+#pragma warning disable SKEXP0110
+
+using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Channels;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -8,9 +11,6 @@ using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Prompts;
 using WretchedWhispers.Api.Services;
 
-#pragma warning disable SKEXP0001
-#pragma warning disable SKEXP0110
-
 namespace WretchedWhispers.Api.Plugins.CombatAgent;
 
 /// <summary>
@@ -18,21 +18,15 @@ namespace WretchedWhispers.Api.Plugins.CombatAgent;
 /// Domain state is mutated by plugin calls during execution (D-03).
 /// Must be called within the same DI scope/transaction as the game master turn.
 /// </summary>
-public sealed class CombatAgentService
+public sealed class CombatAgentService(ILogger<CombatAgentService> logger)
 {
     private const int MaxIterations = 30;
 
-    public async Task<string> ResolveCombat(
+    public async IAsyncEnumerable<GameTurnEvent> ResolveCombatAsync(
         SessionContext sessionContext,
         Kernel gameKernel,
-        StagePluginRegistry stagePluginRegistry,
-        ChannelWriter<SseEvent> writer,
-        CancellationToken ct)
+        [EnumeratorCancellation] CancellationToken ct)
     {
-        // Get combat-specific functions from the same kernel (same DI scope, same services)
-        var combatFunctions = stagePluginRegistry
-            .GetFunctionsForStage(SessionStage.Combat, gameKernel);
-
         var combatAgent = new ChatCompletionAgent
         {
             Name = "Combat_Resolver",
@@ -41,12 +35,10 @@ public sealed class CombatAgentService
             Arguments = new KernelArguments(
                 new AzureOpenAIPromptExecutionSettings
                 {
-                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(
-                        functions: combatFunctions)
+                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
                 })
         };
 
-        var combatNarrative = new StringBuilder();
         var thread = new ChatHistoryAgentThread();
         var iteration = 0;
 
@@ -57,7 +49,7 @@ public sealed class CombatAgentService
         while (iteration < MaxIterations)
         {
             iteration++;
-            var turnText = new StringBuilder();
+            logger.LogDebug("Combat iteration {Iteration}/{MaxIterations}", iteration, MaxIterations);
 
             await foreach (var response in combatAgent.InvokeStreamingAsync(
                 combatMessage, thread, cancellationToken: ct))
@@ -68,12 +60,9 @@ public sealed class CombatAgentService
                 var content = response.Message.Content;
                 if (!string.IsNullOrEmpty(content))
                 {
-                    turnText.Append(content);
-                    writer.TryWrite(new SseEvent("narrative", new { text = content }));
+                    yield return new NarrativeChunk(content);
                 }
             }
-
-            combatNarrative.Append(turnText);
 
             // Extract tool results from thread messages for this iteration
             await foreach (var completed in thread.GetMessagesAsync(ct))
@@ -82,28 +71,35 @@ public sealed class CombatAgentService
                 {
                     if (item is FunctionResultContent funcResult)
                     {
-                        writer.TryWrite(new SseEvent("tool_result", new
-                        {
-                            function = funcResult.FunctionName,
-                            result = funcResult.Result
-                        }));
+                        yield return new ToolResult(
+                            funcResult.FunctionName ?? "unknown",
+                            funcResult.Result ?? "");
                     }
                 }
             }
 
             // Check if encounter ended (domain state mutated by EndEncounter plugin call)
             if (sessionContext.ActiveEncounter is not null && sessionContext.ActiveEncounter.IsEnded)
+            {
+                logger.LogDebug("Combat ended — encounter resolved at iteration {Iteration}", iteration);
                 break;
+            }
 
             // Check if character died
             if (sessionContext.Character is not null && sessionContext.Character.IsDead)
+            {
+                logger.LogDebug("Combat ended — character died at iteration {Iteration}", iteration);
                 break;
+            }
 
             // Next round prompt
             combatMessage = new ChatMessageContent(AuthorRole.User,
                 "Continue the combat. Attack with remaining adversaries and let the player respond.");
         }
 
-        return combatNarrative.ToString();
+        if (iteration >= MaxIterations)
+        {
+            logger.LogWarning("Combat reached max iterations ({MaxIterations})", MaxIterations);
+        }
     }
 }
