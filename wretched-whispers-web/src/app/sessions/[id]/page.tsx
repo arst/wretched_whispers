@@ -8,6 +8,8 @@ import { useSseStream } from "@/hooks/useSseStream";
 import ChatWindow from "@/components/chat/ChatWindow";
 import ChatInput from "@/components/chat/ChatInput";
 import SplashScreen from "@/components/chat/SplashScreen";
+import CharacterDrawer from "@/components/character/CharacterDrawer";
+import EndCard from "@/components/session/EndCard";
 import type { SessionDetailDto } from "@/types/api";
 
 export default function GameSessionPage({
@@ -28,6 +30,13 @@ export default function GameSessionPage({
   const status = useSessionStore((s) => s.status);
   const streamingText = useSessionStore((s) => s.streamingText);
   const reset = useSessionStore((s) => s.reset);
+  const miseryCount = useSessionStore((s) => s.miseryCount);
+  const worldEnded = useSessionStore((s) => s.worldEnded);
+  const currentDay = useSessionStore((s) => s.currentDay);
+  const characterData = useSessionStore((s) => s.characterData);
+
+  const showEndCard = status === "ended" && !isStreaming;
+  const isDead = characterData?.isDead ?? false;
 
   const { sendAction } = useSseStream(id);
 
@@ -66,7 +75,67 @@ export default function GameSessionPage({
 
         const data: SessionDetailDto = await res.json();
         const store = useSessionStore.getState();
-        store.setSession(data.sessionId, data.status, data.messages);
+
+        // Helper to hydrate character data from enriched DTO
+        function hydrateCharacter(dto: SessionDetailDto) {
+          if (dto.characterName && dto.characterHp != null) {
+            store.setCharacterData({
+              name: dto.characterName,
+              currentHp: dto.characterHp,
+              maxHp: dto.characterMaxHp!,
+              abilities: {
+                strength: dto.characterStrength ?? 0,
+                agility: dto.characterAgility ?? 0,
+                presence: dto.characterPresence ?? 0,
+                toughness: dto.characterToughness ?? 0,
+              },
+              weapon: dto.characterWeapon ?? null,
+              armor: dto.characterArmor ?? null,
+              inventory: dto.characterInventory ?? [],
+              // Injuries
+              hasLostEye: dto.characterHasLostEye ?? false,
+              hasStabbedLung: dto.characterHasStabbedLung ?? false,
+              hasBrokenHand: dto.characterHasBrokenHand ?? false,
+              hasCrushedFoot: dto.characterHasCrushedFoot ?? false,
+              hasSeveredArm: dto.characterHasSeveredArm ?? false,
+              hasSmashedFace: dto.characterHasSmashedFace ?? false,
+              // Status effects
+              isInfected: dto.characterIsInfected ?? false,
+              isDizzyFromMagic: dto.characterIsDizzyFromMagic ?? false,
+              isEncumbered: dto.characterIsEncumbered ?? false,
+              isDead: dto.characterIsDead ?? false,
+              // Equipment condition
+              armorTier: dto.characterArmorTier ?? "none",
+              hasShield: dto.characterHasShield ?? false,
+              isShieldBroken: dto.characterIsShieldBroken ?? false,
+            });
+          }
+        }
+
+        // If there are more messages than one page, load the LAST page
+        // so the user sees the most recent messages first
+        if (data.totalMessages > data.pageSize) {
+          const lastPage = Math.ceil(data.totalMessages / data.pageSize);
+          const latestRes = await apiFetch(`/sessions/${id}?page=${lastPage}&pageSize=${data.pageSize}`);
+          if (cancelled) return;
+
+          if (latestRes.ok) {
+            const latestData: SessionDetailDto = await latestRes.json();
+            store.setSession(latestData.sessionId, latestData.status, latestData.messages, latestData.totalMessages);
+            hydrateCharacter(latestData);
+            useSessionStore.setState({ currentDay: latestData.currentDay });
+          } else {
+            // Fallback to first page if last page request fails
+            store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+            hydrateCharacter(data);
+            useSessionStore.setState({ currentDay: data.currentDay });
+          }
+        } else {
+          // Session fits in one page, use as-is
+          store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+          hydrateCharacter(data);
+          useSessionStore.setState({ currentDay: data.currentDay });
+        }
 
         // New character-creation session with no messages: show splash and trigger narrator
         if (data.status === "character-creation" && data.messages.length === 0) {
@@ -176,11 +245,26 @@ export default function GameSessionPage({
         </div>
       )}
 
+      {/* Character sheet drawer */}
+      <CharacterDrawer />
+
       {/* Chat area */}
       <ChatWindow />
 
       {/* Input bar */}
-      <ChatInput onSend={handleSend} disabled={isStreaming} />
+      <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
+
+      {/* End card overlay */}
+      {showEndCard && characterData && (
+        <EndCard
+          characterName={characterData.name}
+          isDead={isDead}
+          worldEnded={worldEnded}
+          miseryCount={miseryCount}
+          currentDay={currentDay}
+          onRestart={() => {}}
+        />
+      )}
     </div>
   );
 }

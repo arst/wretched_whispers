@@ -19,10 +19,15 @@ public static class SemanticKernelConfiguration
         services.AddScoped<GameSessionService>();
 
         // Register SK plugins as Scoped so they resolve request-scoped DbContext/repos
+        // These are still needed as inner services for wrapper plugins
         services.AddScoped<CharacterPlugin>();
         services.AddScoped<CampaignPlugin>();
         services.AddScoped<EncounterPlugin>();
         services.AddScoped<DicePlugin>();
+
+        // Stage machine services
+        services.AddScoped<StagePluginRegistry>();
+        services.AddScoped<PromptComposer>();
 
         // Resilience pipeline for LLM retry with exponential backoff
         var timeoutSeconds = configuration.GetValue("GameSession:ResponseTimeoutSeconds", 180);

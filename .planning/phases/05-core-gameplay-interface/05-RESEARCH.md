@@ -1,18 +1,19 @@
 # Phase 5: Core Gameplay Interface - Research
 
-**Researched:** 2026-03-23
-**Domain:** React gameplay UI (character sheet drawer, HP indicator, message pagination, state updates via SSE)
+**Researched:** 2026-03-24
+**Domain:** React/Next.js frontend -- character sheet drawer, message pagination, gameplay mode transition, SSE state updates
 **Confidence:** HIGH
 
 ## Summary
 
-Phase 5 transforms the existing chat interface from character-creation-only into a full gameplay experience. The codebase already has a solid foundation: SSE streaming with `@microsoft/fetch-event-source`, Zustand state management with streaming isolation, a chat window with auto-scroll, and paginated message endpoints on the backend. The primary work involves: (1) adding a character sheet drawer/overlay, (2) extending the Header with HP indicator and drawer toggle, (3) implementing load-more pagination for message history, (4) making the UI transition gracefully from character-creation to in-progress mode, and (5) extending both backend `state_update` SSE payloads and frontend stores to carry full character data (abilities, inventory, equipment).
+Phase 5 extends the existing Phase 4 chat interface with four feature areas: (1) a character sheet drawer overlay triggered from the header, (2) load-more message pagination, (3) a gameplay mode transition when session status changes from `character-creation` to `in-progress`, and (4) real-time character state updates via SSE `state_update` events driving a Zustand store.
 
-The most significant gap is that the backend `state_update` SSE event currently only sends HP and basic campaign data -- it does NOT include abilities, inventory, weapon, or armor. Decision D-07 requires SSE-driven local state for the drawer. Either the `state_update` payload must be enriched on the backend, or a new `GET /sessions/{id}/character` endpoint is needed for initial load (with SSE updates for HP only). A hybrid approach is recommended: enrich `state_update` with full character snapshot AND add a character endpoint for initial session load.
+The existing codebase provides strong foundations. The session store, SSE streaming hook, chat components, and API client are all in place. The primary work is extending the store with `characterData`, building new character-focused components, modifying the header and chat window, and enriching the backend `state_update` payload to include abilities, inventory, and equipment data (currently only sends HP, campaignId, day/hour, miseryCount, status).
 
-**Primary recommendation:** Extend backend `state_update` to include full character data, add a `GET /sessions/{id}/character` endpoint, create a dedicated `characterStore` in Zustand, and build the drawer + HP indicator as new components that read from this store.
+**Primary recommendation:** Extend the backend `state_update` SSE payload first (it currently lacks abilities, inventory, and equipment), then build the frontend character data store and components. The UI-SPEC at `05-UI-SPEC.md` provides complete visual contracts -- follow it exactly.
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
@@ -20,9 +21,9 @@ The most significant gap is that the backend `state_update` SSE event currently 
 - **D-02:** Essentials only -- show character name, HP bar, 4 abilities (STR/AGI/PRE/TOU), equipped weapon + armor, and inventory list. Compact and glanceable. Injury indicators and equipment condition deferred to Phase 6.
 - **D-03:** Header HP indicator -- a compact HP readout (mini bar or "HP 6/8") visible in the header bar next to the character sheet button. Always visible without opening the drawer.
 - **D-04:** Load-more button at the top of the chat -- "Load earlier messages" button fetches the next page from `GET /sessions/{id}/messages`. Explicit, no scroll-position surprises. No infinite scroll or eager loading.
-- **D-05:** Subtle shift -- when session status changes from `character-creation` to `in-progress`, the character sheet button and HP bar fade into the header, and the input placeholder changes from "Speak, wretch..." to "What do you do?". No hard break or interstitial.
+- **D-05:** Subtle shift -- when session status changes from `character-creation` to `in-progress`, the character sheet button and HP bar fade into the header, and the input placeholder changes. No hard break or interstitial.
 - **D-06:** Silent updates -- HP bar in header and drawer data update immediately when `state_update` SSE events arrive. No toast, popup, or flash animation.
-- **D-07:** SSE-driven local state -- `state_update` events carry character data (HP, abilities, inventory). Zustand store updates locally. Drawer reads from store, no extra API fetch on open. Backend may need richer `state_update` payloads.
+- **D-07:** SSE-driven local state -- `state_update` events carry character data. Zustand store updates locally. Drawer reads from store, no extra API fetch on open. Backend may need richer `state_update` payloads.
 
 ### Claude's Discretion
 - Drawer slide-in animation direction and timing
@@ -35,18 +36,21 @@ The most significant gap is that the backend `state_update` SSE event currently 
 
 ### Deferred Ideas (OUT OF SCOPE)
 None -- discussion stayed within phase scope
+
 </user_constraints>
 
 <phase_requirements>
+
 ## Phase Requirements
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| GAME-01 | User can type free-text actions for their character | ChatInput already exists; needs conditional placeholder based on session status (D-05) |
-| GAME-02 | Narrator responses stream word-by-word as generated | Already implemented via useSseStream + NarratorMessage streaming; no changes needed |
-| GAME-03 | User can scroll back through message history | Load-more button at top of ChatWindow using `GET /sessions/{id}/messages?page=N` (D-04) |
-| GAME-04 | Message history persists across sessions | Backend already persists messages in SQLite; frontend loads via setSession on mount; load-more fetches older pages |
-| CHAR-02 | Character sheet sidebar displays HP, abilities, inventory, armor | New CharacterDrawer component, Header HP indicator, characterStore, backend state_update enrichment (D-01 through D-07) |
+| GAME-01 | User can type free-text actions for their character | Already implemented in Phase 4 via ChatInput + useSseStream. Phase 5 needs conditional placeholder text based on session status. |
+| GAME-02 | Narrator responses stream word-by-word as generated | Already implemented in Phase 4 via NarratorMessage + streaming store pattern. No changes needed. |
+| GAME-03 | User can scroll back through message history | Requires LoadMoreButton component at top of ChatWindow, calling `GET /sessions/{id}/messages?page=N`, prepending older messages to store. |
+| GAME-04 | Message history persists across sessions | Backend already persists messages in SQLite. Frontend loads via `GET /sessions/{id}` on mount (already done). Pagination extends this to older messages. |
+| CHAR-02 | Character sheet sidebar displays HP, abilities, inventory, armor | Requires CharacterDrawer overlay, CharacterDrawerToggle in header, HpBar, AbilityScore, InventoryList, EquipmentSlot components. Backend state_update needs enrichment. |
+
 </phase_requirements>
 
 ## Standard Stack
@@ -54,365 +58,346 @@ None -- discussion stayed within phase scope
 ### Core (already installed)
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| React | 19.2.3 | UI framework | Already in project |
-| Next.js | 16.1.6 | App router, SSR | Already in project |
-| Zustand | 5.0.11 | State management | Already in project, granular selector pattern established |
-| @microsoft/fetch-event-source | 2.0.1 | SSE streaming | Already in project, used by useSseStream |
-| Tailwind CSS | 4.x | Styling | Already in project, doom color palette defined |
+| Next.js | 16.1.6 | App framework | Already in use |
+| React | 19.2.3 | UI library | Already in use |
+| Zustand | 5.0.11 | State management | Already in use with granular selector pattern |
+| Tailwind CSS | 4.x | Styling | Already in use with doom theme tokens |
+| @microsoft/fetch-event-source | 2.0.1 | SSE streaming | Already in use for action streaming |
 
-### No New Dependencies Required
-This phase requires no new npm packages. All UI work uses existing React, Tailwind, and Zustand. CSS transitions handle animations. The drawer, HP bar, and load-more button are all straightforward component work.
+### Supporting
+No new libraries needed. All Phase 5 features use existing stack.
+
+### Alternatives Considered
+| Instead of | Could Use | Tradeoff |
+|------------|-----------|----------|
+| CSS transitions for drawer | framer-motion | Overkill for a single slide-in; CSS transition-transform is sufficient and adds zero bundle |
+| Manual focus trap | @headlessui/react Dialog | Adds dependency; manual implementation with useEffect + keydown listener is straightforward for one drawer |
+
+**Installation:** No new packages required.
 
 ## Architecture Patterns
 
-### Component Structure
+### New Component Structure
 ```
 src/
   components/
     character/
-      CharacterDrawer.tsx     # Full-height slide-in overlay with character data
-      HpBar.tsx               # Reusable HP bar component (used in drawer AND header)
-      AbilityDisplay.tsx      # Single ability score display (STR +1, etc.)
-      InventoryList.tsx       # Scrollable inventory item list
+      CharacterDrawer.tsx       # Full-height slide-in overlay
+      CharacterDrawerToggle.tsx  # Header button + mini HP
+      HpBar.tsx                 # Reusable HP bar (mini + full variants)
+      AbilityScore.tsx          # Single ability (name + modifier)
+      InventoryList.tsx         # Scrollable inventory items
+      EquipmentSlot.tsx         # Weapon or armor display
     chat/
-      ChatWindow.tsx          # MODIFY: add load-more button at top
-      ChatInput.tsx           # MODIFY: conditional placeholder based on session status
-      LoadMoreButton.tsx      # "Load earlier messages" button with loading state
-    layout/
-      Header.tsx              # MODIFY: add HP indicator + character sheet toggle
-  stores/
-    characterStore.ts         # NEW: dedicated store for character state from SSE
-    sessionStore.ts           # MODIFY: extend setStateUpdate, add pagination state
-  hooks/
-    useSseStream.ts           # MODIFY: route enriched state_update to characterStore
-  types/
-    api.ts                    # MODIFY: extend StateUpdateEvent with character data
+      LoadMoreButton.tsx        # "Load earlier messages" at top of chat
 ```
 
-### Pattern 1: Dedicated Character Store (Zustand)
-**What:** Separate Zustand store for character data, following the project's established pattern of granular stores (authStore, sessionStore).
-**When to use:** Character data changes independently from chat messages and session metadata. Isolating it prevents unnecessary re-renders of the chat when HP changes.
-**Example:**
-```typescript
-// src/stores/characterStore.ts
-import { create } from "zustand";
+### Pattern 1: Zustand Store Extension for Character Data
+**What:** Extend sessionStore with `characterData` field and `drawerOpen` boolean. State updates arrive via SSE and hydrate on session load.
+**When to use:** Every time a `state_update` SSE event arrives or session detail loads.
 
-interface CharacterState {
-  characterId: string | null;
-  name: string | null;
-  currentHp: number | null;
-  maxHp: number | null;
+Current `setStateUpdate` only sets `status`:
+```typescript
+setStateUpdate: (update) => set({ status: update.status }),
+```
+
+Must extend to also populate `characterData` from the enriched payload. Store shape per UI-SPEC:
+```typescript
+interface CharacterData {
+  name: string;
+  currentHp: number;
+  maxHp: number;
   abilities: {
     strength: number;
     agility: number;
     presence: number;
     toughness: number;
-  } | null;
-  weapon: { kind: string; damageDie: string } | null;
-  armor: { tier: string } | null;
-  inventory: Array<{
-    id: string;
-    description: string;
-    isBulky: boolean;
-    quantity: number;
-  }>;
-
-  // Actions
-  setCharacter: (data: CharacterData) => void;
-  updateFromSse: (update: CharacterSsePayload) => void;
-  reset: () => void;
+  };
+  weapon: string | null;
+  armor: string | null;
+  inventory: string[];
 }
+
+// Added to SessionState:
+characterData: CharacterData | null;
+drawerOpen: boolean;
+toggleDrawer: () => void;
+setCharacterData: (data: CharacterData) => void;
 ```
 
-### Pattern 2: Drawer Overlay with CSS Transitions
-**What:** The character sheet uses a fixed-position overlay that slides in from the right, using CSS `transform` and `transition` for smooth animation. A semi-transparent backdrop dismisses on click.
-**When to use:** D-01 mandates overlay/drawer pattern.
-**Example:**
+Use granular selectors following established pattern:
 ```typescript
-// Drawer container with translate-x transition
-<div className={`fixed inset-y-0 right-0 z-50 w-80 bg-doom-dark border-l border-doom-card
-  transform transition-transform duration-300 ease-in-out
-  ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-  {/* Character sheet content */}
-</div>
-// Backdrop
-{isOpen && (
-  <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-)}
+const characterData = useSessionStore((s) => s.characterData);
+const drawerOpen = useSessionStore((s) => s.drawerOpen);
 ```
 
-### Pattern 3: Load-More Prepend with Scroll Position Preservation
-**What:** When "Load earlier messages" is clicked, older messages are prepended to the list. The scroll position must be preserved so the user stays at the same message they were reading, not jumped to the top.
-**When to use:** D-04 mandates explicit load-more button.
-**Example:**
-```typescript
-// Before prepending, capture scroll height
-const prevScrollHeight = containerRef.current.scrollHeight;
+### Pattern 2: Message Pagination (Prepend Pattern)
+**What:** LoadMoreButton calls API, prepends older messages to the store array while preserving scroll position.
+**When to use:** User clicks "Load earlier messages" at top of chat.
 
-// After new messages render, restore position
-requestAnimationFrame(() => {
-  const newScrollHeight = containerRef.current.scrollHeight;
-  containerRef.current.scrollTop = newScrollHeight - prevScrollHeight;
-});
-```
+Key considerations:
+- Backend `GET /sessions/{id}/messages?page=N&pageSize=20` returns paginated messages with `totalMessages` count
+- Current `setSession()` replaces all messages; need a new `prependMessages(messages: ChatMessageDto[])` action
+- Scroll position preservation: capture `scrollHeight` before prepend, restore after DOM update using `useLayoutEffect` or `requestAnimationFrame`
+- Track pagination state: `currentPage`, `totalMessages`, `hasMoreMessages` in the store
+- Default `pageSize` is 50 on backend; UI-SPEC says 20 per page -- pass `pageSize=20` in API call
 
-### Pattern 4: Conditional Header Elements with Status-Driven Transitions
-**What:** Header HP indicator and character sheet button only appear when session status is `in-progress`. They fade in using CSS transition on opacity/transform when the status changes from `character-creation`.
-**When to use:** D-05 mandates subtle transition.
-**Example:**
-```typescript
-// In Header, conditionally render gameplay elements
-const status = useSessionStore((s) => s.status);
-const showGameplayUI = status === 'in-progress';
+Backend pagination note: The `GetSessionMessages` endpoint loads ALL chat history into memory then paginates in-memory with `Skip/Take`. This works for v1 session sizes but is not ideal. No change needed now.
 
-<div className={`flex items-center gap-2 transition-opacity duration-500
-  ${showGameplayUI ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-  <HpIndicator />
-  <CharacterSheetButton onClick={() => setDrawerOpen(true)} />
-</div>
-```
+### Pattern 3: Drawer Overlay with Focus Trap
+**What:** Full-height right-edge drawer with backdrop, keyboard dismiss, and focus cycling.
+**When to use:** User clicks CharacterDrawerToggle in header.
+
+Implementation approach:
+- CSS `translate-x-full` / `translate-x-0` transition with `duration-200 ease-out`
+- Backdrop: fixed div with `bg-doom-black/60`, click to close
+- Focus trap: `useEffect` on open that captures `document.activeElement`, adds keydown listener for Tab cycling and Escape close, restores focus on close
+- ARIA: `role="dialog"`, `aria-modal="true"`, `aria-label="Character sheet"`
+- Z-index: `z-50` (matches grain texture, but grain is `pointer-events:none` so no conflict)
+
+### Pattern 4: Gameplay Mode Transition
+**What:** When `state_update` SSE event changes status from `character-creation` to `in-progress`, header HP indicator fades in and input placeholder changes.
+**When to use:** Automatic on status change.
+
+- CharacterDrawerToggle: conditionally render with `opacity-0 -> opacity-100` CSS transition keyed on `status === 'in-progress'`
+- ChatInput: receive status as prop or read from store, switch placeholder text
+- No interstitial, no modal -- transition is narrator-driven per D-05
 
 ### Anti-Patterns to Avoid
-- **Fetching character on drawer open:** D-07 explicitly says "no extra API fetch on open" -- drawer reads from Zustand store populated by SSE events.
-- **Re-rendering entire chat on HP change:** Character data MUST be in a separate store or separate selectors. HP changes every turn; chat messages should not re-render.
-- **Infinite scroll for history:** D-04 explicitly rejects this. Use load-more button only.
-- **Toast/popup on state changes:** D-06 explicitly says silent updates. No notifications for HP changes.
+- **Fetching character data on drawer open:** Per D-07, drawer reads from store. Never make an API call when opening the drawer.
+- **Re-rendering entire message list on character data change:** Use granular Zustand selectors. Character data and messages must be independent slices.
+- **Infinite scroll for message history:** Per D-04, use explicit load-more button only. No intersection observer, no scroll-triggered loading.
+- **Toast/flash on state update:** Per D-06, state changes are silent. The narrator text describes what happened.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Scroll position preservation | Custom scroll manager with MutationObserver | `requestAnimationFrame` + `scrollHeight` delta approach | Simple, reliable, no external dependency needed |
-| Drawer animation | Custom JS animation loop | CSS `transform` + `transition` | Hardware-accelerated, no JS overhead, matches project's Tailwind approach |
-| SSE event routing | Custom event bus | Direct Zustand store updates in `useSseStream` switch | Pattern already established, consistent with existing code |
+| Scroll position preservation on prepend | Custom scroll management library | `scrollTop += newScrollHeight - oldScrollHeight` pattern after DOM mutation | Simple arithmetic; libraries add unnecessary abstraction |
+| SSE event parsing | Custom EventSource wrapper | Existing `@microsoft/fetch-event-source` + `useSseStream` hook | Already working, battle-tested in Phase 4 |
+
+**Key insight:** Phase 5 is almost entirely frontend extension work building on existing infrastructure. The only backend change is enriching the `state_update` SSE payload.
 
 ## Common Pitfalls
 
-### Pitfall 1: State Update Payload Gap
-**What goes wrong:** The backend `state_update` SSE event currently only sends `campaignId`, `currentDay`, `currentHour`, `characterId`, `characterHp`, `characterMaxHp`, `miseryCount`, `status`. It does NOT send abilities, inventory, weapon, or armor data.
-**Why it happens:** The original implementation was minimal -- just enough for Phase 4's status tracking.
-**How to avoid:** Backend must be modified in `GameSessionService.ExecuteAgentTurnAsync` to include character abilities, weapon, armor, and inventory in the `state_update` payload. This is a backend change that must happen before frontend can implement D-07.
-**Warning signs:** Character drawer shows stale data or requires extra API calls.
+### Pitfall 1: Backend state_update Payload is Incomplete
+**What goes wrong:** The frontend expects character name, abilities, inventory, weapon, and armor in `state_update` events, but the backend currently only sends `campaignId`, `currentDay`, `currentHour`, `characterId`, `characterHp`, `characterMaxHp`, `miseryCount`, `status`.
+**Why it happens:** Phase 3 backend was built for campaign state tracking, not character sheet display.
+**How to avoid:** Enrich the `state_update` payload in `GameSessionService.ExecuteAgentTurnAsync` (lines 160-191) to include character abilities, inventory items, weapon name, and armor name after loading the character entity. Also update the `StateUpdateEvent` TypeScript type.
+**Warning signs:** Character drawer shows null/empty data despite SSE events arriving.
 
-### Pitfall 2: No Character GET Endpoint
-**What goes wrong:** On initial session load (page refresh, returning to session), there's no way to fetch current character state. The `SessionDetailDto` only has `characterName`, `currentHp`, `maxHp` but NOT abilities, inventory, weapon, or armor.
-**Why it happens:** Session detail was designed for the session list, not for the gameplay character sheet.
-**How to avoid:** Add `GET /sessions/{id}/character` endpoint that returns full character data (name, HP, abilities, weapon, armor, inventory). Load this on session mount to populate the characterStore before any SSE events arrive.
-**Warning signs:** Character drawer is empty on first load until player takes their first action and receives a state_update.
+### Pitfall 2: SessionDetailDto Lacks Character Data for Initial Load
+**What goes wrong:** When loading an existing `in-progress` session, the frontend needs character data immediately to populate the drawer, but `SessionDetailDto` only has top-level campaign fields -- no character abilities, inventory, or equipment.
+**Why it happens:** The detail endpoint was designed for session overview, not full character display.
+**How to avoid:** Either (a) enrich `SessionDetailDto` with character data fields, or (b) add a `GET /sessions/{id}/character` endpoint, or (c) rely on the first action's `state_update` event. Option (a) is simplest and aligns with D-07 ("no extra API fetch on open"). Add character fields to the response of `GetSessionDetail`.
+**Warning signs:** Drawer is empty on page load until the player takes their first action.
 
-### Pitfall 3: Scroll Jump on Message Prepend
-**What goes wrong:** When loading older messages and prepending them to the DOM, the scroll position jumps to show the newly added content at the top instead of keeping the user at their current position.
-**Why it happens:** Adding DOM elements above the current scroll position increases scrollHeight, but scrollTop stays the same, so the viewport shifts.
-**How to avoid:** Capture `scrollHeight` before prepend, then after React renders the new messages, set `scrollTop = newScrollHeight - prevScrollHeight`.
-**Warning signs:** User reports being "thrown to the top" when clicking Load More.
+### Pitfall 3: Scroll Position Jump on Message Prepend
+**What goes wrong:** When older messages are prepended to the top of the list, the scroll position jumps to the top or shifts unexpectedly, disorienting the user.
+**Why it happens:** Browser recalculates scroll position when DOM content is inserted above the current viewport.
+**How to avoid:** Capture `containerRef.scrollHeight` before prepend, then after DOM update set `containerRef.scrollTop += containerRef.scrollHeight - previousScrollHeight`. Use `requestAnimationFrame` or `useLayoutEffect` to ensure measurement happens after render.
+**Warning signs:** Chat jumps to top after clicking "Load earlier messages".
 
-### Pitfall 4: Message Page Number Off-By-One
-**What goes wrong:** The backend uses 1-based page numbering (`page=1` is the most recent). Loading "earlier" messages means incrementing the page number. But the initial session load already fetches page 1, so load-more should start at page 2.
-**Why it happens:** Confusion between "newest first" vs "oldest first" pagination and which page was already fetched.
-**How to avoid:** Track `nextPage` in sessionStore, initialize to 2 after initial load. Also track `hasMoreMessages` by comparing `totalMessages` with loaded count.
-**Warning signs:** Duplicate messages appearing, or first load-more returning the same messages.
+### Pitfall 4: Pagination Page Numbering Mismatch
+**What goes wrong:** Frontend requests page 2 but gets the wrong set of messages because page 1 was loaded with different `pageSize`.
+**Why it happens:** Backend `GetSessionMessages` uses `page` and `pageSize` parameters. `GetSessionDetail` defaults to `pageSize=50`, but UI-SPEC says 20 per load-more page.
+**How to avoid:** On initial load, `GetSessionDetail` loads the latest page (page 1, pageSize 50). For load-more, use `GetSessionMessages` with `pageSize=20`. These are different endpoints with independent pagination. Calculate the correct page number based on `totalMessages` and messages already loaded, or switch to cursor/offset-based pagination.
+**Warning signs:** Duplicate messages or gaps in history after load-more.
 
-### Pitfall 5: Placeholder Text Not Updating
-**What goes wrong:** ChatInput hardcodes `placeholder="Speak, wretch..."`. When status transitions to `in-progress`, placeholder should change to "What do you do?" per D-05.
-**Why it happens:** ChatInput doesn't currently receive or read session status.
-**How to avoid:** Pass status as a prop to ChatInput (or have it read from sessionStore) and derive placeholder from status.
-**Warning signs:** Placeholder stays "Speak, wretch..." even after character creation is complete.
+### Pitfall 5: Message Order for Pagination
+**What goes wrong:** Backend returns messages in chronological order (oldest first by default), but load-more expects the most recent unseen messages.
+**Why it happens:** Backend uses `Skip/Take` starting from the beginning of the chat history.
+**How to avoid:** For load-more, you need messages BEFORE the currently loaded set. Calculate the correct page: if you have the latest 50 messages out of 120 total, the next load-more should fetch messages 51-70 (from the end). This means requesting the right offset. Consider passing `before` cursor or calculating: `page = Math.ceil((totalMessages - loadedCount) / pageSize)`.
+**Warning signs:** Load-more shows the same messages or messages from the wrong part of history.
+
+### Pitfall 6: Auto-scroll Interference with Load-More
+**What goes wrong:** The existing `useAutoScroll` hook triggers scrollToBottom after load-more prepends messages, undoing the scroll position preservation.
+**Why it happens:** `useAutoScroll` watches `messages.length` as a dependency and scrolls to bottom on change.
+**How to avoid:** Add a guard: only auto-scroll when messages are appended (new message at end), not prepended (load-more at beginning). Track whether the last change was an append or prepend.
+**Warning signs:** After loading older messages, chat snaps to the bottom.
 
 ## Code Examples
 
-### Backend: Enriched state_update Payload
+### Enriched state_update Backend Payload
 ```csharp
-// In GameSessionService.ExecuteAgentTurnAsync, replace the current state_update write:
+// In GameSessionService.ExecuteAgentTurnAsync, after loading character:
 writer.TryWrite(new SseEvent("state_update", new
 {
     campaignId = updatedCampaign.Id,
     currentDay = updatedCampaign.CurrentDay,
     currentHour = updatedCampaign.CurrentHour,
-    characterId,
-    characterHp,
-    characterMaxHp,
-    miseryCount = updatedCampaign.Miseries.Count,
-    status = DeriveStatus(updatedCampaign),
-    // NEW: Full character data for frontend drawer
+    characterId = character?.Id,
     characterName = character?.Name,
-    abilities = character is not null ? new
-    {
-        strength = character.Abilities.Strength.Modifier,
-        agility = character.Abilities.Agility.Modifier,
-        presence = character.Abilities.Presence.Modifier,
-        toughness = character.Abilities.Toughness.Modifier
-    } : null,
-    weapon = character?.Weapon is not null ? new
-    {
-        kind = character.Weapon.Kind.ToString(),
-        damageDie = character.Weapon.DamageDie.ToString()
-    } : null,
-    armor = character?.Armor is not null ? new
-    {
-        tier = character.Armor.Tier.GetType().Name.Replace("ArmorTier", "")
-    } : null,
-    inventory = character?.Inventory?.InventoryItems?.Select(i => new
-    {
-        id = i.Id,
-        description = i.Description,
-        isBulky = i.IsBulky,
-        quantity = i.Quantity
-    }).ToArray()
+    characterHp = character?.Hp.Current,
+    characterMaxHp = character?.Hp.Max,
+    characterStrength = character?.Abilities.Strength.Modifier,
+    characterAgility = character?.Abilities.Agility.Modifier,
+    characterPresence = character?.Abilities.Presence.Modifier,
+    characterToughness = character?.Abilities.Toughness.Modifier,
+    characterWeapon = character?.Weapon?.Name,
+    characterArmor = character?.Armor?.Name,
+    characterInventory = character?.Inventory.InventoryItems
+        .Select(i => i.Description).ToArray(),
+    miseryCount = updatedCampaign.Miseries.Count,
+    status = DeriveStatus(updatedCampaign)
 }));
 ```
 
-### Backend: Character GET Endpoint
-```csharp
-// In SessionEndpoints.cs, add to the group:
-group.MapGet("/{sessionId:guid}/character", GetCharacter);
-
-// Handler:
-private static async Task<IResult> GetCharacter(
-    Guid sessionId,
-    HttpContext http,
-    ICampaignsRepository campaignsRepo,
-    ICharactersRepository charactersRepo)
-{
-    var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
-
-    var campaign = await campaignsRepo.GetByOwner(sessionId, userId);
-    if (campaign is null) return Results.NotFound();
-
-    var playerId = campaign.Players.FirstOrDefault();
-    if (playerId == Guid.Empty) return Results.NotFound();
-
-    var character = await charactersRepo.Get(playerId);
-    if (character is null) return Results.NotFound();
-
-    return Results.Ok(new {
-        characterId = character.Id,
-        name = character.Name,
-        currentHp = character.Hp.Current,
-        maxHp = character.Hp.Max,
-        abilities = new {
-            strength = character.Abilities.Strength.Modifier,
-            agility = character.Abilities.Agility.Modifier,
-            presence = character.Abilities.Presence.Modifier,
-            toughness = character.Abilities.Toughness.Modifier
-        },
-        weapon = new {
-            kind = character.Weapon.Kind.ToString(),
-            damageDie = character.Weapon.DamageDie.ToString()
-        },
-        armor = new {
-            tier = character.Armor.Tier.GetType().Name.Replace("ArmorTier", "")
-        },
-        inventory = character.Inventory.InventoryItems.Select(i => new {
-            id = i.Id,
-            description = i.Description,
-            isBulky = i.IsBulky,
-            quantity = i.Quantity
-        }).ToArray()
-    });
-}
-```
-
-### Frontend: Extended StateUpdateEvent Type
+### Updated StateUpdateEvent TypeScript Type
 ```typescript
-// In types/api.ts
 export interface StateUpdateEvent {
   campaignId: string;
   currentDay: number;
   currentHour: number;
   characterId?: string;
+  characterName?: string;
   characterHp?: number;
   characterMaxHp?: number;
+  characterStrength?: number;
+  characterAgility?: number;
+  characterPresence?: number;
+  characterToughness?: number;
+  characterWeapon?: string | null;
+  characterArmor?: string | null;
+  characterInventory?: string[];
   miseryCount: number;
   status: "character-creation" | "in-progress" | "ended";
-  // Enriched character data (Phase 5)
-  characterName?: string;
-  abilities?: {
-    strength: number;
-    agility: number;
-    presence: number;
-    toughness: number;
-  };
-  weapon?: { kind: string; damageDie: string };
-  armor?: { tier: string };
-  inventory?: Array<{
-    id: string;
-    description: string;
-    isBulky: boolean;
-    quantity: number;
-  }>;
 }
 ```
 
-### Frontend: Load-More Pagination
+### Store Extension for Character Data
 ```typescript
-// In sessionStore, add pagination state:
-currentPage: number;        // Track which page we're on
-totalMessages: number;      // From API response
-hasMoreMessages: boolean;   // Computed: totalMessages > messages.length
+setStateUpdate: (update: StateUpdateEvent) => {
+  const newState: Partial<SessionState> = { status: update.status };
 
-// Load more action:
-loadMoreMessages: async (sessionId: string) => {
-  const state = get();
-  const nextPage = state.currentPage + 1;
-  const res = await apiFetch(`/sessions/${sessionId}/messages?page=${nextPage}`);
-  const data = await res.json();
-  // Prepend older messages to the front
-  set({
-    messages: [...data.messages.map(toMessage), ...state.messages],
-    currentPage: nextPage,
-    totalMessages: data.totalMessages,
-    hasMoreMessages: /* computed */
+  if (update.characterName && update.characterHp != null) {
+    newState.characterData = {
+      name: update.characterName,
+      currentHp: update.characterHp,
+      maxHp: update.characterMaxHp!,
+      abilities: {
+        strength: update.characterStrength ?? 0,
+        agility: update.characterAgility ?? 0,
+        presence: update.characterPresence ?? 0,
+        toughness: update.characterToughness ?? 0,
+      },
+      weapon: update.characterWeapon ?? null,
+      armor: update.characterArmor ?? null,
+      inventory: update.characterInventory ?? [],
+    };
+  }
+
+  set(newState);
+},
+```
+
+### Scroll Position Preservation on Prepend
+```typescript
+const handleLoadMore = async () => {
+  const container = containerRef.current;
+  if (!container) return;
+
+  const prevScrollHeight = container.scrollHeight;
+
+  // Fetch and prepend messages via store action
+  await loadOlderMessages();
+
+  // Restore scroll position after DOM update
+  requestAnimationFrame(() => {
+    container.scrollTop += container.scrollHeight - prevScrollHeight;
   });
 };
+```
+
+### Focus Trap for Drawer
+```typescript
+useEffect(() => {
+  if (!isOpen) return;
+
+  const previousFocus = document.activeElement as HTMLElement;
+  const drawer = drawerRef.current;
+  if (!drawer) return;
+
+  const focusableElements = drawer.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  const firstFocusable = focusableElements[0];
+  const lastFocusable = focusableElements[focusableElements.length - 1];
+
+  firstFocusable?.focus();
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') { onClose(); return; }
+    if (e.key !== 'Tab') return;
+
+    if (e.shiftKey && document.activeElement === firstFocusable) {
+      e.preventDefault();
+      lastFocusable?.focus();
+    } else if (!e.shiftKey && document.activeElement === lastFocusable) {
+      e.preventDefault();
+      firstFocusable?.focus();
+    }
+  };
+
+  document.addEventListener('keydown', handleKeyDown);
+  return () => {
+    document.removeEventListener('keydown', handleKeyDown);
+    previousFocus?.focus();
+  };
+}, [isOpen, onClose]);
 ```
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Zustand 4 with middleware | Zustand 5 with `create` (no middleware needed for simple stores) | 2024 | Project already on v5 |
-| React 18 useEffect patterns | React 19 `use()` for params unwrap | 2024 | Already using `use(params)` in session page |
-| CSS-in-JS for animations | Tailwind `transition-*` utilities | Ongoing | Matches project style, no runtime cost |
+| Separate character API call on drawer open | SSE-driven store with local reads (D-07) | This phase | Eliminates loading states in drawer; instant open |
+| Infinite scroll for history | Explicit load-more button (D-04) | This phase | Simpler implementation, no scroll-position surprises |
+| Sidebar layout with persistent panel | Overlay drawer (D-01) | This phase | Chat stays full-width; character sheet is secondary |
 
 ## Open Questions
 
-1. **Message ordering: newest-first or oldest-first on initial load?**
-   - What we know: Backend paginates from index 0 (oldest) with skip/take. Page 1 returns the first N messages (oldest), not the most recent.
-   - What's unclear: For gameplay, initial load should show the MOST RECENT messages. The current API returns oldest-first on page 1. Either the API needs a `?order=desc` parameter, or the frontend must calculate the last page number from `totalMessages`.
-   - Recommendation: Modify the backend `GetSessionDetail` to return the LAST page of messages by default (most recent), and include `totalMessages` and `totalPages` in the response so the frontend knows where to paginate backward from. Alternatively, add `?latest=true` parameter.
+1. **Backend Weapon/Armor Name Property**
+   - What we know: `Character.Weapon` is type `Weapon`, `Character.Armor` is type `Armor`. These are domain objects, not simple strings.
+   - What's unclear: Whether `Weapon` and `Armor` have a `Name` property or if we need `Kind.ToString()` or similar.
+   - Recommendation: Check `Weapon.cs` and `Armor.cs` for display-friendly properties. If none exist, use `WeaponKind` or tier name. The planner should investigate these types.
 
-2. **Backend ownership verification for character endpoint**
-   - What we know: `campaignsRepo.GetByOwner(sessionId, userId)` pattern is established for session endpoints.
-   - What's unclear: Whether `GetByOwner` exists or needs to be added vs. using the existing ownership check pattern.
-   - Recommendation: Follow the same ownership pattern as other session endpoints. The existing `Get` + manual ownership check should work.
+2. **SessionDetailDto Character Enrichment**
+   - What we know: Initial page load uses `GetSessionDetail` which returns no character abilities/inventory.
+   - What's unclear: Whether to add character fields to `SessionDetailDto` or create a separate endpoint.
+   - Recommendation: Add character data directly to `SessionDetailDto` (or a nested object). This aligns with D-07 -- no extra API fetch. The `ListSessions` endpoint already loads character name/HP, so the pattern exists.
+
+3. **Pagination Direction**
+   - What we know: Backend returns messages page 1 = oldest first. Load-more needs newest-loaded-so-far going backwards.
+   - What's unclear: Whether to change backend pagination or handle reversal on frontend.
+   - Recommendation: Simplest approach is to compute the correct page number on the frontend. If 120 total messages and 50 loaded (the latest), next load-more should request messages at the right offset. Alternatively, add a `before` parameter to the API.
 
 ## Environment Availability
 
-Step 2.6: SKIPPED (no external dependencies identified -- this phase is purely frontend component work plus backend endpoint additions, using already-installed tools).
+Step 2.6: SKIPPED (no external dependencies identified). Phase 5 is purely code/config changes to existing Next.js frontend and .NET backend.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- **Codebase analysis** -- direct reading of all source files listed in research
-- `wretched-whispers-web/src/stores/sessionStore.ts` -- current store shape and actions
-- `wretched-whispers-web/src/hooks/useSseStream.ts` -- SSE event handling pattern
-- `wretched-whispers-web/src/types/api.ts` -- current DTO types including StateUpdateEvent
-- `WretchedWhispers.Api/Services/GameSessionService.cs` -- actual state_update payload (lines 180-190)
-- `WretchedWhispers.Api/Endpoints/SessionEndpoints.cs` -- existing pagination endpoints
-- `WretchedWhispers.Core/Characters/Character.cs` -- full character domain model
+- Direct codebase inspection of all relevant source files
+- `GameSessionService.cs` lines 160-191 -- current `state_update` payload shape
+- `SessionEndpoints.cs` -- pagination endpoints and their signatures
+- `sessionStore.ts` -- current store shape and actions
+- `useSseStream.ts` -- current SSE event handling
+- `Character.cs` -- domain entity with full property list
+- `05-UI-SPEC.md` -- complete visual and interaction contracts
+- `05-CONTEXT.md` -- locked user decisions
 
 ### Secondary (MEDIUM confidence)
-- Zustand v5 patterns based on project's existing usage (authStore, sessionStore)
-- CSS transition patterns based on Tailwind v4 utilities already in project
+- React 19 focus trap patterns -- based on standard DOM APIs, well-established
+- Scroll position preservation technique -- widely documented browser behavior
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH -- all libraries already in project, no new deps
-- Architecture: HIGH -- patterns directly derived from existing codebase conventions
-- Pitfalls: HIGH -- gaps identified by reading actual backend code (state_update payload, missing character endpoint)
-- Backend changes: HIGH -- specific code locations and shapes identified from source
+- Standard stack: HIGH -- all libraries already installed and in use
+- Architecture: HIGH -- extending existing patterns with clear UI-SPEC contracts
+- Pitfalls: HIGH -- identified through direct code inspection of backend payload gaps and pagination mechanics
 
-**Research date:** 2026-03-23
-**Valid until:** 2026-04-23 (stable -- no external dependency changes expected)
+**Research date:** 2026-03-24
+**Valid until:** 2026-04-24 (stable -- extending existing codebase with no external dependencies)

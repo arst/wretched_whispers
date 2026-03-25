@@ -109,9 +109,9 @@ public sealed class Campaign
 
     [JsonInclude] public Guid Id { get; private set; }
 
-    public string Name { get; }
+    public string Name { get; private set; }
 
-    public string Description { get; }
+    public string Description { get; private set; }
 
     [JsonInclude] public int CurrentDay { get; private set; }
 
@@ -121,13 +121,15 @@ public sealed class Campaign
 
     [JsonInclude] internal List<Guid> Characters { get; }
 
-    [JsonInclude] internal DiceExpr DawnDice { get; }
+    [JsonInclude] internal DiceExpr DawnDice { get; private set; }
 
     [JsonInclude] internal List<Guid> Encounters { get; }
 
     [JsonInclude] internal bool IsStarted { get; private set; }
 
-    [JsonInclude] internal bool IsEnded { get; private set; }
+    [JsonInclude] public bool IsEnded { get; private set; }
+
+    [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
     [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calendar.Miseries;
 
@@ -148,6 +150,15 @@ public sealed class Campaign
         }
 
         return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calendar.WorldEnded, false);
+    }
+
+    public void Configure(DiceExpr dawnDice, string name, string description)
+    {
+        if (IsStarted) throw new InvalidOperationException("Cannot configure a campaign that is already started.");
+
+        DawnDice = dawnDice;
+        Name = name;
+        Description = description;
     }
 
     public void JoinGame(Guid characterId)

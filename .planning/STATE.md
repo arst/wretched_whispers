@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 04 — Frontend Foundation and Character Creation
-current_plan: Plan 3 of 3 (complete)
+current_phase: 07
+current_plan: Not started
 status: completed
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-23T11:12:12.599Z"
+stopped_at: Phase 7 context gathered
+last_updated: "2026-03-25T08:15:22.373Z"
 progress:
-  total_phases: 8
-  completed_phases: 6
-  total_plans: 14
-  completed_plans: 14
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 24
+  completed_plans: 24
 ---
 
 # Session State
@@ -23,15 +23,15 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** Phase 04 — Frontend Foundation and Character Creation
-**Current Plan:** Plan 3 of 3 (complete)
-**Status:** Phase Complete
+**Current phase:** 07
+**Current Plan:** Not started
+**Status:** Milestone complete
 
 ## Session Continuity
 
-Last session: 2026-03-23T11:12:12.571Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
+Last session: 2026-03-24T15:58:14.836Z
+Stopped at: Phase 7 context gathered
+Resume file: None
 
 ## Decisions
 
@@ -58,6 +58,16 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 - [Phase 04]: Zustand streamingText isolation pattern: separate field for streaming chunks avoids message list re-renders
 - [Phase 04]: Splash-to-chat transition driven by first narrative SSE event arrival
 - [Phase 04]: Character creation uses identical chat interface as gameplay (no separate UI)
+- [Phase 05]: Focus trap implemented manually (no library) to avoid new dependency
+- [Phase 06]: Campaign.WorldEnded public property exposes Calendar.WorldEnded without InternalsVisibleTo
+- [Phase 06]: DeriveStatus tests verify observable Campaign state rather than private static method
+- [Phase 06]: Lowercase armorTier (none/light/medium/heavy) in SSE/DTO for machine consumption
+- [Phase 06]: End card gated on status===ended && !isStreaming to avoid interrupting narrator farewell
+- [Phase 06]: Apocalypse variant (yellow) takes priority over death (pink) when worldEnded is true
+- [Phase 06]: EndCard handles restart internally via apiFetch + router.push
+- [Phase 07]: Plugin adapter pattern bridges Semantic plugins to Api operation interfaces (cross-project boundary)
+- [Phase 07]: SessionContext built twice per turn: pre-turn for prompt/filtering, post-commit for state_update
+- [Phase 07]: state_update SSE includes both 'stage' (6-state) and 'status' (legacy 3-state) for backward compat
 
 ## Performance Metrics
 
@@ -70,6 +80,10 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 | 04    | 01   | 6min     | 3     | 19    |
 | 04    | 02   | 3min     | 3     | 13    |
 | 04    | 03   | 12min    | 4     | 15    |
+| Phase 05 P02 | 2min | 2 tasks | 8 files |
+| 06    | 01   | 8min     | 2     | 9     |
+| 06    | 03   | 12min    | 3     | 5     |
+| 07    | 03   | 12min    | 2     | 10    |
 
 ## Session Log
 
@@ -82,3 +96,6 @@ Resume file: .planning/phases/05-core-gameplay-interface/05-CONTEXT.md
 - 2026-03-05: Plan 04-01 executed (Next.js scaffold, doom design system, CORS, auth store, API client)
 - 2026-03-05: Plan 04-02 executed (landing page, auth screens, session list, UI primitives, AuthGuard)
 - 2026-03-05: Plan 04-03 executed (chat interface, SSE streaming, character creation flow, doom UI components)
+- 2026-03-24: Plan 06-03 executed (EndCard overlay, session lifecycle, read-only ended sessions, Begin Anew restart)
+- 2026-03-24: Phase 7 added: Deterministic State Machine and Context Injection (plugin calls drive stage transitions, context injection)
+- 2026-03-25: Plan 07-03 executed (NarratorPersona, StagePrompts, PromptComposer, GameSessionService rewrite with wrapper plugins and function filtering)

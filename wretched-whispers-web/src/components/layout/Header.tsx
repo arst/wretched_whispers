@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
 import { logout } from "@/lib/auth";
+import CharacterDrawerToggle from "@/components/character/CharacterDrawerToggle";
 
 export default function Header() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -23,6 +24,7 @@ export default function Header() {
           <div className="w-20 h-4 bg-doom-card animate-pulse rounded" />
         ) : isAuthenticated ? (
           <>
+            <CharacterDrawerToggle />
             <Link
               href="/sessions"
               className="text-doom-bone text-sm uppercase tracking-wider hover:text-doom-yellow transition-colors"

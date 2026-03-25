@@ -6,8 +6,14 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using Polly.Registry;
 using WretchedWhispers.Api.Models;
+using WretchedWhispers.Api.Plugins.CombatAgent;
+using WretchedWhispers.Api.Plugins.GameMasterPlugins;
+using WretchedWhispers.Api.Plugins.GameMasterPlugins.Adapters;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
 
@@ -22,8 +28,11 @@ public sealed class GameSessionService(
     ICampaignsRepository campaignsRepository,
     IChatHistoryRepository chatHistoryRepository,
     ICharactersRepository charactersRepository,
+    IEncountersRepository encountersRepository,
     WretchedWhispersDbContext dbContext,
-    ResiliencePipelineProvider<string> resilienceProvider)
+    ResiliencePipelineProvider<string> resilienceProvider,
+    StagePluginRegistry stagePluginRegistry,
+    PromptComposer promptComposer)
 {
     public async IAsyncEnumerable<SseEvent> ProcessAction(
         Guid sessionId,
@@ -76,9 +85,12 @@ public sealed class GameSessionService(
             // Load existing chat history
             var chatHistory = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? new ChatHistory();
 
-            // Build Kernel per-turn
-            var kernel = BuildKernelForSession();
-            var agent = CreateGameMasterAgent(kernel);
+            // Build SessionContext from loaded state
+            var sessionContext = await BuildSessionContextAsync(sessionId, ct);
+
+            // Build Kernel per-turn with wrapper plugins
+            var kernel = BuildKernelForSession(sessionContext);
+            var stage = sessionContext.DeriveStage();
 
             // Begin a database transaction for transactional buffering
             await dbContext.Database.BeginTransactionAsync(ct);
@@ -91,58 +103,73 @@ public sealed class GameSessionService(
                     new ChatMessageContent(AuthorRole.User, playerMessage),
                     ct);
 
-                // Wrap agent invocation in resilience pipeline
-                var pipeline = resilienceProvider.GetPipeline("llm-retry");
-
                 var fullResponseText = new System.Text.StringBuilder();
-                var toolResults = new List<SseEvent>();
 
-                await pipeline.ExecuteAsync(async token =>
+                if (stage == SessionStage.Combat)
                 {
-                    fullResponseText.Clear();
-                    toolResults.Clear();
+                    // Combat sub-agent resolves the encounter (D-02)
+                    var combatService = new CombatAgentService();
+                    var combatNarrative = await combatService.ResolveCombat(
+                        sessionContext, kernel, stagePluginRegistry, writer, ct);
 
-                    // Create thread and populate from loaded chat history
-                    ChatHistoryAgentThread thread = new(chatHistory);
+                    fullResponseText.Append(combatNarrative);
+                }
+                else
+                {
+                    // Regular game master agent flow
+                    var agent = CreateGameMasterAgent(kernel, sessionContext);
 
-                    var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
+                    // Wrap agent invocation in resilience pipeline
+                    var pipeline = resilienceProvider.GetPipeline("llm-retry");
+                    var toolResults = new List<SseEvent>();
 
-                    // Stream the agent response -- write each chunk to channel immediately
-                    // Filter to only assistant-role content to avoid leaking tool call/result text
-                    await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
+                    await pipeline.ExecuteAsync(async token =>
                     {
-                        if (response.Message.Role is not null && response.Message.Role != AuthorRole.Assistant)
-                            continue;
+                        fullResponseText.Clear();
+                        toolResults.Clear();
 
-                        var content = response.Message.Content;
-                        if (!string.IsNullOrEmpty(content))
-                        {
-                            fullResponseText.Append(content);
-                            writer.TryWrite(new SseEvent("narrative", new { text = content }));
-                        }
-                    }
+                        // Create thread and populate from loaded chat history
+                        ChatHistoryAgentThread thread = new(chatHistory);
 
-                    // After streaming completes, read thread messages for tool results
-                    await foreach (var completed in thread.GetMessagesAsync(token))
-                    {
-                        foreach (var item in completed.Items)
+                        var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
+
+                        // Stream the agent response -- write each chunk to channel immediately
+                        // Filter to only assistant-role content to avoid leaking tool call/result text
+                        await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
                         {
-                            if (item is FunctionResultContent funcResult)
+                            if (response.Message.Role is not null && response.Message.Role != AuthorRole.Assistant)
+                                continue;
+
+                            var content = response.Message.Content;
+                            if (!string.IsNullOrEmpty(content))
                             {
-                                toolResults.Add(new SseEvent("tool_result", new
-                                {
-                                    function = funcResult.FunctionName,
-                                    result = funcResult.Result
-                                }));
+                                fullResponseText.Append(content);
+                                writer.TryWrite(new SseEvent("narrative", new { text = content }));
                             }
                         }
-                    }
-                }, ct);
 
-                // Write tool results after narrative
-                foreach (var toolResult in toolResults)
-                {
-                    writer.TryWrite(toolResult);
+                        // After streaming completes, read thread messages for tool results
+                        await foreach (var completed in thread.GetMessagesAsync(token))
+                        {
+                            foreach (var item in completed.Items)
+                            {
+                                if (item is FunctionResultContent funcResult)
+                                {
+                                    toolResults.Add(new SseEvent("tool_result", new
+                                    {
+                                        function = funcResult.FunctionName,
+                                        result = funcResult.Result
+                                    }));
+                                }
+                            }
+                        }
+                    }, ct);
+
+                    // Write tool results after narrative
+                    foreach (var toolResult in toolResults)
+                    {
+                        writer.TryWrite(toolResult);
+                    }
                 }
 
                 // Save the full assistant response to chat history
@@ -157,23 +184,83 @@ public sealed class GameSessionService(
                 // Commit the database transaction
                 await dbContext.Database.CommitTransactionAsync(ct);
 
+                // Reload state after turn to capture mutations made during the turn
+                var postTurnContext = await BuildSessionContextAsync(sessionId, ct);
+
                 // Build state snapshot from current campaign + character state
-                var updatedCampaign = await campaignsRepository.Get(sessionId);
+                var updatedCampaign = postTurnContext.Campaign;
                 if (updatedCampaign is not null)
                 {
                     var firstPlayerId = updatedCampaign.Players.FirstOrDefault();
                     int? characterHp = null;
                     int? characterMaxHp = null;
                     Guid? characterId = null;
+                    string? characterName = null;
+                    int? characterStrength = null;
+                    int? characterAgility = null;
+                    int? characterPresence = null;
+                    int? characterToughness = null;
+                    string? characterWeapon = null;
+                    string? characterArmor = null;
+                    string[]? characterInventory = null;
+                    bool hasLostEye = false;
+                    bool hasStabbedLung = false;
+                    bool hasBrokenHand = false;
+                    bool hasCrushedFoot = false;
+                    bool hasSeveredArm = false;
+                    bool hasSmashedFace = false;
+                    bool isInfected = false;
+                    bool isDizzyFromMagic = false;
+                    bool isEncumbered = false;
+                    bool isDead = false;
+                    string armorTier = "none";
+                    bool hasShield = false;
+                    bool isShieldBroken = false;
 
                     if (firstPlayerId != Guid.Empty)
                     {
-                        var character = await charactersRepository.Get(firstPlayerId, ct);
+                        var character = postTurnContext.Character;
                         if (character is not null)
                         {
                             characterId = character.Id;
                             characterHp = character.Hp.Current;
                             characterMaxHp = character.Hp.Max;
+                            characterName = character.Name;
+                            characterStrength = character.Abilities.Strength.Modifier;
+                            characterAgility = character.Abilities.Agility.Modifier;
+                            characterPresence = character.Abilities.Presence.Modifier;
+                            characterToughness = character.Abilities.Toughness.Modifier;
+                            characterWeapon = character.Weapon.Kind.ToString();
+                            characterArmor = character.Armor.Tier switch
+                            {
+                                NoArmorTier => "None",
+                                LightArmorTier => "Light Armor",
+                                MediumArmorTier => "Medium Armor",
+                                HeavyArmorTier => "Heavy Armor",
+                                _ => "Unknown"
+                            };
+                            characterInventory = character.Inventory.InventoryItems
+                                .Select(i => i.Description).ToArray();
+                            hasLostEye = character.HasLostEye;
+                            hasStabbedLung = character.HasStabbedLung;
+                            hasBrokenHand = character.HasBrokenHand;
+                            hasCrushedFoot = character.HasCrushedFoot;
+                            hasSeveredArm = character.HasSeveredArm;
+                            hasSmashedFace = character.HasSmashedFace;
+                            isInfected = character.IsInfected;
+                            isDizzyFromMagic = character.IsDizzyFromMagic;
+                            isEncumbered = character.IsEncumbered;
+                            isDead = character.IsDead;
+                            armorTier = character.Armor.Tier switch
+                            {
+                                NoArmorTier => "none",
+                                LightArmorTier => "light",
+                                MediumArmorTier => "medium",
+                                HeavyArmorTier => "heavy",
+                                _ => "none"
+                            };
+                            hasShield = character.Shield is not null;
+                            isShieldBroken = character.Shield?.IsBroken ?? false;
                         }
                     }
 
@@ -183,10 +270,33 @@ public sealed class GameSessionService(
                         currentDay = updatedCampaign.CurrentDay,
                         currentHour = updatedCampaign.CurrentHour,
                         characterId,
+                        characterName,
                         characterHp,
                         characterMaxHp,
+                        characterStrength,
+                        characterAgility,
+                        characterPresence,
+                        characterToughness,
+                        characterWeapon,
+                        characterArmor,
+                        characterInventory,
                         miseryCount = updatedCampaign.Miseries.Count,
-                        status = DeriveStatus(updatedCampaign)
+                        stage = postTurnContext.DeriveStage().ToString().ToLowerInvariant(),
+                        status = DeriveStatus(updatedCampaign),
+                        hasLostEye,
+                        hasStabbedLung,
+                        hasBrokenHand,
+                        hasCrushedFoot,
+                        hasSeveredArm,
+                        hasSmashedFace,
+                        isInfected,
+                        isDizzyFromMagic,
+                        isEncumbered,
+                        isDead,
+                        armorTier,
+                        hasShield,
+                        isShieldBroken,
+                        worldEnded = updatedCampaign.WorldEnded
                     }));
                 }
             }
@@ -225,34 +335,87 @@ public sealed class GameSessionService(
         }
     }
 
-    private Kernel BuildKernelForSession()
+    private async Task<SessionContext> BuildSessionContextAsync(Guid sessionId, CancellationToken ct)
+    {
+        var sessionContext = new SessionContext { SessionId = sessionId };
+
+        // Load campaign
+        var campaign = await campaignsRepository.Get(sessionId);
+        if (campaign is not null)
+        {
+            sessionContext.Campaign = campaign;
+            sessionContext.SetCampaignId(campaign.Id);
+
+            // Load first character if exists
+            var firstPlayerId = campaign.Players.FirstOrDefault();
+            if (firstPlayerId != Guid.Empty)
+            {
+                var character = await charactersRepository.Get(firstPlayerId, ct);
+                if (character is not null)
+                {
+                    sessionContext.Character = character;
+                    sessionContext.SetCharacterId(character.Id);
+                }
+            }
+
+            // Load active encounter (last non-resolved encounter)
+            foreach (var encId in campaign.EncounterIds.Reverse())
+            {
+                var enc = await encountersRepository.Get(encId);
+                if (enc is not null && enc.IsStarted && !enc.IsResolved)
+                {
+                    sessionContext.ActiveEncounter = enc;
+                    sessionContext.SetActiveEncounterId(enc.Id);
+                    break;
+                }
+            }
+        }
+
+        return sessionContext;
+    }
+
+    private Kernel BuildKernelForSession(SessionContext sessionContext)
     {
         var kernelBuilder = Kernel.CreateBuilder();
-
-        var deployment = configuration["AzureOpenAi:ChatModelDeployment"]!;
-        var endpoint = configuration["AzureOpenAi:Endpoint"]!;
-        var apiKey = configuration["AzureOpenAi:ApiKey"]!;
+        var settings = new Settings();
+        var deployment = settings.AzureOpenAi.ChatModelDeployment;
+        var endpoint = settings.AzureOpenAi.Endpoint;
+        var apiKey = settings.AzureOpenAi.ApiKey;
 
         kernelBuilder.AddAzureOpenAIChatCompletion(deployment, endpoint, apiKey);
 
         var kernel = kernelBuilder.Build();
 
-        // Import plugins from scoped container (DI-resolved instances)
-        // This ensures plugins use the request-scoped DbContext
-        var charPlugin = serviceProvider.GetRequiredService<CharacterPlugin>();
-        var campaignPlugin = serviceProvider.GetRequiredService<CampaignPlugin>();
-        var encounterPlugin = serviceProvider.GetRequiredService<EncounterPlugin>();
-        var dicePlugin = serviceProvider.GetRequiredService<DicePlugin>();
+        // Import WRAPPER plugins instead of original plugins (per D-10)
+        // Resolve original plugins from DI and wrap them via adapters
+        var charWrapper = new CharacterWrapperPlugin(
+            new CharacterPluginAdapter(serviceProvider.GetRequiredService<CharacterPlugin>()),
+            sessionContext, campaignsRepository);
+        var campaignWrapper = new CampaignWrapperPlugin(
+            new CampaignPluginAdapter(serviceProvider.GetRequiredService<CampaignPlugin>()),
+            campaignsRepository, sessionContext);
+        var encounterWrapper = new EncounterWrapperPlugin(
+            new EncounterPluginAdapter(serviceProvider.GetRequiredService<EncounterPlugin>()), sessionContext);
+        var diceWrapper = new DiceWrapperPlugin(
+            new DicePluginAdapter(serviceProvider.GetRequiredService<DicePlugin>()));
+        var resolutionWrapper = new ResolutionWrapperPlugin(sessionContext, encountersRepository);
 
-        kernel.ImportPluginFromObject(charPlugin, "Character");
-        kernel.ImportPluginFromObject(campaignPlugin, "Campaign");
-        kernel.ImportPluginFromObject(encounterPlugin, "Encounter");
-        kernel.ImportPluginFromObject(dicePlugin, "Dice");
+        kernel.ImportPluginFromObject(charWrapper, "Character");
+        kernel.ImportPluginFromObject(campaignWrapper, "Campaign");
+        kernel.ImportPluginFromObject(encounterWrapper, "Encounter");
+        kernel.ImportPluginFromObject(diceWrapper, "Dice");
+        kernel.ImportPluginFromObject(resolutionWrapper, "Resolution");
+
+        // Register StageTransitionFilter — stage is LOCKED at turn start, never re-derived mid-turn
+        var stage = sessionContext.DeriveStage();
+        var allowedFunctions = stagePluginRegistry.GetFunctionsForStage(stage, kernel);
+        kernel.AutoFunctionInvocationFilters.Add(new StageTransitionFilter(stage, allowedFunctions));
 
         return kernel;
     }
 
-    private static ChatCompletionAgent CreateGameMasterAgent(Kernel kernel)
+    private ChatCompletionAgent CreateGameMasterAgent(
+        Kernel kernel, SessionContext sessionContext)
     {
         var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
@@ -296,55 +459,20 @@ public sealed class GameSessionService(
                 """
         };
 
+        var stage = sessionContext.DeriveStage();
+        var allowedFunctions = stagePluginRegistry.GetFunctionsForStage(stage, kernel);
+
         return new ChatCompletionAgent
         {
             Name = "Game_Master",
             HistoryReducer = summarizer,
-            Instructions =
-                """
-                You are a Game Master that leads games in the MORK BORG setting. You have all the tools available for you to lead the game, use them to create characters, roll dice, challenge characters, and so on.
-
-                Your GM style should reflect the tone of MORK BORG:
-                - The world is ending. Doom, misery, and decay permeate everything.
-                - The tone is "doom metal": grotesque, unfair, bleak, but laced with dark humor and moments of grim beauty.
-                - Pain, scars, and disfigurement are part of survival. Heroes rarely walk away unscathed -- if they walk away at all.
-                - Describe places as rotting, rusted, broken, or corrupted. Emphasize filth, plague, starvation, desperation, and the oppressive weight of prophecy.
-                - Fortune is fleeting. Rolls swing between great triumph and utter ruin. Lean into both extremes.
-                - Scarcity is real: food, weapons, light, and time are always slipping away.
-                - NPCs are cruel, mad, desperate, or resigned. Adversaries should feel alien, vile, or terrifying.
-
-                Session flow (follow this EXACT order — each step depends on the previous one):
-                1. FIRST, create a character using CreateCharacter function. You MUST have the character ID before proceeding.
-                2. THEN create a Campaign using CreateCampaign function. The campaign should reflect the doomed, collapsing world (examples: plague-ridden villages, ash-covered wastelands, decrepit cathedrals, drowning cities).
-                3. THEN join the character to the campaign using AddCharacterToCampaign function. You need both the character ID from step 1 and the campaign ID from step 2.
-                4. THEN start the campaign using StartCampaign function. The campaign must have at least one character added before it can start.
-                5. Only after the campaign is started, begin by describing what happens: the player wakes in misery, filth, or strange omens. Always establish a grim and oppressive mood.
-                6. If they meet someone dangerous or potentially dangerous, create an encounter using CreateEncounter function.
-                7. Add adversaries to the encounter using AddAdversariesToEncounter function. Adversaries should feel grotesque and threatening, even if weak.
-                8. Start the encounter using StartEncounter function.
-                9. Describe the encounter and what happens: blood, pain, and broken things. Challenge the player or let them attack adversaries; adversaries attack without mercy.
-                10. End the encounter using EndEncounter function when adversaries are no more (no active adversaries in the encounter).
-                11. Generate results of the encounter. Lean into scars, broken bones, permanent consequences, or pyrrhic victories.
-                12. Continue the game until the campaign ends in doom, despair, or some fleeting triumph against the inevitable.
-                13. You can create more encounters, if/when players meet more adversaries.
-                14. After each action that takes players some time (no less than 1 hour), advance campaign time using AdvanceTime function. Time matters: darkness falls, hunger gnaws, omens approach.
-
-                Output rules:
-                - NEVER output raw JSON, function results, IDs, or technical data to the player. The player must only see narrative prose.
-                - When a tool returns data (character stats, campaign info, dice rolls), weave the results into your narration in-character. For example, instead of showing {"Name":"Test","Agility":-1}, say something like "Your wretched body is frail — barely able to swing a blade (Agility -1), though your stubborn will keeps you standing."
-                - GUIDs, object structures, and function names must never appear in your text.
-
-                Tone reminders:
-                - Emphasize inevitability: the world ends soon, and everything the characters do is done against the ticking clock of apocalypse.
-                - Nothing is clean or safe. Even victories carry wounds or curses.
-                - Use vivid, visceral language. Describe smells, sounds, rot, blood, and ruin.
-                - Players should feel both powerless and defiant -- doomed figures raging against the end of all things.
-                """,
+            Instructions = promptComposer.Compose(sessionContext),
             Kernel = kernel,
             Arguments = new KernelArguments(
                 new AzureOpenAIPromptExecutionSettings
                 {
-                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(
+                        functions: allowedFunctions)
                 })
         };
     }
