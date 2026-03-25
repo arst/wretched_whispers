@@ -406,8 +406,10 @@ public sealed class GameSessionService(
         kernel.ImportPluginFromObject(diceWrapper, "Dice");
         kernel.ImportPluginFromObject(resolutionWrapper, "Resolution");
 
-        // Register StageTransitionFilter on the kernel — blocks out-of-stage function calls
-        kernel.AutoFunctionInvocationFilters.Add(new StageTransitionFilter(sessionContext, stagePluginRegistry, kernel));
+        // Register StageTransitionFilter — stage is LOCKED at turn start, never re-derived mid-turn
+        var stage = sessionContext.DeriveStage();
+        var allowedFunctions = stagePluginRegistry.GetFunctionsForStage(stage, kernel);
+        kernel.AutoFunctionInvocationFilters.Add(new StageTransitionFilter(stage, allowedFunctions));
 
         return kernel;
     }

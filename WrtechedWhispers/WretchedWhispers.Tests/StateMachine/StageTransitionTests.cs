@@ -65,12 +65,13 @@ public class StageTransitionTests
     }
 
     [Fact]
-    public async Task StageTransitionFilter_allows_function_in_current_stage()
+    public async Task StageTransitionFilter_allows_function_in_locked_stage()
     {
-        // CharacterCreation stage — CreateCharacter should be allowed
-        var (filter, kernel) = CreateFilterWithKernel();
-
+        var kernel = BuildTestKernel();
         var createCharFunc = kernel.Plugins.GetFunction("Character", "CreateCharacter");
+        var allowedFunctions = new StagePluginRegistry().GetFunctionsForStage(SessionStage.CharacterCreation, kernel);
+
+        var filter = new StageTransitionFilter(SessionStage.CharacterCreation, allowedFunctions);
         var context = CreateContext(kernel, createCharFunc);
 
         var nextCalled = false;
@@ -85,12 +86,14 @@ public class StageTransitionTests
     }
 
     [Fact]
-    public async Task StageTransitionFilter_blocks_function_not_in_current_stage()
+    public async Task StageTransitionFilter_blocks_function_not_in_locked_stage()
     {
-        // CharacterCreation stage — StartCampaign should be blocked
-        var (filter, kernel) = CreateFilterWithKernel();
-
+        var kernel = BuildTestKernel();
         var startCampaignFunc = kernel.Plugins.GetFunction("Campaign", "StartCampaign");
+        // Lock to CharacterCreation — StartCampaign should be blocked
+        var allowedFunctions = new StagePluginRegistry().GetFunctionsForStage(SessionStage.CharacterCreation, kernel);
+
+        var filter = new StageTransitionFilter(SessionStage.CharacterCreation, allowedFunctions);
         var context = CreateContext(kernel, startCampaignFunc);
 
         var nextCalled = false;
@@ -108,9 +111,11 @@ public class StageTransitionTests
     [Fact]
     public async Task StageTransitionFilter_blocks_AdvanceTime_during_CharacterCreation()
     {
-        var (filter, kernel) = CreateFilterWithKernel();
-
+        var kernel = BuildTestKernel();
         var advanceTimeFunc = kernel.Plugins.GetFunction("Campaign", "AdvanceTime");
+        var allowedFunctions = new StagePluginRegistry().GetFunctionsForStage(SessionStage.CharacterCreation, kernel);
+
+        var filter = new StageTransitionFilter(SessionStage.CharacterCreation, allowedFunctions);
         var context = CreateContext(kernel, advanceTimeFunc);
 
         var nextCalled = false;
@@ -124,13 +129,43 @@ public class StageTransitionTests
         Assert.True(context.Terminate);
     }
 
-    private static (StageTransitionFilter filter, Kernel kernel) CreateFilterWithKernel()
+    [Fact]
+    public async Task StageTransitionFilter_stage_stays_locked_regardless_of_state_mutations()
     {
-        var sessionContext = new SessionContext { SessionId = Guid.NewGuid() };
-        // No character → DeriveStage returns CharacterCreation
-        var registry = new StagePluginRegistry();
+        // Even if domain state changes mid-turn, the filter uses the locked stage
+        var kernel = BuildTestKernel();
+        var createCharFunc = kernel.Plugins.GetFunction("Character", "CreateCharacter");
+        var configCampaignFunc = kernel.Plugins.GetFunction("Campaign", "ConfigureCampaign");
+        var allowedFunctions = new StagePluginRegistry().GetFunctionsForStage(SessionStage.CharacterCreation, kernel);
 
+        var filter = new StageTransitionFilter(SessionStage.CharacterCreation, allowedFunctions);
+
+        // First call: CreateCharacter allowed
+        var ctx1 = CreateContext(kernel, createCharFunc);
+        var next1Called = false;
+        await filter.OnAutoFunctionInvocationAsync(ctx1, async ctx =>
+        {
+            next1Called = true;
+            await Task.CompletedTask;
+        });
+        Assert.True(next1Called);
+
+        // Second call: ConfigureCampaign blocked (even though domain state may have changed)
+        var ctx2 = CreateContext(kernel, configCampaignFunc);
+        var next2Called = false;
+        await filter.OnAutoFunctionInvocationAsync(ctx2, async ctx =>
+        {
+            next2Called = true;
+            await Task.CompletedTask;
+        });
+        Assert.False(next2Called, "ConfigureCampaign must be blocked even after CreateCharacter mutates state");
+        Assert.True(ctx2.Terminate);
+    }
+
+    private static Kernel BuildTestKernel()
+    {
         var kernel = new Kernel();
+        var context = new SessionContext();
         var charOps = new Mock<ICharacterOperations>().Object;
         var campOps = new Mock<ICampaignOperations>().Object;
         var campRepo = new Mock<ICampaignsRepository>().Object;
@@ -138,14 +173,13 @@ public class StageTransitionTests
         var encRepo = new Mock<IEncountersRepository>().Object;
         var diceOps = new Mock<IDiceOperations>().Object;
 
-        kernel.ImportPluginFromObject(new CharacterWrapperPlugin(charOps, sessionContext, campRepo), "Character");
-        kernel.ImportPluginFromObject(new CampaignWrapperPlugin(campOps, campRepo, sessionContext), "Campaign");
-        kernel.ImportPluginFromObject(new EncounterWrapperPlugin(encOps, sessionContext), "Encounter");
+        kernel.ImportPluginFromObject(new CharacterWrapperPlugin(charOps, context, campRepo), "Character");
+        kernel.ImportPluginFromObject(new CampaignWrapperPlugin(campOps, campRepo, context), "Campaign");
+        kernel.ImportPluginFromObject(new EncounterWrapperPlugin(encOps, context), "Encounter");
         kernel.ImportPluginFromObject(new DiceWrapperPlugin(diceOps), "Dice");
-        kernel.ImportPluginFromObject(new ResolutionWrapperPlugin(sessionContext, encRepo), "Resolution");
+        kernel.ImportPluginFromObject(new ResolutionWrapperPlugin(context, encRepo), "Resolution");
 
-        var filter = new StageTransitionFilter(sessionContext, registry, kernel);
-        return (filter, kernel);
+        return kernel;
     }
 
     private static AutoFunctionInvocationContext CreateContext(Kernel kernel, KernelFunction function)

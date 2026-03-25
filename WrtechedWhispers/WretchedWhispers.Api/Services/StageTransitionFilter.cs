@@ -4,40 +4,46 @@ using Microsoft.SemanticKernel;
 
 namespace WretchedWhispers.Api.Services;
 
-public sealed class StageTransitionFilter(
-    SessionContext sessionContext,
-    StagePluginRegistry stagePluginRegistry,
-    Kernel kernel) : IAutoFunctionInvocationFilter
+/// <summary>
+/// Enforces stage boundaries during a turn. The stage is locked at construction time
+/// (turn start) and never re-derived — functions outside the initial stage's allowed
+/// set are blocked for the entire turn, preventing runaway multi-stage chains.
+/// </summary>
+public sealed class StageTransitionFilter : IAutoFunctionInvocationFilter
 {
+    private readonly HashSet<(string? Plugin, string Function)> _allowedFunctions;
+    private readonly SessionStage _lockedStage;
+
+    public StageTransitionFilter(
+        SessionStage lockedStage,
+        IReadOnlyList<KernelFunction> allowedFunctions)
+    {
+        _lockedStage = lockedStage;
+        _allowedFunctions = allowedFunctions
+            .Select(f => (f.PluginName, f.Name))
+            .ToHashSet();
+    }
+
     public async Task OnAutoFunctionInvocationAsync(
         AutoFunctionInvocationContext context,
         Func<AutoFunctionInvocationContext, Task> next)
     {
-        // Derive stage from current domain state (reflects mutations from earlier calls in this turn)
-        var currentStage = sessionContext.DeriveStage();
         var pluginName = context.Function.PluginName;
         var functionName = context.Function.Name;
 
-        // Check if this function is allowed in the current stage
-        var allowedFunctions = stagePluginRegistry.GetFunctionsForStage(currentStage, kernel);
-        var isAllowed = allowedFunctions.Any(f =>
-            f.PluginName == pluginName && f.Name == functionName);
-
-        if (!isAllowed)
+        if (!_allowedFunctions.Contains((pluginName, functionName)))
         {
             // Block the call — return a corrective error to steer the model
             context.Result = new FunctionResult(
                 context.Function,
-                $"[BLOCKED] {pluginName}.{functionName} is not available in the {currentStage} stage. " +
-                $"Available functions: {string.Join(", ", allowedFunctions.Select(f => f.Name))}. " +
-                "Please use only the available functions for the current stage.");
+                $"[BLOCKED] {pluginName}.{functionName} is not available in the {_lockedStage} stage. " +
+                "Focus on the current stage's task and respond to the player.");
 
-            // Terminate the auto function invocation loop to prevent further out-of-stage calls
+            // Terminate the auto function invocation loop
             context.Terminate = true;
             return;
         }
 
-        // Function is allowed — execute it
         await next(context);
     }
 }
