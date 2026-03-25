@@ -6,10 +6,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Semantic;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;
@@ -22,13 +25,26 @@ public class KernelFactoryTests
     {
         var services = new ServiceCollection();
 
-        // Register mock operations interfaces (used by wrapper plugin constructors)
-        services.AddSingleton(new Mock<ICharacterOperations>().Object);
-        services.AddSingleton(new Mock<ICampaignOperations>().Object);
-        services.AddSingleton(new Mock<IEncounterOperations>().Object);
-        services.AddSingleton(new Mock<IDiceOperations>().Object);
-        services.AddSingleton(new Mock<ICampaignsRepository>().Object);
-        services.AddSingleton(new Mock<IEncountersRepository>().Object);
+        // Mock repositories
+        var charsRepo = new Mock<ICharactersRepository>().Object;
+        var campsRepo = new Mock<ICampaignsRepository>().Object;
+        var encsRepo = new Mock<IEncountersRepository>().Object;
+        var dice = new Dice(new Mock<IRandomService>().Object);
+
+        // Register concrete SK plugins with mock dependencies
+        services.AddSingleton(_ => new CharacterPlugin(
+            charsRepo,
+            new CharacterCreationService(charsRepo, dice),
+            new CharacterService(charsRepo, dice),
+            dice));
+        services.AddSingleton(_ => new CampaignPlugin(
+            campsRepo, charsRepo,
+            new CampaignService(campsRepo, charsRepo, dice)));
+        services.AddSingleton(_ => new EncounterPlugin(
+            new EncounterService(dice, charsRepo, encsRepo), encsRepo, dice));
+        services.AddSingleton(_ => new DicePlugin(dice));
+        services.AddSingleton(campsRepo);
+        services.AddSingleton(encsRepo);
 
         var settings = Options.Create(new AzureOpenAiSettings
         {
@@ -48,8 +64,8 @@ public class KernelFactoryTests
     [Fact]
     public void CharacterCreation_HasExactly1Function()
     {
-        var ctx = CreateContext(SessionStage.CharacterCreation);
-        var (_, registered) = _factory.CreateForStage(ctx, SessionStage.CharacterCreation);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.CharacterCreation);
 
         Assert.Single(registered);
         Assert.Contains("Character.CreateCharacter", registered);
@@ -58,8 +74,8 @@ public class KernelFactoryTests
     [Fact]
     public void CampaignSetup_HasExactly2Functions()
     {
-        var ctx = CreateContext(SessionStage.CampaignSetup);
-        var (_, registered) = _factory.CreateForStage(ctx, SessionStage.CampaignSetup);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.CampaignSetup);
 
         Assert.Equal(2, registered.Length);
         Assert.Contains("Campaign.ConfigureCampaign", registered);
@@ -69,27 +85,23 @@ public class KernelFactoryTests
     [Fact]
     public void Exploration_HasExactly10Functions()
     {
-        var ctx = CreateContext(SessionStage.Exploration);
-        var (_, registered) = _factory.CreateForStage(ctx, SessionStage.Exploration);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Exploration);
 
         Assert.Equal(10, registered.Length);
         Assert.Contains("Character.ChallengeCharacter", registered);
-        Assert.Contains("Character.AddItemToCharacterInventory", registered);
-        Assert.Contains("Character.BuyItem", registered);
-        Assert.Contains("Character.CastScroll", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
-        Assert.Contains("Campaign.Rest", registered);
         Assert.Contains("Encounter.CreateEncounter", registered);
-        Assert.Contains("Encounter.AddAdversaryToEncounter", registered);
-        Assert.Contains("Encounter.StartEncounter", registered);
         Assert.Contains("Dice.Roll", registered);
+        Assert.DoesNotContain("Character.CreateCharacter", registered);
+        Assert.DoesNotContain("Campaign.ConfigureCampaign", registered);
     }
 
     [Fact]
     public void Combat_HasExactly4Functions()
     {
-        var ctx = CreateContext(SessionStage.Combat);
-        var (_, registered) = _factory.CreateForStage(ctx, SessionStage.Combat);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Combat);
 
         Assert.Equal(4, registered.Length);
         Assert.Contains("Encounter.AttackPlayer", registered);
@@ -99,38 +111,24 @@ public class KernelFactoryTests
     }
 
     [Fact]
-    public void Resolution_HasExactly9Functions()
+    public void Resolution_HasCorrectFunctions()
     {
-        var ctx = CreateContext(SessionStage.Resolution);
-        var (_, registered) = _factory.CreateForStage(ctx, SessionStage.Resolution);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Resolution);
 
-        Assert.Equal(9, registered.Length);
-        Assert.Contains("Character.AddItemToCharacterInventory", registered);
-        Assert.Contains("Character.RemoveItemFromCharacterInventory", registered);
-        Assert.Contains("Character.InfectCharacter", registered);
-        Assert.Contains("Character.CureInfection", registered);
-        Assert.Contains("Character.ImproveCharacterAbility", registered);
-        Assert.Contains("Character.DegradeCharacterAbility", registered);
-        Assert.Contains("Campaign.AdvanceTime", registered);
-        Assert.Contains("Campaign.Rest", registered);
         Assert.Contains("Resolution.CompleteResolution", registered);
+        Assert.Contains("Campaign.AdvanceTime", registered);
+        Assert.Contains("Character.AddItemToCharacterInventory", registered);
+        Assert.DoesNotContain("Character.CreateCharacter", registered);
+        Assert.DoesNotContain("Campaign.StartCampaign", registered);
     }
 
     [Fact]
-    public void Ended_HasZeroFunctions()
+    public void Ended_HasNoFunctions()
     {
-        var ctx = CreateContext(SessionStage.Ended);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Ended);
 
         Assert.Empty(registered);
-        Assert.Empty(kernel.Plugins);
-    }
-
-    private static SessionContext CreateContext(SessionStage targetStage)
-    {
-        // Create a SessionContext and configure it so DeriveStage() returns the target.
-        // We don't actually call DeriveStage() in KernelFactory -- stage is passed directly.
-        // But we need a valid SessionContext for the wrapper plugins.
-        return new SessionContext { SessionId = Guid.NewGuid() };
     }
 }

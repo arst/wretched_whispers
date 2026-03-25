@@ -7,8 +7,10 @@ using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins;
+using WretchedWhispers.Api.Plugins.GameMasterPlugins.Adapters;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Semantic;
 
 namespace WretchedWhispers.Api.Services;
 
@@ -79,20 +81,23 @@ public sealed class KernelFactory(
             return (kernel, []);
         }
 
-        // Build all wrapper plugins (same as GameSessionService.BuildKernelForSession)
-        var charOps = serviceProvider.GetRequiredService<ICharacterOperations>();
-        var campaignOps = serviceProvider.GetRequiredService<ICampaignOperations>();
-        var encounterOps = serviceProvider.GetRequiredService<IEncounterOperations>();
-        var diceOps = serviceProvider.GetRequiredService<IDiceOperations>();
+        // Build wrapper plugins using adapters (resolve original plugins from DI, wrap them)
         var campaignsRepo = serviceProvider.GetRequiredService<ICampaignsRepository>();
         var encountersRepo = serviceProvider.GetRequiredService<IEncountersRepository>();
 
         var wrappers = new Dictionary<string, object>
         {
-            ["Character"] = new CharacterWrapperPlugin(charOps, sessionContext, campaignsRepo),
-            ["Campaign"] = new CampaignWrapperPlugin(campaignOps, campaignsRepo, sessionContext),
-            ["Encounter"] = new EncounterWrapperPlugin(encounterOps, sessionContext),
-            ["Dice"] = new DiceWrapperPlugin(diceOps),
+            ["Character"] = new CharacterWrapperPlugin(
+                new CharacterPluginAdapter(serviceProvider.GetRequiredService<CharacterPlugin>()),
+                sessionContext, campaignsRepo),
+            ["Campaign"] = new CampaignWrapperPlugin(
+                new CampaignPluginAdapter(serviceProvider.GetRequiredService<CampaignPlugin>()),
+                campaignsRepo, sessionContext),
+            ["Encounter"] = new EncounterWrapperPlugin(
+                new EncounterPluginAdapter(serviceProvider.GetRequiredService<EncounterPlugin>()),
+                sessionContext),
+            ["Dice"] = new DiceWrapperPlugin(
+                new DicePluginAdapter(serviceProvider.GetRequiredService<DicePlugin>())),
             ["Resolution"] = new ResolutionWrapperPlugin(sessionContext, encountersRepo)
         };
 
