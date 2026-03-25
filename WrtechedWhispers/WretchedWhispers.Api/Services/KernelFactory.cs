@@ -17,7 +17,7 @@ public sealed class KernelFactory(
     IOptions<AzureOpenAiSettings> azureSettings,
     ILogger<KernelFactory> logger)
 {
-    private static readonly ActivitySource ActivitySource = new("WretchedWhispers.GameTurn");
+    internal static readonly ActivitySource ActivitySource = new("WretchedWhispers.GameTurn");
 
     /// <summary>
     /// Stage -> { "PluginName" -> [ "FunctionName", ... ] }
