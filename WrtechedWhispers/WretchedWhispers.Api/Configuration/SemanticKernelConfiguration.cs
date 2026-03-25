@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Resilience;
 using Polly;
 using Polly.Retry;
+using WretchedWhispers.Api.Models;
+using WretchedWhispers.Api.Plugins.CombatAgent;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Semantic;
 
@@ -15,8 +17,22 @@ public static class SemanticKernelConfiguration
         // Singleton concurrency guard for per-session 409 Conflict
         services.AddSingleton<SessionConcurrencyGuard>();
 
+        // Bind AzureOpenAI settings from configuration
+        services.Configure<AzureOpenAiSettings>(configuration.GetSection("AzureOpenAi"));
+
         // Scoped GameSessionService (builds Kernel per-turn internally)
         services.AddScoped<GameSessionService>();
+
+        // New orchestration services
+        services.AddScoped<TurnCoordinator>();
+        services.AddScoped<SessionContextLoader>();
+        services.AddScoped<KernelFactory>();
+        services.AddScoped<AgentExecutor>();
+        services.AddScoped<CombatAgentService>();
+        services.AddScoped<PromptComposer>();
+
+        // StagePluginRegistry kept until GameSessionService is retired in Task 8
+        services.AddScoped<StagePluginRegistry>();
 
         // Register SK plugins as Scoped so they resolve request-scoped DbContext/repos
         // These are still needed as inner services for wrapper plugins
@@ -24,10 +40,6 @@ public static class SemanticKernelConfiguration
         services.AddScoped<CampaignPlugin>();
         services.AddScoped<EncounterPlugin>();
         services.AddScoped<DicePlugin>();
-
-        // Stage machine services
-        services.AddScoped<StagePluginRegistry>();
-        services.AddScoped<PromptComposer>();
 
         // Resilience pipeline for LLM retry with exponential backoff
         var timeoutSeconds = configuration.GetValue("GameSession:ResponseTimeoutSeconds", 180);

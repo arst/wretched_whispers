@@ -18,6 +18,7 @@ public static class OpenTelemetryConfiguration
             .WithTracing(tracing => tracing
                 .AddAspNetCoreInstrumentation()
                 .AddSource("Microsoft.SemanticKernel*")
+                .AddSource("WretchedWhispers.GameTurn")
                 .AddOtlpExporter()
                 .AddConsoleExporter())
             .WithMetrics(metrics => metrics
