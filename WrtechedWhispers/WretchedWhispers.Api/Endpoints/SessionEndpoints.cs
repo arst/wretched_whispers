@@ -1,11 +1,13 @@
+using System.Net.ServerSentEvents;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using System.Text.Json;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Semantic;
 
 namespace WretchedWhispers.Api.Endpoints;
@@ -36,13 +38,13 @@ public static class SessionEndpoints
         group.MapPost("/{sessionId:guid}/actions", async (
             Guid sessionId,
             PlayerActionRequest request,
-            GameSessionService gameService,
+            TurnCoordinator turnCoordinator,
             SessionConcurrencyGuard guard,
             ICampaignsRepository campaignsRepo,
             HttpContext http,
             CancellationToken ct) =>
         {
-            // Verify ownership before acquiring concurrency lock or setting SSE headers
+            // Verify ownership before acquiring concurrency lock
             var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
                 return Results.Unauthorized();
@@ -52,57 +54,48 @@ public static class SessionEndpoints
             if (!userCampaigns.Any(c => c.Id == sessionId))
                 return Results.NotFound();
 
-            // 409 check BEFORE any response writes (per research Pitfall 6)
+            // 409 check BEFORE any response writes
             if (!await guard.TryAcquire(sessionId))
                 return Results.Conflict(new { error = "GM response already in progress" });
 
-            try
-            {
-
-                // Set SSE headers
-                http.Response.ContentType = "text/event-stream";
-                http.Response.Headers.CacheControl = "no-cache";
-                http.Response.Headers.Connection = "keep-alive";
-
-                await foreach (var sseEvent in gameService.ProcessAction(sessionId, request.Message, ct))
-                {
-                    await http.Response.WriteAsync($"event: {sseEvent.EventType}\n", ct);
-                    await http.Response.WriteAsync($"data: {sseEvent.JsonData}\n\n", ct);
-                    await http.Response.Body.FlushAsync(ct);
-                }
-
-                // Signal stream completion
-                await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
-                await http.Response.Body.FlushAsync(ct);
-                return Results.Empty;
-            }
-            catch (OperationCanceledException)
-            {
-                // Client disconnected -- no error needed, just stop
-                return Results.Empty;
-            }
-            catch (Exception)
-            {
-                // If response has started (headers sent), use SSE error event
-                try
-                {
-                    await http.Response.WriteAsync("event: error\ndata: {\"message\":\"An unexpected error occurred\"}\n\n", ct);
-                    await http.Response.Body.FlushAsync(ct);
-                }
-                catch
-                {
-                    // Response may be closed, swallow
-                }
-
-                return Results.Empty;
-            }
-            finally
-            {
-                guard.Release(sessionId);
-            }
+            return Results.ServerSentEvents(
+                MapToSseItems(
+                    WithGuardRelease(
+                        turnCoordinator.ExecuteTurnAsync(sessionId, request.Message, ct),
+                        guard,
+                        sessionId)));
         });
 
         return app;
+    }
+
+    private static async IAsyncEnumerable<SseItem<string>> MapToSseItems(
+        IAsyncEnumerable<GameTurnEvent> events,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        await foreach (var evt in events.WithCancellation(ct))
+        {
+            var json = JsonSerializer.Serialize<object>(evt, jsonOptions);
+            yield return new SseItem<string>(json, evt.EventType);
+        }
+    }
+
+    private static async IAsyncEnumerable<GameTurnEvent> WithGuardRelease(
+        IAsyncEnumerable<GameTurnEvent> events,
+        SessionConcurrencyGuard guard,
+        Guid sessionId,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        try
+        {
+            await foreach (var evt in events.WithCancellation(ct))
+                yield return evt;
+        }
+        finally
+        {
+            guard.Release(sessionId);
+        }
     }
 
     private static async Task<IResult> CreateSession(
@@ -187,7 +180,7 @@ public static class SessionEndpoints
         Guid sessionId,
         HttpContext http,
         ICampaignsRepository campaignsRepo,
-        ICharactersRepository charactersRepo,
+        SessionContextLoader contextLoader,
         IChatHistoryRepository chatHistoryRepo,
         int page = 1,
         int pageSize = 50)
@@ -226,82 +219,9 @@ public static class SessionEndpoints
             }
         }
 
-        var status = DeriveStatus(campaign);
-
-        // Load character data for enriched DTO
-        string? characterName = null;
-        int? currentHp = null;
-        int? maxHp = null;
-        int? charStrength = null;
-        int? charAgility = null;
-        int? charPresence = null;
-        int? charToughness = null;
-        string? charWeapon = null;
-        string? charArmor = null;
-        string[]? charInventory = null;
-        bool? charHasLostEye = null;
-        bool? charHasStabbedLung = null;
-        bool? charHasBrokenHand = null;
-        bool? charHasCrushedFoot = null;
-        bool? charHasSeveredArm = null;
-        bool? charHasSmashedFace = null;
-        bool? charIsInfected = null;
-        bool? charIsDizzyFromMagic = null;
-        bool? charIsEncumbered = null;
-        bool? charIsDead = null;
-        string? charArmorTier = null;
-        bool? charHasShield = null;
-        bool? charIsShieldBroken = null;
-        bool? worldEnded = null;
-
-        var firstPlayerId = campaign.Players.FirstOrDefault();
-        if (firstPlayerId != Guid.Empty)
-        {
-            var character = await charactersRepo.Get(firstPlayerId);
-            if (character is not null)
-            {
-                characterName = character.Name;
-                currentHp = character.Hp.Current;
-                maxHp = character.Hp.Max;
-                charStrength = character.Abilities.Strength.Modifier;
-                charAgility = character.Abilities.Agility.Modifier;
-                charPresence = character.Abilities.Presence.Modifier;
-                charToughness = character.Abilities.Toughness.Modifier;
-                charWeapon = character.Weapon.Kind.ToString();
-                charArmor = character.Armor.Tier switch
-                {
-                    NoArmorTier => "None",
-                    LightArmorTier => "Light Armor",
-                    MediumArmorTier => "Medium Armor",
-                    HeavyArmorTier => "Heavy Armor",
-                    _ => "Unknown"
-                };
-                charInventory = character.Inventory.InventoryItems
-                    .Select(i => i.Description).ToArray();
-                charHasLostEye = character.HasLostEye;
-                charHasStabbedLung = character.HasStabbedLung;
-                charHasBrokenHand = character.HasBrokenHand;
-                charHasCrushedFoot = character.HasCrushedFoot;
-                charHasSeveredArm = character.HasSeveredArm;
-                charHasSmashedFace = character.HasSmashedFace;
-                charIsInfected = character.IsInfected;
-                charIsDizzyFromMagic = character.IsDizzyFromMagic;
-                charIsEncumbered = character.IsEncumbered;
-                charIsDead = character.IsDead;
-                charArmorTier = character.Armor.Tier switch
-                {
-                    NoArmorTier => "none",
-                    LightArmorTier => "light",
-                    MediumArmorTier => "medium",
-                    HeavyArmorTier => "heavy",
-                    _ => "none"
-                };
-                charHasShield = character.Shield is not null;
-                charIsShieldBroken = character.Shield?.IsBroken ?? false;
-            }
-        }
-
-        worldEnded = campaign.WorldEnded;
+        // Use SessionContextLoader + StateUpdateMapper to derive character/campaign state
+        var context = await contextLoader.LoadAsync(sessionId);
+        var stateUpdate = StateUpdateMapper.Map(context);
 
         return Results.Ok(new SessionDetailDto(
             sessionId,
@@ -310,35 +230,35 @@ public static class SessionEndpoints
             campaign.Description,
             campaign.CurrentDay,
             campaign.CurrentHour,
-            status,
+            stateUpdate.Status,
             messages,
             totalMessages,
             page,
             pageSize,
-            characterName,
-            currentHp,
-            maxHp,
-            charStrength,
-            charAgility,
-            charPresence,
-            charToughness,
-            charWeapon,
-            charArmor,
-            charInventory,
-            charHasLostEye,
-            charHasStabbedLung,
-            charHasBrokenHand,
-            charHasCrushedFoot,
-            charHasSeveredArm,
-            charHasSmashedFace,
-            charIsInfected,
-            charIsDizzyFromMagic,
-            charIsEncumbered,
-            charIsDead,
-            charArmorTier,
-            charHasShield,
-            charIsShieldBroken,
-            worldEnded));
+            stateUpdate.CharacterName,
+            stateUpdate.CharacterHp,
+            stateUpdate.CharacterMaxHp,
+            stateUpdate.CharacterStrength,
+            stateUpdate.CharacterAgility,
+            stateUpdate.CharacterPresence,
+            stateUpdate.CharacterToughness,
+            stateUpdate.CharacterWeapon,
+            stateUpdate.CharacterArmor,
+            stateUpdate.CharacterInventory,
+            stateUpdate.HasLostEye,
+            stateUpdate.HasStabbedLung,
+            stateUpdate.HasBrokenHand,
+            stateUpdate.HasCrushedFoot,
+            stateUpdate.HasSeveredArm,
+            stateUpdate.HasSmashedFace,
+            stateUpdate.IsInfected,
+            stateUpdate.IsDizzyFromMagic,
+            stateUpdate.IsEncumbered,
+            stateUpdate.IsDead,
+            stateUpdate.ArmorTier,
+            stateUpdate.HasShield,
+            stateUpdate.IsShieldBroken,
+            stateUpdate.WorldEnded));
     }
 
     private static async Task<IResult> GetSessionMessages(
