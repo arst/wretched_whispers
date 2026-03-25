@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.SemanticKernel;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Semantic.Models;
 
@@ -11,7 +12,10 @@ namespace WretchedWhispers.Api.Plugins.GameMasterPlugins;
 /// The model never sees GUID parameters -- IDs are resolved from session state.
 /// </summary>
 [Description("Interact with the player character: create, challenge, manage inventory, improve or degrade abilities, handle infection, buy items, and cast scrolls.")]
-public sealed class CharacterWrapperPlugin(ICharacterOperations inner, SessionContext sessionContext)
+public sealed class CharacterWrapperPlugin(
+    ICharacterOperations inner,
+    SessionContext sessionContext,
+    ICampaignsRepository campaignsRepository)
 {
     private Guid RequireCharacterId() =>
         sessionContext.CharacterId
@@ -28,6 +32,19 @@ public sealed class CharacterWrapperPlugin(ICharacterOperations inner, SessionCo
 
         var result = await inner.CreateCharacter(name);
         sessionContext.SetCharacterId(result.Id);
+
+        // Auto-join character to the existing campaign so the stage advances
+        // from CharacterCreation → CampaignSetup on the next turn
+        if (sessionContext.CampaignId is { } campaignId)
+        {
+            var campaign = await campaignsRepository.Get(campaignId);
+            if (campaign is not null)
+            {
+                campaign.JoinGame(result.Id);
+                await campaignsRepository.SaveCampaign(campaign);
+            }
+        }
+
         return result;
     }
 

@@ -24,12 +24,11 @@ public static class StagePrompts
 
     private const string CampaignSetup = """
         A character has been created. Now establish the campaign:
-        1. Create a campaign -- choose a doom-appropriate setting and ask the player which pace they want
-           (d100 very slow to d2 the end is nigh).
-        2. Add the character to the campaign.
-        3. Start the campaign.
-        Narrate each beat: the world they enter, the doom that awaits, the first omens.
-        Use separate tool calls for each step to give narrative space between beats.
+        1. Configure the campaign -- give it a doom-appropriate name and description, and set the dawn roll pace
+           (d100 very slow to d2 the end is nigh). Ask the player which pace they want.
+        2. Start the campaign.
+        The character is already part of the campaign. Narrate the world they enter, the doom that awaits,
+        the first omens. Use separate tool calls for each step to give narrative space between beats.
         """;
 
     private const string Exploration = """

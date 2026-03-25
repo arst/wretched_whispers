@@ -389,9 +389,11 @@ public sealed class GameSessionService(
         // Import WRAPPER plugins instead of original plugins (per D-10)
         // Resolve original plugins from DI and wrap them via adapters
         var charWrapper = new CharacterWrapperPlugin(
-            new CharacterPluginAdapter(serviceProvider.GetRequiredService<CharacterPlugin>()), sessionContext);
+            new CharacterPluginAdapter(serviceProvider.GetRequiredService<CharacterPlugin>()),
+            sessionContext, campaignsRepository);
         var campaignWrapper = new CampaignWrapperPlugin(
-            new CampaignPluginAdapter(serviceProvider.GetRequiredService<CampaignPlugin>()), sessionContext);
+            new CampaignPluginAdapter(serviceProvider.GetRequiredService<CampaignPlugin>()),
+            campaignsRepository, sessionContext);
         var encounterWrapper = new EncounterWrapperPlugin(
             new EncounterPluginAdapter(serviceProvider.GetRequiredService<EncounterPlugin>()), sessionContext);
         var diceWrapper = new DiceWrapperPlugin(

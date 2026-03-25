@@ -16,7 +16,7 @@ public sealed class StagePluginRegistry
                 ("Character", ["CreateCharacter"])),
 
             SessionStage.CampaignSetup => GetFunctions(kernel,
-                ("Campaign", ["CreateCampaign", "AddCharacterToCampaign", "StartCampaign"])),
+                ("Campaign", ["ConfigureCampaign", "StartCampaign"])),
 
             SessionStage.Exploration => GetFunctions(kernel,
                 ("Encounter", ["CreateEncounter", "AddAdversaryToEncounter", "StartEncounter"]),

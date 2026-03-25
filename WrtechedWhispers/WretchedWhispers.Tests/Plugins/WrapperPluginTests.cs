@@ -1,6 +1,7 @@
 using Moq;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Semantic;
@@ -12,22 +13,33 @@ namespace WretchedWhispers.Tests.Plugins;
 public class WrapperPluginTests
 {
     private readonly SessionContext _context = new();
+    private readonly Mock<ICampaignsRepository> _campaignsRepo = new();
 
     // -- CharacterWrapperPlugin --
 
     [Fact]
-    public async Task CreateCharacter_DelegatesToInner_AndSetsCharacterId()
+    public async Task CreateCharacter_DelegatesToInner_SetsCharacterId_AndJoinsCampaign()
     {
         var charId = Guid.NewGuid();
+        var campId = Guid.NewGuid();
+        _context.SetCampaignId(campId);
+
+        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Test", "desc");
+        // Use reflection to set the campaign's Id to match our expected campId
+        typeof(Campaign).GetProperty("Id")!.SetValue(campaign, campId);
+        _campaignsRepo.Setup(r => r.Get(campId)).ReturnsAsync(campaign);
+
         var inner = new Mock<ICharacterOperations>();
         inner.Setup(p => p.CreateCharacter("Gruk"))
             .ReturnsAsync(new CharacterDto { Id = charId, Name = "Gruk", Inventory = new InventoryDto() });
 
-        var wrapper = new CharacterWrapperPlugin(inner.Object, _context);
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
         var result = await wrapper.CreateCharacter("Gruk");
 
         Assert.Equal(charId, result.Id);
         Assert.Equal(charId, _context.CharacterId);
+        Assert.Contains(charId, campaign.Players);
+        _campaignsRepo.Verify(r => r.SaveCampaign(campaign), Times.Once);
     }
 
     [Fact]
@@ -35,7 +47,7 @@ public class WrapperPluginTests
     {
         _context.SetCharacterId(Guid.NewGuid());
         var inner = new Mock<ICharacterOperations>();
-        var wrapper = new CharacterWrapperPlugin(inner.Object, _context);
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => wrapper.CreateCharacter("Gruk"));
@@ -51,7 +63,7 @@ public class WrapperPluginTests
         inner.Setup(p => p.ChallengeCharacter(charId, 12, AbilityKind.Strength))
             .ReturnsAsync(new ChallengeOutcomeDto(true));
 
-        var wrapper = new CharacterWrapperPlugin(inner.Object, _context);
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
         var result = await wrapper.ChallengeCharacter(12, AbilityKind.Strength);
 
         Assert.True(result.IsSuccess);
@@ -62,7 +74,7 @@ public class WrapperPluginTests
     public async Task ChallengeCharacter_Throws_WhenNoCharacter()
     {
         var inner = new Mock<ICharacterOperations>();
-        var wrapper = new CharacterWrapperPlugin(inner.Object, _context);
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => wrapper.ChallengeCharacter(12, AbilityKind.Strength));
@@ -72,57 +84,22 @@ public class WrapperPluginTests
     // -- CampaignWrapperPlugin --
 
     [Fact]
-    public async Task CreateCampaign_DelegatesToInner_AndSetsCampaignId()
+    public async Task ConfigureCampaign_UpdatesExistingCampaign()
     {
         var campId = Guid.NewGuid();
-        var inner = new Mock<ICampaignOperations>();
-        inner.Setup(p => p.CreateCampaign("d6", "Dark", "A dark campaign"))
-            .ReturnsAsync(new CampaignDto(campId, "Dark", "A dark campaign", 1, 0, []));
-
-        var wrapper = new CampaignWrapperPlugin(inner.Object, _context);
-        var result = await wrapper.CreateCampaign("d6", "Dark", "A dark campaign");
-
-        Assert.Equal(campId, result.Id);
-        Assert.Equal(campId, _context.CampaignId);
-    }
-
-    [Fact]
-    public async Task AddCharacterToCampaign_AutoFillsBothIds()
-    {
-        var charId = Guid.NewGuid();
-        var campId = Guid.NewGuid();
-        _context.SetCharacterId(charId);
         _context.SetCampaignId(campId);
+
+        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Default", "default desc");
+        typeof(Campaign).GetProperty("Id")!.SetValue(campaign, campId);
+        _campaignsRepo.Setup(r => r.Get(campId)).ReturnsAsync(campaign);
+
         var inner = new Mock<ICampaignOperations>();
+        var wrapper = new CampaignWrapperPlugin(inner.Object, _campaignsRepo.Object, _context);
+        var result = await wrapper.ConfigureCampaign("d100", "Doom Awaits", "A slow march to annihilation");
 
-        var wrapper = new CampaignWrapperPlugin(inner.Object, _context);
-        await wrapper.AddCharacterToCampaign();
-
-        inner.Verify(p => p.AddCharacterToCampaign(campId, charId), Times.Once);
-    }
-
-    [Fact]
-    public async Task AddCharacterToCampaign_Throws_WhenNoCampaign()
-    {
-        _context.SetCharacterId(Guid.NewGuid());
-        var inner = new Mock<ICampaignOperations>();
-        var wrapper = new CampaignWrapperPlugin(inner.Object, _context);
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => wrapper.AddCharacterToCampaign());
-        Assert.Contains("CreateCampaign", ex.Message);
-    }
-
-    [Fact]
-    public async Task AddCharacterToCampaign_Throws_WhenNoCharacter()
-    {
-        _context.SetCampaignId(Guid.NewGuid());
-        var inner = new Mock<ICampaignOperations>();
-        var wrapper = new CampaignWrapperPlugin(inner.Object, _context);
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => wrapper.AddCharacterToCampaign());
-        Assert.Contains("CreateCharacter", ex.Message);
+        Assert.Equal("Doom Awaits", result.Name);
+        Assert.Equal("A slow march to annihilation", result.Description);
+        _campaignsRepo.Verify(r => r.SaveCampaign(campaign), Times.Once);
     }
 
     [Fact]
@@ -134,7 +111,7 @@ public class WrapperPluginTests
         inner.Setup(p => p.StartCampaign(campId))
             .ReturnsAsync(new CampaignDto(campId, "Dark", "desc", 1, 0, []));
 
-        var wrapper = new CampaignWrapperPlugin(inner.Object, _context);
+        var wrapper = new CampaignWrapperPlugin(inner.Object, _campaignsRepo.Object, _context);
         await wrapper.StartCampaign();
 
         inner.Verify(p => p.StartCampaign(campId), Times.Once);
@@ -149,7 +126,7 @@ public class WrapperPluginTests
         inner.Setup(p => p.AdvanceTime(campId, 6))
             .ReturnsAsync(new AdvanceTimeOutcomeDto([], false, false));
 
-        var wrapper = new CampaignWrapperPlugin(inner.Object, _context);
+        var wrapper = new CampaignWrapperPlugin(inner.Object, _campaignsRepo.Object, _context);
         await wrapper.AdvanceTime(6);
 
         inner.Verify(p => p.AdvanceTime(campId, 6), Times.Once);

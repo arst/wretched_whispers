@@ -2,6 +2,7 @@ using Microsoft.SemanticKernel;
 using Moq;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Campaigns;
 using Xunit;
 
 namespace WretchedWhispers.Tests.StateMachine;
@@ -20,11 +21,12 @@ public class StagePluginRegistryTests
         var context = new SessionContext();
         var charOps = new Mock<ICharacterOperations>().Object;
         var campOps = new Mock<ICampaignOperations>().Object;
+        var campRepo = new Mock<ICampaignsRepository>().Object;
         var encOps = new Mock<IEncounterOperations>().Object;
         var diceOps = new Mock<IDiceOperations>().Object;
 
-        _kernel.ImportPluginFromObject(new CharacterWrapperPlugin(charOps, context), "Character");
-        _kernel.ImportPluginFromObject(new CampaignWrapperPlugin(campOps, context), "Campaign");
+        _kernel.ImportPluginFromObject(new CharacterWrapperPlugin(charOps, context, campRepo), "Character");
+        _kernel.ImportPluginFromObject(new CampaignWrapperPlugin(campOps, campRepo, context), "Campaign");
         _kernel.ImportPluginFromObject(new EncounterWrapperPlugin(encOps, context), "Encounter");
         _kernel.ImportPluginFromObject(new DiceWrapperPlugin(diceOps), "Dice");
         _kernel.ImportPluginFromObject(new ResolutionWrapperPlugin(context), "Resolution");
@@ -40,14 +42,13 @@ public class StagePluginRegistryTests
     }
 
     [Fact]
-    public void CampaignSetup_ReturnsExactlyThreeFunctions()
+    public void CampaignSetup_ReturnsExactlyTwoFunctions()
     {
         var functions = _registry.GetFunctionsForStage(SessionStage.CampaignSetup, _kernel);
 
-        Assert.Equal(3, functions.Count);
+        Assert.Equal(2, functions.Count);
         var names = functions.Select(f => f.Name).ToList();
-        Assert.Contains("CreateCampaign", names);
-        Assert.Contains("AddCharacterToCampaign", names);
+        Assert.Contains("ConfigureCampaign", names);
         Assert.Contains("StartCampaign", names);
     }
 
