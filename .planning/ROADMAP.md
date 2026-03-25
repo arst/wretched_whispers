@@ -143,10 +143,23 @@ Plans:
 - [ ] 06-02-PLAN.md — Frontend mechanical visibility: TypeScript types, Zustand store, MiseryTracker, InjuryBadges, StatusIndicators, enriched ToolResultCallout, EquipmentSlot tier/shield
 - [ ] 06-03-PLAN.md — Session lifecycle: EndCard overlay (death/apocalypse), ChatInput read-only, SessionCard indicator, GameSessionPage integration, visual verification
 
+### Phase 7: Deterministic State Machine and Context Injection
+
+**Goal**: Session stages advance deterministically through plugin tool call side effects, with a session context object injected into model prompts so the AI never manages IDs, state, or transitions directly
+**Requirements**: MORK-01
+**Depends on**: Phase 6
+**Plans:** 4 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — State machine foundation: SessionStage enum, SessionContext with stage derivation, StageTransitions map, StageTransitionFilter, Encounter.IsResolved
+- [ ] 07-02-PLAN.md — Wrapper plugins with ID auto-fill and guardrails, ResolutionWrapperPlugin, StagePluginRegistry per-stage function filtering
+- [ ] 07-03-PLAN.md — Prompt composition (NarratorPersona, StagePrompts, PromptComposer), GameSessionService rewrite with stage machine integration
+- [ ] 07-04-PLAN.md — Combat sub-agent (CombatAgentService, CombatPrompts), GameSessionService combat routing, full gameplay loop verification
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -158,13 +171,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 4. Frontend Foundation and Character Creation | 0/3 | Planned | - |
 | 5. Core Gameplay Interface | 1/3 | In Progress|  |
 | 6. Mechanical Visibility and Session Lifecycle | 0/3 | Planned    |  |
-
-### Phase 7: Deterministic State Machine and Context Injection
-
-**Goal**: Session stages advance deterministically through plugin tool call side effects, with a session context object injected into model prompts so the AI never manages IDs, state, or transitions directly
-**Requirements**: MORK-01
-**Depends on**: Phase 6
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 7 to break down)
+| 7. Deterministic State Machine | 0/4 | Planned | - |
