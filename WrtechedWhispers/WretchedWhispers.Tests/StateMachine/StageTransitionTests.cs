@@ -1,6 +1,10 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Moq;
+using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Encounters;
 using Xunit;
 
 #pragma warning disable SKEXP0001
@@ -61,19 +65,13 @@ public class StageTransitionTests
     }
 
     [Fact]
-    public async Task StageTransitionFilter_calls_next_before_checking_transition()
+    public async Task StageTransitionFilter_allows_function_in_current_stage()
     {
-        var sessionContext = new SessionContext { SessionId = Guid.NewGuid() };
-        var filter = new StageTransitionFilter(sessionContext);
+        // CharacterCreation stage — CreateCharacter should be allowed
+        var (filter, kernel) = CreateFilterWithKernel();
 
-        // Build a kernel function with a known plugin name
-        var kernel = new Kernel();
-        var function = KernelFunctionFactory.CreateFromMethod(() => "result", "TestFunction");
-
-        var chatHistory = new ChatHistory();
-        var chatMessage = new ChatMessageContent(AuthorRole.Assistant, "test");
-        var functionResult = new FunctionResult(function);
-        var context = new AutoFunctionInvocationContext(kernel, function, functionResult, chatHistory, chatMessage);
+        var createCharFunc = kernel.Plugins.GetFunction("Character", "CreateCharacter");
+        var context = CreateContext(kernel, createCharFunc);
 
         var nextCalled = false;
         await filter.OnAutoFunctionInvocationAsync(context, async ctx =>
@@ -82,24 +80,79 @@ public class StageTransitionTests
             await Task.CompletedTask;
         });
 
-        Assert.True(nextCalled, "Filter must call next() before checking transitions");
+        Assert.True(nextCalled, "Filter must call next() for allowed functions");
+        Assert.False(context.Terminate);
     }
 
     [Fact]
-    public async Task StageTransitionFilter_does_not_throw_for_non_transition_function()
+    public async Task StageTransitionFilter_blocks_function_not_in_current_stage()
+    {
+        // CharacterCreation stage — StartCampaign should be blocked
+        var (filter, kernel) = CreateFilterWithKernel();
+
+        var startCampaignFunc = kernel.Plugins.GetFunction("Campaign", "StartCampaign");
+        var context = CreateContext(kernel, startCampaignFunc);
+
+        var nextCalled = false;
+        await filter.OnAutoFunctionInvocationAsync(context, async ctx =>
+        {
+            nextCalled = true;
+            await Task.CompletedTask;
+        });
+
+        Assert.False(nextCalled, "Filter must NOT call next() for blocked functions");
+        Assert.True(context.Terminate);
+        Assert.Contains("[BLOCKED]", context.Result.ToString());
+    }
+
+    [Fact]
+    public async Task StageTransitionFilter_blocks_AdvanceTime_during_CharacterCreation()
+    {
+        var (filter, kernel) = CreateFilterWithKernel();
+
+        var advanceTimeFunc = kernel.Plugins.GetFunction("Campaign", "AdvanceTime");
+        var context = CreateContext(kernel, advanceTimeFunc);
+
+        var nextCalled = false;
+        await filter.OnAutoFunctionInvocationAsync(context, async ctx =>
+        {
+            nextCalled = true;
+            await Task.CompletedTask;
+        });
+
+        Assert.False(nextCalled, "AdvanceTime must be blocked during CharacterCreation");
+        Assert.True(context.Terminate);
+    }
+
+    private static (StageTransitionFilter filter, Kernel kernel) CreateFilterWithKernel()
     {
         var sessionContext = new SessionContext { SessionId = Guid.NewGuid() };
-        var filter = new StageTransitionFilter(sessionContext);
+        // No character → DeriveStage returns CharacterCreation
+        var registry = new StagePluginRegistry();
 
         var kernel = new Kernel();
-        var function = KernelFunctionFactory.CreateFromMethod(() => "result", "SomeFunction");
+        var charOps = new Mock<ICharacterOperations>().Object;
+        var campOps = new Mock<ICampaignOperations>().Object;
+        var campRepo = new Mock<ICampaignsRepository>().Object;
+        var encOps = new Mock<IEncounterOperations>().Object;
+        var encRepo = new Mock<IEncountersRepository>().Object;
+        var diceOps = new Mock<IDiceOperations>().Object;
 
+        kernel.ImportPluginFromObject(new CharacterWrapperPlugin(charOps, sessionContext, campRepo), "Character");
+        kernel.ImportPluginFromObject(new CampaignWrapperPlugin(campOps, campRepo, sessionContext), "Campaign");
+        kernel.ImportPluginFromObject(new EncounterWrapperPlugin(encOps, sessionContext), "Encounter");
+        kernel.ImportPluginFromObject(new DiceWrapperPlugin(diceOps), "Dice");
+        kernel.ImportPluginFromObject(new ResolutionWrapperPlugin(sessionContext, encRepo), "Resolution");
+
+        var filter = new StageTransitionFilter(sessionContext, registry, kernel);
+        return (filter, kernel);
+    }
+
+    private static AutoFunctionInvocationContext CreateContext(Kernel kernel, KernelFunction function)
+    {
         var chatHistory = new ChatHistory();
         var chatMessage = new ChatMessageContent(AuthorRole.Assistant, "test");
         var functionResult = new FunctionResult(function);
-        var context = new AutoFunctionInvocationContext(kernel, function, functionResult, chatHistory, chatMessage);
-
-        // Should complete without throwing
-        await filter.OnAutoFunctionInvocationAsync(context, ctx => Task.CompletedTask);
+        return new AutoFunctionInvocationContext(kernel, function, functionResult, chatHistory, chatMessage);
     }
 }

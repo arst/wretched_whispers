@@ -4,29 +4,40 @@ using Microsoft.SemanticKernel;
 
 namespace WretchedWhispers.Api.Services;
 
-public sealed class StageTransitionFilter(SessionContext sessionContext) : IAutoFunctionInvocationFilter
+public sealed class StageTransitionFilter(
+    SessionContext sessionContext,
+    StagePluginRegistry stagePluginRegistry,
+    Kernel kernel) : IAutoFunctionInvocationFilter
 {
     public async Task OnAutoFunctionInvocationAsync(
         AutoFunctionInvocationContext context,
         Func<AutoFunctionInvocationContext, Task> next)
     {
-        // Execute the function first
-        await next(context);
-
-        // Check if this function call should trigger a stage transition
+        // Derive stage from current domain state (reflects mutations from earlier calls in this turn)
         var currentStage = sessionContext.DeriveStage();
         var pluginName = context.Function.PluginName;
-        if (pluginName is null)
+        var functionName = context.Function.Name;
+
+        // Check if this function is allowed in the current stage
+        var allowedFunctions = stagePluginRegistry.GetFunctionsForStage(currentStage, kernel);
+        var isAllowed = allowedFunctions.Any(f =>
+            f.PluginName == pluginName && f.Name == functionName);
+
+        if (!isAllowed)
+        {
+            // Block the call — return a corrective error to steer the model
+            context.Result = new FunctionResult(
+                context.Function,
+                $"[BLOCKED] {pluginName}.{functionName} is not available in the {currentStage} stage. " +
+                $"Available functions: {string.Join(", ", allowedFunctions.Select(f => f.Name))}. " +
+                "Please use only the available functions for the current stage.");
+
+            // Terminate the auto function invocation loop to prevent further out-of-stage calls
+            context.Terminate = true;
             return;
+        }
 
-        var nextStage = StageTransitions.GetNextStage(
-            currentStage,
-            pluginName,
-            context.Function.Name);
-
-        // Stage transitions are handled by re-deriving from domain state on next turn.
-        // The transition map validates that the function call is a valid transition trigger.
-        // Domain state mutation (by the plugin) is what actually changes the derived stage.
-        // The filter's main role is for logging/telemetry and potential future guardrail logic.
+        // Function is allowed — execute it
+        await next(context);
     }
 }

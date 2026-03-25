@@ -406,8 +406,8 @@ public sealed class GameSessionService(
         kernel.ImportPluginFromObject(diceWrapper, "Dice");
         kernel.ImportPluginFromObject(resolutionWrapper, "Resolution");
 
-        // Register StageTransitionFilter on the kernel
-        kernel.AutoFunctionInvocationFilters.Add(new StageTransitionFilter(sessionContext));
+        // Register StageTransitionFilter on the kernel — blocks out-of-stage function calls
+        kernel.AutoFunctionInvocationFilters.Add(new StageTransitionFilter(sessionContext, stagePluginRegistry, kernel));
 
         return kernel;
     }
