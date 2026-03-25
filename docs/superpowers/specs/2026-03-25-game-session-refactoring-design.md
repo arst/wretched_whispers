@@ -45,11 +45,11 @@ SaveUserMessage → LoadContext → DeriveStage → BuildKernel(stage) → Execu
 - Transaction wrapping (begin/commit/rollback) stays in the coordinator
 - Combat delegation: when stage is Combat, coordinator calls CombatAgentService (which reuses AgentExecutor internally) instead of calling AgentExecutor directly
 - Chat history persistence: coordinator saves user message before agent runs and assistant response after (both within the transaction)
-- `SessionConcurrencyGuard` remains in the endpoint (acquire before calling coordinator, release in finally)
+- `SessionConcurrencyGuard` remains in the endpoint (acquire before coordinator, release via `WithGuardRelease` wrapper on the async enumerable — cannot use try/finally around `Results.ServerSentEvents` because it returns before stream is consumed)
 
 ### 1.3 CombatAgentService
 
-Remains a separate service but reuses `AgentExecutor` for the streaming/tool-result extraction pattern instead of duplicating it. Handles combat-specific logic: iteration loop, encounter end detection, narrative accumulation. Registered in DI (currently instantiated with `new`).
+Remains a separate service with its own streaming loop. Combat has a fundamentally different execution pattern (multi-turn iteration with break conditions on encounter end / character death) that doesn't map to AgentExecutor's single-invocation model. The streaming/tool-result extraction is similar code but the control flow differs enough that forcing delegation would add complexity without reducing duplication. Registered in DI (currently instantiated with `new`).
 
 ### 1.4 Deleted Classes
 
@@ -123,7 +123,7 @@ return Results.ServerSentEvents(
         .Select(evt => SseItem.Create(evt, eventType: evt.EventType)));
 ```
 
-`SessionConcurrencyGuard` is still acquired before calling the coordinator and released in a finally block, same as current.
+`SessionConcurrencyGuard` is acquired before calling the coordinator and released via a `WithGuardRelease` async enumerable wrapper (because `Results.ServerSentEvents` returns before the stream is consumed, a try/finally around the call would release immediately).
 
 ### 3.2 Event Model
 
