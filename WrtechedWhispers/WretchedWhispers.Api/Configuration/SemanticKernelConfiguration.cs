@@ -20,9 +20,6 @@ public static class SemanticKernelConfiguration
         // Bind AzureOpenAI settings from configuration
         services.Configure<AzureOpenAiSettings>(configuration.GetSection("AzureOpenAi"));
 
-        // Scoped GameSessionService (builds Kernel per-turn internally)
-        services.AddScoped<GameSessionService>();
-
         // New orchestration services
         services.AddScoped<TurnCoordinator>();
         services.AddScoped<SessionContextLoader>();
@@ -30,9 +27,6 @@ public static class SemanticKernelConfiguration
         services.AddScoped<AgentExecutor>();
         services.AddScoped<CombatAgentService>();
         services.AddScoped<PromptComposer>();
-
-        // StagePluginRegistry kept until GameSessionService is retired in Task 8
-        services.AddScoped<StagePluginRegistry>();
 
         // Register SK plugins as Scoped so they resolve request-scoped DbContext/repos
         // These are still needed as inner services for wrapper plugins
