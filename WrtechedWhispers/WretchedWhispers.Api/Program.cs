@@ -10,6 +10,9 @@ using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add user secrets from Infrastructure assembly (where AzureOpenAI keys are stored)
+builder.Configuration.AddUserSecrets(typeof(WretchedWhispers.Infrastructure.Settings).Assembly, optional: true);
+
 // CORS: allow Next.js dev server to communicate cross-origin
 builder.Services.AddCors(options =>
 {

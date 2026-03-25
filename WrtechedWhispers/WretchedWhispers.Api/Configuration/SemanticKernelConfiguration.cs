@@ -17,8 +17,8 @@ public static class SemanticKernelConfiguration
         // Singleton concurrency guard for per-session 409 Conflict
         services.AddSingleton<SessionConcurrencyGuard>();
 
-        // Bind AzureOpenAI settings from configuration
-        services.Configure<AzureOpenAiSettings>(configuration.GetSection("AzureOpenAi"));
+        // Bind AzureOpenAI settings — section name matches Settings.AzureOpenAiSettings class name
+        services.Configure<AzureOpenAiSettings>(configuration.GetSection("AzureOpenAiSettings"));
 
         // New orchestration services
         services.AddScoped<TurnCoordinator>();
