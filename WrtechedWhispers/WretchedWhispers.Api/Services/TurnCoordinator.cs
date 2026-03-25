@@ -15,10 +15,10 @@ using WretchedWhispers.Semantic;
 namespace WretchedWhispers.Api.Services;
 
 public sealed class TurnCoordinator(
-    SessionContextLoader contextLoader,
-    KernelFactory kernelFactory,
-    AgentExecutor agentExecutor,
-    CombatAgentService combatAgentService,
+    ISessionContextLoader contextLoader,
+    IKernelFactory kernelFactory,
+    IAgentExecutor agentExecutor,
+    ICombatAgentService combatAgentService,
     IChatHistoryRepository chatHistoryRepository,
     WretchedWhispersDbContext dbContext,
     ILogger<TurnCoordinator> logger)

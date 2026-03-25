@@ -8,7 +8,7 @@ public sealed class SessionContextLoader(
     ICampaignsRepository campaignsRepository,
     ICharactersRepository charactersRepository,
     IEncountersRepository encountersRepository,
-    ILogger<SessionContextLoader> logger)
+    ILogger<SessionContextLoader> logger) : ISessionContextLoader
 {
     public async Task<SessionContext> LoadAsync(Guid sessionId, CancellationToken ct = default)
     {

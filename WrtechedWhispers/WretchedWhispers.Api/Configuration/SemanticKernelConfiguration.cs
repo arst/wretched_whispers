@@ -22,10 +22,10 @@ public static class SemanticKernelConfiguration
 
         // New orchestration services
         services.AddScoped<TurnCoordinator>();
-        services.AddScoped<SessionContextLoader>();
-        services.AddScoped<KernelFactory>();
-        services.AddScoped<AgentExecutor>();
-        services.AddScoped<CombatAgentService>();
+        services.AddScoped<ISessionContextLoader, SessionContextLoader>();
+        services.AddScoped<IKernelFactory, KernelFactory>();
+        services.AddScoped<IAgentExecutor, AgentExecutor>();
+        services.AddScoped<ICombatAgentService, CombatAgentService>();
         services.AddScoped<PromptComposer>();
 
         // Register SK plugins as Scoped so they resolve request-scoped DbContext/repos

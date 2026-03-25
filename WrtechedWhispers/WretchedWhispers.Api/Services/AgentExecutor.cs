@@ -18,7 +18,7 @@ public sealed class AgentExecutor(
     IChatHistoryRepository chatHistoryRepository,
     PromptComposer promptComposer,
     ResiliencePipelineProvider<string> resilienceProvider,
-    ILogger<AgentExecutor> logger)
+    ILogger<AgentExecutor> logger) : IAgentExecutor
 {
     public async IAsyncEnumerable<GameTurnEvent> ExecuteAsync(
         Kernel kernel,

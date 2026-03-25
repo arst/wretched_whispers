@@ -18,7 +18,7 @@ namespace WretchedWhispers.Api.Plugins.CombatAgent;
 /// Domain state is mutated by plugin calls during execution (D-03).
 /// Must be called within the same DI scope/transaction as the game master turn.
 /// </summary>
-public sealed class CombatAgentService(ILogger<CombatAgentService> logger)
+public sealed class CombatAgentService(ILogger<CombatAgentService> logger) : ICombatAgentService
 {
     private const int MaxIterations = 30;
 

@@ -180,7 +180,7 @@ public static class SessionEndpoints
         Guid sessionId,
         HttpContext http,
         ICampaignsRepository campaignsRepo,
-        SessionContextLoader contextLoader,
+        ISessionContextLoader contextLoader,
         IChatHistoryRepository chatHistoryRepo,
         int page = 1,
         int pageSize = 50)

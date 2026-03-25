@@ -15,7 +15,7 @@ namespace WretchedWhispers.Api.Services;
 public sealed class KernelFactory(
     IServiceProvider serviceProvider,
     IOptions<AzureOpenAiSettings> azureSettings,
-    ILogger<KernelFactory> logger)
+    ILogger<KernelFactory> logger) : IKernelFactory
 {
     internal static readonly ActivitySource ActivitySource = new("WretchedWhispers.GameTurn");
 
