@@ -88,7 +88,7 @@ public static class StateUpdateMapper
         else if (campaign.IsActive())
             status = "in-progress";
         else
-            status = "character-creation"; // has players but campaign not started yet
+            status = "in-progress"; // has players, campaign not started yet (setup phase)
 
         return new StateUpdate(
             CampaignId: campaign?.Id,

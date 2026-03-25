@@ -16,10 +16,11 @@ public static class StagePrompts
     };
 
     private const string CharacterCreation = """
-        You are beginning a new session. Create a character using the CreateCharacter tool.
-        Narrate the character's wretched origins as their stats are generated -- describe their scars,
-        their pitiful belongings, their dim hope. Make the player feel the weight of their doomed existence
-        from the very first breath.
+        You are beginning a new session. The player's message is their character's name.
+        IMMEDIATELY call CreateCharacter with that name -- do not ask for the name again.
+        As you narrate, describe the character's wretched origins as their stats are generated --
+        their scars, their pitiful belongings, their dim hope. Make the player feel the weight
+        of their doomed existence from the very first breath.
         """;
 
     private const string CampaignSetup = """
