@@ -4,6 +4,7 @@ using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Semantic;
 using WretchedWhispers.Semantic.Models;
 using Xunit;
@@ -190,21 +191,48 @@ public class WrapperPluginTests
     // -- ResolutionWrapperPlugin --
 
     [Fact]
-    public async Task CompleteResolution_ClearsActiveEncounter()
+    public async Task CompleteResolution_ResolvesEncounterAndClearsContext()
     {
         var encId = Guid.NewGuid();
         _context.SetActiveEncounterId(encId);
 
-        var wrapper = new ResolutionWrapperPlugin(_context);
+        // Create an encounter in ended-but-unresolved state via JSON constructor
+        var encounter = CreateEndedEncounter(encId);
+
+        var encRepo = new Mock<IEncountersRepository>();
+        encRepo.Setup(r => r.Get(encId)).ReturnsAsync(encounter);
+
+        var wrapper = new ResolutionWrapperPlugin(_context, encRepo.Object);
         await wrapper.CompleteResolution();
 
         Assert.Null(_context.ActiveEncounterId);
+        Assert.True(encounter.IsResolved);
+        encRepo.Verify(r => r.Save(encounter), Times.Once);
+    }
+
+    private static Encounter CreateEndedEncounter(Guid id)
+    {
+        // Use JSON round-trip to create encounter in desired state
+        var json = $$"""
+        {
+            "Id": "{{id}}",
+            "InitialType": 0,
+            "Name": "Test",
+            "Description": "test",
+            "Adversaries": [],
+            "IsStarted": true,
+            "IsEnded": true,
+            "IsResolved": false
+        }
+        """;
+        return System.Text.Json.JsonSerializer.Deserialize<Encounter>(json)!;
     }
 
     [Fact]
     public async Task CompleteResolution_Throws_WhenNoActiveEncounter()
     {
-        var wrapper = new ResolutionWrapperPlugin(_context);
+        var encRepo = new Mock<IEncountersRepository>();
+        var wrapper = new ResolutionWrapperPlugin(_context, encRepo.Object);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => wrapper.CompleteResolution());

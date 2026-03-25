@@ -3,6 +3,7 @@ using Moq;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Encounters;
 using Xunit;
 
 namespace WretchedWhispers.Tests.StateMachine;
@@ -29,7 +30,8 @@ public class StagePluginRegistryTests
         _kernel.ImportPluginFromObject(new CampaignWrapperPlugin(campOps, campRepo, context), "Campaign");
         _kernel.ImportPluginFromObject(new EncounterWrapperPlugin(encOps, context), "Encounter");
         _kernel.ImportPluginFromObject(new DiceWrapperPlugin(diceOps), "Dice");
-        _kernel.ImportPluginFromObject(new ResolutionWrapperPlugin(context), "Resolution");
+        var encRepo = new Mock<IEncountersRepository>().Object;
+        _kernel.ImportPluginFromObject(new ResolutionWrapperPlugin(context, encRepo), "Resolution");
     }
 
     [Fact]

@@ -398,7 +398,7 @@ public sealed class GameSessionService(
             new EncounterPluginAdapter(serviceProvider.GetRequiredService<EncounterPlugin>()), sessionContext);
         var diceWrapper = new DiceWrapperPlugin(
             new DicePluginAdapter(serviceProvider.GetRequiredService<DicePlugin>()));
-        var resolutionWrapper = new ResolutionWrapperPlugin(sessionContext);
+        var resolutionWrapper = new ResolutionWrapperPlugin(sessionContext, encountersRepository);
 
         kernel.ImportPluginFromObject(charWrapper, "Character");
         kernel.ImportPluginFromObject(campaignWrapper, "Campaign");
