@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.GameTools;
 using WretchedWhispers.Core.Campaigns;
@@ -11,11 +10,12 @@ using WretchedWhispers.Core.Encounters;
 namespace WretchedWhispers.Api.Services;
 
 /// <summary>
-/// Agent Framework replacement for the former KernelFactory. Instead of building a Semantic Kernel
-/// and importing/removing plugins, it constructs the stage-scoped game-tool classes and exposes their
-/// allowed methods as <see cref="AIFunction"/> tools. The stage allow-list lives in
-/// <see cref="StageToolMap"/>; tool names are the bare method names (unique across tool classes), which
-/// is what the stage prompts reference.
+/// Agent Framework replacement for the former KernelFactory. Constructs the stage-scoped game-tool
+/// classes and exposes their allowed methods as <see cref="AIFunction"/> tools. Which tools a stage
+/// exposes — and the bound <see cref="System.Reflection.MethodInfo"/> for each — comes from
+/// <see cref="GameToolCatalog"/> (derived once from <see cref="GameToolAttribute"/>); this class only
+/// supplies the per-turn instances. Tool names are the bare method names, which is what the stage
+/// prompts reference.
 /// </summary>
 public sealed class AgentToolProvider(
     IServiceProvider serviceProvider,
@@ -30,7 +30,8 @@ public sealed class AgentToolProvider(
         using var activity = ActivitySource.StartActivity("AgentToolProvider.GetToolsForStage");
         activity?.SetTag("session.stage", stage.ToString());
 
-        if (!StageToolMap.Map.TryGetValue(stage, out var allowedPlugins) || allowedPlugins.Count == 0)
+        var descriptors = GameToolCatalog.ForStage(stage);
+        if (descriptors.Count == 0)
         {
             logger.LogInformation("Stage {Stage}: no tools registered", stage);
             return ([], []);
@@ -41,52 +42,42 @@ public sealed class AgentToolProvider(
         var charactersRepo = serviceProvider.GetRequiredService<ICharactersRepository>();
         var dice = serviceProvider.GetRequiredService<Dice>();
 
-        // Game-tool classes auto-fill GUIDs from SessionContext, validate model arguments, and call
-        // the domain directly. Constructed per turn (not DI-registered) because each needs the
-        // turn's SessionContext. EncounterTools also owns the Resolution-stage CompleteResolution
-        // tool, so it is registered under both the "Encounter" and "Resolution" allow-list keys.
-        var encounterTools = new EncounterTools(
-            serviceProvider.GetRequiredService<EncounterService>(),
-            encountersRepo, dice, sessionContext, campaignsRepo);
-
-        var wrappers = new Dictionary<string, object>
+        // Per-turn tool instances, keyed by type so a catalog descriptor binds to the right one. They
+        // are built here (not DI-registered) because each needs the turn's SessionContext. The set of
+        // types must match GameToolCatalog.ToolTypes.
+        var instances = new Dictionary<Type, object>
         {
-            ["Character"] = new CharacterTools(
+            [typeof(CharacterTools)] = new CharacterTools(
                 charactersRepo,
                 serviceProvider.GetRequiredService<CharacterCreationService>(),
                 serviceProvider.GetRequiredService<CharacterService>(),
                 dice, sessionContext, campaignsRepo),
-            ["Campaign"] = new CampaignTools(
+            [typeof(CampaignTools)] = new CampaignTools(
                 campaignsRepo, serviceProvider.GetRequiredService<CampaignService>(), sessionContext),
-            ["Encounter"] = encounterTools,
-            ["Dice"] = new DiceTools(dice),
-            ["Resolution"] = encounterTools
+            [typeof(EncounterTools)] = new EncounterTools(
+                serviceProvider.GetRequiredService<EncounterService>(),
+                encountersRepo, dice, sessionContext, campaignsRepo),
+            [typeof(DiceTools)] = new DiceTools(dice)
         };
 
-        var tools = new List<AIFunction>();
-        var registeredFunctions = new List<string>();
+        var tools = new List<AIFunction>(descriptors.Count);
+        var registeredFunctions = new List<string>(descriptors.Count);
 
-        foreach (var (pluginName, allowedFunctionNames) in allowedPlugins)
+        foreach (var descriptor in descriptors)
         {
-            if (!wrappers.TryGetValue(pluginName, out var wrapper))
-                continue;
-
-            foreach (var functionName in allowedFunctionNames)
+            if (!instances.TryGetValue(descriptor.DeclaringType, out var instance))
             {
-                var method = wrapper.GetType().GetMethod(
-                    functionName, BindingFlags.Public | BindingFlags.Instance);
-                if (method is null)
-                {
-                    logger.LogWarning("Wrapper {Plugin} has no method {Function}", pluginName, functionName);
-                    continue;
-                }
-
-                tools.Add(AIFunctionFactory.Create(method, wrapper, new AIFunctionFactoryOptions
-                {
-                    Name = functionName
-                }));
-                registeredFunctions.Add($"{pluginName}.{functionName}");
+                logger.LogWarning(
+                    "No per-turn instance constructed for tool type {Type}; tool {Tool} skipped",
+                    descriptor.DeclaringType.Name, descriptor.Name);
+                continue;
             }
+
+            tools.Add(AIFunctionFactory.Create(descriptor.Method, instance, new AIFunctionFactoryOptions
+            {
+                Name = descriptor.Name
+            }));
+            registeredFunctions.Add($"{descriptor.Group}.{descriptor.Name}");
         }
 
         var result = registeredFunctions.ToArray();
