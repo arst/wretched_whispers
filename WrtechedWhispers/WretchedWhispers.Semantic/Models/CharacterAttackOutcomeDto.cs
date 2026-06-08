@@ -21,4 +21,10 @@ public record CharacterAttackOutcomeDto(
     bool IsWeaponBroken,
     [property: JsonPropertyName("IsTargetArmorDegraded")]
     [property: Description("Whether the target's armor was degraded by the attack")]
-    bool IsTargetArmorDegraded);
+    bool IsTargetArmorDegraded,
+    [property: JsonPropertyName("BaseDamageRoll")]
+    [property: Description("The raw weapon-die roll before critical doubling and armor (0 on a miss)")]
+    int BaseDamageRoll = 0,
+    [property: JsonPropertyName("DamageReduction")]
+    [property: Description("Damage absorbed by armor. Final DamageDealt = max(0, BaseDamageRoll x (IsCritical ? 2 : 1) - DamageReduction)")]
+    int DamageReduction = 0);

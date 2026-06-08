@@ -7,6 +7,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure;
+using Moq;
 using Xunit;
 // Disambiguate from the sibling test namespace WretchedWhispers.Tests.Characters.Abilities.
 using AbilitySet = WretchedWhispers.Core.Characters.Abilities.Abilities;
@@ -78,5 +79,42 @@ public class AttackHitRateTests
 
         // DR12 at +3: rolls 9-19 hit (11/20) + nat 20 = 12/20 = 60%.
         Assert.InRange(rate, 0.53, 0.67);
+    }
+
+    // Deterministic dice so the damage breakdown is auditable.
+    private static Dice ScriptedDice(params int[] zeroBasedRolls)
+    {
+        var queue = new Queue<int>(zeroBasedRolls);
+        var random = new Mock<IRandomService>();
+        random.Setup(r => r.GenerateRandomRoll(It.IsAny<int>()))
+            .Returns(() => queue.Count > 0 ? queue.Dequeue() : 0);
+        return new Dice(random.Object);
+    }
+
+    [Fact]
+    public void Attack_ExposesDamageBreakdown_OnNonCriticalHit()
+    {
+        // Sword is d6. Creation dice are irrelevant (explicit stats/gear); combat dice are scripted.
+        var hero = CreateHero(new Dice(new SeededRandomService(1)));
+        // d20 -> 15 (hit, no crit), d6 -> 4 (base damage), NoArmor reduction rolls nothing.
+        var outcome = hero.Attack(new Armor(NoArmorTier.Instance), ScriptedDice(14, 3));
+
+        Assert.True(outcome.Hit);
+        Assert.False(outcome.Critical);
+        Assert.Equal(4, outcome.BaseDamageRoll);
+        Assert.Equal(0, outcome.DamageReduction);
+        Assert.Equal(4, outcome.Damage.Amount); // base * 1 - 0
+    }
+
+    [Fact]
+    public void Attack_DoublesBaseRoll_OnCritical()
+    {
+        var hero = CreateHero(new Dice(new SeededRandomService(1)));
+        // d20 -> 20 (natural crit), d6 -> 5 (base damage).
+        var outcome = hero.Attack(new Armor(NoArmorTier.Instance), ScriptedDice(19, 4));
+
+        Assert.True(outcome.Critical);
+        Assert.Equal(5, outcome.BaseDamageRoll);
+        Assert.Equal(10, outcome.Damage.Amount); // base 5 * 2 - 0
     }
 }
