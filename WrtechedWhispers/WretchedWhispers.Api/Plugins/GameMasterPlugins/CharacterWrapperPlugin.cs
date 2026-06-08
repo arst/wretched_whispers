@@ -54,6 +54,7 @@ public sealed class CharacterWrapperPlugin(
         [Description("Ability kind to use: 'Strength', 'Agility', 'Presence', 'Toughness'.")]
         AbilityKind abilityKind)
     {
+        ToolGuard.InRange(challengeDr, 2, 20, nameof(challengeDr), "12 is a normal challenge");
         return await inner.ChallengeCharacter(RequireCharacterId(), challengeDr, abilityKind);
     }
 
@@ -64,6 +65,7 @@ public sealed class CharacterWrapperPlugin(
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
         [Description("Quantity of the item to add")] int quantity = 1)
     {
+        ToolGuard.Quantity(quantity, nameof(quantity));
         return await inner.AddItemToCharacterInventory(RequireCharacterId(), itemDescription, isBulky, isOneTimeUse, quantity);
     }
 
@@ -79,6 +81,7 @@ public sealed class CharacterWrapperPlugin(
         [Description("The ability to improve: 'Strength', 'Agility', 'Presence', 'Toughness'")] AbilityKind abilityKind,
         [Description("The positive amount to improve the ability by")] int delta)
     {
+        ToolGuard.Positive(delta, nameof(delta), "e.g. 1 or 2");
         return await inner.ImproveCharacterAbility(RequireCharacterId(), abilityKind, delta);
     }
 
@@ -87,6 +90,7 @@ public sealed class CharacterWrapperPlugin(
         [Description("The ability to degrade: 'Strength', 'Agility', 'Presence', 'Toughness'")] AbilityKind abilityKind,
         [Description("The negative amount to degrade the ability by")] int delta)
     {
+        ToolGuard.Negative(delta, nameof(delta), "e.g. -1");
         return await inner.DegradeCharacterAbility(RequireCharacterId(), abilityKind, delta);
     }
 
@@ -110,6 +114,8 @@ public sealed class CharacterWrapperPlugin(
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
         [Description("Quantity of the item to buy")] int quantity = 1)
     {
+        ToolGuard.NonNegative(silverCost, nameof(silverCost));
+        ToolGuard.Quantity(quantity, nameof(quantity));
         return await inner.BuyItem(RequireCharacterId(), itemDescription, silverCost, isBulky, isOneTimeUse, quantity);
     }
 

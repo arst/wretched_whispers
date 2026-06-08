@@ -14,6 +14,7 @@ public sealed class DiceWrapperPlugin(IDiceOperations inner)
     public DiceRollResult Roll(
         [Description("Dice expression to roll (e.g., 'd6', '1d8', '1d6+2', '2d10-3')")] string diceExpression)
     {
+        ToolGuard.DiceExpression(diceExpression, nameof(diceExpression));
         return inner.Roll(diceExpression);
     }
 }
