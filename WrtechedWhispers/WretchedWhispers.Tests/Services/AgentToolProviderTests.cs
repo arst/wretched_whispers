@@ -1,11 +1,6 @@
-#pragma warning disable SKEXP0001
-#pragma warning disable SKEXP0110
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
-using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
@@ -17,21 +12,24 @@ using Xunit;
 
 namespace WretchedWhispers.Tests.Services;
 
-public class KernelFactoryTests
+/// <summary>
+/// Verifies the Agent Framework tool provider exposes exactly the stage-scoped tool set
+/// (the registered-function names mirror <see cref="StageToolMap"/>). Replaces the former
+/// KernelFactoryTests after the SK→Agent Framework migration.
+/// </summary>
+public class AgentToolProviderTests
 {
-    private readonly KernelFactory _factory;
+    private readonly AgentToolProvider _provider;
 
-    public KernelFactoryTests()
+    public AgentToolProviderTests()
     {
         var services = new ServiceCollection();
 
-        // Mock repositories
         var charsRepo = new Mock<ICharactersRepository>().Object;
         var campsRepo = new Mock<ICampaignsRepository>().Object;
         var encsRepo = new Mock<IEncountersRepository>().Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
 
-        // Register concrete SK plugins with mock dependencies
         services.AddSingleton(_ => new CharacterPlugin(
             charsRepo,
             new CharacterCreationService(charsRepo, dice),
@@ -46,28 +44,19 @@ public class KernelFactoryTests
         services.AddSingleton(campsRepo);
         services.AddSingleton(encsRepo);
 
-        var settings = Options.Create(new AzureOpenAiSettings
-        {
-            ChatModelDeployment = "test-deployment",
-            Endpoint = "https://test.openai.azure.com/",
-            ApiKey = "test-key"
-        });
-
         var sp = services.BuildServiceProvider();
 
-        _factory = new KernelFactory(
-            sp,
-            settings,
-            NullLogger<KernelFactory>.Instance);
+        _provider = new AgentToolProvider(sp, NullLogger<AgentToolProvider>.Instance);
     }
 
     [Fact]
     public void CharacterCreation_HasExactly1Function()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.CharacterCreation);
+        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
 
         Assert.Single(registered);
+        Assert.Single(tools);
         Assert.Contains("Character.CreateCharacter", registered);
     }
 
@@ -75,9 +64,10 @@ public class KernelFactoryTests
     public void CampaignSetup_HasExactly2Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.CampaignSetup);
+        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.CampaignSetup);
 
         Assert.Equal(2, registered.Length);
+        Assert.Equal(2, tools.Count);
         Assert.Contains("Campaign.ConfigureCampaign", registered);
         Assert.Contains("Campaign.StartCampaign", registered);
     }
@@ -86,9 +76,10 @@ public class KernelFactoryTests
     public void Exploration_HasExactly10Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Exploration);
+        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
         Assert.Equal(10, registered.Length);
+        Assert.Equal(10, tools.Count);
         Assert.Contains("Character.ChallengeCharacter", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
         Assert.Contains("Encounter.CreateEncounter", registered);
@@ -101,9 +92,10 @@ public class KernelFactoryTests
     public void Combat_HasExactly4Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Combat);
+        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Combat);
 
         Assert.Equal(4, registered.Length);
+        Assert.Equal(4, tools.Count);
         Assert.Contains("Encounter.AttackPlayer", registered);
         Assert.Contains("Encounter.AttackAdversary", registered);
         Assert.Contains("Encounter.EndEncounter", registered);
@@ -114,7 +106,7 @@ public class KernelFactoryTests
     public void Resolution_HasCorrectFunctions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Resolution);
+        var (_, registered) = _provider.GetToolsForStage(ctx, SessionStage.Resolution);
 
         Assert.Contains("Resolution.CompleteResolution", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
@@ -127,8 +119,22 @@ public class KernelFactoryTests
     public void Ended_HasNoFunctions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (kernel, registered) = _factory.CreateForStage(ctx, SessionStage.Ended);
+        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Ended);
 
         Assert.Empty(registered);
+        Assert.Empty(tools);
+    }
+
+    [Fact]
+    public void ToolNames_AreBareFunctionNames_MatchingStagePrompts()
+    {
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (tools, _) = _provider.GetToolsForStage(ctx, SessionStage.Exploration);
+
+        // The stage prompts instruct the model to call e.g. "ChallengeCharacter" (no plugin prefix),
+        // so the actual tool names must be the bare method names.
+        Assert.Contains(tools, t => t.Name == "ChallengeCharacter");
+        Assert.Contains(tools, t => t.Name == "CreateEncounter");
+        Assert.Contains(tools, t => t.Name == "Roll");
     }
 }

@@ -1,37 +1,36 @@
-#pragma warning disable SKEXP0001
-#pragma warning disable SKEXP0110
-
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Agents;
-using Microsoft.SemanticKernel.ChatCompletion;
-using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 using Polly.Registry;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Semantic;
 
 namespace WretchedWhispers.Api.Services;
 
+/// <summary>
+/// Drives a single non-combat game-master turn on Microsoft Agent Framework: loads prior history,
+/// builds a <see cref="ChatClientAgent"/> scoped to the stage's tools, streams the run, and maps
+/// streamed content to <see cref="GameTurnEvent"/>s (narrative text + tool results).
+/// </summary>
 public sealed class AgentExecutor(
+    IChatClient chatClient,
     IChatHistoryRepository chatHistoryRepository,
     PromptComposer promptComposer,
     ResiliencePipelineProvider<string> resilienceProvider,
     ILogger<AgentExecutor> logger) : IAgentExecutor
 {
     public async IAsyncEnumerable<GameTurnEvent> ExecuteAsync(
-        Kernel kernel,
+        IReadOnlyList<AIFunction> tools,
         SessionContext sessionContext,
         Guid chatSessionId,
         string playerMessage,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        using var activity = KernelFactory.ActivitySource.StartActivity("AgentExecutor.ExecuteAsync");
+        using var activity = AgentToolProvider.ActivitySource.StartActivity("AgentExecutor.ExecuteAsync");
         activity?.SetTag("session.chat_id", chatSessionId.ToString());
 
-        var chatHistory = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? new ChatHistory();
-        var agent = CreateAgent(kernel, sessionContext);
+        var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
+        var agent = CreateAgent(tools, sessionContext);
 
         var pipeline = resilienceProvider.GetPipeline("llm-retry");
         var narrativeChunks = new List<NarrativeChunk>();
@@ -42,30 +41,30 @@ public sealed class AgentExecutor(
             narrativeChunks.Clear();
             toolResults.Clear();
 
-            ChatHistoryAgentThread thread = new(chatHistory);
-            var userMessage = new ChatMessageContent(AuthorRole.User, playerMessage);
+            var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
+            var session = await agent.CreateSessionAsync(token);
 
-            await foreach (var response in agent.InvokeStreamingAsync(userMessage, thread, cancellationToken: token))
+            // CallId -> function name, so a FunctionResultContent can be attributed to its call.
+            var callNames = new Dictionary<string, string>();
+
+            await foreach (var update in agent.RunStreamingAsync(messages, session, null, token))
             {
-                if (response.Message.Role is not null && response.Message.Role != AuthorRole.Assistant)
-                    continue;
-
-                var content = response.Message.Content;
-                if (!string.IsNullOrEmpty(content))
+                foreach (var content in update.Contents)
                 {
-                    narrativeChunks.Add(new NarrativeChunk(content));
-                }
-            }
-
-            await foreach (var completed in thread.GetMessagesAsync(token))
-            {
-                foreach (var item in completed.Items)
-                {
-                    if (item is FunctionResultContent funcResult)
+                    switch (content)
                     {
-                        toolResults.Add(new ToolResult(
-                            funcResult.FunctionName ?? "unknown",
-                            funcResult.Result ?? ""));
+                        case TextContent text when !string.IsNullOrEmpty(text.Text):
+                            narrativeChunks.Add(new NarrativeChunk(text.Text));
+                            break;
+                        case FunctionCallContent call when call.CallId is not null:
+                            callNames[call.CallId] = call.Name;
+                            break;
+                        case FunctionResultContent result:
+                            var name = result.CallId is not null && callNames.TryGetValue(result.CallId, out var n)
+                                ? n
+                                : "unknown";
+                            toolResults.Add(new ToolResult(name, result.Result?.ToString() ?? ""));
+                            break;
                     }
                 }
             }
@@ -76,71 +75,20 @@ public sealed class AgentExecutor(
             narrativeChunks.Count, toolResults.Count);
 
         foreach (var chunk in narrativeChunks)
-        {
             yield return chunk;
-        }
 
         foreach (var toolResult in toolResults)
-        {
             yield return toolResult;
-        }
     }
 
-    private ChatCompletionAgent CreateAgent(Kernel kernel, SessionContext sessionContext)
-    {
-        var chatService = kernel.GetRequiredService<IChatCompletionService>();
-
-        var summarizer = new ChatHistorySummarizationReducer(
-            chatService,
-            targetCount: 100,
-            thresholdCount: 150)
-        {
-            SummarizationInstructions =
-                """
-                When summarizing this MORK BORG game session, preserve these critical elements:
-
-                ESSENTIAL GAME STATE:
-                - Character names, current hit points, abilities, scars, and omens
-                - Current campaign location and time of day/season
-                - Active encounters (adversaries, their status, ongoing combat)
-                - Important NPCs the characters have met and their relationships
-                - Key items, weapons, or artifacts in possession
-                - Current goals, quests, or destinations
-                - Recent significant events that affect the narrative
-
-                PRESERVE THE ATMOSPHERE:
-                - Maintain the doom-laden, apocalyptic tone of MORK BORG
-                - Keep descriptions of the decaying world and mounting dread
-                - Retain any omens, prophecies, or signs of the coming end
-                - Preserve the dark humor and grim moments
-
-                CONDENSE BUT KEEP:
-                - Dialogue that reveals character or advances plot
-                - Combat outcomes and their consequences (wounds, deaths, victories)
-                - Environmental hazards or threats still present
-                - Any clues, mysteries, or plot hooks still unresolved
-
-                DISCARD:
-                - Repetitive descriptions unless they build atmosphere
-                - Resolved minor encounters with no lasting impact
-                - Excessive back-and-forth without narrative progress
-                - Redundant explanations of rules or mechanics
-
-                Format the summary as a narrative that maintains the MORK BORG tone while clearly stating the current game state.
-                """
-        };
-
-        return new ChatCompletionAgent
+    private AIAgent CreateAgent(IReadOnlyList<AIFunction> tools, SessionContext sessionContext) =>
+        new ChatClientAgent(chatClient, new ChatClientAgentOptions
         {
             Name = "Game_Master",
-            HistoryReducer = summarizer,
-            Instructions = promptComposer.Compose(sessionContext),
-            Kernel = kernel,
-            Arguments = new KernelArguments(
-                new AzureOpenAIPromptExecutionSettings
-                {
-                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
-                })
-        };
-    }
+            ChatOptions = new ChatOptions
+            {
+                Instructions = promptComposer.Compose(sessionContext),
+                Tools = tools.Cast<AITool>().ToList()
+            }
+        });
 }

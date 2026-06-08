@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Microsoft.SemanticKernel;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
@@ -13,7 +12,6 @@ namespace WretchedWhispers.Semantic;
 [Description("Allow interactions with encounters in the game: start them, finish them, perform actions and so on.")]
 public class EncounterPlugin(EncounterService encounterService, IEncountersRepository repository, Dice dice)
 {
-    [KernelFunction]
     [Description("Create a new encounter with the specified name, description, and initial type. ")]
     public async Task<EncounterDto> CreateEncounter(
         [Description("The name of the encounter")]
@@ -35,7 +33,6 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
         return CreateEncounterDto(encounter);
     }
 
-    [KernelFunction]
     [Description(
         "Add adversary to an encounter with the specified name, description, and initial type. Each encounter usually have multiple adversaries.")]
     public async Task<EncounterDto> AddAdversaryToEncounter(Guid encounterId, NewAdversaryDto adversary)
@@ -58,7 +55,6 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
         return CreateEncounterDto(encounter);
     }
 
-    [KernelFunction]
     [Description("Start a new encounter in the specified campaign")]
     public async Task<EncounterDto> StartEncounter(Guid encounterId)
     {
@@ -66,7 +62,6 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
         return CreateEncounterDto(encounter);
     }
 
-    [KernelFunction]
     [Description("Execute an attack from an adversary against a player character in an encounter.")]
     public async Task<AdversaryAttackOutcomeDto> AttackPlayer(
         [Description("The unique identifier of the encounter where the attack takes place")]
@@ -82,7 +77,6 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
         return new AdversaryAttackOutcomeDto(defenceOutcome.DamageDealt);
     }
 
-    [KernelFunction]
     [Description("Execute an attack from a player character against an adversary in an encounter")]
     public async Task<CharacterAttackOutcomeDto> AttackAdversary(
         [Description("The unique identifier of the encounter where the attack takes place")]
@@ -98,7 +92,6 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
             outcome.WeaponBroken, outcome.TargetArmorDegraded);
     }
 
-    [KernelFunction]
     [Description(
         "Ends an encounter. The encounter must already be started and have no active(not dead, not fled) adversaries.")]
     public async Task<EncounterDto> EndEncounter(Guid encounterId)
@@ -107,7 +100,6 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
         return CreateEncounterDto(encounter);
     }
 
-    [KernelFunction]
     [Description(
         "Get an encounter by its unique identifier. Returns the encounter details including adversaries and their states.")]
     public async Task<EncounterDto> GetEncounter(Guid encounterId)

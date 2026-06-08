@@ -1,10 +1,6 @@
-#pragma warning disable SKEXP0001
-#pragma warning disable SKEXP0110
-
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Moq;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Plugins.CombatAgent;
@@ -21,7 +17,7 @@ public class TurnCoordinatorTests : IDisposable
     private readonly Guid _chatSessionId = Guid.NewGuid();
 
     private readonly Mock<ISessionContextLoader> _contextLoader = new();
-    private readonly Mock<IKernelFactory> _kernelFactory = new();
+    private readonly Mock<IAgentToolProvider> _toolProvider = new();
     private readonly Mock<IAgentExecutor> _agentExecutor = new();
     private readonly Mock<ICombatAgentService> _combatAgentService = new();
     private readonly Mock<IChatHistoryRepository> _chatHistoryRepo = new();
@@ -47,7 +43,7 @@ public class TurnCoordinatorTests : IDisposable
     private TurnCoordinator CreateCoordinator() =>
         new(
             _contextLoader.Object,
-            _kernelFactory.Object,
+            _toolProvider.Object,
             _agentExecutor.Object,
             _combatAgentService.Object,
             _chatHistoryRepo.Object,
@@ -75,11 +71,19 @@ public class TurnCoordinatorTests : IDisposable
             .ReturnsAsync(new List<Guid> { _chatSessionId });
     }
 
+    private void SetupToolsForExploration()
+    {
+        IReadOnlyList<AIFunction> tools = [];
+        _toolProvider
+            .Setup(f => f.GetToolsForStage(It.IsAny<SessionContext>(), SessionStage.Exploration))
+            .Returns((tools, new[] { "Character.ChallengeCharacter" }));
+    }
+
     private void SetupAgentExecutorStreaming(params GameTurnEvent[] events)
     {
         _agentExecutor
             .Setup(a => a.ExecuteAsync(
-                It.IsAny<Kernel>(),
+                It.IsAny<IReadOnlyList<AIFunction>>(),
                 It.IsAny<SessionContext>(),
                 _chatSessionId,
                 It.IsAny<string>(),
@@ -109,10 +113,7 @@ public class TurnCoordinatorTests : IDisposable
             .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
 
-        var kernel = Kernel.CreateBuilder().Build();
-        _kernelFactory
-            .Setup(f => f.CreateForStage(It.IsAny<SessionContext>(), SessionStage.Exploration))
-            .Returns((kernel, new[] { "Character.ChallengeCharacter" }));
+        SetupToolsForExploration();
 
         SetupAgentExecutorStreaming(
             new NarrativeChunk("The dungeon echoes..."),
@@ -121,7 +122,7 @@ public class TurnCoordinatorTests : IDisposable
         _chatHistoryRepo
             .Setup(r => r.SaveMessage(
                 _chatSessionId,
-                It.IsAny<ChatMessageContent>(),
+                It.IsAny<ChatMessage>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
@@ -155,14 +156,11 @@ public class TurnCoordinatorTests : IDisposable
             .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(context);
 
-        var kernel = Kernel.CreateBuilder().Build();
-        _kernelFactory
-            .Setup(f => f.CreateForStage(It.IsAny<SessionContext>(), SessionStage.Exploration))
-            .Returns((kernel, new[] { "Character.ChallengeCharacter" }));
+        SetupToolsForExploration();
 
         _agentExecutor
             .Setup(a => a.ExecuteAsync(
-                It.IsAny<Kernel>(),
+                It.IsAny<IReadOnlyList<AIFunction>>(),
                 It.IsAny<SessionContext>(),
                 _chatSessionId,
                 It.IsAny<string>(),
@@ -172,7 +170,7 @@ public class TurnCoordinatorTests : IDisposable
         _chatHistoryRepo
             .Setup(r => r.SaveMessage(
                 _chatSessionId,
-                It.IsAny<ChatMessageContent>(),
+                It.IsAny<ChatMessage>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 

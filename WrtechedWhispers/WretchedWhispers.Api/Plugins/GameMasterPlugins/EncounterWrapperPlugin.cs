@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Microsoft.SemanticKernel;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Semantic.Models;
@@ -24,7 +23,6 @@ public sealed class EncounterWrapperPlugin(
         sessionContext.CharacterId
         ?? throw new InvalidOperationException("No character exists yet -- call CreateCharacter first.");
 
-    [KernelFunction]
     [Description("Create a new encounter with the specified name, description, and initial type")]
     public async Task<EncounterDto> CreateEncounter(
         [Description("The name of the encounter")] string name,
@@ -48,7 +46,6 @@ public sealed class EncounterWrapperPlugin(
         return result;
     }
 
-    [KernelFunction]
     [Description("Add an adversary to the current encounter")]
     public async Task<EncounterDto> AddAdversaryToEncounter(
         [Description("The adversary to add")] NewAdversaryDto adversary)
@@ -56,14 +53,12 @@ public sealed class EncounterWrapperPlugin(
         return await inner.AddAdversaryToEncounter(RequireEncounterId(), adversary);
     }
 
-    [KernelFunction]
     [Description("Start the current encounter")]
     public async Task<EncounterDto> StartEncounter()
     {
         return await inner.StartEncounter(RequireEncounterId());
     }
 
-    [KernelFunction]
     [Description("A living adversary attacks the player character. The adversary is auto-selected.")]
     public async Task<AdversaryAttackOutcomeDto> AttackPlayer()
     {
@@ -74,7 +69,6 @@ public sealed class EncounterWrapperPlugin(
         return await inner.AttackPlayer(RequireEncounterId(), adversary.Id, RequireCharacterId());
     }
 
-    [KernelFunction]
     [Description("The player character attacks an adversary by name.")]
     public async Task<CharacterAttackOutcomeDto> AttackAdversary(
         [Description("Name of the adversary to attack")] string adversaryName)
@@ -88,7 +82,6 @@ public sealed class EncounterWrapperPlugin(
         return await inner.AttackAdversary(RequireEncounterId(), RequireCharacterId(), adversary.Id);
     }
 
-    [KernelFunction]
     [Description("End the current encounter")]
     public async Task<EncounterDto> EndEncounter()
     {

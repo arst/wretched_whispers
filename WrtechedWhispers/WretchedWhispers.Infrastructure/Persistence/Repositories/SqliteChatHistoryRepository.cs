@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.Extensions.AI;
 using WretchedWhispers.Infrastructure.Persistence.Entities;
 using WretchedWhispers.Semantic;
 
@@ -10,7 +9,10 @@ namespace WretchedWhispers.Infrastructure.Persistence.Repositories;
 public class SqliteChatHistoryRepository : IChatHistoryRepository
 {
     private readonly WretchedWhispersDbContext _db;
-    private static readonly JsonSerializerOptions ItemsJsonOptions = CreateItemsJsonOptions();
+
+    // Microsoft.Extensions.AI provides polymorphic (de)serialization for AIContent
+    // (TextContent / FunctionCallContent / FunctionResultContent / ...).
+    private static readonly JsonSerializerOptions ContentJsonOptions = AIJsonUtilities.DefaultOptions;
 
     public SqliteChatHistoryRepository(WretchedWhispersDbContext db)
     {
@@ -39,7 +41,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             .ToListAsync(ct);
     }
 
-    public async Task SaveMessage(Guid sessionId, ChatMessageContent message, CancellationToken ct = default)
+    public async Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default)
     {
         var orderIndex = await _db.ChatMessages
             .Where(m => m.SessionId == sessionId)
@@ -49,11 +51,11 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
         {
             Id = Guid.NewGuid(),
             SessionId = sessionId,
-            Role = message.Role.Label,
-            Content = message.Content,
+            Role = message.Role.Value,
+            Content = message.Text,
             AuthorName = message.AuthorName,
-            ItemsJson = SerializeItems(message),
-            MetadataJson = SerializeMetadata(message.Metadata),
+            ItemsJson = SerializeContents(message),
+            MetadataJson = SerializeMetadata(message.AdditionalProperties),
             Timestamp = DateTime.UtcNow,
             OrderIndex = orderIndex
         };
@@ -62,7 +64,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task<ChatHistory?> LoadSession(Guid sessionId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ChatMessage>?> LoadSession(Guid sessionId, CancellationToken ct = default)
     {
         var sessionExists = await _db.ChatSessions
             .AnyAsync(s => s.Id == sessionId, ct);
@@ -75,21 +77,19 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             .OrderBy(m => m.OrderIndex)
             .ToListAsync(ct);
 
-        if (entities.Count == 0)
-            return new ChatHistory();
-
-        var history = new ChatHistory();
+        var history = new List<ChatMessage>(entities.Count);
 
         foreach (var entity in entities)
         {
-            var role = new AuthorRole(entity.Role);
-            var message = new ChatMessageContent(role, entity.Content)
-            {
-                AuthorName = entity.AuthorName
-            };
+            var role = new ChatRole(entity.Role);
+            var contents = DeserializeContents(entity.ItemsJson);
 
-            DeserializeItemsInto(message, entity.ItemsJson);
-            DeserializeMetadataInto(message, entity.MetadataJson);
+            var message = contents is { Count: > 0 }
+                ? new ChatMessage(role, contents)
+                : new ChatMessage(role, entity.Content);
+
+            message.AuthorName = entity.AuthorName;
+            ApplyMetadata(message, entity.MetadataJson);
 
             history.Add(message);
         }
@@ -97,78 +97,48 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
         return history;
     }
 
-    private static string? SerializeItems(ChatMessageContent message)
+    /// <summary>
+    /// Persist the full content list only when it carries non-text content (function calls/results).
+    /// Plain-text messages are reconstructed from the Content column, so serializing their single
+    /// TextContent would be redundant.
+    /// </summary>
+    private static string? SerializeContents(ChatMessage message)
     {
-        if (message.Items is null || message.Items.Count == 0)
+        if (message.Contents is null || message.Contents.Count == 0)
             return null;
 
-        // Only serialize if there are non-text items, or if there's only a TextContent
-        // that differs from the Content property (indicating Items was explicitly set)
-        var hasNonTextItems = false;
-        foreach (var item in message.Items)
-        {
-            if (item is not TextContent)
-            {
-                hasNonTextItems = true;
-                break;
-            }
-        }
-
-        if (!hasNonTextItems)
+        var hasNonTextContent = message.Contents.Any(c => c is not TextContent);
+        if (!hasNonTextContent)
             return null;
 
-        return JsonSerializer.Serialize(message.Items, ItemsJsonOptions);
+        return JsonSerializer.Serialize(message.Contents, ContentJsonOptions);
     }
 
-    private static string? SerializeMetadata(IReadOnlyDictionary<string, object?>? metadata)
+    private static IList<AIContent>? DeserializeContents(string? itemsJson)
+    {
+        if (string.IsNullOrEmpty(itemsJson))
+            return null;
+
+        return JsonSerializer.Deserialize<IList<AIContent>>(itemsJson, ContentJsonOptions);
+    }
+
+    private static string? SerializeMetadata(AdditionalPropertiesDictionary? metadata)
     {
         if (metadata is null || metadata.Count == 0)
             return null;
 
-        return JsonSerializer.Serialize(metadata, ItemsJsonOptions);
+        return JsonSerializer.Serialize(metadata, ContentJsonOptions);
     }
 
-    private static void DeserializeItemsInto(ChatMessageContent message, string? itemsJson)
-    {
-        if (string.IsNullOrEmpty(itemsJson))
-            return;
-
-        var items = JsonSerializer.Deserialize<List<KernelContent>>(itemsJson, ItemsJsonOptions);
-        if (items is null)
-            return;
-
-        message.Items.Clear();
-        foreach (var item in items)
-        {
-            message.Items.Add(item);
-        }
-    }
-
-    private static void DeserializeMetadataInto(ChatMessageContent message, string? metadataJson)
+    private static void ApplyMetadata(ChatMessage message, string? metadataJson)
     {
         if (string.IsNullOrEmpty(metadataJson))
             return;
 
-        var metadata = JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, ItemsJsonOptions);
-        if (metadata is null)
+        var metadata = JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, ContentJsonOptions);
+        if (metadata is null || metadata.Count == 0)
             return;
 
-        foreach (var kvp in metadata)
-        {
-            message.Metadata ??= new Dictionary<string, object?>();
-            ((Dictionary<string, object?>)message.Metadata)[kvp.Key] = kvp.Value;
-        }
-    }
-
-    private static JsonSerializerOptions CreateItemsJsonOptions()
-    {
-        var options = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        };
-
-        return options;
+        message.AdditionalProperties = new AdditionalPropertiesDictionary(metadata);
     }
 }

@@ -1,6 +1,4 @@
-#pragma warning disable SKEXP0001
-
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
 
@@ -10,6 +8,6 @@ public interface ICombatAgentService
 {
     IAsyncEnumerable<GameTurnEvent> ResolveCombatAsync(
         SessionContext sessionContext,
-        Kernel gameKernel,
+        IReadOnlyList<AIFunction> tools,
         CancellationToken ct);
 }

@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Microsoft.SemanticKernel;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Create;
@@ -17,7 +16,6 @@ public sealed class CharacterPlugin(
     CharacterService characterService,
     Dice dice)
 {
-    [KernelFunction]
     [Description("Create a new character with starting stats and gear")]
     public async Task<CharacterDto> CreateCharacter([Description("Character name")] string name)
     {
@@ -27,7 +25,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description("Challenge a character with an ability test against a specified difficulty rating")]
     public async Task<ChallengeOutcomeDto> ChallengeCharacter(
         [Description("Id of the character to challenge")]
@@ -42,7 +39,6 @@ public sealed class CharacterPlugin(
         return new ChallengeOutcomeDto(outcome.IsSuccess);
     }
 
-    [KernelFunction]
     [Description("Add an item to a character's inventory")]
     public async Task<CharacterDto> AddItemToCharacterInventory(
         [Description("Id of the character to add item to")]
@@ -66,7 +62,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description("Remove an item from a character's inventory")]
     public async Task<CharacterDto> RemoveItemFromCharacterInventory(
         [Description("Id of the character to remove item from")]
@@ -83,7 +78,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description(
         "Consume one unit of an item from a character's inventory, reducing its quantity by 1 or removing it completely if quantity reaches 0")]
     public async Task<CharacterDto> ConsumeItemFromCharacterInventory(
@@ -102,7 +96,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description("Replenish an existing item in a character's inventory by adding to its quantity")]
     public async Task<CharacterDto> ReplenishItemInCharacterInventory(
         [Description("Id of the character whose item to replenish")]
@@ -121,7 +114,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description(
         "Improve a character's ability score by a specified amount, increasing their effectiveness in that ability")]
     public async Task<CharacterDto> ImproveCharacterAbility(
@@ -143,7 +135,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description(
         "Degrade a character's ability score by a specified amount, reducing their effectiveness in that ability")]
     public async Task<CharacterDto> DegradeCharacterAbility(
@@ -165,7 +156,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description(
         "Infect a character. Common causes: falling to 0 HP with untreated festering wounds, exposure to rot/corruption/sewage/blighted lands, failed Toughness/Presence saves after nasty injuries, bites/claws from diseased creatures (vermin/undead/horrors). Infection stops healing and causes daily damage.")]
     public async Task<CharacterDto> InfectCharacter(
@@ -181,7 +171,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description(
         "Cure a character's infection. No natural recovery - requires prayers, unclean rituals, or rare remedies. Common methods: sacred/occult healing (priest's prayer, esoteric ritual, unholy pact), rare ingredients (boiled crow's tongue, powdered saint's bone, bizarre tonics), or NPC healer (surgeon/witch) often for a terrible price.")]
     public async Task<CharacterDto> CureInfection(
@@ -197,7 +186,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description("Buy an item for a character, deducting silver and adding the item to inventory")]
     public async Task<CharacterDto> BuyItem(
         [Description("Id of the character buying the item")]
@@ -223,7 +211,6 @@ public sealed class CharacterPlugin(
         return CreateCharacterDto(character);
     }
 
-    [KernelFunction]
     [Description(
         "Cast a scroll spell that the character possesses. Requires daily power uses and cannot be done if dizzy from prior magic failure, wearing heavy armor, or wielding two-handed weapons. Success casts the spell, failure causes HP loss and dizziness.")]
     public async Task<CastOutcomeDto> CastScroll(

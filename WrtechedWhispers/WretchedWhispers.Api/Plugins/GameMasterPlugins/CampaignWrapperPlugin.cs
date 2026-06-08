@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Microsoft.SemanticKernel;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Dices;
@@ -22,7 +21,6 @@ public sealed class CampaignWrapperPlugin(
         sessionContext.CampaignId
         ?? throw new InvalidOperationException("No campaign exists for this session.");
 
-    [KernelFunction]
     [Description("Configure the campaign's name, description, and dawn roll pace. The campaign already exists -- this customizes it before starting.")]
     public async Task<CampaignDto> ConfigureCampaign(
         [Description("Dice expression for dawn rolls (e.g., 'd100' for very slow, 'd6' for fast)")]
@@ -43,14 +41,12 @@ public sealed class CampaignWrapperPlugin(
             campaign.Miseries.Select(m => new MiseryDto(m.Code, m.Psalm)).ToList());
     }
 
-    [KernelFunction]
     [Description("Start the campaign. The character must already be created.")]
     public async Task<CampaignDto> StartCampaign()
     {
         return await inner.StartCampaign(RequireCampaignId());
     }
 
-    [KernelFunction]
     [Description("Advance time in the campaign by the specified number of hours")]
     public async Task<AdvanceTimeOutcomeDto> AdvanceTime(
         [Description("The number of hours to advance the campaign time by")] int hours)
@@ -58,7 +54,6 @@ public sealed class CampaignWrapperPlugin(
         return await inner.AdvanceTime(RequireCampaignId(), hours);
     }
 
-    [KernelFunction]
     [Description("Rest for recovery -- characters heal HP and restore magical abilities during the rest period")]
     public async Task<AdvanceTimeOutcomeDto> Rest(
         [Description("The number of hours characters will rest and recover")] int hours)
