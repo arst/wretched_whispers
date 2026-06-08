@@ -23,6 +23,7 @@ public sealed class CampaignTools(
         ?? throw new InvalidOperationException("No campaign exists for this session.");
 
     [Description("Configure the campaign's name, description, and dawn roll pace. The campaign already exists -- this customizes it before starting.")]
+    [GameTool(SessionStage.CharacterCreation, SessionStage.CampaignSetup)]
     public async Task<CampaignDto> ConfigureCampaign(
         [Description("Dice expression for dawn rolls (e.g., 'd100' for very slow, 'd6' for fast)")]
         string diceExpression,
@@ -37,6 +38,7 @@ public sealed class CampaignTools(
     }
 
     [Description("Start the campaign. The character must already be created.")]
+    [GameTool(SessionStage.CharacterCreation, SessionStage.CampaignSetup)]
     public async Task<CampaignDto> StartCampaign()
     {
         var campaign = await RequireCampaign();
@@ -46,6 +48,7 @@ public sealed class CampaignTools(
     }
 
     [Description("Advance time in the campaign by the specified number of hours")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<AdvanceTimeOutcomeDto> AdvanceTime(
         [Description("The number of hours to advance the campaign time by")] int hours)
     {
@@ -55,6 +58,7 @@ public sealed class CampaignTools(
     }
 
     [Description("Rest for recovery -- characters heal HP and restore magical abilities during the rest period")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<AdvanceTimeOutcomeDto> Rest(
         [Description("The number of hours characters will rest and recover")] int hours)
     {

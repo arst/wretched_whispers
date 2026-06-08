@@ -30,6 +30,7 @@ public sealed class CharacterTools(
         ?? throw new InvalidOperationException("No character exists yet -- call CreateCharacter first.");
 
     [Description("Create a new character with starting stats and gear")]
+    [GameTool(SessionStage.CharacterCreation)]
     public async Task<CharacterDto> CreateCharacter(
         [Description("Character name")] string name)
     {
@@ -58,6 +59,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Challenge the character with an ability test against a specified difficulty rating")]
+    [GameTool(SessionStage.Exploration)]
     public async Task<ChallengeOutcomeDto> ChallengeCharacter(
         [Description("Level of the challenge, the higher the number the harder. Usually 12 for normal.")]
         int challengeDr,
@@ -70,6 +72,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Add an item to the character's inventory")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> AddItemToCharacterInventory(
         [Description("Description of the item to add")] string itemDescription,
         [Description("Whether the item is bulky and takes 2 inventory slots")] bool isBulky = false,
@@ -84,6 +87,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Remove an item from the character's inventory")]
+    [GameTool(SessionStage.Resolution)]
     public async Task<CharacterDto> RemoveItemFromCharacterInventory(
         [Description("Id of the inventory item to remove")] Guid itemId)
     {
@@ -94,6 +98,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Improve the character's ability score by a specified amount")]
+    [GameTool(SessionStage.Resolution)]
     public async Task<CharacterDto> ImproveCharacterAbility(
         [Description("The ability to improve: 'Strength', 'Agility', 'Presence', 'Toughness'")] AbilityKind abilityKind,
         [Description("The positive amount to improve the ability by")] int delta)
@@ -106,6 +111,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Degrade the character's ability score by a specified amount")]
+    [GameTool(SessionStage.Resolution)]
     public async Task<CharacterDto> DegradeCharacterAbility(
         [Description("The ability to degrade: 'Strength', 'Agility', 'Presence', 'Toughness'")] AbilityKind abilityKind,
         [Description("The negative amount to degrade the ability by")] int delta)
@@ -118,6 +124,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Infect the character. Infection stops healing and causes daily damage.")]
+    [GameTool(SessionStage.Resolution)]
     public async Task<CharacterDto> InfectCharacter()
     {
         var character = await RequireCharacter();
@@ -127,6 +134,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Cure the character's infection. Requires prayers, unclean rituals, or rare remedies.")]
+    [GameTool(SessionStage.Resolution)]
     public async Task<CharacterDto> CureInfection()
     {
         var character = await RequireCharacter();
@@ -136,6 +144,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Buy an item for the character, deducting silver and adding the item to inventory")]
+    [GameTool(SessionStage.Exploration)]
     public async Task<CharacterDto> BuyItem(
         [Description("Description of the item to buy")] string itemDescription,
         [Description("Cost of the item in silver")] int silverCost,
@@ -152,6 +161,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Cast a scroll spell that the character possesses")]
+    [GameTool(SessionStage.Exploration)]
     public async Task<CastOutcomeDto> CastScroll(
         [Description("Id of the scroll to cast")] Guid scrollId)
     {

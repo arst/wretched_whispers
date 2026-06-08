@@ -35,6 +35,7 @@ public sealed class EncounterTools(
         ?? throw new InvalidOperationException("No character exists yet -- call CreateCharacter first.");
 
     [Description("Create a new encounter with the specified name, description, and initial type")]
+    [GameTool(SessionStage.Exploration)]
     public async Task<EncounterDto> CreateEncounter(
         [Description("The name of the encounter")] string name,
         [Description("A description of the encounter setting or narrative context")] string description,
@@ -63,6 +64,7 @@ public sealed class EncounterTools(
     }
 
     [Description("Add an adversary to the current encounter")]
+    [GameTool(SessionStage.Exploration)]
     public async Task<EncounterDto> AddAdversaryToEncounter(
         [Description("The adversary to add")] NewAdversaryDto adversary)
     {
@@ -88,6 +90,7 @@ public sealed class EncounterTools(
     }
 
     [Description("Start the current encounter")]
+    [GameTool(SessionStage.Exploration)]
     public async Task<EncounterDto> StartEncounter()
     {
         var encounter = await encounterService.StartEncounter(RequireEncounterId());
@@ -95,6 +98,7 @@ public sealed class EncounterTools(
     }
 
     [Description("A living adversary attacks the player character. The adversary is auto-selected.")]
+    [GameTool(SessionStage.Combat)]
     public async Task<AdversaryAttackOutcomeDto> AttackPlayer()
     {
         var adversary = LivingAdversaries().FirstOrDefault()
@@ -104,6 +108,7 @@ public sealed class EncounterTools(
     }
 
     [Description("The player character attacks an adversary by name.")]
+    [GameTool(SessionStage.Combat)]
     public async Task<CharacterAttackOutcomeDto> AttackAdversary(
         [Description("Name of the adversary to attack")] string adversaryName)
     {
@@ -118,6 +123,7 @@ public sealed class EncounterTools(
     }
 
     [Description("End the current encounter")]
+    [GameTool(SessionStage.Combat)]
     public async Task<EncounterDto> EndEncounter()
     {
         var encounter = await encounterService.EndEncounter(RequireEncounterId());
@@ -125,6 +131,7 @@ public sealed class EncounterTools(
     }
 
     [Description("Complete the resolution of the current encounter and return to exploration")]
+    [GameTool(SessionStage.Resolution)]
     public async Task CompleteResolution()
     {
         if (sessionContext.ActiveEncounterId is null)

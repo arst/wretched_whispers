@@ -14,7 +14,7 @@ namespace WretchedWhispers.Tests.Services;
 
 /// <summary>
 /// Verifies the Agent Framework tool provider exposes exactly the stage-scoped tool set
-/// (the registered-function names mirror <see cref="StageToolMap"/>). Replaces the former
+/// (the registered-function names mirror <see cref="GameToolCatalog"/>). Replaces the former
 /// KernelFactoryTests after the SK→Agent Framework migration.
 /// </summary>
 public class AgentToolProviderTests
@@ -106,7 +106,8 @@ public class AgentToolProviderTests
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (_, registered) = _provider.GetToolsForStage(ctx, SessionStage.Resolution);
 
-        Assert.Contains("Resolution.CompleteResolution", registered);
+        // CompleteResolution lives on EncounterTools, so its telemetry group is "Encounter".
+        Assert.Contains("Encounter.CompleteResolution", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
         Assert.Contains("Character.AddItemToCharacterInventory", registered);
         Assert.DoesNotContain("Character.CreateCharacter", registered);
