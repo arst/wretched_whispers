@@ -1,13 +1,10 @@
+using System.ClientModel.Primitives;
 using Azure;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Resilience;
-using Polly;
-using Polly.Retry;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
-using WretchedWhispers.Api.GameTools;
 
 namespace WretchedWhispers.Api.Configuration;
 
@@ -23,12 +20,28 @@ public static class AgentConfiguration
         // Bind AzureOpenAI settings — section name matches Settings.AzureOpenAiSettings class name
         services.Configure<AzureOpenAiSettings>(configuration.GetSection("AzureOpenAiSettings"));
 
+        var timeoutSeconds = configuration.GetValue("GameSession:ResponseTimeoutSeconds", 180);
+        var maxRetryAttempts = configuration.GetValue("GameSession:MaxRetryAttempts", 2);
+
         // Azure OpenAI chat client (Microsoft.Extensions.AI). ChatClientAgent enables automatic
         // function invocation over this client.
+        //
+        // Transient-fault resilience lives HERE, at the transport: the Azure client retries an
+        // individual model HTTP request (on 408/429/5xx/network errors) with exponential backoff,
+        // and bounds each request with NetworkTimeout. This is deliberately NOT done around the agent
+        // run — that loop executes state-mutating tools inside the turn's transaction, so retrying it
+        // as a whole would double-apply tools. Retrying a single request never re-runs tools whose
+        // results are already in the conversation. (See AgentExecutor.)
         services.AddSingleton<IChatClient>(sp =>
         {
             var settings = sp.GetRequiredService<IOptions<AzureOpenAiSettings>>().Value;
-            return new AzureOpenAIClient(new Uri(settings.Endpoint), new AzureKeyCredential(settings.ApiKey))
+            var clientOptions = new AzureOpenAIClientOptions
+            {
+                NetworkTimeout = TimeSpan.FromSeconds(timeoutSeconds),
+                RetryPolicy = new ClientRetryPolicy(maxRetries: maxRetryAttempts)
+            };
+            return new AzureOpenAIClient(
+                    new Uri(settings.Endpoint), new AzureKeyCredential(settings.ApiKey), clientOptions)
                 .GetChatClient(settings.ChatModelDeployment)
                 .AsIChatClient();
         });
@@ -45,25 +58,6 @@ public static class AgentConfiguration
         // are constructed per turn inside AgentToolProvider — each needs the turn's SessionContext —
         // so they are not registered here. The Core services they depend on are registered with the
         // domain/infrastructure DI.
-
-        // Resilience pipeline for LLM retry with exponential backoff
-        var timeoutSeconds = configuration.GetValue("GameSession:ResponseTimeoutSeconds", 180);
-
-        services.AddResiliencePipeline("llm-retry", pipelineBuilder =>
-        {
-            pipelineBuilder
-                .AddRetry(new RetryStrategyOptions
-                {
-                    MaxRetryAttempts = configuration.GetValue("GameSession:MaxRetryAttempts", 2),
-                    Delay = TimeSpan.FromSeconds(1),
-                    BackoffType = DelayBackoffType.Exponential,
-                    UseJitter = true,
-                    ShouldHandle = new PredicateBuilder()
-                        .Handle<HttpRequestException>()
-                        .Handle<TaskCanceledException>()
-                })
-                .AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
-        });
 
         return services;
     }

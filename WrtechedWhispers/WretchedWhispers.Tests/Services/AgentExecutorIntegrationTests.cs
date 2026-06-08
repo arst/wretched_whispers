@@ -3,8 +3,6 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using Polly;
-using Polly.Registry;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
@@ -38,7 +36,6 @@ public class AgentExecutorIntegrationTests
             historyRepo.Object,
             new ChatHistoryReducer(chatClient, NullLogger<ChatHistoryReducer>.Instance),
             new PromptComposer(),
-            new PassThroughPipelineProvider(),
             NullLogger<AgentExecutor>.Instance);
     }
 
@@ -144,26 +141,30 @@ public class AgentExecutorIntegrationTests
         Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateCharacter");
     }
 
-    // ---- Test doubles ----
-
-    /// <summary>No-op resilience provider: the executor only calls GetPipeline(key).</summary>
-    private sealed class PassThroughPipelineProvider : ResiliencePipelineProvider<string>
+    [Fact]
+    public async Task TransientFailure_IsNotRetried_ByTheExecutor()
     {
-        public override ResiliencePipeline GetPipeline(string key) => ResiliencePipeline.Empty;
+        var (provider, _) = CreateToolProvider();
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
 
-        public override ResiliencePipeline<TResult> GetPipeline<TResult>(string key) =>
-            throw new NotSupportedException();
+        var client = new ThrowingChatClient(new HttpRequestException("transient upstream failure"));
+        var executor = CreateExecutor(client);
 
-        public override bool TryGetPipeline(string key, out ResiliencePipeline pipeline)
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
         {
-            pipeline = ResiliencePipeline.Empty;
-            return true;
-        }
+            await foreach (var _ in executor.ExecuteAsync(tools, ctx, Guid.NewGuid(), "Grim", CancellationToken.None))
+            {
+            }
+        });
 
-        public override bool TryGetPipeline<TResult>(string key, out ResiliencePipeline<TResult> pipeline) =>
-            throw new NotSupportedException();
+        // The executor surfaces the transient fault WITHOUT re-running the agent loop. Transient retry
+        // is the transport's job (the Azure client), where it retries a single HTTP request without
+        // re-executing tools — so a turn can never double-apply a tool via an executor-level retry.
+        Assert.Equal(1, client.StreamingCalls);
     }
 
+    // ---- Test doubles ----
 
     private static class ChatResponses
     {
@@ -206,6 +207,27 @@ public class AgentExecutorIntegrationTests
             var response = await GetResponseAsync(messages, options, cancellationToken);
             foreach (var message in response.Messages)
                 yield return new ChatResponseUpdate(message.Role, message.Contents);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+    }
+
+    /// <summary>Throws a transient fault on the model call and counts how many times it was invoked.</summary>
+    private sealed class ThrowingChatClient(Exception toThrow) : IChatClient
+    {
+        public int StreamingCalls { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            throw toThrow;
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+        {
+            StreamingCalls++;
+            throw toThrow;
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
