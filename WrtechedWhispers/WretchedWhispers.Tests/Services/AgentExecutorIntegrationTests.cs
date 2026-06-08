@@ -12,7 +12,8 @@ using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Api.GameTools;
+using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;

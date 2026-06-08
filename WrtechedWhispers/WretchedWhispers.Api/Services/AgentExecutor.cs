@@ -3,7 +3,7 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Polly.Registry;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Api.Services;
 

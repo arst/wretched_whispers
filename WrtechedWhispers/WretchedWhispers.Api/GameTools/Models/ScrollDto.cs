@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 
-namespace WretchedWhispers.Semantic.Models;
+namespace WretchedWhispers.Api.GameTools.Models;
 
 public class ScrollDto
 {

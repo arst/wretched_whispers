@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Infrastructure.Persistence;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Api.GameTools;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Sessions;

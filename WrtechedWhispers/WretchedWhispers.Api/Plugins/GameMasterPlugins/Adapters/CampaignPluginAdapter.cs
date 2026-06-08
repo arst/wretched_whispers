@@ -1,5 +1,5 @@
-using WretchedWhispers.Semantic;
-using WretchedWhispers.Semantic.Models;
+using WretchedWhispers.Api.GameTools;
+using WretchedWhispers.Api.GameTools.Models;
 
 namespace WretchedWhispers.Api.Plugins.GameMasterPlugins.Adapters;
 

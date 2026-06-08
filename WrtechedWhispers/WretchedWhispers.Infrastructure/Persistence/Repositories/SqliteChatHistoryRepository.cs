@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using WretchedWhispers.Infrastructure.Persistence.Entities;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Infrastructure.Persistence.Repositories;
 

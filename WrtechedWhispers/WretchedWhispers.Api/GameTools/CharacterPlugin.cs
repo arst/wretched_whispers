@@ -4,9 +4,9 @@ using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Semantic.Models;
+using WretchedWhispers.Api.GameTools.Models;
 
-namespace WretchedWhispers.Semantic;
+namespace WretchedWhispers.Api.GameTools;
 
 [Description(
     "Allow interacting with characters, such as creating a new character or viewing character stats, performing actions on characters, and more.")]

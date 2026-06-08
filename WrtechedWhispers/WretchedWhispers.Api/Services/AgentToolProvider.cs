@@ -5,7 +5,7 @@ using WretchedWhispers.Api.Plugins.GameMasterPlugins;
 using WretchedWhispers.Api.Plugins.GameMasterPlugins.Adapters;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Encounters;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Api.GameTools;
 
 namespace WretchedWhispers.Api.Services;
 

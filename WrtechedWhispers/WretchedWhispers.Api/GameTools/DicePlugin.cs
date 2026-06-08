@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Semantic;
+namespace WretchedWhispers.Api.GameTools;
 
 [Description("Result of a dice roll with the formula used and numeric outcome.")]
 public record DiceRollResult(

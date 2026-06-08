@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Api.GameTools;
 
 namespace WretchedWhispers.Api.Plugins.GameMasterPlugins;
 
