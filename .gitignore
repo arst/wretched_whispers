@@ -250,8 +250,10 @@ UpgradeLog*.htm
 ServiceFabricBackup/
 *.rptproj.bak
 
-# SQLite database files
+# SQLite database files (including WAL/SHM runtime sidecars)
 *.db
+*.db-shm
+*.db-wal
 
 # SQL Server files
 *.mdf
