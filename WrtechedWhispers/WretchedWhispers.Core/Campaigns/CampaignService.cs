@@ -28,6 +28,16 @@ public class CampaignService(
         await campaignsRepository.SaveCampaign(campaign);
     }
 
+    public async Task AttachEncounter(Guid campaignId, Guid encounterId)
+    {
+        var campaign = await campaignsRepository.Get(campaignId);
+        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+
+        campaign.AddEncounter(encounterId);
+
+        await campaignsRepository.SaveCampaign(campaign);
+    }
+
     public async Task StartCampaign(Guid campaignId)
     {
         var campaign = await campaignsRepository.Get(campaignId);

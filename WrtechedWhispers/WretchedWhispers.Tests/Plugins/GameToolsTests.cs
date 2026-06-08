@@ -32,20 +32,21 @@ public class GameToolsTests
     private readonly Mock<IEncountersRepository> _encountersRepo = new();
     private readonly Dice _zeroDice = new(new Mock<IRandomService>().Object);
 
+    private CampaignService MakeCampaignService(Dice? dice = null) =>
+        new(_campaignsRepo.Object, _charactersRepo.Object, dice ?? _zeroDice);
+
     private CharacterTools CharacterTools(Dice? dice = null) => new(
         _charactersRepo.Object,
         new CharacterCreationService(_charactersRepo.Object, dice ?? _zeroDice),
         new CharacterService(_charactersRepo.Object, dice ?? _zeroDice),
-        dice ?? _zeroDice, _context, _campaignsRepo.Object);
+        dice ?? _zeroDice, _context, MakeCampaignService(dice));
 
     private CampaignTools CampaignTools() => new(
-        _campaignsRepo.Object,
-        new CampaignService(_campaignsRepo.Object, _charactersRepo.Object, _zeroDice),
-        _context);
+        _campaignsRepo.Object, MakeCampaignService(), _context);
 
     private EncounterTools EncounterTools(Dice? dice = null) => new(
         new EncounterService(dice ?? _zeroDice, _charactersRepo.Object, _encountersRepo.Object),
-        _encountersRepo.Object, dice ?? _zeroDice, _context, _campaignsRepo.Object);
+        _encountersRepo.Object, MakeCampaignService(dice), _context);
 
     // -- CharacterTools --
 
@@ -55,6 +56,15 @@ public class GameToolsTests
         var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Test", "desc");
         _context.SetCampaignId(campaign.Id);
         _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        // The linking step (CampaignService.JoinCampaign) re-loads the freshly created character by id,
+        // so the repo must return whatever CreateCharacter just saved.
+        Character? created = null;
+        _charactersRepo.Setup(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()))
+            .Callback<Character, CancellationToken>((c, _) => created = c)
+            .Returns(Task.CompletedTask);
+        _charactersRepo.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => created);
 
         var result = await CharacterTools().CreateCharacter("Gruk");
 
@@ -224,7 +234,7 @@ public class GameToolsTests
         var hitDice = ScriptedDice(14, 3);
         var tools = new EncounterTools(
             new EncounterService(hitDice, _charactersRepo.Object, _encountersRepo.Object),
-            _encountersRepo.Object, hitDice, _context, _campaignsRepo.Object);
+            _encountersRepo.Object, MakeCampaignService(hitDice), _context);
 
         var result = await tools.AttackAdversary("Ragged Bandit");
 

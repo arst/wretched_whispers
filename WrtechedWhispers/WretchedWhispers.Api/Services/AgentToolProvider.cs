@@ -40,23 +40,25 @@ public sealed class AgentToolProvider(
         var campaignsRepo = serviceProvider.GetRequiredService<ICampaignsRepository>();
         var encountersRepo = serviceProvider.GetRequiredService<IEncountersRepository>();
         var charactersRepo = serviceProvider.GetRequiredService<ICharactersRepository>();
+        var campaignService = serviceProvider.GetRequiredService<CampaignService>();
         var dice = serviceProvider.GetRequiredService<Dice>();
 
         // Per-turn tool instances, keyed by type so a catalog descriptor binds to the right one. They
         // are built here (not DI-registered) because each needs the turn's SessionContext. The set of
-        // types must match GameToolCatalog.ToolTypes.
+        // types must match GameToolCatalog.ToolTypes. Cross-aggregate linking (character/encounter ->
+        // campaign) is delegated to CampaignService, so the tools stay thin.
         var instances = new Dictionary<Type, object>
         {
             [typeof(CharacterTools)] = new CharacterTools(
                 charactersRepo,
                 serviceProvider.GetRequiredService<CharacterCreationService>(),
                 serviceProvider.GetRequiredService<CharacterService>(),
-                dice, sessionContext, campaignsRepo),
+                dice, sessionContext, campaignService),
             [typeof(CampaignTools)] = new CampaignTools(
-                campaignsRepo, serviceProvider.GetRequiredService<CampaignService>(), sessionContext),
+                campaignsRepo, campaignService, sessionContext),
             [typeof(EncounterTools)] = new EncounterTools(
                 serviceProvider.GetRequiredService<EncounterService>(),
-                encountersRepo, dice, sessionContext, campaignsRepo),
+                encountersRepo, campaignService, sessionContext),
             [typeof(DiceTools)] = new DiceTools(dice)
         };
 
