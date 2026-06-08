@@ -31,16 +31,15 @@ public sealed class CharacterWrapperPlugin(
         var result = await inner.CreateCharacter(name);
         sessionContext.SetCharacterId(result.Id);
 
-        // Auto-join character to campaign AND start it — skips CampaignSetup stage entirely.
-        // The campaign already has defaults from session creation (d6 dawn dice).
-        // Next turn derives Exploration directly.
+        // Link the character to the session's campaign (single-player), but do NOT start it.
+        // Starting the campaign is an explicit, model-visible step in the CampaignSetup stage
+        // (StartCampaign tool) — creating a character must not silently advance the stage machine.
         if (sessionContext.CampaignId is { } campaignId)
         {
             var campaign = await campaignsRepository.Get(campaignId);
             if (campaign is not null)
             {
                 campaign.JoinGame(result.Id);
-                campaign.Start();
                 await campaignsRepository.SaveCampaign(campaign);
             }
         }
