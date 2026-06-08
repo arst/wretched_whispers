@@ -62,12 +62,13 @@ public sealed class AgentExecutor(
         var sawTool = false;
 
         var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
-        var session = await agent.CreateSessionAsync(ct);
 
-        // CallId -> function name, so a FunctionResultContent can be attributed to its call.
+        // Stateless run: we own the full conversation (loaded + summarized from our own store and
+        // passed in `messages`), so we pass no MAF session/thread rather than calling CreateSessionAsync
+        // for a fresh thread we never persist through.
         var callNames = new Dictionary<string, string>();
 
-        await foreach (var update in agent.RunStreamingAsync(messages, session, null, ct))
+        await foreach (var update in agent.RunStreamingAsync(messages, session: null, options: null, ct))
         {
             foreach (var content in update.Contents)
             {
@@ -115,8 +116,9 @@ public sealed class AgentExecutor(
             yield return toolResult;
     }
 
-    private AIAgent CreateAgent(IReadOnlyList<AIFunction> tools, SessionContext sessionContext) =>
-        new ChatClientAgent(_functionInvokingClient, new ChatClientAgentOptions
+    private AIAgent CreateAgent(IReadOnlyList<AIFunction> tools, SessionContext sessionContext)
+    {
+        var agent = new ChatClientAgent(_functionInvokingClient, new ChatClientAgentOptions
         {
             Name = "Game_Master",
             // We already wrapped the client with function invocation above; don't let the agent
@@ -128,4 +130,9 @@ public sealed class AgentExecutor(
                 Tools = tools.Cast<AITool>().ToList()
             }
         });
+
+        // Defense-in-depth: block any tool call that is not stage-legal, even though the agent was
+        // built with only the stage's tools (see StageToolGuard).
+        return agent.WithStageToolGuard(sessionContext.DeriveStage(), logger);
+    }
 }
