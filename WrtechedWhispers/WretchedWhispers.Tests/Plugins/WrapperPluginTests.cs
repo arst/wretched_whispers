@@ -9,8 +9,8 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
-using WretchedWhispers.Semantic;
-using WretchedWhispers.Semantic.Models;
+using WretchedWhispers.Api.GameTools;
+using WretchedWhispers.Api.GameTools.Models;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Plugins;

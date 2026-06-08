@@ -5,7 +5,6 @@ using Moq;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Infrastructure.Persistence;
-using WretchedWhispers.Semantic;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;

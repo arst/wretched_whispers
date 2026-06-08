@@ -2,8 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Core", "WretchedWhispers.Core\WretchedWhispers.Core.csproj", "{245B5F70-2800-4AAD-B671-EC007FD97401}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Semantic", "WretchedWhispers.Semantic\WretchedWhispers.Semantic.csproj", "{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Infrastructure", "WretchedWhispers.Infrastructure\WretchedWhispers.Infrastructure.csproj", "{20176251-4671-4CA1-BC0E-928DBA9155B7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Tests", "WretchedWhispers.Tests\WretchedWhispers.Tests.csproj", "{3155FF4D-C4A5-4763-B202-C83B937E6D08}"
@@ -32,18 +30,6 @@ Global
 		{245B5F70-2800-4AAD-B671-EC007FD97401}.Release|x64.Build.0 = Release|Any CPU
 		{245B5F70-2800-4AAD-B671-EC007FD97401}.Release|x86.ActiveCfg = Release|Any CPU
 		{245B5F70-2800-4AAD-B671-EC007FD97401}.Release|x86.Build.0 = Release|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Debug|x64.Build.0 = Debug|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Debug|x86.Build.0 = Debug|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Release|x64.ActiveCfg = Release|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Release|x64.Build.0 = Release|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Release|x86.ActiveCfg = Release|Any CPU
-		{80DB660C-BD80-4A3C-924E-7D4FBD08F8BD}.Release|x86.Build.0 = Release|Any CPU
 		{20176251-4671-4CA1-BC0E-928DBA9155B7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{20176251-4671-4CA1-BC0E-928DBA9155B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{20176251-4671-4CA1-BC0E-928DBA9155B7}.Debug|x64.ActiveCfg = Debug|Any CPU

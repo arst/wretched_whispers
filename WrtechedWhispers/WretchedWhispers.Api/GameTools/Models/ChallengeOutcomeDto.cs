@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
 
-namespace WretchedWhispers.Semantic.Models;
+namespace WretchedWhispers.Api.GameTools.Models;
 
 public record ChallengeOutcomeDto(
     [property: JsonPropertyName("IsSuccess")]

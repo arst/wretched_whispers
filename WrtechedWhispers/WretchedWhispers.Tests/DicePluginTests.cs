@@ -1,6 +1,6 @@
 using System.Text.Json;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Api.GameTools;
 using Xunit;
 
 namespace WretchedWhispers.Tests;

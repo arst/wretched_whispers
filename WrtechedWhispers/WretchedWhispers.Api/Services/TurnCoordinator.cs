@@ -4,7 +4,6 @@ using System.Threading.Channels;
 using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Infrastructure.Persistence;
-using WretchedWhispers.Semantic;
 
 namespace WretchedWhispers.Api.Services;
 

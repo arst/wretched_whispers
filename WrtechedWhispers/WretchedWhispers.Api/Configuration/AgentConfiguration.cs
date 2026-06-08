@@ -7,7 +7,7 @@ using Polly;
 using Polly.Retry;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Api.GameTools;
 
 namespace WretchedWhispers.Api.Configuration;
 

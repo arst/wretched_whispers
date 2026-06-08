@@ -2,9 +2,9 @@ using System.ComponentModel;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Semantic.Models;
+using WretchedWhispers.Api.GameTools.Models;
 
-namespace WretchedWhispers.Semantic;
+namespace WretchedWhispers.Api.GameTools;
 
 [Description("Plugin to create new campaigns and load existing campaigns.")]
 public class CampaignPlugin(

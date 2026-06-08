@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace WretchedWhispers.Semantic.Models;
+namespace WretchedWhispers.Api.GameTools.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ArmorTierDto

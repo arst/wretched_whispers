@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace WretchedWhispers.Semantic;
+namespace WretchedWhispers.Infrastructure.Persistence;
 
 public interface IChatHistoryRepository
 {

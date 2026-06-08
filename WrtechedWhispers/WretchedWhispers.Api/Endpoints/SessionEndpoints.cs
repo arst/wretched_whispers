@@ -8,7 +8,7 @@ using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Semantic;
+using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Api.Endpoints;
 

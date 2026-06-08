@@ -10,7 +10,6 @@ using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Repositories;
 using WretchedWhispers.Core;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
-using WretchedWhispers.Semantic;
 
 namespace WretchedWhispers.Infrastructure;
 

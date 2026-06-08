@@ -5,9 +5,9 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
-using WretchedWhispers.Semantic.Models;
+using WretchedWhispers.Api.GameTools.Models;
 
-namespace WretchedWhispers.Semantic;
+namespace WretchedWhispers.Api.GameTools;
 
 [Description("Allow interactions with encounters in the game: start them, finish them, perform actions and so on.")]
 public class EncounterPlugin(EncounterService encounterService, IEncountersRepository repository, Dice dice)

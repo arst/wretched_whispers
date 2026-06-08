@@ -2,7 +2,7 @@ using System.ComponentModel;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Semantic.Models;
+using WretchedWhispers.Api.GameTools.Models;
 
 namespace WretchedWhispers.Api.Plugins.GameMasterPlugins;
 
