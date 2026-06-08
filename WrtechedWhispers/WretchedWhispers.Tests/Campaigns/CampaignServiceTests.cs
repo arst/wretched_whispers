@@ -109,6 +109,38 @@ public class CampaignServiceTests : TestBase
     }
 
     [Fact]
+    public async Task AttachEncounter_WithValidCampaign_AddsEncounterAndSaves()
+    {
+        // Arrange
+        var campaignId = Guid.NewGuid();
+        var encounterId = Guid.NewGuid();
+        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
+
+        // Act
+        await _service.AttachEncounter(campaignId, encounterId);
+
+        // Assert
+        Assert.Contains(encounterId, campaign.EncounterIds);
+        _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AttachEncounter_WithInvalidCampaignId_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var campaignId = Guid.NewGuid();
+        var encounterId = Guid.NewGuid();
+        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.AttachEncounter(campaignId, encounterId));
+        Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
+        _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Never);
+    }
+
+    [Fact]
     public async Task StartCampaign_WithValidCampaign_ShouldStartCampaign()
     {
         // Arrange

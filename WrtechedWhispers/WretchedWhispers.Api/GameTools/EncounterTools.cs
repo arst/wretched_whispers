@@ -22,9 +22,8 @@ namespace WretchedWhispers.Api.GameTools;
 public sealed class EncounterTools(
     EncounterService encounterService,
     IEncountersRepository repository,
-    Dice dice,
-    SessionContext sessionContext,
-    ICampaignsRepository campaignsRepository)
+    CampaignService campaignService,
+    SessionContext sessionContext)
 {
     private Guid RequireEncounterId() =>
         sessionContext.ActiveEncounterId
@@ -45,20 +44,13 @@ public sealed class EncounterTools(
             throw new ArgumentException(
                 $"Encounter type {initialEncounterType} is not valid. Expected one of: Friendly, Hostile, Unknown.");
 
-        var encounter = Encounter.Create(name, description, type, dice);
-        await repository.Save(encounter);
+        var encounter = await encounterService.CreateEncounter(name, description, type);
         sessionContext.SetActiveEncounterId(encounter.Id);
 
-        // Link encounter to campaign so SessionContextLoader finds it on next turn.
+        // Link the encounter to the campaign via the domain service so SessionContextLoader finds it
+        // on the next turn.
         if (sessionContext.CampaignId is { } campaignId)
-        {
-            var campaign = await campaignsRepository.Get(campaignId);
-            if (campaign is not null)
-            {
-                campaign.AddEncounter(encounter.Id);
-                await campaignsRepository.SaveCampaign(campaign);
-            }
-        }
+            await campaignService.AttachEncounter(campaignId, encounter.Id);
 
         return CreateEncounterDto(encounter);
     }
