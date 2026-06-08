@@ -212,8 +212,8 @@ public static class SessionEndpoints
                     .Skip(offset)
                     .Take(pageSize)
                     .Select(m => new ChatMessageDto(
-                        m.Role.Label,
-                        m.Content,
+                        m.Role.Value,
+                        m.Text,
                         m.AuthorName))
                     .ToList();
             }
@@ -296,8 +296,8 @@ public static class SessionEndpoints
                     .Skip(offset)
                     .Take(pageSize)
                     .Select(m => new ChatMessageDto(
-                        m.Role.Label,
-                        m.Content,
+                        m.Role.Value,
+                        m.Text,
                         m.AuthorName))
                     .ToList();
             }

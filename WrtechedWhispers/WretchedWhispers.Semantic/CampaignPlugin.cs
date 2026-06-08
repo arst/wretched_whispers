@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Microsoft.SemanticKernel;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
@@ -13,7 +12,6 @@ public class CampaignPlugin(
     ICharactersRepository charactersRepository,
     CampaignService campaignService)
 {
-    [KernelFunction]
     [Description(
         "Creates a new campaign with the specified dice expression for dawn rolls. Dawn roll dice is selected by player and rolled each dawn. It determines the length of the campaign." +
         "Examples: d100 - “years of pain”(very slow campaign), d20 - “a bleak half-year”, d10 - “a fall in anguish”, d6 - “a cruel month”, d2 - “the end is nigh!” (very fast) ")]
@@ -32,7 +30,6 @@ public class CampaignPlugin(
         return CreateCampaignDto(newCampaign);
     }
 
-    [KernelFunction]
     [Description("Adds a character to an existing campaign. The character must already exist in the repository.")]
     public async Task AddCharacterToCampaign(
         [Description("The unique identifier of the campaign to join")]
@@ -53,7 +50,6 @@ public class CampaignPlugin(
         await campaignsRepository.SaveCampaign(existingCampaign);
     }
 
-    [KernelFunction]
     [Description(
         "Starts a campaign with the specified ID. The campaign must already exist and characters must have joined it.")]
     public async Task<CampaignDto> StartCampaign(Guid campaignId)
@@ -68,7 +64,6 @@ public class CampaignPlugin(
         return CreateCampaignDto(existingCampaign);
     }
 
-    [KernelFunction]
     [Description("Advances time in a campaign with id provided by the number of hours provided.")]
     public async Task<AdvanceTimeOutcomeDto> AdvanceTime(
         [Description("The unique identifier of the campaign to advance time in")]
@@ -85,7 +80,6 @@ public class CampaignPlugin(
             : new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
     }
 
-    [KernelFunction]
     [Description(
         "Advances time in a campaign while characters deliberately rest to recover health and powers. Unlike AdvanceTime which is used for passive time progression during game actions or events, Rest is a deliberate character action where they choose to rest for recovery. Characters will heal HP and restore magical abilities during the rest period.")]
     public async Task<AdvanceTimeOutcomeDto> Rest(
@@ -103,7 +97,6 @@ public class CampaignPlugin(
             : new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
     }
 
-    [KernelFunction]
     [Description("Ends a campaign with the specified ID. The campaign must already exist and started.")]
     public async Task<CampaignDto> EndCampaign(Guid campaignId)
     {
@@ -117,7 +110,6 @@ public class CampaignPlugin(
         return CreateCampaignDto(existingCampaign);
     }
 
-    [KernelFunction]
     [Description("Loads an existing campaign by its ID.")]
     public async Task<CampaignDto?> GetCampaignById(
         [Description("The unique identifier of the campaign to load")]

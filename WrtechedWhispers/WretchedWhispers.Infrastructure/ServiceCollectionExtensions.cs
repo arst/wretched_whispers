@@ -18,7 +18,7 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers SQLite DbContext (Transient) plus all domain services.
-    /// Transient lifetime needed for SemanticKernel's root-provider plugin resolution.
+    /// (Legacy console-host registration; the API host uses scoped registrations via AddDomainServices.)
     /// </summary>
     public static IServiceCollection AddSqliteInfrastructure(
         this IServiceCollection services,
@@ -32,7 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Dice>();
         services.AddSingleton<ITenantContext, TenantContext>();
 
-        // Repositories as Transient (compatible with SK's root-provider plugin resolution)
+        // Repositories as Transient
         services.AddTransient<ICharactersRepository, SqliteCharactersRepository>();
         services.AddTransient<ICampaignsRepository, SqliteCampaignsRepository>();
         services.AddTransient<IEncountersRepository, SqliteEncountersRepository>();

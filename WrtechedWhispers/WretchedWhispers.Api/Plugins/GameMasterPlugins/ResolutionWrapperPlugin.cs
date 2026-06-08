@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Microsoft.SemanticKernel;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Encounters;
 
@@ -15,7 +14,6 @@ public sealed class ResolutionWrapperPlugin(
     SessionContext sessionContext,
     IEncountersRepository encountersRepository)
 {
-    [KernelFunction]
     [Description("Complete the resolution of the current encounter and return to exploration")]
     public async Task CompleteResolution()
     {

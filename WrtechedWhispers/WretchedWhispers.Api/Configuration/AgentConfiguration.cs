@@ -1,16 +1,19 @@
+using Azure;
+using Azure.AI.OpenAI;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Resilience;
 using Polly;
 using Polly.Retry;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Plugins.CombatAgent;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Semantic;
 
 namespace WretchedWhispers.Api.Configuration;
 
-public static class SemanticKernelConfiguration
+public static class AgentConfiguration
 {
-    public static IServiceCollection AddSemanticKernel(
+    public static IServiceCollection AddGameAgent(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -20,16 +23,26 @@ public static class SemanticKernelConfiguration
         // Bind AzureOpenAI settings — section name matches Settings.AzureOpenAiSettings class name
         services.Configure<AzureOpenAiSettings>(configuration.GetSection("AzureOpenAiSettings"));
 
-        // New orchestration services
+        // Azure OpenAI chat client (Microsoft.Extensions.AI). ChatClientAgent enables automatic
+        // function invocation over this client.
+        services.AddSingleton<IChatClient>(sp =>
+        {
+            var settings = sp.GetRequiredService<IOptions<AzureOpenAiSettings>>().Value;
+            return new AzureOpenAIClient(new Uri(settings.Endpoint), new AzureKeyCredential(settings.ApiKey))
+                .GetChatClient(settings.ChatModelDeployment)
+                .AsIChatClient();
+        });
+
+        // Orchestration services
         services.AddScoped<TurnCoordinator>();
         services.AddScoped<ISessionContextLoader, SessionContextLoader>();
-        services.AddScoped<IKernelFactory, KernelFactory>();
+        services.AddScoped<IAgentToolProvider, AgentToolProvider>();
         services.AddScoped<IAgentExecutor, AgentExecutor>();
-        services.AddScoped<ICombatAgentService, CombatAgentService>();
+        services.AddScoped<ChatHistoryReducer>();
         services.AddScoped<PromptComposer>();
 
-        // Register SK plugins as Scoped so they resolve request-scoped DbContext/repos
-        // These are still needed as inner services for wrapper plugins
+        // Game plugins as Scoped so they resolve request-scoped DbContext/repos.
+        // Used as inner services for the stage-scoped wrapper plugins.
         services.AddScoped<CharacterPlugin>();
         services.AddScoped<CampaignPlugin>();
         services.AddScoped<EncounterPlugin>();

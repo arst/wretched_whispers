@@ -57,7 +57,7 @@ builder.Services.AddAuthorization();
 
 builder.AddWretchedWhispersOpenTelemetry();
 
-builder.Services.AddSemanticKernel(builder.Configuration);
+builder.Services.AddGameAgent(builder.Configuration);
 
 var app = builder.Build();
 

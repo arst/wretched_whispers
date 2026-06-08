@@ -1,6 +1,4 @@
-#pragma warning disable SKEXP0001
-
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
 
 namespace WretchedWhispers.Api.Services;
@@ -8,7 +6,7 @@ namespace WretchedWhispers.Api.Services;
 public interface IAgentExecutor
 {
     IAsyncEnumerable<GameTurnEvent> ExecuteAsync(
-        Kernel kernel,
+        IReadOnlyList<AIFunction> tools,
         SessionContext sessionContext,
         Guid chatSessionId,
         string playerMessage,

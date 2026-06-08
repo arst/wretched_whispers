@@ -1,14 +1,8 @@
-#pragma warning disable SKEXP0001
-#pragma warning disable SKEXP0110
-
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Plugins.CombatAgent;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
 
@@ -16,9 +10,8 @@ namespace WretchedWhispers.Api.Services;
 
 public sealed class TurnCoordinator(
     ISessionContextLoader contextLoader,
-    IKernelFactory kernelFactory,
+    IAgentToolProvider toolProvider,
     IAgentExecutor agentExecutor,
-    ICombatAgentService combatAgentService,
     IChatHistoryRepository chatHistoryRepository,
     WretchedWhispersDbContext dbContext,
     ILogger<TurnCoordinator> logger)
@@ -28,7 +21,7 @@ public sealed class TurnCoordinator(
         string playerMessage,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        using var activity = KernelFactory.ActivitySource.StartActivity("TurnCoordinator.ExecuteTurnAsync");
+        using var activity = AgentToolProvider.ActivitySource.StartActivity("TurnCoordinator.ExecuteTurnAsync");
         activity?.SetTag("session.id", sessionId.ToString());
 
         // Validate session — get chat session ID
@@ -49,7 +42,7 @@ public sealed class TurnCoordinator(
         }
 
         var stage = context.DeriveStage();
-        var (kernel, registeredFunctions) = kernelFactory.CreateForStage(context, stage);
+        var (tools, registeredFunctions) = toolProvider.GetToolsForStage(context, stage);
 
         activity?.SetTag("session.stage", stage.ToString());
         activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
@@ -62,7 +55,7 @@ public sealed class TurnCoordinator(
             SingleReader = true
         });
 
-        _ = ProduceEventsAsync(channel.Writer, sessionId, chatSessionId, context, stage, kernel, playerMessage, ct);
+        _ = ProduceEventsAsync(channel.Writer, sessionId, chatSessionId, context, stage, tools, playerMessage, ct);
 
         await foreach (var evt in channel.Reader.ReadAllAsync(ct))
         {
@@ -76,7 +69,7 @@ public sealed class TurnCoordinator(
         Guid chatSessionId,
         SessionContext context,
         SessionStage stage,
-        Kernel kernel,
+        IReadOnlyList<AIFunction> tools,
         string playerMessage,
         CancellationToken ct)
     {
@@ -90,35 +83,23 @@ public sealed class TurnCoordinator(
                 // Save user message
                 await chatHistoryRepository.SaveMessage(
                     chatSessionId,
-                    new ChatMessageContent(AuthorRole.User, playerMessage),
+                    new ChatMessage(ChatRole.User, playerMessage),
                     ct);
 
                 var narrativeChunks = new List<NarrativeChunk>();
                 var toolResults = new List<ToolResult>();
 
-                if (stage == SessionStage.Combat)
+                // Every stage — including Combat — runs one agent turn per player message.
+                // Combat is player-driven: one player message resolves exactly one round (the stage
+                // stays Combat across turns via DeriveStage until EndEncounter or character death).
+                await foreach (var evt in agentExecutor.ExecuteAsync(tools, context, chatSessionId, playerMessage, ct))
                 {
-                    await foreach (var evt in combatAgentService.ResolveCombatAsync(context, kernel, ct))
-                    {
-                        writer.TryWrite(evt);
+                    writer.TryWrite(evt);
 
-                        if (evt is NarrativeChunk chunk)
-                            narrativeChunks.Add(chunk);
-                        else if (evt is ToolResult tool)
-                            toolResults.Add(tool);
-                    }
-                }
-                else
-                {
-                    await foreach (var evt in agentExecutor.ExecuteAsync(kernel, context, chatSessionId, playerMessage, ct))
-                    {
-                        writer.TryWrite(evt);
-
-                        if (evt is NarrativeChunk chunk)
-                            narrativeChunks.Add(chunk);
-                        else if (evt is ToolResult tool)
-                            toolResults.Add(tool);
-                    }
+                    if (evt is NarrativeChunk chunk)
+                        narrativeChunks.Add(chunk);
+                    else if (evt is ToolResult tool)
+                        toolResults.Add(tool);
                 }
 
                 // Build full response text from narrative chunks
@@ -131,7 +112,7 @@ public sealed class TurnCoordinator(
                 // Save assistant response
                 await chatHistoryRepository.SaveMessage(
                     chatSessionId,
-                    new ChatMessageContent(AuthorRole.Assistant, fullResponse.ToString())
+                    new ChatMessage(ChatRole.Assistant, fullResponse.ToString())
                     {
                         AuthorName = "Game_Master"
                     },

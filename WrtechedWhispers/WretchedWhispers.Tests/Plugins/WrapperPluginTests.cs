@@ -23,7 +23,7 @@ public class WrapperPluginTests
     // -- CharacterWrapperPlugin --
 
     [Fact]
-    public async Task CreateCharacter_DelegatesToInner_SetsCharacterId_AndJoinsCampaign()
+    public async Task CreateCharacter_DelegatesToInner_SetsCharacterId_JoinsButDoesNotStartCampaign()
     {
         var charId = Guid.NewGuid();
         var campId = Guid.NewGuid();
@@ -45,6 +45,11 @@ public class WrapperPluginTests
         Assert.Equal(charId, _context.CharacterId);
         Assert.Contains(charId, campaign.Players);
         _campaignsRepo.Verify(r => r.SaveCampaign(campaign), Times.Once);
+
+        // Stage/state integrity (Phase 2c): creating a character links it to the campaign but must
+        // NOT start the campaign — starting is an explicit CampaignSetup step. So the derived stage
+        // stays CampaignSetup, not Exploration.
+        Assert.False(campaign.IsActive());
     }
 
     [Fact]
