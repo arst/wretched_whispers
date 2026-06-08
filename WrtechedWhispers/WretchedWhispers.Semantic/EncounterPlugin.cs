@@ -89,7 +89,7 @@ public class EncounterPlugin(EncounterService encounterService, IEncountersRepos
         var outcome = await encounterService.AttackAdversary(encounterId, adversaryBeingAttackedId, attackingPlayerId);
 
         return new CharacterAttackOutcomeDto(outcome.Hit, outcome.Damage.Amount, outcome.Critical, outcome.Fumble,
-            outcome.WeaponBroken, outcome.TargetArmorDegraded);
+            outcome.WeaponBroken, outcome.TargetArmorDegraded, outcome.BaseDamageRoll, outcome.DamageReduction);
     }
 
     [Description(

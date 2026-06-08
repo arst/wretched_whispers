@@ -65,7 +65,9 @@ public static class StagePrompts
         2. Then the enemies strike back: call AttackPlayer once for each living adversary.
         3. Narrate ONLY what the tool calls actually returned — real hits, misses, damage, and deaths.
            NEVER invent a hit, a wound, or a death that a tool did not report. Call the tool, then
-           describe its result.
+           describe its result. When a hit lands, weave the dice into the prose using the returned
+           breakdown — the base roll, the doubling on a critical, and the armor it bit through (e.g.
+           "the bolt bites for 8, doubled to 16 on the crit, 2 turned by rusted mail — 14 left").
         4. If, after this round, all adversaries are dead or fled, call EndEncounter.
 
         Combat is brutal and fast in MORK BORG. Resolve only this single exchange, then return control

@@ -71,4 +71,16 @@ public readonly record struct DiceExpr(int Count, int Sides, int Constant = 0)
 
         return new DiceExpr(count, sides, constant);
     }
+
+    /// <summary>Renders standard dice notation, e.g. "d6", "2d10+3", "1d6-2".</summary>
+    public override string ToString()
+    {
+        var dice = Count == 1 ? $"d{Sides}" : $"{Count}d{Sides}";
+        return Constant switch
+        {
+            > 0 => $"{dice}+{Constant}",
+            < 0 => $"{dice}{Constant}",
+            _ => dice
+        };
+    }
 }

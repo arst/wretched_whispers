@@ -145,7 +145,7 @@ public sealed class Character
         if (outcome.TargetArmorDegraded) targetArmor.Degrade();
 
         return new AttackOutcome(outcome.Hit, outcome.Damage, outcome.Critical, outcome.Fumble, outcome.WeaponBroken,
-            outcome.TargetArmorDegraded);
+            outcome.TargetArmorDegraded, outcome.BaseDamageRoll, outcome.DamageReduction);
     }
 
     private AttackOutcome ResolveAttack(Armor targetArmor, Dice dice)
@@ -159,12 +159,14 @@ public sealed class Character
         var targetArmorDegraded = false;
 
         var dmg = Damage.Zero;
+        var baseRoll = 0;
+        var reduction = 0;
         if (hit)
         {
-            var raw = dice.Roll(Weapon.DamageDie);
-            if (crit) raw *= 2;
+            baseRoll = dice.Roll(Weapon.DamageDie);
+            var raw = crit ? baseRoll * 2 : baseRoll;
             // Armor damage reduction delegated to ArmorTier
-            var reduction = targetArmor.Tier.RollDamageReduction(dice);
+            reduction = targetArmor.Tier.RollDamageReduction(dice);
             var final = Math.Max(0, raw - reduction);
             dmg = Damage.From(final);
 
@@ -176,7 +178,7 @@ public sealed class Character
             weaponBroken = true;
         }
 
-        return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded);
+        return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded, baseRoll, reduction);
     }
 
     public DefenceOutcome Defend(DiceExpr attackDie, Dice dice)
