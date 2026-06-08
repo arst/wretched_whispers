@@ -16,9 +16,13 @@ public class StageToolMapTests
             : [];
 
     [Fact]
-    public void CharacterCreation_ExposesOnlyCreateCharacter()
+    public void CharacterCreation_ExposesCreateCharacterAndCampaignSetupTools()
     {
-        Assert.Equal(new[] { "Character.CreateCharacter" }, Flatten(SessionStage.CharacterCreation));
+        // The opening stage runs the whole intro in one turn (create character + configure/start
+        // the campaign), so it also exposes the campaign-setup tools.
+        Assert.Equal(
+            new[] { "Campaign.ConfigureCampaign", "Campaign.StartCampaign", "Character.CreateCharacter" },
+            Flatten(SessionStage.CharacterCreation));
     }
 
     [Fact]

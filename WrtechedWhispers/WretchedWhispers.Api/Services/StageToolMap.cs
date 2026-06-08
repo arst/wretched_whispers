@@ -18,9 +18,12 @@ public static class StageToolMap
     public static readonly FrozenDictionary<SessionStage, FrozenDictionary<string, FrozenSet<string>>> Map =
         new Dictionary<SessionStage, FrozenDictionary<string, FrozenSet<string>>>
         {
+            // The opening stage runs the whole intro in one turn: create the character, then
+            // configure + start the campaign, landing the player straight in Exploration.
             [SessionStage.CharacterCreation] = new Dictionary<string, FrozenSet<string>>
             {
-                ["Character"] = new[] { "CreateCharacter" }.ToFrozenSet()
+                ["Character"] = new[] { "CreateCharacter" }.ToFrozenSet(),
+                ["Campaign"] = new[] { "ConfigureCampaign", "StartCampaign" }.ToFrozenSet()
             }.ToFrozenDictionary(),
 
             [SessionStage.CampaignSetup] = new Dictionary<string, FrozenSet<string>>
