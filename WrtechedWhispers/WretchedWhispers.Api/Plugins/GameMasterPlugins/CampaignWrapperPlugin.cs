@@ -28,6 +28,7 @@ public sealed class CampaignWrapperPlugin(
         [Description("The name of the campaign")] string name,
         [Description("A description of the campaign's setting, goals, or theme")] string description)
     {
+        ToolGuard.DiceExpression(diceExpression, nameof(diceExpression));
         var campaignId = RequireCampaignId();
         var campaign = await campaignsRepository.Get(campaignId)
             ?? throw new InvalidOperationException("Campaign not found.");
@@ -51,6 +52,7 @@ public sealed class CampaignWrapperPlugin(
     public async Task<AdvanceTimeOutcomeDto> AdvanceTime(
         [Description("The number of hours to advance the campaign time by")] int hours)
     {
+        ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
         return await inner.AdvanceTime(RequireCampaignId(), hours);
     }
 
@@ -58,6 +60,7 @@ public sealed class CampaignWrapperPlugin(
     public async Task<AdvanceTimeOutcomeDto> Rest(
         [Description("The number of hours characters will rest and recover")] int hours)
     {
+        ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
         return await inner.Rest(RequireCampaignId(), hours);
     }
 }

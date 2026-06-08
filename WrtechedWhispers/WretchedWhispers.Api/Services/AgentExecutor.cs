@@ -26,6 +26,17 @@ public sealed class AgentExecutor(
     ResiliencePipelineProvider<string> resilienceProvider,
     ILogger<AgentExecutor> logger) : IAgentExecutor
 {
+    // Drive function calling ourselves so we can surface tool-validation messages back to the model:
+    // IncludeDetailedErrors lets the model see WHY a tool call failed (e.g. "quantity must be >= 1")
+    // and retry with corrected arguments instead of failing the whole turn.
+    private readonly IChatClient _functionInvokingClient = chatClient
+        .AsBuilder()
+        .UseFunctionInvocation(configure: c =>
+        {
+            c.IncludeDetailedErrors = true;
+            c.MaximumConsecutiveErrorsPerRequest = 3;
+        })
+        .Build();
     public async IAsyncEnumerable<GameTurnEvent> ExecuteAsync(
         IReadOnlyList<AIFunction> tools,
         SessionContext sessionContext,
@@ -94,21 +105,29 @@ public sealed class AgentExecutor(
                 "Suppressed {Count} pre-tool narrative chunk(s) as potential fabrication",
                 preToolNarrative.Count);
 
-        logger.LogInformation(
-            "Agent execution complete — {ChunkCount} narrative chunks ({Suppressed} suppressed), {ToolCount} tool results",
-            narrative.Count, sawTool ? preToolNarrative.Count : 0, toolResults.Count);
+        // Output guardrail: strip any raw entity GUIDs the model leaked into the prose. The narrative
+        // is already buffered for the fabrication guardrail, so scrub the joined text (a leaked GUID
+        // is split across streamed sub-word chunks and would not match within a single chunk).
+        var scrubbed = OutputScrubber.RedactGuids(string.Concat(narrative), out var redacted);
 
-        foreach (var text in narrative)
-            yield return new NarrativeChunk(text);
+        logger.LogInformation(
+            "Agent execution complete — {ChunkCount} narrative chunks ({Suppressed} suppressed), {ToolCount} tool results, ids redacted: {Redacted}",
+            narrative.Count, sawTool ? preToolNarrative.Count : 0, toolResults.Count, redacted);
+
+        if (scrubbed.Length > 0)
+            yield return new NarrativeChunk(scrubbed);
 
         foreach (var toolResult in toolResults)
             yield return toolResult;
     }
 
     private AIAgent CreateAgent(IReadOnlyList<AIFunction> tools, SessionContext sessionContext) =>
-        new ChatClientAgent(chatClient, new ChatClientAgentOptions
+        new ChatClientAgent(_functionInvokingClient, new ChatClientAgentOptions
         {
             Name = "Game_Master",
+            // We already wrapped the client with function invocation above; don't let the agent
+            // wrap it again (which would double-invoke every tool).
+            UseProvidedChatClientAsIs = true,
             ChatOptions = new ChatOptions
             {
                 Instructions = promptComposer.Compose(sessionContext),

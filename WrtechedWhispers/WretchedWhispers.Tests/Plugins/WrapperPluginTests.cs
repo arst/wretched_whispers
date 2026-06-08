@@ -278,4 +278,94 @@ public class WrapperPluginTests
         Assert.Equal("1d6", result.Formula);
         inner.Verify(p => p.Roll("1d6"), Times.Once);
     }
+
+    // -- Argument validation (#4): bad model args are rejected with a clear message BEFORE hitting
+    //    the domain, so Agent Framework feeds the reason back and the model can self-correct. --
+
+    [Fact]
+    public async Task ImproveCharacterAbility_RejectsNonPositiveDelta()
+    {
+        _context.SetCharacterId(Guid.NewGuid());
+        var inner = new Mock<ICharacterOperations>();
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => wrapper.ImproveCharacterAbility(AbilityKind.Strength, 0));
+        Assert.Contains("positive", ex.Message);
+        inner.Verify(p => p.ImproveCharacterAbility(It.IsAny<Guid>(), It.IsAny<AbilityKind>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DegradeCharacterAbility_RejectsNonNegativeDelta()
+    {
+        _context.SetCharacterId(Guid.NewGuid());
+        var inner = new Mock<ICharacterOperations>();
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => wrapper.DegradeCharacterAbility(AbilityKind.Strength, 1));
+        Assert.Contains("negative", ex.Message);
+        inner.Verify(p => p.DegradeCharacterAbility(It.IsAny<Guid>(), It.IsAny<AbilityKind>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task BuyItem_RejectsNegativeSilverCost()
+    {
+        _context.SetCharacterId(Guid.NewGuid());
+        var inner = new Mock<ICharacterOperations>();
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => wrapper.BuyItem("rusty knife", silverCost: -5));
+        Assert.Contains("silverCost", ex.Message);
+        inner.Verify(p => p.BuyItem(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<int>(),
+            It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddItemToCharacterInventory_RejectsQuantityBelowOne()
+    {
+        _context.SetCharacterId(Guid.NewGuid());
+        var inner = new Mock<ICharacterOperations>();
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => wrapper.AddItemToCharacterInventory("a bone", quantity: 0));
+        Assert.Contains("quantity", ex.Message);
+    }
+
+    [Fact]
+    public async Task ChallengeCharacter_RejectsOutOfRangeDr()
+    {
+        _context.SetCharacterId(Guid.NewGuid());
+        var inner = new Mock<ICharacterOperations>();
+        var wrapper = new CharacterWrapperPlugin(inner.Object, _context, _campaignsRepo.Object);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => wrapper.ChallengeCharacter(99, AbilityKind.Agility));
+        Assert.Contains("between 2 and 20", ex.Message);
+    }
+
+    [Fact]
+    public async Task AdvanceTime_RejectsNonPositiveHours()
+    {
+        _context.SetCampaignId(Guid.NewGuid());
+        var inner = new Mock<ICampaignOperations>();
+        var wrapper = new CampaignWrapperPlugin(inner.Object, _campaignsRepo.Object, _context);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => wrapper.AdvanceTime(0));
+        Assert.Contains("hours", ex.Message);
+        inner.Verify(p => p.AdvanceTime(It.IsAny<Guid>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public void Roll_RejectsMalformedDiceExpression()
+    {
+        var inner = new Mock<IDiceOperations>();
+        var wrapper = new DiceWrapperPlugin(inner.Object);
+
+        var ex = Assert.Throws<ArgumentException>(() => wrapper.Roll("not-a-die"));
+        Assert.Contains("d6", ex.Message);
+        inner.Verify(p => p.Roll(It.IsAny<string>()), Times.Never);
+    }
 }
