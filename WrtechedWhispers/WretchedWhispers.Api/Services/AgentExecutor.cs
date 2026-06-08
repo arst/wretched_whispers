@@ -21,6 +21,7 @@ namespace WretchedWhispers.Api.Services;
 public sealed class AgentExecutor(
     IChatClient chatClient,
     IChatHistoryRepository chatHistoryRepository,
+    ChatHistoryReducer historyReducer,
     PromptComposer promptComposer,
     ResiliencePipelineProvider<string> resilienceProvider,
     ILogger<AgentExecutor> logger) : IAgentExecutor
@@ -36,6 +37,9 @@ public sealed class AgentExecutor(
         activity?.SetTag("session.chat_id", chatSessionId.ToString());
 
         var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
+        // Bound the model's context on long sessions (summarize older messages). Done once here
+        // rather than inside the retry pipeline so a retried run doesn't re-summarize.
+        history = await historyReducer.ReduceAsync(history, ct);
         var agent = CreateAgent(tools, sessionContext);
 
         var pipeline = resilienceProvider.GetPipeline("llm-retry");

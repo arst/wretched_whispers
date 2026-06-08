@@ -35,6 +35,7 @@ public class AgentExecutorIntegrationTests
         return new AgentExecutor(
             chatClient,
             historyRepo.Object,
+            new ChatHistoryReducer(chatClient, NullLogger<ChatHistoryReducer>.Instance),
             new PromptComposer(),
             new PassThroughPipelineProvider(),
             NullLogger<AgentExecutor>.Instance);

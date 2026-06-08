@@ -38,6 +38,7 @@ public static class AgentConfiguration
         services.AddScoped<ISessionContextLoader, SessionContextLoader>();
         services.AddScoped<IAgentToolProvider, AgentToolProvider>();
         services.AddScoped<IAgentExecutor, AgentExecutor>();
+        services.AddScoped<ChatHistoryReducer>();
         services.AddScoped<PromptComposer>();
 
         // Game plugins as Scoped so they resolve request-scoped DbContext/repos.
