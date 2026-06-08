@@ -5,13 +5,13 @@ using Xunit;
 
 namespace WretchedWhispers.Tests;
 
-public sealed class DicePluginTests : TestBase
+public sealed class DiceToolsTests : TestBase
 {
-    private readonly DicePlugin _plugin;
+    private readonly DiceTools _plugin;
 
-    public DicePluginTests()
+    public DiceToolsTests()
     {
-        _plugin = new DicePlugin(Dice);
+        _plugin = new DiceTools(Dice);
     }
 
     [Fact]

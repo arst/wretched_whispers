@@ -1,20 +1,21 @@
 using System.ComponentModel;
+using WretchedWhispers.Api.GameTools.Models;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Api.GameTools.Models;
 
-namespace WretchedWhispers.Api.Plugins.GameMasterPlugins;
+namespace WretchedWhispers.Api.GameTools;
 
 /// <summary>
-/// Wraps CampaignPlugin to auto-fill campaignId/characterId from SessionContext and add guardrails.
-/// The model never sees GUID parameters -- IDs are resolved from session state.
-/// Does NOT expose EndCampaign or GetCampaignById per D-13 -- ended state is derived from domain.
+/// Campaign game-master tools. Auto-fills the campaign id from <see cref="SessionContext"/>, validates
+/// arguments, and calls the domain directly. Does not expose EndCampaign or GetCampaignById -- ended
+/// state is derived from the domain, not driven by the model. Replaces the former
+/// CampaignWrapperPlugin → ICampaignOperations → CampaignPluginAdapter → CampaignPlugin stack.
 /// </summary>
 [Description("Manage the campaign: configure its setting and pace, start it, and advance time.")]
-public sealed class CampaignWrapperPlugin(
-    ICampaignOperations inner,
+public sealed class CampaignTools(
     ICampaignsRepository campaignsRepository,
+    CampaignService campaignService,
     SessionContext sessionContext)
 {
     private Guid RequireCampaignId() =>
@@ -29,23 +30,19 @@ public sealed class CampaignWrapperPlugin(
         [Description("A description of the campaign's setting, goals, or theme")] string description)
     {
         ToolGuard.DiceExpression(diceExpression, nameof(diceExpression));
-        var campaignId = RequireCampaignId();
-        var campaign = await campaignsRepository.Get(campaignId)
-            ?? throw new InvalidOperationException("Campaign not found.");
-
+        var campaign = await RequireCampaign();
         campaign.Configure(DiceExpr.Parse(diceExpression), name, description);
         await campaignsRepository.SaveCampaign(campaign);
-
-        return new CampaignDto(
-            campaign.Id, campaign.Name, campaign.Description,
-            campaign.CurrentDay, campaign.CurrentHour,
-            campaign.Miseries.Select(m => new MiseryDto(m.Code, m.Psalm)).ToList());
+        return CreateCampaignDto(campaign);
     }
 
     [Description("Start the campaign. The character must already be created.")]
     public async Task<CampaignDto> StartCampaign()
     {
-        return await inner.StartCampaign(RequireCampaignId());
+        var campaign = await RequireCampaign();
+        campaign.Start();
+        await campaignsRepository.SaveCampaign(campaign);
+        return CreateCampaignDto(campaign);
     }
 
     [Description("Advance time in the campaign by the specified number of hours")]
@@ -53,7 +50,8 @@ public sealed class CampaignWrapperPlugin(
         [Description("The number of hours to advance the campaign time by")] int hours)
     {
         ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
-        return await inner.AdvanceTime(RequireCampaignId(), hours);
+        var outcome = await campaignService.AdvanceTime(RequireCampaignId(), hours);
+        return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
     }
 
     [Description("Rest for recovery -- characters heal HP and restore magical abilities during the rest period")]
@@ -61,6 +59,22 @@ public sealed class CampaignWrapperPlugin(
         [Description("The number of hours characters will rest and recover")] int hours)
     {
         ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
-        return await inner.Rest(RequireCampaignId(), hours);
+        var outcome = await campaignService.AdvanceTimeWithRest(RequireCampaignId(), hours);
+        return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
     }
+
+    private async Task<Campaign> RequireCampaign()
+    {
+        var campaignId = RequireCampaignId();
+        return await campaignsRepository.Get(campaignId)
+            ?? throw new InvalidOperationException("Campaign not found.");
+    }
+
+    private static CampaignDto CreateCampaignDto(Campaign campaign) => new(
+        campaign.Id,
+        campaign.Name,
+        campaign.Description,
+        campaign.CurrentDay,
+        campaign.CurrentHour,
+        campaign.Miseries.Select(m => new MiseryDto(m.Code, m.Psalm)).ToList());
 }

@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure.Persistence;
-using WretchedWhispers.Api.GameTools;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Sessions;
@@ -179,9 +179,9 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     [Fact]
-    public async Task CampaignPlugin_SaveCampaign_PreservesTenantUserId_ThroughScopedDI()
+    public async Task CampaignsRepository_ParameterlessSaveCampaign_PreservesTenantUserId_ThroughScopedDI()
     {
-        // Arrange: Create a DI scope from the real application (same as GameSessionService)
+        // Arrange: Create a DI scope from the real application (same as the turn pipeline)
         using var scope = _factory.Services.CreateScope();
         var sp = scope.ServiceProvider;
 
@@ -189,15 +189,17 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var tenantContext = sp.GetRequiredService<ITenantContext>();
         tenantContext.SetUserId("e2e-test-user");
 
-        // Resolve CampaignPlugin from the SAME scope (same as ImportPluginFromObject)
-        var campaignPlugin = sp.GetRequiredService<CampaignPlugin>();
+        // Resolve the repository from the SAME scope. The game tools save via the parameterless
+        // SaveCampaign overload, which must stamp the entity with the scoped tenant's UserId.
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
 
-        // Act: Call plugin method that uses parameterless SaveCampaign internally
-        var result = await campaignPlugin.CreateCampaign("d6", "E2E Tenant Test", "Verifying tenant propagation");
+        // Act
+        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "E2E Tenant Test", "Verifying tenant propagation");
+        await campaignsRepo.SaveCampaign(campaign);
 
         // Assert: Check the database entity has the correct UserId
         var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-        var entity = await db.Campaigns.FindAsync(result.Id);
+        var entity = await db.Campaigns.FindAsync(campaign.Id);
         Assert.NotNull(entity);
         Assert.Equal("e2e-test-user", entity!.UserId);
     }
