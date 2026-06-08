@@ -41,12 +41,10 @@ public static class AgentConfiguration
         services.AddScoped<ChatHistoryReducer>();
         services.AddScoped<PromptComposer>();
 
-        // Game plugins as Scoped so they resolve request-scoped DbContext/repos.
-        // Used as inner services for the stage-scoped wrapper plugins.
-        services.AddScoped<CharacterPlugin>();
-        services.AddScoped<CampaignPlugin>();
-        services.AddScoped<EncounterPlugin>();
-        services.AddScoped<DicePlugin>();
+        // The stage-scoped game-tool classes (CharacterTools/CampaignTools/EncounterTools/DiceTools)
+        // are constructed per turn inside AgentToolProvider — each needs the turn's SessionContext —
+        // so they are not registered here. The Core services they depend on are registered with the
+        // domain/infrastructure DI.
 
         // Resilience pipeline for LLM retry with exponential backoff
         var timeoutSeconds = configuration.GetValue("GameSession:ResponseTimeoutSeconds", 180);

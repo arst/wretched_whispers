@@ -1,19 +1,20 @@
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.AI;
-using WretchedWhispers.Api.Plugins.GameMasterPlugins;
-using WretchedWhispers.Api.Plugins.GameMasterPlugins.Adapters;
-using WretchedWhispers.Core.Campaigns;
-using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Api.GameTools;
+using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Encounters;
 
 namespace WretchedWhispers.Api.Services;
 
 /// <summary>
 /// Agent Framework replacement for the former KernelFactory. Instead of building a Semantic Kernel
-/// and importing/removing plugins, it builds the stage-scoped wrapper plugins and exposes their
+/// and importing/removing plugins, it constructs the stage-scoped game-tool classes and exposes their
 /// allowed methods as <see cref="AIFunction"/> tools. The stage allow-list lives in
-/// <see cref="StageToolMap"/>; tool names are the bare method names (unique across wrappers), which
+/// <see cref="StageToolMap"/>; tool names are the bare method names (unique across tool classes), which
 /// is what the stage prompts reference.
 /// </summary>
 public sealed class AgentToolProvider(
@@ -37,23 +38,29 @@ public sealed class AgentToolProvider(
 
         var campaignsRepo = serviceProvider.GetRequiredService<ICampaignsRepository>();
         var encountersRepo = serviceProvider.GetRequiredService<IEncountersRepository>();
+        var charactersRepo = serviceProvider.GetRequiredService<ICharactersRepository>();
+        var dice = serviceProvider.GetRequiredService<Dice>();
 
-        // Wrapper plugins auto-fill GUIDs from SessionContext and add guardrails over the raw
-        // Semantic plugins (resolved from DI, bridged via adapters).
+        // Game-tool classes auto-fill GUIDs from SessionContext, validate model arguments, and call
+        // the domain directly. Constructed per turn (not DI-registered) because each needs the
+        // turn's SessionContext. EncounterTools also owns the Resolution-stage CompleteResolution
+        // tool, so it is registered under both the "Encounter" and "Resolution" allow-list keys.
+        var encounterTools = new EncounterTools(
+            serviceProvider.GetRequiredService<EncounterService>(),
+            encountersRepo, dice, sessionContext, campaignsRepo);
+
         var wrappers = new Dictionary<string, object>
         {
-            ["Character"] = new CharacterWrapperPlugin(
-                new CharacterPluginAdapter(serviceProvider.GetRequiredService<CharacterPlugin>()),
-                sessionContext, campaignsRepo),
-            ["Campaign"] = new CampaignWrapperPlugin(
-                new CampaignPluginAdapter(serviceProvider.GetRequiredService<CampaignPlugin>()),
-                campaignsRepo, sessionContext),
-            ["Encounter"] = new EncounterWrapperPlugin(
-                new EncounterPluginAdapter(serviceProvider.GetRequiredService<EncounterPlugin>()),
-                sessionContext, campaignsRepo),
-            ["Dice"] = new DiceWrapperPlugin(
-                new DicePluginAdapter(serviceProvider.GetRequiredService<DicePlugin>())),
-            ["Resolution"] = new ResolutionWrapperPlugin(sessionContext, encountersRepo)
+            ["Character"] = new CharacterTools(
+                charactersRepo,
+                serviceProvider.GetRequiredService<CharacterCreationService>(),
+                serviceProvider.GetRequiredService<CharacterService>(),
+                dice, sessionContext, campaignsRepo),
+            ["Campaign"] = new CampaignTools(
+                campaignsRepo, serviceProvider.GetRequiredService<CampaignService>(), sessionContext),
+            ["Encounter"] = encounterTools,
+            ["Dice"] = new DiceTools(dice),
+            ["Resolution"] = encounterTools
         };
 
         var tools = new List<AIFunction>();

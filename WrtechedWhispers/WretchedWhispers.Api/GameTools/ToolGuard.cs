@@ -1,6 +1,6 @@
 using WretchedWhispers.Core.Dices;
 
-namespace WretchedWhispers.Api.Plugins.GameMasterPlugins;
+namespace WretchedWhispers.Api.GameTools;
 
 /// <summary>
 /// Validation guards for model-supplied tool arguments. Messages are written for the MODEL to read:

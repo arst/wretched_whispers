@@ -92,7 +92,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         }
         else
         {
-            // DI resolution failure for TurnCoordinator transitive dependencies (e.g. ICharacterOperations)
+            // DI resolution failure for TurnCoordinator transitive dependencies (e.g. game-tool Core services)
             // results in a 500 before SSE headers are written. This is expected in the test environment
             // where not all game plugins are registered.
             Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);

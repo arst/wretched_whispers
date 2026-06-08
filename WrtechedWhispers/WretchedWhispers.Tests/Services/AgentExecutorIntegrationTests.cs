@@ -52,18 +52,15 @@ public class AgentExecutorIntegrationTests
         var encsRepo = new Mock<IEncountersRepository>().Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
 
-        services.AddSingleton(_ => new CharacterPlugin(
-            charsRepo.Object,
-            new CharacterCreationService(charsRepo.Object, dice),
-            new CharacterService(charsRepo.Object, dice),
-            dice));
-        services.AddSingleton(_ => new CampaignPlugin(campsRepo, charsRepo.Object,
-            new CampaignService(campsRepo, charsRepo.Object, dice)));
-        services.AddSingleton(_ => new EncounterPlugin(
-            new EncounterService(dice, charsRepo.Object, encsRepo), encsRepo, dice));
-        services.AddSingleton(_ => new DicePlugin(dice));
+        // AgentToolProvider constructs the *Tools classes from these Core services.
+        services.AddSingleton(charsRepo.Object);
         services.AddSingleton(campsRepo);
         services.AddSingleton(encsRepo);
+        services.AddSingleton(dice);
+        services.AddSingleton(new CharacterCreationService(charsRepo.Object, dice));
+        services.AddSingleton(new CharacterService(charsRepo.Object, dice));
+        services.AddSingleton(new CampaignService(campsRepo, charsRepo.Object, dice));
+        services.AddSingleton(new EncounterService(dice, charsRepo.Object, encsRepo));
 
         var sp = services.BuildServiceProvider();
         return (new AgentToolProvider(sp, NullLogger<AgentToolProvider>.Instance), charsRepo.Object);
