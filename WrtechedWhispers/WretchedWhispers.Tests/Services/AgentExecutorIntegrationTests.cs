@@ -116,6 +116,35 @@ public class AgentExecutorIntegrationTests
         Assert.Contains("Grim", narrative);
     }
 
+    [Fact]
+    public async Task PreToolFabrication_IsSuppressed_PostToolNarrationSurvives()
+    {
+        var (provider, _) = CreateToolProvider();
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
+
+        // The model fabricates an outcome BEFORE calling the tool, then narrates after.
+        var client = new ScriptedChatClient(
+            ChatResponses.TextThenToolCall(
+                "FABRICATED: you have already triumphed!", "call_1", "CreateCharacter",
+                new() { ["name"] = "Grim" }),
+            ChatResponses.Text("Grim claws free of the muck, doomed already."));
+
+        var executor = CreateExecutor(client);
+
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in executor.ExecuteAsync(tools, ctx, Guid.NewGuid(), "Grim", CancellationToken.None))
+            events.Add(evt);
+
+        var narrative = string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text));
+
+        // Pre-tool fabrication is dropped; only the post-tool narration reaches the player.
+        Assert.DoesNotContain("FABRICATED", narrative);
+        Assert.Contains("Grim claws free", narrative);
+        // The tool still ran.
+        Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateCharacter");
+    }
+
     // ---- Test doubles ----
 
     /// <summary>No-op resilience provider: the executor only calls GetPipeline(key).</summary>
@@ -145,6 +174,15 @@ public class AgentExecutorIntegrationTests
         public static ChatResponse ToolCall(string callId, string name, Dictionary<string, object?> args) =>
             new(new ChatMessage(ChatRole.Assistant, new List<AIContent>
             {
+                new FunctionCallContent(callId, name, args)
+            }));
+
+        // Assistant turn that narrates an outcome BEFORE calling the tool — the pre-tool prose is
+        // exactly what the no-fabrication guardrail must suppress.
+        public static ChatResponse TextThenToolCall(string text, string callId, string name, Dictionary<string, object?> args) =>
+            new(new ChatMessage(ChatRole.Assistant, new List<AIContent>
+            {
+                new TextContent(text),
                 new FunctionCallContent(callId, name, args)
             }));
     }

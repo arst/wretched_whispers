@@ -8,9 +8,15 @@ using WretchedWhispers.Semantic;
 namespace WretchedWhispers.Api.Services;
 
 /// <summary>
-/// Drives a single non-combat game-master turn on Microsoft Agent Framework: loads prior history,
-/// builds a <see cref="ChatClientAgent"/> scoped to the stage's tools, streams the run, and maps
-/// streamed content to <see cref="GameTurnEvent"/>s (narrative text + tool results).
+/// Drives a single game-master turn on Microsoft Agent Framework: loads prior history, builds a
+/// <see cref="ChatClientAgent"/> scoped to the stage's tools, streams the run, and maps streamed
+/// content to <see cref="GameTurnEvent"/>s (narrative text + tool results).
+///
+/// Tools-authoritative guardrail (no fabricated outcomes): if the model calls any tool this turn,
+/// only narration emitted AFTER the first tool call is trusted and surfaced to the player. Prose
+/// emitted before any tool call is discarded as potential fabrication (the model describing an
+/// outcome it has not actually resolved). Turns with no tool calls are conversational, so their
+/// prose passes through unchanged.
 /// </summary>
 public sealed class AgentExecutor(
     IChatClient chatClient,
@@ -33,13 +39,17 @@ public sealed class AgentExecutor(
         var agent = CreateAgent(tools, sessionContext);
 
         var pipeline = resilienceProvider.GetPipeline("llm-retry");
-        var narrativeChunks = new List<NarrativeChunk>();
+        var preToolNarrative = new List<string>();
+        var postToolNarrative = new List<string>();
         var toolResults = new List<ToolResult>();
+        var sawTool = false;
 
         await pipeline.ExecuteAsync(async token =>
         {
-            narrativeChunks.Clear();
+            preToolNarrative.Clear();
+            postToolNarrative.Clear();
             toolResults.Clear();
+            sawTool = false;
 
             var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
             var session = await agent.CreateSessionAsync(token);
@@ -54,12 +64,14 @@ public sealed class AgentExecutor(
                     switch (content)
                     {
                         case TextContent text when !string.IsNullOrEmpty(text.Text):
-                            narrativeChunks.Add(new NarrativeChunk(text.Text));
+                            (sawTool ? postToolNarrative : preToolNarrative).Add(text.Text);
                             break;
-                        case FunctionCallContent call when call.CallId is not null:
-                            callNames[call.CallId] = call.Name;
+                        case FunctionCallContent call:
+                            sawTool = true;
+                            if (call.CallId is not null) callNames[call.CallId] = call.Name;
                             break;
                         case FunctionResultContent result:
+                            sawTool = true;
                             var name = result.CallId is not null && callNames.TryGetValue(result.CallId, out var n)
                                 ? n
                                 : "unknown";
@@ -70,12 +82,20 @@ public sealed class AgentExecutor(
             }
         }, ct);
 
-        logger.LogInformation(
-            "Agent execution complete — {ChunkCount} narrative chunks, {ToolCount} tool results",
-            narrativeChunks.Count, toolResults.Count);
+        // Tools-authoritative: when tools ran, trust only post-tool narration; drop pre-tool prose.
+        var narrative = sawTool ? postToolNarrative : preToolNarrative;
 
-        foreach (var chunk in narrativeChunks)
-            yield return chunk;
+        if (sawTool && preToolNarrative.Count > 0)
+            logger.LogWarning(
+                "Suppressed {Count} pre-tool narrative chunk(s) as potential fabrication",
+                preToolNarrative.Count);
+
+        logger.LogInformation(
+            "Agent execution complete — {ChunkCount} narrative chunks ({Suppressed} suppressed), {ToolCount} tool results",
+            narrative.Count, sawTool ? preToolNarrative.Count : 0, toolResults.Count);
+
+        foreach (var text in narrative)
+            yield return new NarrativeChunk(text);
 
         foreach (var toolResult in toolResults)
             yield return toolResult;
