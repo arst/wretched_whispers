@@ -3,7 +3,6 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Plugins.CombatAgent;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
@@ -19,7 +18,6 @@ public class TurnCoordinatorTests : IDisposable
     private readonly Mock<ISessionContextLoader> _contextLoader = new();
     private readonly Mock<IAgentToolProvider> _toolProvider = new();
     private readonly Mock<IAgentExecutor> _agentExecutor = new();
-    private readonly Mock<ICombatAgentService> _combatAgentService = new();
     private readonly Mock<IChatHistoryRepository> _chatHistoryRepo = new();
     private readonly WretchedWhispersDbContext _dbContext;
 
@@ -45,7 +43,6 @@ public class TurnCoordinatorTests : IDisposable
             _contextLoader.Object,
             _toolProvider.Object,
             _agentExecutor.Object,
-            _combatAgentService.Object,
             _chatHistoryRepo.Object,
             _dbContext,
             NullLogger<TurnCoordinator>.Instance);

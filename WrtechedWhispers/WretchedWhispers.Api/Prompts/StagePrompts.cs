@@ -43,12 +43,21 @@ public static class StagePrompts
         """;
 
     private const string Combat = """
-        Combat has begun. You are resolving an active encounter.
-        - Alternate between adversary attacks (AttackPlayer) and player attacks (AttackAdversary).
-        - Narrate each blow with visceral detail: blood, pain, broken things.
-        - Roll dice for damage, abilities, and morale when needed.
-        - When all adversaries are dead or fled, end the encounter with EndEncounter.
-        - Combat is brutal and fast in MORK BORG. Do not drag it out unnecessarily.
+        Combat is underway. Resolve EXACTLY ONE round from the player's message, then STOP and wait
+        for the player's next action. Do NOT resolve the whole fight in a single turn — the player
+        acts every round.
+
+        This round, in order:
+        1. Resolve the PLAYER's stated action first. If they attack, call AttackAdversary with the
+           target's name. For other actions (cast a scroll, flee, use an item), call the matching tool.
+        2. Then the enemies strike back: call AttackPlayer once for each living adversary.
+        3. Narrate ONLY what the tool calls actually returned — real hits, misses, damage, and deaths.
+           NEVER invent a hit, a wound, or a death that a tool did not report. Call the tool, then
+           describe its result.
+        4. If, after this round, all adversaries are dead or fled, call EndEncounter.
+
+        Combat is brutal and fast in MORK BORG. Resolve only this single exchange, then return control
+        to the player.
         """;
 
     private const string Resolution = """

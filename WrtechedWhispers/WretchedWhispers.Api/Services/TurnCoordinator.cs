@@ -3,7 +3,6 @@ using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Plugins.CombatAgent;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Semantic;
 
@@ -13,7 +12,6 @@ public sealed class TurnCoordinator(
     ISessionContextLoader contextLoader,
     IAgentToolProvider toolProvider,
     IAgentExecutor agentExecutor,
-    ICombatAgentService combatAgentService,
     IChatHistoryRepository chatHistoryRepository,
     WretchedWhispersDbContext dbContext,
     ILogger<TurnCoordinator> logger)
@@ -91,29 +89,17 @@ public sealed class TurnCoordinator(
                 var narrativeChunks = new List<NarrativeChunk>();
                 var toolResults = new List<ToolResult>();
 
-                if (stage == SessionStage.Combat)
+                // Every stage — including Combat — runs one agent turn per player message.
+                // Combat is player-driven: one player message resolves exactly one round (the stage
+                // stays Combat across turns via DeriveStage until EndEncounter or character death).
+                await foreach (var evt in agentExecutor.ExecuteAsync(tools, context, chatSessionId, playerMessage, ct))
                 {
-                    await foreach (var evt in combatAgentService.ResolveCombatAsync(context, tools, ct))
-                    {
-                        writer.TryWrite(evt);
+                    writer.TryWrite(evt);
 
-                        if (evt is NarrativeChunk chunk)
-                            narrativeChunks.Add(chunk);
-                        else if (evt is ToolResult tool)
-                            toolResults.Add(tool);
-                    }
-                }
-                else
-                {
-                    await foreach (var evt in agentExecutor.ExecuteAsync(tools, context, chatSessionId, playerMessage, ct))
-                    {
-                        writer.TryWrite(evt);
-
-                        if (evt is NarrativeChunk chunk)
-                            narrativeChunks.Add(chunk);
-                        else if (evt is ToolResult tool)
-                            toolResults.Add(tool);
-                    }
+                    if (evt is NarrativeChunk chunk)
+                        narrativeChunks.Add(chunk);
+                    else if (evt is ToolResult tool)
+                        toolResults.Add(tool);
                 }
 
                 // Build full response text from narrative chunks

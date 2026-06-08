@@ -6,7 +6,6 @@ using Microsoft.Extensions.Resilience;
 using Polly;
 using Polly.Retry;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Plugins.CombatAgent;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Semantic;
 
@@ -39,7 +38,6 @@ public static class AgentConfiguration
         services.AddScoped<ISessionContextLoader, SessionContextLoader>();
         services.AddScoped<IAgentToolProvider, AgentToolProvider>();
         services.AddScoped<IAgentExecutor, AgentExecutor>();
-        services.AddScoped<ICombatAgentService, CombatAgentService>();
         services.AddScoped<PromptComposer>();
 
         // Game plugins as Scoped so they resolve request-scoped DbContext/repos.
