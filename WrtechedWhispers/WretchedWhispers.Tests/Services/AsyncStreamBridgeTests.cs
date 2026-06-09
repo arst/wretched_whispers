@@ -63,4 +63,16 @@ public class AsyncStreamBridgeTests
             }
         });
     }
+
+    [Fact]
+    public async Task Run_WhenProducerWritesNothing_YieldsEmptySequence_AndCompletes()
+    {
+        var stream = AsyncStreamBridge.Run<int>((_, _) => Task.CompletedTask, CancellationToken.None);
+
+        var items = new List<int>();
+        await foreach (var i in stream)
+            items.Add(i);
+
+        Assert.Empty(items);
+    }
 }
