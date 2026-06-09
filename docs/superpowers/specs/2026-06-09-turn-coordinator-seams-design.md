@@ -31,8 +31,12 @@ A–F refactor removed. A coordinator that reads as an ordered sequence is a fea
 
 ### 1. `IUnitOfWork` seam (transaction boundary)
 
-Consumer-owned interface in `WretchedWhispers.Api.Services` (the coordinator lives in Api and should
-depend on the abstraction, per DIP), implemented in `WretchedWhispers.Infrastructure`.
+Interface **and** implementation in `WretchedWhispers.Infrastructure.Persistence`, alongside the
+existing `IChatHistoryRepository`. The dependency graph is Api → Infrastructure → Core, so a
+consumer-owned interface in Api is impossible — `EfUnitOfWork` (in Infrastructure) could not
+reference it. `TurnCoordinator` already imports `WretchedWhispers.Infrastructure.Persistence`, so it
+depends on the interface there. This follows the precedent set when `IChatHistoryRepository` was moved
+to Infrastructure.
 
 ```csharp
 public interface IUnitOfWork
@@ -67,7 +71,7 @@ registration lifetime is never changed to something that would break atomicity.
 Generic, domain-agnostic helper in `WretchedWhispers.Api.Services`:
 
 ```csharp
-internal static class AsyncStreamBridge
+public static class AsyncStreamBridge
 {
     public static IAsyncEnumerable<T> Run<T>(
         Func<ChannelWriter<T>, CancellationToken, Task> produce,
