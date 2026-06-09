@@ -19,12 +19,18 @@ public class CampaignCreationEvals
     public async Task Turn1_Begin_CallsNoTools()
     {
         var chatClient = TryCreateAzureChatClient();
-        Assert.SkipWhen(chatClient is null, "Azure OpenAI credentials not configured; skipping live eval.");
+        if (chatClient is null)
+        {
+            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
+            return;
+        }
 
-        var reporting = CreateReportingConfiguration(chatClient!);
+        var reporting = CreateReportingConfiguration(chatClient);
         await using ScenarioRun run = await reporting.CreateScenarioRunAsync("CampaignCreation/Turn1-Begin");
 
-        await using var host = await EvalHost.CreateAsync(run.ChatConfiguration!.ChatClient);
+        var chatConfiguration = run.ChatConfiguration
+            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var host = await EvalHost.CreateAsync(chatConfiguration.ChatClient);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
 
         EvaluationResult result = await run.EvaluateAsync(
@@ -40,12 +46,18 @@ public class CampaignCreationEvals
     public async Task Turn2_Name_CreatesCampaignInOrder()
     {
         var chatClient = TryCreateAzureChatClient();
-        Assert.SkipWhen(chatClient is null, "Azure OpenAI credentials not configured; skipping live eval.");
+        if (chatClient is null)
+        {
+            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
+            return;
+        }
 
-        var reporting = CreateReportingConfiguration(chatClient!);
+        var reporting = CreateReportingConfiguration(chatClient);
         await using ScenarioRun run = await reporting.CreateScenarioRunAsync("CampaignCreation/Turn2-Name");
 
-        await using var host = await EvalHost.CreateAsync(run.ChatConfiguration!.ChatClient);
+        var chatConfiguration = run.ChatConfiguration
+            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var host = await EvalHost.CreateAsync(chatConfiguration.ChatClient);
 
         // Turn 1 first so the model has asked for a name and history is consistent.
         await host.CreateTurnRunner().RunTurnAsync("begin");
