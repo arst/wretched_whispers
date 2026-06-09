@@ -23,8 +23,6 @@ public class ToolCallOrderEvaluatorTests
             modelResponse: response,
             additionalContext: [context]);
 
-        // [VERIFY] EvaluationResult.Get<T>(string) — adapt if the installed API differs
-        // (e.g. result.Metrics[name] cast to BooleanMetric).
         return result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
     }
 
@@ -66,5 +64,26 @@ public class ToolCallOrderEvaluatorTests
         var response = ResponseWithToolCalls("CreateCharacter");
         var metric = await EvaluateAsync(response, []);
         Assert.False(metric.Value);
+    }
+
+    [Fact]
+    public async Task MultiMessage_WithText_ReadsToolCallsInOrder_IgnoringText()
+    {
+        var response = new ChatResponse(new List<ChatMessage>
+        {
+            new(ChatRole.Assistant, new List<AIContent>
+            {
+                new TextContent("Working on it..."),
+                new FunctionCallContent("call_0", "CreateCharacter")
+            }),
+            new(ChatRole.Assistant, new List<AIContent>
+            {
+                new FunctionCallContent("call_1", "ConfigureCampaign"),
+                new TextContent("done")
+            })
+        });
+
+        var metric = await EvaluateAsync(response, ["CreateCharacter", "ConfigureCampaign"]);
+        Assert.True(metric.Value);
     }
 }
