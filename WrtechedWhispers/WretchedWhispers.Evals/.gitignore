@@ -1,0 +1,2 @@
+# Local-only eval response cache + stored results (not a committed CI artifact)
+.eval-results/
