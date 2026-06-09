@@ -137,7 +137,10 @@ the post-commit reload (kept — the client must see committed truth); the two-l
   completes; a producer that throws surfaces via the reader without hanging and still completes;
   cancellation stops the reader.
 - `EfUnitOfWork` (real SQLite via `SqliteTestBase`): commit persists changes; dispose-without-commit
-  rolls back; `DbUpdateConcurrencyException` propagates out of `CommitAsync`.
+  rolls back. (No `CommitAsync`-propagates-concurrency test: with the `Version` token that exception
+  originates at `SaveChangesAsync`, not the transaction commit, so it is pinned at the repository
+  layer — `SaveCampaign_…ThrowsConcurrencyException` — and at the orchestration layer —
+  `ConcurrencyConflict_ProducesRetryTurnError` — instead.)
 
 **Existing tests:**
 
