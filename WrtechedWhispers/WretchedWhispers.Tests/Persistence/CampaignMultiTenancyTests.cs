@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
@@ -84,6 +85,30 @@ public class CampaignMultiTenancyTests : SqliteTestBase
         var entity = await Db.Campaigns.FindAsync(campaign.Id);
         Assert.NotNull(entity);
         Assert.Equal("user-B", entity!.UserId);
+    }
+
+    [Fact]
+    public async Task SaveCampaign_WhenAnotherTurnCommittedConcurrently_ThrowsConcurrencyException()
+    {
+        // Two overlapping turns on the same session (e.g. a double-submit): both load the campaign at
+        // the same Version, both try to commit. The optimistic-concurrency token must let the first
+        // win and make the second throw — the cross-instance backstop the in-memory guard can't give.
+        var campaign = Campaign.Create(DiceExpr.D6, "Race", "Concurrent turns");
+        await _repo.SaveCampaign(campaign, "user-A");
+
+        // Second request scope: its own context + change tracker over the same database.
+        using var otherContext = CreateSeparateContext();
+        var otherRepo = new SqliteCampaignsRepository(otherContext, JsonOptions, TenantContext);
+
+        // Both scopes load the row at the current Version BEFORE either commits.
+        await otherContext.Campaigns.FindAsync(campaign.Id);
+
+        // Turn 1 commits and rotates the token.
+        await _repo.SaveCampaign(campaign, "user-A");
+
+        // Turn 2 commits against the now-stale token it loaded → conflict.
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
+            () => otherRepo.SaveCampaign(campaign, "user-A"));
     }
 
     [Fact]
