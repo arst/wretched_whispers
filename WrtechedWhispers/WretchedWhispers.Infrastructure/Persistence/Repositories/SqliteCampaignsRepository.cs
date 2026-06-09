@@ -44,10 +44,14 @@ public class SqliteCampaignsRepository(
         {
             entity.Data = json;
             entity.UserId = userId;
+            // Rotate the concurrency token. EF matches the original (loaded) Version in the UPDATE's
+            // WHERE clause; an overlapping turn that loaded the same original value will then commit
+            // against 0 rows and throw DbUpdateConcurrencyException.
+            entity.Version = Guid.NewGuid();
         }
         else
         {
-            entity = new CampaignEntity { Id = campaign.Id, Data = json, UserId = userId };
+            entity = new CampaignEntity { Id = campaign.Id, Data = json, UserId = userId, Version = Guid.NewGuid() };
             db.Campaigns.Add(entity);
         }
 

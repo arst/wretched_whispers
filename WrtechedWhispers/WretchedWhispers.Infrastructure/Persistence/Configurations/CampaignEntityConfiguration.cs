@@ -15,5 +15,9 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
 
         builder.Property(e => e.UserId).IsRequired().HasMaxLength(450);
         builder.HasIndex(e => e.UserId);
+
+        // Optimistic concurrency: the original Version value is matched in the UPDATE's WHERE clause.
+        // SqliteCampaignsRepository rotates it on every save (SQLite has no native rowversion).
+        builder.Property(e => e.Version).IsConcurrencyToken();
     }
 }

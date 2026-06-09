@@ -30,6 +30,19 @@ public class SqliteTestBase : IDisposable
     public JsonSerializerOptions JsonOptions { get; }
     public ITenantContext TenantContext { get; } = new StubTenantContext();
 
+    /// <summary>
+    /// A second <see cref="WretchedWhispersDbContext"/> over the same in-memory database (shared
+    /// connection). Used to simulate two concurrent request scopes — each with its own change
+    /// tracker — racing on the same row.
+    /// </summary>
+    public WretchedWhispersDbContext CreateSeparateContext()
+    {
+        var options = new DbContextOptionsBuilder<WretchedWhispersDbContext>()
+            .UseSqlite(_connection)
+            .Options;
+        return new WretchedWhispersDbContext(options);
+    }
+
     public void Dispose()
     {
         Db.Dispose();

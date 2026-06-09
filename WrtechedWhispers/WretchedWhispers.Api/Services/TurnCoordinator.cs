@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Infrastructure.Persistence;
@@ -135,6 +136,18 @@ public sealed class TurnCoordinator(
             {
                 await RollbackSafelyAsync();
                 writer.TryWrite(new TurnError("Request was cancelled"));
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // Another turn for this same session committed while this one was running (two
+                // overlapping turns — typically a double-submit or client retry, since the long SSE
+                // turn widens the race window). The SSE response is already open, so this surfaces as
+                // a turn-level error rather than the pre-stream 409 the SessionConcurrencyGuard gives.
+                logger.LogWarning(ex,
+                    "Concurrent turn conflict — Session={SessionId}, Stage={Stage}",
+                    sessionId, stage);
+                await RollbackSafelyAsync();
+                writer.TryWrite(new TurnError("This session was updated by another action. Please retry."));
             }
             catch (Exception ex)
             {
