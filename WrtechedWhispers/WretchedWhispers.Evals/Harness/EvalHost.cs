@@ -26,6 +26,7 @@ public sealed class EvalHost : IAsyncDisposable
     private readonly SqliteConnection _connection;
     private readonly ServiceProvider _provider;
     private readonly IChatClient _chatClient;
+    private readonly List<EvalTurnRunner> _runners = new();
 
     public Guid SessionId { get; }
     public Guid ChatSessionId { get; }
@@ -63,7 +64,7 @@ public sealed class EvalHost : IAsyncDisposable
         await using (var scope = provider.CreateAsyncScope())
         {
             var sp = scope.ServiceProvider;
-            ((TenantContext)sp.GetRequiredService<ITenantContext>()).SetUserId(TestUserId);
+            SetTenantUser(sp);
 
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var chatRepo = sp.GetRequiredService<IChatHistoryRepository>();
@@ -78,11 +79,16 @@ public sealed class EvalHost : IAsyncDisposable
         return new EvalHost(connection, provider, chatClient, sessionId, chatSessionId);
     }
 
+    /// <summary>
+    /// Creates a new <see cref="EvalTurnRunner"/> scoped to one eval turn and registers it for
+    /// disposal. The runner is owned by this host and will be disposed when the host is disposed —
+    /// callers must NOT dispose the runner themselves.
+    /// </summary>
     public EvalTurnRunner CreateTurnRunner()
     {
         var scope = _provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        ((TenantContext)sp.GetRequiredService<ITenantContext>()).SetUserId(TestUserId);
+        SetTenantUser(sp);
 
         var contextLoader = new SessionContextLoader(
             sp.GetRequiredService<ICampaignsRepository>(),
@@ -100,13 +106,22 @@ public sealed class EvalHost : IAsyncDisposable
             new PromptComposer(),
             NullLogger<AgentExecutor>.Instance);
 
-        return new EvalTurnRunner(scope, contextLoader, toolProvider, executor, chatRepo, SessionId, ChatSessionId);
+        var runner = new EvalTurnRunner(scope, contextLoader, toolProvider, executor, chatRepo, SessionId, ChatSessionId);
+        _runners.Add(runner);
+        return runner;
     }
 
     public async ValueTask DisposeAsync()
     {
+        // Dispose runners (and their scopes) first, then the root provider, then the connection.
+        foreach (var runner in _runners)
+            await runner.DisposeAsync();
+
         await _provider.DisposeAsync();
         _connection.Close();
         _connection.Dispose();
     }
+
+    private static void SetTenantUser(IServiceProvider sp) =>
+        ((TenantContext)sp.GetRequiredService<ITenantContext>()).SetUserId(TestUserId);
 }
