@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Api.Services;
 
@@ -10,9 +11,13 @@ namespace WretchedWhispers.Api.Services;
 /// When the loaded history exceeds <see cref="ThresholdCount"/> messages, the oldest messages
 /// (all but the most recent <see cref="TargetCount"/>) are summarized into a single system message
 /// that preserves MORK BORG game state and tone; the recent tail is kept verbatim. The full history
-/// remains in the database — only what is sent to the model is reduced.
+/// remains in the database — only what is sent to the model is reduced, and the summary watermark
+/// is persisted so later turns summarize incrementally instead of re-summarizing the whole prefix.
 /// </summary>
-public sealed class ChatHistoryReducer(IChatClient chatClient, ILogger<ChatHistoryReducer> logger)
+public sealed class ChatHistoryReducer(
+    IChatClient chatClient,
+    IChatHistoryRepository chatHistoryRepository,
+    ILogger<ChatHistoryReducer> logger)
 {
     private const int TargetCount = 100;
     private const int ThresholdCount = 150;
@@ -39,36 +44,53 @@ public sealed class ChatHistoryReducer(IChatClient chatClient, ILogger<ChatHisto
         """;
 
     public async Task<IReadOnlyList<ChatMessage>> ReduceAsync(
-        IReadOnlyList<ChatMessage> history, CancellationToken ct)
+        Guid chatSessionId, IReadOnlyList<ChatMessage> history, CancellationToken ct)
     {
-        if (history.Count <= ThresholdCount)
-            return history;
+        var stored = await chatHistoryRepository.GetSummary(chatSessionId, ct);
+        var covered = stored?.CoveredCount ?? 0;
+        var tail = history.Skip(covered).ToList();
 
-        var olderCount = history.Count - TargetCount;
-        var older = history.Take(olderCount).ToList();
-        var recent = history.Skip(olderCount).ToList();
+        if (tail.Count <= ThresholdCount)
+            return Compose(stored, tail);
+
+        var olderCount = tail.Count - TargetCount;
+        var toSummarize = new List<ChatMessage>(olderCount + 1);
+        if (stored is not null)
+            toSummarize.Add(SummaryMessage(stored.Text));
+        toSummarize.AddRange(tail.Take(olderCount));
 
         var options = new ChatOptions { Instructions = SummarizationInstructions };
-        var response = await chatClient.GetResponseAsync(older, options, ct);
+        var response = await chatClient.GetResponseAsync(toSummarize, options, ct);
         var summaryText = response.Text;
+        var recent = tail.Skip(olderCount).ToList();
 
         if (string.IsNullOrWhiteSpace(summaryText))
         {
-            // Summarization produced nothing usable — keep the recent tail rather than risk losing
-            // all context, and leave the older messages out (context still bounded).
+            // Summarization produced nothing usable — keep the stored summary and the recent tail;
+            // the watermark stays put so the next turn retries.
             logger.LogWarning("History summarization returned empty; keeping recent {Count} messages", recent.Count);
-            return recent;
+            return Compose(stored, recent);
         }
 
-        logger.LogInformation(
-            "Reduced chat history {Original} -> {Reduced} messages (summarized {Older} older into 1)",
-            history.Count, recent.Count + 1, olderCount);
+        var updated = new ChatSummary(summaryText, covered + olderCount);
+        await chatHistoryRepository.SaveSummary(chatSessionId, updated, ct);
 
-        var reduced = new List<ChatMessage>(recent.Count + 1)
-        {
-            new(ChatRole.System, $"[Summary of the session so far]\n{summaryText}")
-        };
-        reduced.AddRange(recent);
-        return reduced;
+        logger.LogInformation(
+            "Rolled summary forward — covered {Covered} of {Total} messages, sending {Sent}",
+            updated.CoveredCount, history.Count, recent.Count + 1);
+
+        return Compose(updated, recent);
+    }
+
+    private static ChatMessage SummaryMessage(string text) =>
+        new(ChatRole.System, $"[Summary of the session so far]\n{text}");
+
+    private static IReadOnlyList<ChatMessage> Compose(ChatSummary? summary, List<ChatMessage> tail)
+    {
+        if (summary is null)
+            return tail;
+        var result = new List<ChatMessage>(tail.Count + 1) { SummaryMessage(summary.Text) };
+        result.AddRange(tail);
+        return result;
     }
 }

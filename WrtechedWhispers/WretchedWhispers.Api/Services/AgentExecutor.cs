@@ -53,7 +53,7 @@ public sealed class AgentExecutor(
 
         var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
         // Bound the model's context on long sessions (summarize older messages).
-        history = await historyReducer.ReduceAsync(history, ct);
+        history = await historyReducer.ReduceAsync(chatSessionId, history, ct);
         var agent = CreateAgent(tools, sessionContext);
 
         var preToolNarrative = new List<string>();

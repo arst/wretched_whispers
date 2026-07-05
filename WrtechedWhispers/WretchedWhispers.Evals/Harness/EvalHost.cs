@@ -160,7 +160,7 @@ public sealed class EvalHost : IAsyncDisposable
         var executor = new AgentExecutor(
             _chatClient,
             chatRepo,
-            new ChatHistoryReducer(_chatClient, NullLogger<ChatHistoryReducer>.Instance),
+            new ChatHistoryReducer(_chatClient, chatRepo, NullLogger<ChatHistoryReducer>.Instance),
             new PromptComposer(),
             NullLogger<AgentExecutor>.Instance);
 
