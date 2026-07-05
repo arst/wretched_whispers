@@ -4,6 +4,7 @@ using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
@@ -50,17 +51,22 @@ public sealed class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Challenge the character with an ability test against a specified difficulty rating")]
+    [Description("Challenge the character with an ability test against a difficulty rating. On failure, the chosen consequence is applied automatically as rolled damage.")]
     [GameTool(SessionStage.Exploration)]
     public async Task<ChallengeOutcomeDto> ChallengeCharacter(
         [Description("Level of the challenge, the higher the number the harder. Usually 12 for normal.")]
         int challengeDr,
         [Description("Ability kind to use: 'Strength', 'Agility', 'Presence', 'Toughness'.")]
-        AbilityKind abilityKind)
+        AbilityKind abilityKind,
+        [Description("What failure costs, chosen like a GM: 'None' (no harm), 'Minor' (d2 — scrapes), 'Serious' (d6 — a real wound), 'Deadly' (d10 — can kill). Match the fiction's stakes.")]
+        ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None)
     {
         ToolGuard.InRange(challengeDr, 2, 20, nameof(challengeDr), "12 is a normal challenge");
-        var result = await characterService.ChallengePlayer(RequireCharacterId(), new Dr(challengeDr), abilityKind);
-        return new ChallengeOutcomeDto(result.Outcome.IsSuccess);
+        var result = await characterService.ChallengePlayer(
+            RequireCharacterId(), new Dr(challengeDr), abilityKind, consequenceOnFailure);
+        return new ChallengeOutcomeDto(
+            result.Outcome.IsSuccess, result.Outcome.Roll, result.Outcome.Modifier,
+            result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead);
     }
 
     [Description("Add an item to the character's inventory")]

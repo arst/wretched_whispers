@@ -62,12 +62,29 @@ public sealed class ChallengeConsequenceTests : TestBase
         var repo = new Mock<ICharactersRepository>();
         repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
         var service = new CharacterService(repo.Object, Dice);
-        SetupDiceRoll(20, 20); // natural 20 -> success
+        SetupDiceRoll(20, 19); // natural 20 -> success
 
         var result = await service.ChallengePlayer(
             character.Id, new Dr(12), AbilityKind.Agility, ChallengeConsequence.Deadly);
 
         Assert.True(result.Outcome.IsSuccess);
+        Assert.Equal(0, result.DamageTaken);
+        repo.Verify(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChallengePlayer_Failure_NoConsequence_NoDamage_NoSave()
+    {
+        var character = TestCharacters.Create(Dice);
+        var repo = new Mock<ICharactersRepository>();
+        repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        var service = new CharacterService(repo.Object, Dice);
+        SetupDiceRoll(20, 0); // d20 fumble -> fail
+
+        var result = await service.ChallengePlayer(
+            character.Id, new Dr(12), AbilityKind.Agility, ChallengeConsequence.None);
+
+        Assert.False(result.Outcome.IsSuccess);
         Assert.Equal(0, result.DamageTaken);
         repo.Verify(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()), Times.Never);
     }
