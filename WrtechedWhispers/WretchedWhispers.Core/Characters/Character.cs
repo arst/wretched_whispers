@@ -365,9 +365,12 @@ public sealed class Character
         var outcome = rollResults + Abilities[ability].Modifier;
         var nat = rollResults switch { 1 => Natural.One, 20 => Natural.Twenty, _ => Natural.None };
 
-        return nat is Natural.One ? ChallengeOutcome.Fail(nat)
-            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat)
-            : outcome >= challenge.Value ? ChallengeOutcome.Success(nat) : ChallengeOutcome.Fail(nat);
+        var modifier = Abilities[ability].Modifier;
+        return nat is Natural.One ? ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value)
+            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat, rollResults, modifier, challenge.Value)
+            : outcome >= challenge.Value
+                ? ChallengeOutcome.Success(nat, rollResults, modifier, challenge.Value)
+                : ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value);
     }
 
     public void Improve(AbilityKind kind, int delta)
