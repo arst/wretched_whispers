@@ -373,6 +373,10 @@ public sealed class Character
                 : ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value);
     }
 
+    /// <summary>Flee from combat: Agility vs DR 12, hindered by armor (MORK BORG flee rule).</summary>
+    public ChallengeOutcome AttemptFlee(Dice dice) =>
+        Challenge(new Dr(12), AbilityKind.Agility, dice, Armor.AgilityPenalty);
+
     public int SufferConsequence(ChallengeConsequence consequence, Dice dice)
     {
         if (consequence is ChallengeConsequence.None)
