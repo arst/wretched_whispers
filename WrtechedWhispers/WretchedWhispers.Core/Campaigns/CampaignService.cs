@@ -48,6 +48,16 @@ public class CampaignService(
             campaign.Start();
     }
 
+    public async Task<Campaign> RecordJournalEntry(Guid campaignId, JournalCategory category, string text)
+    {
+        var campaign = await campaignsRepository.Get(campaignId);
+        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+
+        campaign.RecordJournalEntry(category, text);
+        await campaignsRepository.SaveCampaign(campaign);
+        return campaign;
+    }
+
     public async Task AttachEncounter(Guid campaignId, Guid encounterId)
     {
         var campaign = await campaignsRepository.Get(campaignId);
