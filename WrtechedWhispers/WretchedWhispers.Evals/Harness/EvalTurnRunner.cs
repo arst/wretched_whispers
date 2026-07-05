@@ -6,9 +6,13 @@ using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Evals.Harness;
 
-/// <summary>The captured result of one eval turn: the ordered tool-call names, plus a ChatResponse that
+/// <summary>The captured result of one eval turn: the ordered tool calls and results, plus a ChatResponse that
 /// packages those calls as FunctionCallContent for the evaluator.</summary>
-public sealed record TurnOutcome(IReadOnlyList<string> ToolCalls, ChatResponse Response, string Narrative);
+public sealed record TurnOutcome(
+    IReadOnlyList<string> ToolCalls,
+    IReadOnlyList<ToolResult> ToolResults,
+    ChatResponse Response,
+    string Narrative);
 
 /// <summary>
 /// Runs one CharacterCreation turn through the real AgentExecutor and captures the tool calls. Mirrors
@@ -32,12 +36,16 @@ public sealed class EvalTurnRunner(
         await chatHistoryRepository.SaveMessage(chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct);
 
         var toolCalls = new List<string>();
+        var toolResults = new List<ToolResult>();
         var narrative = new System.Text.StringBuilder();
 
         await foreach (var evt in agentExecutor.ExecuteAsync(tools, context, chatSessionId, playerMessage, ct))
         {
             if (evt is ToolResult tr)
+            {
                 toolCalls.Add(tr.Function);
+                toolResults.Add(tr);
+            }
             else if (evt is NarrativeChunk chunk)
                 narrative.Append(chunk.Text);
         }
@@ -48,7 +56,7 @@ public sealed class EvalTurnRunner(
             ct);
 
         var response = BuildToolCallResponse(toolCalls, narrative.ToString());
-        return new TurnOutcome(toolCalls, response, narrative.ToString());
+        return new TurnOutcome(toolCalls, toolResults, response, narrative.ToString());
     }
 
     private static ChatResponse BuildToolCallResponse(IReadOnlyList<string> toolCalls, string narrative)
