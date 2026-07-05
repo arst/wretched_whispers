@@ -130,6 +130,23 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
         return JsonSerializer.Serialize(metadata, ContentJsonOptions);
     }
 
+    public async Task<ChatSummary?> GetSummary(Guid sessionId, CancellationToken ct = default)
+    {
+        var session = await _db.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct);
+        return session?.SummaryText is null
+            ? null
+            : new ChatSummary(session.SummaryText, session.SummaryCoveredCount);
+    }
+
+    public async Task SaveSummary(Guid sessionId, ChatSummary summary, CancellationToken ct = default)
+    {
+        var session = await _db.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct)
+            ?? throw new InvalidOperationException($"Chat session {sessionId} not found");
+        session.SummaryText = summary.Text;
+        session.SummaryCoveredCount = summary.CoveredCount;
+        await _db.SaveChangesAsync(ct);
+    }
+
     private static void ApplyMetadata(ChatMessage message, string? metadataJson)
     {
         if (string.IsNullOrEmpty(metadataJson))
