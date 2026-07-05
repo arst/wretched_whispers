@@ -164,6 +164,7 @@ public class JsonSerializationTests : TestBase
         var campaign = Campaign.Create(DiceExpr.D6, "DoomCampaign", "The end is nigh");
         var charId = Guid.NewGuid();
         campaign.JoinGame(charId);
+        campaign.Configure(DiceExpr.D6, "DoomCampaign", "The end is nigh");
 
         var json = JsonSerializer.Serialize(campaign, _options);
         var deserialized = JsonSerializer.Deserialize<Campaign>(json, _options)!;
@@ -174,6 +175,7 @@ public class JsonSerializationTests : TestBase
         Assert.Equal(campaign.CurrentDay, deserialized.CurrentDay);
         Assert.Equal(campaign.CurrentHour, deserialized.CurrentHour);
         Assert.Contains(charId, deserialized.Players);
+        Assert.True(deserialized.IsConfigured);
     }
 
     [Fact]

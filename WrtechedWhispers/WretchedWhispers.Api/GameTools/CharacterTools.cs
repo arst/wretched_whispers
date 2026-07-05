@@ -42,9 +42,9 @@ public sealed class CharacterTools(
         await charactersRepository.Save(character);
         sessionContext.SetCharacterId(character.Id);
 
-        // Link the character to the session's campaign (single-player) via the domain service, but do
-        // NOT start it. Starting the campaign is an explicit, model-visible step in the CampaignSetup
-        // stage (StartCampaign tool) -- creating a character must not silently advance the stage machine.
+        // Link the character to the session's campaign (single-player) via the domain service. The
+        // campaign only auto-starts once it has ALSO been configured (CampaignService.TryAutoStart),
+        // so joining alone does not silently advance the stage machine.
         if (sessionContext.CampaignId is { } campaignId)
             await campaignService.JoinCampaign(campaignId, character.Id);
 

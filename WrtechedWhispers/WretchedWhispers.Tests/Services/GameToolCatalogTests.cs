@@ -20,18 +20,19 @@ public class GameToolCatalogTests
     [Fact]
     public void CharacterCreation_ExposesCreateCharacterAndCampaignSetupTools()
     {
-        // The opening stage runs the whole intro in one turn (create character + configure/start
-        // the campaign), so it also exposes the campaign-setup tools.
+        // The opening stage runs the whole intro in one turn (create character + configure the
+        // campaign), so it also exposes the campaign-setup tool. The campaign auto-starts once
+        // configured and joined -- there is no separate start tool for the model to call.
         Assert.Equal(
-            new[] { "Campaign.ConfigureCampaign", "Campaign.StartCampaign", "Character.CreateCharacter" },
+            new[] { "Campaign.ConfigureCampaign", "Character.CreateCharacter" },
             Flatten(SessionStage.CharacterCreation));
     }
 
     [Fact]
-    public void CampaignSetup_ExposesConfigureAndStart()
+    public void CampaignSetup_ExposesConfigure()
     {
         Assert.Equal(
-            new[] { "Campaign.ConfigureCampaign", "Campaign.StartCampaign" },
+            new[] { "Campaign.ConfigureCampaign" },
             Flatten(SessionStage.CampaignSetup));
     }
 

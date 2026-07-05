@@ -92,7 +92,7 @@ public sealed class Campaign
     private Campaign(Guid id, string name, string description, int currentDay, int currentHour,
         List<Guid> characters, CalendarOfNechrubel calendar,
         DiceExpr dawnDice, List<Guid> encounters,
-        bool isStarted = false, bool isEnded = false)
+        bool isStarted = false, bool isEnded = false, bool isConfigured = false)
     {
         Id = id;
         Name = name;
@@ -105,6 +105,7 @@ public sealed class Campaign
         Encounters = encounters;
         IsStarted = isStarted;
         IsEnded = isEnded;
+        IsConfigured = isConfigured;
     }
 
     [JsonInclude] public Guid Id { get; private set; }
@@ -128,6 +129,8 @@ public sealed class Campaign
     [JsonInclude] internal bool IsStarted { get; private set; }
 
     [JsonInclude] public bool IsEnded { get; private set; }
+
+    [JsonInclude] public bool IsConfigured { get; private set; }
 
     [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
@@ -159,6 +162,7 @@ public sealed class Campaign
         DawnDice = dawnDice;
         Name = name;
         Description = description;
+        IsConfigured = true;
     }
 
     public void JoinGame(Guid characterId)

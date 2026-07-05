@@ -37,7 +37,6 @@ public sealed class AgentToolProvider(
             return ([], []);
         }
 
-        var campaignsRepo = serviceProvider.GetRequiredService<ICampaignsRepository>();
         var encountersRepo = serviceProvider.GetRequiredService<IEncountersRepository>();
         var charactersRepo = serviceProvider.GetRequiredService<ICharactersRepository>();
         var campaignService = serviceProvider.GetRequiredService<CampaignService>();
@@ -55,7 +54,7 @@ public sealed class AgentToolProvider(
                 serviceProvider.GetRequiredService<CharacterService>(),
                 dice, sessionContext, campaignService),
             [typeof(CampaignTools)] = new CampaignTools(
-                campaignsRepo, campaignService, sessionContext),
+                campaignService, sessionContext),
             [typeof(EncounterTools)] = new EncounterTools(
                 serviceProvider.GetRequiredService<EncounterService>(),
                 encountersRepo, campaignService, sessionContext),

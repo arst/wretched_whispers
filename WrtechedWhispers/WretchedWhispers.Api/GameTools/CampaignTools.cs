@@ -11,9 +11,8 @@ namespace WretchedWhispers.Api.GameTools;
 /// arguments, and calls the domain directly. Does not expose EndCampaign or GetCampaignById -- ended
 /// state is derived from the domain, not driven by the model.
 /// </summary>
-[Description("Manage the campaign: configure its setting and pace, start it, and advance time.")]
+[Description("Manage the campaign: configure its setting and pace, and advance time. The campaign starts automatically once it is configured and a player has joined.")]
 public sealed class CampaignTools(
-    ICampaignsRepository campaignsRepository,
     CampaignService campaignService,
     SessionContext sessionContext)
 {
@@ -21,7 +20,7 @@ public sealed class CampaignTools(
         sessionContext.CampaignId
         ?? throw new InvalidOperationException("No campaign exists for this session.");
 
-    [Description("Configure the campaign's name, description, and dawn roll pace. The campaign already exists -- this customizes it before starting.")]
+    [Description("Configure the campaign's name, description, and dawn roll pace. The campaign already exists; it begins automatically once it is configured and the character has been created.")]
     [GameTool(SessionStage.CharacterCreation, SessionStage.CampaignSetup)]
     public async Task<CampaignDto> ConfigureCampaign(
         [Description("Dice expression for dawn rolls (e.g., 'd100' for very slow, 'd6' for fast)")]
@@ -30,19 +29,8 @@ public sealed class CampaignTools(
         [Description("A description of the campaign's setting, goals, or theme")] string description)
     {
         ToolGuard.DiceExpression(diceExpression, nameof(diceExpression));
-        var campaign = await RequireCampaign();
-        campaign.Configure(DiceExpr.Parse(diceExpression), name, description);
-        await campaignsRepository.SaveCampaign(campaign);
-        return CreateCampaignDto(campaign);
-    }
-
-    [Description("Start the campaign. The character must already be created.")]
-    [GameTool(SessionStage.CharacterCreation, SessionStage.CampaignSetup)]
-    public async Task<CampaignDto> StartCampaign()
-    {
-        var campaign = await RequireCampaign();
-        campaign.Start();
-        await campaignsRepository.SaveCampaign(campaign);
+        var campaign = await campaignService.ConfigureCampaign(
+            RequireCampaignId(), DiceExpr.Parse(diceExpression), name, description);
         return CreateCampaignDto(campaign);
     }
 
@@ -64,13 +52,6 @@ public sealed class CampaignTools(
         ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
         var outcome = await campaignService.AdvanceTimeWithRest(RequireCampaignId(), hours);
         return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
-    }
-
-    private async Task<Campaign> RequireCampaign()
-    {
-        var campaignId = RequireCampaignId();
-        return await campaignsRepository.Get(campaignId)
-            ?? throw new InvalidOperationException("Campaign not found.");
     }
 
     private static CampaignDto CreateCampaignDto(Campaign campaign) => new(

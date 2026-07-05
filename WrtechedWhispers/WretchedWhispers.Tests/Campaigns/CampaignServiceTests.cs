@@ -141,9 +141,10 @@ public class CampaignServiceTests : TestBase
     }
 
     [Fact]
-    public async Task StartCampaign_WithValidCampaign_ShouldStartCampaign()
+    public async Task ConfigureCampaign_WithPlayerAlreadyJoined_AutoStartsCampaign()
     {
-        // Arrange
+        // Arrange: the auto-start rule is order-independent -- a player who joined before the
+        // campaign was configured still triggers a start the moment Configure completes.
         var campaignId = Guid.NewGuid();
         var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
         var characterId = Guid.NewGuid();
@@ -153,7 +154,7 @@ public class CampaignServiceTests : TestBase
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
         // Act
-        await _service.StartCampaign(campaignId);
+        await _service.ConfigureCampaign(campaignId, new DiceExpr(1, 20), "Doom", "The end");
 
         // Assert
         Assert.True(campaign.IsActive());
@@ -161,7 +162,7 @@ public class CampaignServiceTests : TestBase
     }
 
     [Fact]
-    public async Task StartCampaign_WithInvalidCampaignId_ShouldThrowArgumentException()
+    public async Task ConfigureCampaign_WithInvalidCampaignId_ShouldThrowArgumentException()
     {
         // Arrange
         var campaignId = Guid.NewGuid();
@@ -170,7 +171,7 @@ public class CampaignServiceTests : TestBase
         // Act & Assert
         try
         {
-            await _service.StartCampaign(campaignId);
+            await _service.ConfigureCampaign(campaignId, new DiceExpr(1, 20), "Doom", "The end");
             Assert.Fail("Expected ArgumentException was not thrown");
         }
         catch (ArgumentException ex)
