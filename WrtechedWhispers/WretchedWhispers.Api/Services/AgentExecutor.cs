@@ -39,6 +39,8 @@ public sealed class AgentExecutor(
         {
             c.IncludeDetailedErrors = true;
             c.MaximumConsecutiveErrorsPerRequest = 3;
+            // Hard ceiling on tool-call iterations per turn — bounds a runaway (but non-erroring) loop.
+            c.MaximumIterationsPerRequest = 15;
         })
         .Build();
     public async IAsyncEnumerable<GameTurnEvent> ExecuteAsync(
