@@ -58,7 +58,9 @@ public sealed class ResolveRoundTests : TestBase
     public async Task Attack_KillsLastAdversary_AutoEnds_NoRetaliation()
     {
         var (encounter, character) = Arrange(adversaries: 1, adversaryHp: 1);
-        SetupDiceRolls(19, 5, 0); // nat-20 hit, damage well past 1 HP
+        // nat-20 hit, d6 damage well past 1 HP, then ProcessPlayerAttackOutcome's morale check
+        // (single-adversary group below 30% HP) rolls 2d6 even for a dead target: 6+6=12 >= morale 7.
+        SetupDiceRolls(19, 5, 5, 5);
 
         var outcome = await CreateService().ResolveRound(
             encounter.Id, character.Id, PlayerRoundAction.Attack, "Ghoul 1");
@@ -167,5 +169,53 @@ public sealed class ResolveRoundTests : TestBase
 
         Assert.NotNull(outcome.FleeAttempt);
         Assert.Equal(12 + ArmorTier.Heavy.AgilityPenalty(), outcome.FleeAttempt.EffectiveDr);
+    }
+
+    [Fact]
+    public async Task Retaliation_StopsWhenPlayerDies_ReportsPlayerDead_LeavesEncounterOpen()
+    {
+        // 1-HP character so a single d4 claw kills; two adversaries so the break is observable.
+        var abilities = new Abilities(
+            agility: new AbilityScore(0), presence: new AbilityScore(0),
+            strength: new AbilityScore(0), toughness: new AbilityScore(0));
+        var equipment = new StartingEquipment(
+            Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
+            Gear1: null, Gear2: null,
+            Weapon: Weapon.Create(WeaponKind.Sword),
+            Armor: new Armor(ArmorTier.None),
+            Shield: null, Scrolls: []);
+        var character = Character.Create(Guid.NewGuid(), "FragileHero", 1, abilities, equipment, Dice);
+
+        var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
+        for (var i = 0; i < 2; i++)
+            encounter.AddAdversary(new Adversary(
+                $"Ghoul {i + 1}", new HitPoints(4, 4), new Armor(ArmorTier.None), 7,
+                new AttackProfile("claws", DiceExpr.Parse("d4"))));
+        encounter.StartEncounter();
+        _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
+        _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+
+        // Ghoul 1's retaliation: d20 defence 5 (fail vs DR 12), d4 claw damage 1 (1 HP -> 0),
+        // injury-table d4 = 1 -> InjuryKind.None -> death. Ghoul 2 never rolls: the loop breaks.
+        SetupDiceRolls(4, 0, 0);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null);
+
+        Assert.True(character.IsDead);
+        Assert.Single(outcome.Retaliations); // fewer than the 2 living adversaries
+        Assert.Equal(EncounterEndReason.PlayerDead, outcome.EndReason);
+        Assert.True(outcome.EncounterEnded);
+        Assert.False(encounter.IsEnded); // stage derivation handles player death, not the encounter
+    }
+
+    [Fact]
+    public async Task EndedEncounter_Throws()
+    {
+        var (encounter, character) = Arrange();
+        encounter.EndByPlayerEscape();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateService().ResolveRound(encounter.Id, character.Id, PlayerRoundAction.Attack, null));
     }
 }
