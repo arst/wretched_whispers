@@ -59,8 +59,8 @@ public sealed class CharacterTools(
         AbilityKind abilityKind)
     {
         ToolGuard.InRange(challengeDr, 2, 20, nameof(challengeDr), "12 is a normal challenge");
-        var outcome = await characterService.ChallengePlayer(RequireCharacterId(), new Dr(challengeDr), abilityKind);
-        return new ChallengeOutcomeDto(outcome.IsSuccess);
+        var result = await characterService.ChallengePlayer(RequireCharacterId(), new Dr(challengeDr), abilityKind);
+        return new ChallengeOutcomeDto(result.Outcome.IsSuccess);
     }
 
     [Description("Add an item to the character's inventory")]

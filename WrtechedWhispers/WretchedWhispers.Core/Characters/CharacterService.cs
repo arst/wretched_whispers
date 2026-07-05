@@ -6,14 +6,23 @@ namespace WretchedWhispers.Core.Characters;
 
 public class CharacterService(ICharactersRepository charactersRepository, Dice dice)
 {
-    public async Task<ChallengeOutcome> ChallengePlayer(Guid characterId, Dr dr, AbilityKind ability)
+    public async Task<ChallengeResult> ChallengePlayer(
+        Guid characterId, Dr dr, AbilityKind ability,
+        ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None)
     {
         var character = await charactersRepository.Get(characterId);
 
         if (character is null) throw new ArgumentException($"Character with id {characterId} does not exist.");
 
-        var challengeOutcome = character.Challenge(dr, ability, dice);
+        var outcome = character.Challenge(dr, ability, dice);
 
-        return challengeOutcome;
+        var damageTaken = 0;
+        if (!outcome.IsSuccess && consequenceOnFailure is not ChallengeConsequence.None)
+        {
+            damageTaken = character.SufferConsequence(consequenceOnFailure, dice);
+            await charactersRepository.Save(character);
+        }
+
+        return new ChallengeResult(outcome, damageTaken, character.IsDead);
     }
 }
