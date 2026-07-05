@@ -38,7 +38,6 @@ interface SessionState {
   setError: (message: string) => void;
   clearError: () => void;
   reset: () => void;
-  setCharacterData: (data: CharacterData) => void;
   toggleDrawer: () => void;
   prependMessages: (msgs: ChatMessageDto[], total: number) => void;
   setLoadingMore: (loading: boolean) => void;
@@ -159,6 +158,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         weapon: update.characterWeapon ?? null,
         armor: update.characterArmor ?? null,
         inventory: update.characterInventory ?? [],
+        silver: update.characterSilver ?? null,
         // Injuries
         hasLostEye: update.hasLostEye ?? false,
         hasStabbedLung: update.hasStabbedLung ?? false,
@@ -224,8 +224,6 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       worldEnded: false,
       currentDay: 1,
     }),
-
-  setCharacterData: (data) => set({ characterData: data }),
 
   toggleDrawer: () => set((s) => ({ drawerOpen: !s.drawerOpen })),
 

@@ -13,8 +13,7 @@ namespace WretchedWhispers.Api.GameTools;
 /// <summary>
 /// Player-character game-master tools. One class per aggregate: it auto-fills the character id from
 /// <see cref="SessionContext"/> (the model never sees GUIDs), validates model-supplied arguments via
-/// <see cref="ToolGuard"/>, then calls the domain directly and maps the result to a DTO. Replaces the
-/// former CharacterWrapperPlugin → ICharacterOperations → CharacterPluginAdapter → CharacterPlugin stack.
+/// <see cref="ToolGuard"/>, then calls the domain directly and maps the result to a DTO.
 /// </summary>
 [Description("Interact with the player character: create, challenge, manage inventory, improve or degrade abilities, handle infection, buy items, and cast scrolls.")]
 public sealed class CharacterTools(
@@ -180,10 +179,10 @@ public sealed class CharacterTools(
 
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier) => armorTier switch
     {
-        HeavyArmorTier => ArmorTierDto.Heavy,
-        NoArmorTier => ArmorTierDto.None,
-        LightArmorTier => ArmorTierDto.Light,
-        MediumArmorTier => ArmorTierDto.Medium,
+        ArmorTier.Heavy => ArmorTierDto.Heavy,
+        ArmorTier.None => ArmorTierDto.None,
+        ArmorTier.Light => ArmorTierDto.Light,
+        ArmorTier.Medium => ArmorTierDto.Medium,
         _ => throw new ArgumentOutOfRangeException(nameof(armorTier), armorTier, null)
     };
 

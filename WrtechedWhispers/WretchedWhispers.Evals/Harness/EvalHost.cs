@@ -4,9 +4,15 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Infrastructure;
@@ -77,6 +83,58 @@ public sealed class EvalHost : IAsyncDisposable
         }
 
         return new EvalHost(connection, provider, chatClient, sessionId, chatSessionId);
+    }
+
+    public static async Task<EvalHost> CreateCombatAsync(IChatClient chatClient)
+    {
+        var host = await CreateAsync(chatClient);
+
+        await using var scope = host._provider.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        SetTenantUser(sp);
+
+        var dice = sp.GetRequiredService<Dice>();
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var charactersRepo = sp.GetRequiredService<ICharactersRepository>();
+        var encountersRepo = sp.GetRequiredService<IEncountersRepository>();
+
+        var campaign = await campaignsRepo.Get(host.SessionId)
+            ?? throw new InvalidOperationException("Seed campaign was not found.");
+
+        var abilities = new Abilities(
+            agility: new AbilityScore(0),
+            presence: new AbilityScore(0),
+            strength: new AbilityScore(0),
+            toughness: new AbilityScore(0));
+        var equipment = new StartingEquipment(
+            Silver: 120,
+            FoodDays: 3,
+            Container: "satchel",
+            Gear1: null,
+            Gear2: null,
+            Weapon: Weapon.Create(WeaponKind.Staff),
+            Armor: new Armor(ArmorTier.Medium),
+            Shield: null,
+            Scrolls: []);
+        var character = Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
+        await charactersRepo.Save(character);
+
+        var encounter = Encounter.Create("Chapel Duel", "A priest blocks the road.", EncounterType.Hostile, dice);
+        encounter.AddAdversary(new Adversary(
+            "Priest",
+            new HitPoints(4, 4),
+            new Armor(ArmorTier.Light),
+            7,
+            new AttackProfile("Brass crucible", DiceExpr.Parse("1d4"))));
+        encounter.StartEncounter();
+        await encountersRepo.Save(encounter);
+
+        campaign.JoinGame(character.Id);
+        campaign.AddEncounter(encounter.Id);
+        campaign.Start();
+        await campaignsRepo.SaveCampaign(campaign, TestUserId);
+
+        return host;
     }
 
     /// <summary>

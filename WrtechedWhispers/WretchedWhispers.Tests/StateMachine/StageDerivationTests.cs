@@ -26,7 +26,7 @@ public class StageDerivationTests : TestBase
             Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
             Gear1: null, Gear2: null,
             Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(NoArmorTier.Instance),
+            Armor: new Armor(ArmorTier.None),
             Shield: null, Scrolls: []);
         return Character.Create(Guid.NewGuid(), "TestHero", maxHp, abilities, equipment, dice);
     }
@@ -292,7 +292,7 @@ public class StageDerivationTests : TestBase
         return new WretchedWhispers.Core.Adversaries.Adversary(
             "Goblin",
             new HitPoints(5, 5),
-            new Armor(NoArmorTier.Instance),
+            new Armor(ArmorTier.None),
             morale: 7,
             new WretchedWhispers.Core.Adversaries.AttackProfile("Claw", DiceExpr.D6));
     }

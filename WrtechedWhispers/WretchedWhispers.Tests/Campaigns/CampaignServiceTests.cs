@@ -374,7 +374,7 @@ public class CampaignServiceTests : TestBase
             null,
             null,
             Weapon.Create(WeaponKind.Sword),
-            new Armor(NoArmorTier.Instance),
+            new Armor(ArmorTier.None),
             null,
             []
         );

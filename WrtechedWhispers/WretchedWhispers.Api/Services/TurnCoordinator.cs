@@ -1,4 +1,5 @@
 using System.Text;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -10,8 +11,7 @@ namespace WretchedWhispers.Api.Services;
 /// <summary>
 /// Orchestrates one game-master turn: resolve the chat session, load context and derive the stage,
 /// run the stage-scoped agent inside a single atomic unit of work, persist the exchange, and stream
-/// the resulting events. Transaction mechanics live behind <see cref="IUnitOfWork"/> and the
-/// channel/yield plumbing behind <see cref="AsyncStreamBridge"/> — this class is just the sequence.
+/// the resulting events. Transaction mechanics live behind <see cref="IUnitOfWork"/>.
 /// </summary>
 public sealed class TurnCoordinator(
     ISessionContextLoader contextLoader,
@@ -25,9 +25,41 @@ public sealed class TurnCoordinator(
         Guid sessionId,
         string playerMessage,
         CancellationToken ct) =>
-        AsyncStreamBridge.Run<GameTurnEvent>(
+        RunProducer(
             (writer, token) => ProduceEventsAsync(writer, sessionId, playerMessage, token),
             ct);
+
+    private static async IAsyncEnumerable<GameTurnEvent> RunProducer(
+        Func<ChannelWriter<GameTurnEvent>, CancellationToken, Task> produce,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var channel = Channel.CreateUnbounded<GameTurnEvent>(new UnboundedChannelOptions
+        {
+            SingleWriter = true,
+            SingleReader = true
+        });
+
+        _ = ProduceAndCompleteAsync(produce, channel.Writer, ct);
+
+        await foreach (var item in channel.Reader.ReadAllAsync(ct))
+            yield return item;
+    }
+
+    private static async Task ProduceAndCompleteAsync(
+        Func<ChannelWriter<GameTurnEvent>, CancellationToken, Task> produce,
+        ChannelWriter<GameTurnEvent> writer,
+        CancellationToken ct)
+    {
+        try
+        {
+            await produce(writer, ct);
+            writer.Complete();
+        }
+        catch (Exception ex)
+        {
+            writer.Complete(ex);
+        }
+    }
 
     private async Task ProduceEventsAsync(
         ChannelWriter<GameTurnEvent> writer,

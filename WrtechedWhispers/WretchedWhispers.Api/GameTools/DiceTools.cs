@@ -13,8 +13,7 @@ public record DiceRollResult(
 
 /// <summary>
 /// Dice game-master tool. Validates the expression before parsing so a malformed model argument is
-/// rejected with a readable message rather than throwing deep in the parser. Replaces the former
-/// DiceWrapperPlugin → IDiceOperations → DicePluginAdapter → DicePlugin stack.
+/// rejected with a readable message rather than throwing deep in the parser.
 /// </summary>
 [Description("Roll dice expressions for game mechanics.")]
 public sealed class DiceTools(Dice dice)

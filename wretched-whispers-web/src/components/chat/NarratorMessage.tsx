@@ -24,11 +24,11 @@ export default function NarratorMessage({
   const displayText = isStreaming ? (streamingText ?? "") : content;
 
   return (
-    <div className="bg-doom-card border-l-2 border-doom-yellow rounded px-4 py-3 mb-3">
-      <p className="text-doom-ash text-xs uppercase tracking-widest mb-2 font-body">
+    <div className="bg-doom-card border-l-2 border-doom-yellow rounded px-5 py-4 mb-4">
+      <p className="text-doom-yellow text-sm uppercase tracking-widest mb-2 font-body font-semibold">
         Game Master
       </p>
-      <div className="text-doom-bone leading-relaxed whitespace-pre-wrap">
+      <div className="text-doom-bone text-xl leading-relaxed whitespace-pre-wrap">
         {displayText}
         {isStreaming && (
           <span className="inline-block w-0.5 h-4 bg-doom-yellow ml-0.5 animate-pulse align-text-bottom" />

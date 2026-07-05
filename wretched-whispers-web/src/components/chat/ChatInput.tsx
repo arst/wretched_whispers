@@ -47,7 +47,7 @@ export default function ChatInput({ onSend, disabled, status }: ChatInputProps) 
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-doom-dark border-t border-doom-card z-40">
-      <div className="max-w-2xl mx-auto px-4 py-3 flex items-end gap-3">
+      <div className="mx-auto w-full md:w-[80vw] max-w-6xl px-4 py-3 flex items-end gap-3">
         <textarea
           ref={textareaRef}
           value={text}
@@ -59,7 +59,7 @@ export default function ChatInput({ onSend, disabled, status }: ChatInputProps) 
           placeholder={isEnded ? "This tale has ended..." : status === "in-progress" ? "What do you do?" : "Speak, wretch..."}
           disabled={isDisabled}
           rows={1}
-          className={`flex-1 resize-none bg-doom-black text-doom-bone border border-doom-card rounded px-3 py-2 font-body text-sm leading-relaxed placeholder:text-doom-ash focus:outline-none focus:border-doom-yellow/60 transition-colors ${
+          className={`flex-1 resize-none bg-doom-black text-doom-bone border border-doom-card rounded px-4 py-3 font-body text-lg leading-relaxed placeholder:text-doom-ash focus:outline-none focus:border-doom-yellow/60 transition-colors ${
             isDisabled ? "opacity-50 cursor-not-allowed" : ""
           } ${isEnded ? "bg-[#1a1a1a] cursor-not-allowed" : ""}`}
         />
@@ -67,7 +67,7 @@ export default function ChatInput({ onSend, disabled, status }: ChatInputProps) 
           <button
             onClick={handleSend}
             disabled={isDisabled || !text.trim()}
-            className={`font-display text-sm tracking-wider px-4 py-2 rounded transition-colors ${
+            className={`font-display text-lg tracking-wider px-5 py-3 rounded transition-colors ${
               isDisabled || !text.trim()
                 ? "bg-doom-card text-doom-ash cursor-not-allowed"
                 : "bg-doom-yellow text-doom-black hover:bg-doom-yellow/90"

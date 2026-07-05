@@ -1,0 +1,125 @@
+{
+  "reviewer": "claude",
+  "findings": [
+    {
+      "kind": "risk",
+      "category": "ci-integration",
+      "bug_pattern": "documentation-behavior-mismatch",
+      "severity": "medium",
+      "confidence": 0.6,
+      "file": "WrtechedWhispers/WretchedWhispers.Evals/README.md",
+      "line_range": [
+        3,
+        4
+      ],
+      "affected_symbol": "WretchedWhispers.Evals project",
+      "claim": "The README/spec claim that the Evals project is \"Excluded from the default CI test run\" is not enforced by anything in the diff; adding the project to the solution means a solution-wide `dotnet test` now includes it.",
+      "evidence": [
+        "README.md: \"Unlike the unit tests ... Excluded from the default CI test run.\"",
+        "WrtechedWhispers.sln adds project {E467EB98-...} so `dotnet test WrtechedWhispers/WrtechedWhispers.sln` will discover it",
+        "WretchedWhispers.Evals.csproj sets <IsTestProject>true</IsTestProject> with no exclusion/filter; the csproj comment about excluding from CI in the plan was dropped in the committed file",
+        "Project memory records the standard test command as the whole solution: `dotnet test WrtechedWhispers/WrtechedWhispers.sln`"
+      ],
+      "suggested_fix": "Either enforce exclusion (e.g. a trait/category filter the CI uses, or remove the project from the solution and run it explicitly), or correct the README/spec to say the live evals merely skip without creds. Note that if any CI environment has the Azure env vars set, the live evals will fire real (billed) model calls during a solution-wide test run.",
+      "rationale": "A documented guarantee that the suite is CI-excluded is load-bearing for cost/flakiness; nothing in the diff actually implements it."
+    },
+    {
+      "kind": "risk",
+      "category": "test-fidelity",
+      "bug_pattern": "incomplete-state-persistence",
+      "severity": "medium",
+      "confidence": 0.55,
+      "file": "WrtechedWhispers/WretchedWhispers.Evals/Harness/EvalTurnRunner.cs",
+      "line_range": [
+        45,
+        48
+      ],
+      "affected_symbol": "EvalTurnRunner.RunTurnAsync",
+      "claim": "The assistant turn is persisted with only the narrative text; the tool calls (and any tool results) are not written to chat history, so multi-turn evals reconstruct a history shape that may differ from production TurnCoordinator behavior.",
+      "evidence": [
+        "EvalTurnRunner.cs: `new ChatMessage(ChatRole.Assistant, narrative.ToString()) { AuthorName = \"Game_Master\" }` \u2014 no FunctionCallContent/FunctionResultContent saved",
+        "Class doc: \"Mirrors TurnCoordinator's per-turn steps minus the transaction/SSE layer\" \u2014 drift from TurnCoordinator is explicitly a concern the design calls out"
+      ],
+      "suggested_fix": "Confirm against TurnCoordinator what is persisted per turn. If production saves the assistant's tool-call/result messages, mirror that here so the model sees the same prior-turn context in later turns; otherwise document that turn continuity is carried by DB state rather than chat history.",
+      "rationale": "An eval that doesn't reproduce the production conversation shape can pass/fail for reasons unrelated to the real model behavior it claims to measure, especially as more multi-turn scenarios are added."
+    },
+    {
+      "kind": "risk",
+      "category": "data-integrity",
+      "bug_pattern": "double-write",
+      "severity": "low",
+      "confidence": 0.3,
+      "file": "WrtechedWhispers/WretchedWhispers.Evals/Harness/EvalTurnRunner.cs",
+      "line_range": [
+        32,
+        48
+      ],
+      "affected_symbol": "EvalTurnRunner.RunTurnAsync",
+      "claim": "If AgentExecutor.ExecuteAsync already persists the user/assistant turn to IChatHistoryRepository internally, the runner's explicit SaveMessage calls would duplicate those messages in history.",
+      "evidence": [
+        "EvalTurnRunner.cs: explicit `SaveMessage(chatSessionId, ChatRole.User, ...)` before `agentExecutor.ExecuteAsync(...)` and `SaveMessage(... ChatRole.Assistant ...)` after",
+        "AgentExecutor is constructed with the same `chatRepo` (EvalHost.CreateTurnRunner), so it has the means to persist as well"
+      ],
+      "suggested_fix": "Verify whether AgentExecutor persists messages; if it does, drop the runner's manual SaveMessage calls to avoid duplicate history entries that could skew the next turn's context.",
+      "rationale": "Cannot be confirmed from the diff alone, but the dual ownership of chatRepo between runner and executor is a classic double-persistence hazard worth checking."
+    },
+    {
+      "kind": "suggestion",
+      "category": "resource-management",
+      "bug_pattern": "undisposed-disposable",
+      "severity": "low",
+      "confidence": 0.6,
+      "file": "WrtechedWhispers/WretchedWhispers.Evals/CampaignCreationEvals.cs",
+      "line_range": [
+        99,
+        109
+      ],
+      "affected_symbol": "TryCreateAzureChatClient",
+      "claim": "The IChatClient created from AzureOpenAIClient is never disposed by the caller; EvalHost takes the (cached) client but explicitly does not own/dispose the underlying Azure client.",
+      "evidence": [
+        "CampaignCreationEvals.cs: `return azure.GetChatClient(deployment).AsIChatClient();` \u2014 no using/dispose at any call site",
+        "EvalHost stores `_chatClient` but DisposeAsync only disposes the provider and SQLite connection"
+      ],
+      "suggested_fix": "Wrap the created client in `using`/`await using` within each [Fact], or have a clearly-owned lifetime, so the Azure client and its HTTP handler are released.",
+      "rationale": "Minor leak per test run; harmless at current scale but easy to get right and avoids handler exhaustion if the suite grows."
+    },
+    {
+      "kind": "suggestion",
+      "category": "test-robustness",
+      "bug_pattern": "silent-fallback",
+      "severity": "low",
+      "confidence": 0.7,
+      "file": "WrtechedWhispers/WretchedWhispers.Evals/Harness/ScriptedChatClient.cs",
+      "line_range": [
+        12,
+        17
+      ],
+      "affected_symbol": "ScriptedChatClient.GetResponseAsync",
+      "claim": "When the scripted queue is exhausted the client silently returns an empty assistant message instead of failing, so a test that triggers more model round-trips than scripted can pass spuriously with empty output.",
+      "evidence": [
+        "ScriptedChatClient.cs: `_responses.Count > 0 ? _responses.Dequeue() : new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Empty))`"
+      ],
+      "suggested_fix": "Throw InvalidOperationException on queue exhaustion so an under-scripted test fails loudly rather than masking an extra unexpected model call.",
+      "rationale": "Test doubles should surface mis-scripting; a silent empty response can hide real harness regressions."
+    },
+    {
+      "kind": "suggestion",
+      "category": "eval-correctness",
+      "bug_pattern": "missing-cache-key",
+      "severity": "low",
+      "confidence": 0.4,
+      "file": "WrtechedWhispers/WretchedWhispers.Evals/CampaignCreationEvals.cs",
+      "line_range": [
+        86,
+        97
+      ],
+      "affected_symbol": "CampaignCreationEvals.CreateReportingConfiguration",
+      "claim": "Response caching is enabled without explicit cachingKeys, so cache invalidation relies solely on the request contents matching; a change that should bust the cache but isn't reflected in the serialized request could replay a stale response.",
+      "evidence": [
+        "CreateReportingConfiguration: `enableResponseCaching: true, timeToLiveForCacheEntries: null, executionName: \"campaign-creation\"` \u2014 cachingKeys omitted (the comment documents it as part of the signature)"
+      ],
+      "suggested_fix": "Pass cachingKeys tied to a version signal (e.g. prompt/model version or git SHA) so an intentional behavior change reliably invalidates cached responses and a regression cannot hide behind the cache.",
+      "rationale": "Request-content keying covers most cases (prompt/options are in the request), but an explicit caching key is the documented safeguard against stale-cache masking and is cheap to add."
+    }
+  ]
+}

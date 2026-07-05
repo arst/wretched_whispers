@@ -2,16 +2,51 @@ using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 
-public abstract class ArmorTier
+public enum ArmorTier
 {
-    public abstract int DefencePenalty { get; }
+    None,
+    Light,
+    Medium,
+    Heavy
+}
 
-    public abstract int AgilityPenalty { get; }
-
-    public abstract DiceExpr DamageReduction { get; }
-
-    public int RollDamageReduction(Dice dice)
+public static class ArmorTierExtensions
+{
+    public static int DefencePenalty(this ArmorTier tier) => tier switch
     {
-        return DamageReduction.Sides == 0 ? 0 : dice.Roll(DamageReduction);
+        ArmorTier.Heavy => 2,
+        _ => 0
+    };
+
+    public static int AgilityPenalty(this ArmorTier tier) => tier switch
+    {
+        ArmorTier.Medium => 2,
+        ArmorTier.Heavy => 4,
+        _ => 0
+    };
+
+    public static DiceExpr DamageReduction(this ArmorTier tier) => tier switch
+    {
+        ArmorTier.Light => DiceExpr.D2,
+        ArmorTier.Medium => DiceExpr.D4,
+        ArmorTier.Heavy => DiceExpr.D6,
+        _ => DiceExpr.Zero
+    };
+
+    public static int RollDamageReduction(this ArmorTier tier, Dice dice)
+    {
+        var reduction = tier.DamageReduction();
+        return reduction.Sides == 0 ? 0 : dice.Roll(reduction);
     }
+
+    public static string DisplayName(this ArmorTier tier) => tier switch
+    {
+        ArmorTier.None => "None",
+        ArmorTier.Light => "Light Armor",
+        ArmorTier.Medium => "Medium Armor",
+        ArmorTier.Heavy => "Heavy Armor",
+        _ => "Unknown"
+    };
+
+    public static string Token(this ArmorTier tier) => tier.ToString().ToLowerInvariant();
 }

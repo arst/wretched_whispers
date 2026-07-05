@@ -12,10 +12,10 @@ public class ScrollRestrictionPolicyTests
     public void CanUseScrolls_OnlyAllowsIfWeaponIsNotTwoHandedAndArmorIsNoOrLight()
     {
         var weapon = Weapon.Create(WeaponKind.Knife);
-        var armorNo = new Armor(NoArmorTier.Instance);
-        var armorLight = new Armor(LightArmorTier.Instance);
-        var armorMedium = new Armor(MediumArmorTier.Instance);
-        var armorHeavy = new Armor(HeavyArmorTier.Instance);
+        var armorNo = new Armor(ArmorTier.None);
+        var armorLight = new Armor(ArmorTier.Light);
+        var armorMedium = new Armor(ArmorTier.Medium);
+        var armorHeavy = new Armor(ArmorTier.Heavy);
 
         Assert.True(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorNo));
         Assert.True(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorLight));
@@ -27,9 +27,9 @@ public class ScrollRestrictionPolicyTests
     public void CanUseScrolls_DoesNotAllowIfWeaponIsTwoHandedRegardlessOfArmor()
     {
         var weapon = Weapon.Create(WeaponKind.Zweihander);
-        var armorNo = new Armor(NoArmorTier.Instance);
-        var armorLight = new Armor(LightArmorTier.Instance);
-        var armorHeavy = new Armor(HeavyArmorTier.Instance);
+        var armorNo = new Armor(ArmorTier.None);
+        var armorLight = new Armor(ArmorTier.Light);
+        var armorHeavy = new Armor(ArmorTier.Heavy);
 
         Assert.False(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorNo));
         Assert.False(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorLight));

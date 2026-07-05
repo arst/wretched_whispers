@@ -6,32 +6,36 @@ namespace WretchedWhispers.Core.Characters.Possessions.Armors;
 
 public sealed class Armor
 {
-    [JsonConstructor]
-    public Armor(ArmorTier tier, ArmorTier? originalTier = null)
+    public Armor(ArmorTier tier) : this(tier, tier)
     {
-        Tier = tier;
-        OriginalTier = originalTier ?? tier;
     }
 
-    [JsonInclude] private ArmorTier OriginalTier { get; }
+    [JsonConstructor]
+    private Armor(ArmorTier tier, ArmorTier originalTier)
+    {
+        Tier = tier;
+        OriginalTier = originalTier;
+    }
+
+    [JsonInclude] public ArmorTier OriginalTier { get; private set; }
 
     [JsonInclude] public ArmorTier Tier { get; private set; }
 
-    public int DefencePenalty => Tier.DefencePenalty;
+    public int DefencePenalty => Tier.DefencePenalty();
 
-    public int AgilityPenalty => Tier.AgilityPenalty;
+    public int AgilityPenalty => Tier.AgilityPenalty();
 
-    public DiceExpr DamageReduction => Tier.DamageReduction;
+    public DiceExpr DamageReduction => Tier.DamageReduction();
 
     public void Degrade()
     {
         Tier = Tier switch
         {
-            HeavyArmorTier => MediumArmorTier.Instance,
-            MediumArmorTier => LightArmorTier.Instance,
-            LightArmorTier => NoArmorTier.Instance,
-            NoArmorTier => Tier,
-            _ => throw new ArgumentOutOfRangeException()
+            ArmorTier.Heavy => ArmorTier.Medium,
+            ArmorTier.Medium => ArmorTier.Light,
+            ArmorTier.Light => ArmorTier.None,
+            ArmorTier.None => Tier,
+            _ => throw new ArgumentOutOfRangeException(nameof(Tier))
         };
     }
 
@@ -39,13 +43,13 @@ public sealed class Armor
     {
         Tier = Tier switch
         {
-            HeavyArmorTier => Tier,
-            MediumArmorTier => OriginalTier is HeavyArmorTier ? HeavyArmorTier.Instance : Tier,
-            LightArmorTier => OriginalTier is MediumArmorTier or HeavyArmorTier ? MediumArmorTier.Instance : Tier,
-            NoArmorTier => OriginalTier is LightArmorTier or MediumArmorTier or HeavyArmorTier
+            ArmorTier.Heavy => Tier,
+            ArmorTier.Medium => OriginalTier is ArmorTier.Heavy ? ArmorTier.Heavy : Tier,
+            ArmorTier.Light => OriginalTier is ArmorTier.Medium or ArmorTier.Heavy ? ArmorTier.Medium : Tier,
+            ArmorTier.None => OriginalTier is ArmorTier.Light or ArmorTier.Medium or ArmorTier.Heavy
                 ? OriginalTier
-                : NoArmorTier.Instance,
-            _ => throw new ArgumentOutOfRangeException()
+                : ArmorTier.None,
+            _ => throw new ArgumentOutOfRangeException(nameof(Tier))
         };
     }
 }

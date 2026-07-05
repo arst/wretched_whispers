@@ -318,13 +318,13 @@ public class GameToolsTests
             Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
             Gear1: null, Gear2: null,
             Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(NoArmorTier.Instance),
+            Armor: new Armor(ArmorTier.None),
             Shield: null, Scrolls: []);
         return Character.Create(Guid.NewGuid(), "Hero", 20, abilities, equipment, dice);
     }
 
     private static Adversary NewAdversary(string name) =>
-        new(name, new HitPoints(6, 6), new Armor(NoArmorTier.Instance), 7,
+        new(name, new HitPoints(6, 6), new Armor(ArmorTier.None), 7,
             new AttackProfile("Knife", DiceExpr.Parse("1d4")));
 
     private static Dice ScriptedDice(params int[] zeroBasedRolls)

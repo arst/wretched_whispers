@@ -1,6 +1,7 @@
 using System.Text;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Encounters;
 
 namespace WretchedWhispers.Api.Services;
@@ -65,6 +66,18 @@ public sealed class SessionContext
             sb.AppendLine($"  HP: {Character.Hp.Current}/{Character.Hp.Max}");
             sb.AppendLine($"  Strength: {Character.Abilities.Strength.Modifier}, Agility: {Character.Abilities.Agility.Modifier}");
             sb.AppendLine($"  Presence: {Character.Abilities.Presence.Modifier}, Toughness: {Character.Abilities.Toughness.Modifier}");
+            sb.AppendLine($"  Weapon: {Character.Weapon.Kind} ({Character.Weapon.DamageDie})");
+            sb.AppendLine($"  Armor: {Character.Armor.Tier.DisplayName()}");
+            sb.AppendLine($"  Shield: {(Character.Shield is null ? "none" : Character.Shield.IsBroken ? "broken" : "intact")}");
+            sb.AppendLine($"  Silver: {Character.Silver}");
+            sb.AppendLine($"  Food: {Character.FoodDays} days");
+            sb.AppendLine($"  Powers: {Character.Powers.UsesRemaining}/{Character.Powers.MaxUses}");
+            sb.AppendLine($"  Omens: {Character.Omens.Count}");
+            sb.AppendLine($"  Inventory ({Character.Inventory.GetFreeSlots()}/{Character.Inventory.MaxCapacity} slots free):");
+            foreach (var item in Character.Inventory.InventoryItems)
+                sb.AppendLine($"    - {item.Description} x{item.Quantity}");
+            foreach (var scroll in Character.Scrolls)
+                sb.AppendLine($"    - Scroll: {scroll.Description} ({scroll.School})");
             if (Character.IsInfected) sb.AppendLine("  Status: INFECTED");
             if (Character.IsDead) sb.AppendLine("  Status: DEAD");
         }

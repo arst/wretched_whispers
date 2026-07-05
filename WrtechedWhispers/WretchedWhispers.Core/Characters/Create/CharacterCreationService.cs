@@ -148,11 +148,11 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         var d = hasScroll ? dice.Roll(DiceExpr.D2) : dice.Roll(DiceExpr.D4);
         ArmorTier tier = d switch
         {
-            1 => NoArmorTier.Instance,
-            2 => LightArmorTier.Instance,
-            3 => MediumArmorTier.Instance,
-            4 => HeavyArmorTier.Instance,
-            _ => NoArmorTier.Instance
+            1 => ArmorTier.None,
+            2 => ArmorTier.Light,
+            3 => ArmorTier.Medium,
+            4 => ArmorTier.Heavy,
+            _ => ArmorTier.None
         };
         return new Armor(tier);
     }

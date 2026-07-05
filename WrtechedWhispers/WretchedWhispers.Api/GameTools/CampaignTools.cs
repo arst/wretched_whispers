@@ -9,8 +9,7 @@ namespace WretchedWhispers.Api.GameTools;
 /// <summary>
 /// Campaign game-master tools. Auto-fills the campaign id from <see cref="SessionContext"/>, validates
 /// arguments, and calls the domain directly. Does not expose EndCampaign or GetCampaignById -- ended
-/// state is derived from the domain, not driven by the model. Replaces the former
-/// CampaignWrapperPlugin → ICampaignOperations → CampaignPluginAdapter → CampaignPlugin stack.
+/// state is derived from the domain, not driven by the model.
 /// </summary>
 [Description("Manage the campaign: configure its setting and pace, start it, and advance time.")]
 public sealed class CampaignTools(

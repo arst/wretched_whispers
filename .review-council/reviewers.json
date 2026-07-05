@@ -1,0 +1,46 @@
+{
+  "diff_source": "branch",
+  "base_ref": "main",
+  "head_ref": "HEAD",
+  "comparison": "merge-base",
+  "unified_context": 80,
+  "include_status": true,
+  "timeout_seconds": 1800,
+  "reviewers": {
+    "codex": {
+      "enabled": true,
+      "description": "Codex CLI non-interactive reviewer. Requires codex to be installed and authenticated.",
+      "command": [
+        "codex",
+        "exec",
+        "--ephemeral",
+        "--sandbox",
+        "workspace-write",
+        "--output-schema",
+        "{schema}",
+        "Review the provided code-review packet and return JSON findings only."
+      ],
+      "prompt_mode": "stdin"
+    },
+    "claude": {
+      "enabled": false,
+      "description": "Optional Claude Code reviewer. Edit command for your local Claude installation.",
+      "command": [
+        "claude",
+        "--print",
+        "{prompt}"
+      ],
+      "prompt_mode": "none"
+    },
+    "gemini": {
+      "enabled": false,
+      "description": "Optional Gemini CLI reviewer. Edit command for your local Gemini installation.",
+      "command": [
+        "gemini",
+        "--prompt",
+        "{prompt}"
+      ],
+      "prompt_mode": "none"
+    }
+  }
+}

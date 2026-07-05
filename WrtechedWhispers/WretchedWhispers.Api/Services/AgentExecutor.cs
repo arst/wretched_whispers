@@ -131,8 +131,6 @@ public sealed class AgentExecutor(
             }
         });
 
-        // Defense-in-depth: block any tool call that is not stage-legal, even though the agent was
-        // built with only the stage's tools (see StageToolGuard).
-        return agent.WithStageToolGuard(sessionContext.DeriveStage(), logger);
+        return agent;
     }
 }

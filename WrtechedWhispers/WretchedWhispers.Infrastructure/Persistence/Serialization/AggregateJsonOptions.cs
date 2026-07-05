@@ -15,7 +15,6 @@ public static class AggregateJsonOptions
             IncludeFields = true,
             Converters =
             {
-                new ArmorTierConverter(),
                 new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
             }
         };
