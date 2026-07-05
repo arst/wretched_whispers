@@ -87,6 +87,14 @@ public sealed class SessionContext
             sb.AppendLine($"Campaign: {Campaign.Name}");
             sb.AppendLine($"  Day {Campaign.CurrentDay}, Hour {Campaign.CurrentHour}");
             sb.AppendLine($"  Miseries: {Campaign.Miseries.Count}/7");
+
+            if (Campaign.JournalEntries.Count > 0)
+            {
+                // ponytail: full injection, cap/retrieval when journals outgrow the context budget
+                sb.AppendLine("  Journal:");
+                foreach (var entry in Campaign.JournalEntries)
+                    sb.AppendLine($"    [Day {entry.Day}, {entry.Category}] {entry.Text}");
+            }
         }
 
         if (ActiveEncounter is not null)

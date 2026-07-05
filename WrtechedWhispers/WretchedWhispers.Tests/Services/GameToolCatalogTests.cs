@@ -37,12 +37,13 @@ public class GameToolCatalogTests
     }
 
     [Fact]
-    public void Exploration_ExposesExactlyTenTools()
+    public void Exploration_ExposesExactlyElevenTools()
     {
         Assert.Equal(
             new[]
             {
                 "Campaign.AdvanceTime",
+                "Campaign.RecordJournalEntry",
                 "Campaign.Rest",
                 "Character.AddItemToCharacterInventory",
                 "Character.BuyItem",
@@ -60,7 +61,13 @@ public class GameToolCatalogTests
     public void Combat_ExposesOnlyCombatTools()
     {
         Assert.Equal(
-            new[] { "Character.CastScroll", "Dice.Roll", "Encounter.ResolveCombatRound" },
+            new[]
+            {
+                "Campaign.RecordJournalEntry",
+                "Character.CastScroll",
+                "Dice.Roll",
+                "Encounter.ResolveCombatRound"
+            },
             Flatten(SessionStage.Combat));
     }
 
@@ -71,6 +78,7 @@ public class GameToolCatalogTests
             new[]
             {
                 "Campaign.AdvanceTime",
+                "Campaign.RecordJournalEntry",
                 "Campaign.Rest",
                 "Character.AddItemToCharacterInventory",
                 "Character.CureInfection",

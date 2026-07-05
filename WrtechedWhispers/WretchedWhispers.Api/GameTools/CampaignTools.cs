@@ -54,6 +54,18 @@ public sealed class CampaignTools(
         return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
     }
 
+    [Description("Record a lasting fact in the campaign journal — the GM's memory of the fiction. Use it the moment something durable is established: an NPC met, a location discovered, a promise made, a quest taken, or a notable event (a death, a betrayal, a discovery).")]
+    [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
+    public async Task<string> RecordJournalEntry(
+        [Description("Kind of fact: 'Npc', 'Location', 'Promise', 'Quest', or 'Event'")]
+        JournalCategory category,
+        [Description("One concise line stating the fact, e.g. 'Grimlod the flagellant owes the character a lantern'")]
+        string text)
+    {
+        var campaign = await campaignService.RecordJournalEntry(RequireCampaignId(), category, text);
+        return $"Recorded. The journal holds {campaign.JournalEntries.Count} entries.";
+    }
+
     private static CampaignDto CreateCampaignDto(Campaign campaign) => new(
         campaign.Id,
         campaign.Name,

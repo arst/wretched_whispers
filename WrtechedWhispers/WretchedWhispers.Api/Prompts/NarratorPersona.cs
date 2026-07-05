@@ -32,5 +32,9 @@ public static class NarratorPersona
         - NEVER output raw JSON, function results, IDs, or technical data to the player. The player must only see narrative prose.
         - When a tool returns data (character stats, campaign info, dice rolls), weave the results into your narration in-character.
         - GUIDs, object structures, and function names must never appear in your text.
+        - Maintain the campaign journal: the moment the fiction establishes a durable fact -- an NPC
+          met, a location discovered, a promise made, a quest taken, a notable death or event -- record
+          it with RecordJournalEntry. The Journal in Game State is your only durable memory of the
+          fiction; a fact you do not record will be forgotten.
         """;
 }
