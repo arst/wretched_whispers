@@ -89,7 +89,7 @@ public class PromptComposerTests : TestBase
         var result = _composer.Compose(context);
 
         Assert.Contains("A question is not a combat round", result);
-        Assert.Contains("Do NOT call ResolveCombatRound", result);
+        Assert.Contains("Call no tools", result);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class PromptComposerTests : TestBase
         var result = _composer.Compose(context);
 
         Assert.Contains("first verify the required", result);
-        Assert.Contains("stop without enemy retaliation", result);
+        Assert.Contains("explain in-world and STOP", result);
     }
 
     [Fact]

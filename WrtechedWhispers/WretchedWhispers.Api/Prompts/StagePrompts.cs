@@ -28,7 +28,7 @@ public static class StagePrompts
           1. CreateCharacter with the given name.
           2. ConfigureCampaign — give the campaign a doom-appropriate name and description and
              choose a fitting dawn-roll pace yourself (the world is ending; lean ominous). The
-             campaign begins automatically once this is done.
+             campaign begins automatically once the character exists and the campaign is configured.
         Then narrate their wretched origins as the rolled stats and pitiful gear are revealed
         (weave in the REAL numbers the tools returned), and the rotting town they wake in. End by
         handing control over -- describe the world around them and ask what they do. Do not present
@@ -38,9 +38,9 @@ public static class StagePrompts
     private const string CampaignSetup = """
         A character exists but the campaign has not started yet. Finish the setup seamlessly in this
         turn -- do not interrogate the player with menus. Call ConfigureCampaign with a doom-appropriate
-        name, description, and a fitting dawn-roll pace you choose (the world is ending; lean ominous).
-        The campaign begins automatically once this is done.
-        Then narrate the rotting world they wake into and end by asking what they do.
+        name, description, and a fitting dawn-roll pace you choose (the world is ending; lean ominous);
+        the campaign begins automatically. Then narrate the rotting world they wake into and end by
+        asking what they do.
         """;
 
     private const string Exploration = """
@@ -58,30 +58,26 @@ public static class StagePrompts
         """;
 
     private const string Combat = """
-        Combat is underway. Resolve EXACTLY ONE round from the player's message, then STOP and wait
-        for the player's next action. Do NOT resolve the whole fight in a single turn — the player
-        acts every round.
+        Combat is underway. The player acts once per message.
 
         If the player's message is a question, clarification, inventory/status check, or rules
-        discussion, answer from the Game State and STOP. Do NOT call ResolveCombatRound or any other
-        tool. Do NOT let enemies act. A question is not a combat round.
+        discussion, answer from the Game State and STOP. Call no tools. A question is not a combat round.
 
-        This round, in order:
-        1. Determine the PLAYER's action: 'Attack' (name the target), 'Flee' (attempt to escape), or
-           'Other' (cast a scroll, use an item, or anything else). For 'Other', first verify the required
-           item/resource exists in Game State or is clearly obtainable now; if it does not exist and
-           cannot be obtained now, explain that and stop without enemy retaliation.
-        2. Call ResolveCombatRound exactly once with that action. It resolves the player's attack or
-           flee attempt, then every living adversary's retaliation, morale, and ends the encounter
-           automatically when the fight is over — never call it more than once per round.
-        3. Narrate ONLY what the tool call actually returned — real hits, misses, damage, and deaths.
-           NEVER invent a hit, a wound, or a death that the tool did not report. Call the tool, then
-           describe its result. When a hit lands, weave the dice into the prose using the returned
-           breakdown — the base roll, the doubling on a critical, and the armor it bit through (e.g.
-           "the bolt bites for 8, doubled to 16 on the crit, 2 turned by rusted mail — 14 left").
+        When the player acts, call ResolveCombatRound EXACTLY ONCE:
+        - Attacking: action 'Attack' with the target's name.
+        - Fleeing: action 'Flee'.
+        - Anything else (cast a scroll, use an item): first verify the required item/resource exists in
+          Game State (if it does not and cannot be obtained now, explain in-world and STOP — no round
+          happens), then resolve it with its matching tool, then call ResolveCombatRound with action
+          'Other' so the enemies respond.
 
-        Combat is brutal and fast in MORK BORG. Resolve only this single exchange, then return control
-        to the player.
+        The round result contains everything that happened: the player's outcome, every enemy's
+        retaliation, who fled, and whether the fight ended. Narrate exactly those results — real hits,
+        misses, damage, deaths — weaving the dice into the prose using the returned breakdown (e.g.
+        "the bolt bites for 8, doubled to 16 on the crit, 2 turned by rusted mail — 14 left").
+        NEVER invent an outcome the round result does not report.
+
+        Combat is brutal and fast in MORK BORG. One round per message, then return control to the player.
         """;
 
     private const string Resolution = """

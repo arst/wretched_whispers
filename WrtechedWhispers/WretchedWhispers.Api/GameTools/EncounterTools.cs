@@ -16,7 +16,7 @@ namespace WretchedWhispers.Api.GameTools;
 /// <see cref="SessionContext"/> (the model only ever names an adversary), validates arguments, and
 /// calls the domain directly. Also owns CompleteResolution, the post-combat lifecycle step.
 /// </summary>
-[Description("Manage encounters and combat: create them, add adversaries, start combat, execute attacks, end encounters, and resolve the aftermath.")]
+[Description("Manage encounters and combat: create encounters, add adversaries, start combat, resolve combat rounds, and complete the resolution aftermath.")]
 public sealed class EncounterTools(
     EncounterService encounterService,
     IEncountersRepository repository,
