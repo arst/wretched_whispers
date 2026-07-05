@@ -87,14 +87,20 @@ public sealed class EncounterTools(
         return CreateEncounterDto(encounter);
     }
 
+    // ponytail: interim shim so the solution builds after EncounterService dropped its per-attack
+    // methods for ResolveRound. Task 9 replaces these two tools with a proper ResolveRound-based
+    // tool surface; until then, AttackPlayer triggers a full round of retaliation from every living
+    // adversary (not just one), a behavior change from the old single-adversary semantics.
     [Description("A living adversary attacks the player character. The adversary is auto-selected.")]
     [GameTool(SessionStage.Combat)]
     public async Task<AdversaryAttackOutcomeDto> AttackPlayer()
     {
         var adversary = LivingAdversaries().FirstOrDefault()
             ?? throw new InvalidOperationException("No living adversaries remain.");
-        var outcome = await encounterService.AttackPlayer(RequireEncounterId(), adversary.Id, RequireCharacterId());
-        return new AdversaryAttackOutcomeDto(outcome.DamageDealt);
+        var result = await encounterService.ResolveRound(
+            RequireEncounterId(), RequireCharacterId(), PlayerRoundAction.Other);
+        var retaliation = result.Retaliations.FirstOrDefault(r => r.AdversaryName == adversary.Name);
+        return new AdversaryAttackOutcomeDto(retaliation?.Outcome.DamageDealt ?? 0);
     }
 
     [Description("The player character attacks an adversary by name.")]
@@ -102,12 +108,10 @@ public sealed class EncounterTools(
     public async Task<CharacterAttackOutcomeDto> AttackAdversary(
         [Description("Name of the adversary to attack")] string adversaryName)
     {
-        var living = LivingAdversaries();
-        var adversary = living.FirstOrDefault(a => a.Name.Equals(adversaryName, StringComparison.OrdinalIgnoreCase))
-            ?? living.FirstOrDefault()
+        var result = await encounterService.ResolveRound(
+            RequireEncounterId(), RequireCharacterId(), PlayerRoundAction.Attack, adversaryName);
+        var outcome = result.PlayerAttack
             ?? throw new InvalidOperationException("No living adversaries remain.");
-
-        var outcome = await encounterService.AttackAdversary(RequireEncounterId(), adversary.Id, RequireCharacterId());
         return new CharacterAttackOutcomeDto(outcome.Hit, outcome.Damage.Amount, outcome.Critical, outcome.Fumble,
             outcome.WeaponBroken, outcome.TargetArmorDegraded, outcome.BaseDamageRoll, outcome.DamageReduction);
     }
