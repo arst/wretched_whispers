@@ -59,7 +59,7 @@ public class GameToolCatalogTests
     public void Combat_ExposesOnlyCombatTools()
     {
         Assert.Equal(
-            new[] { "Dice.Roll", "Encounter.AttackAdversary", "Encounter.AttackPlayer", "Encounter.EndEncounter" },
+            new[] { "Character.CastScroll", "Dice.Roll", "Encounter.ResolveCombatRound" },
             Flatten(SessionStage.Combat));
     }
 

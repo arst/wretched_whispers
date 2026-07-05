@@ -212,7 +212,7 @@ public class GameToolsTests
     }
 
     [Fact]
-    public async Task AttackAdversary_SelectsTheNamedAdversary()
+    public async Task ResolveCombatRound_Attack_SelectsTheNamedAdversary()
     {
         var hero = BuildHero(_zeroDice);
         _context.SetCharacterId(hero.Id);
@@ -236,15 +236,17 @@ public class GameToolsTests
             new EncounterService(hitDice, _charactersRepo.Object, _encountersRepo.Object),
             _encountersRepo.Object, MakeCampaignService(hitDice), _context);
 
-        var result = await tools.AttackAdversary("Ragged Bandit");
+        var result = await tools.ResolveCombatRound("Attack", "Ragged Bandit");
 
-        Assert.True(result.IsHit);
+        Assert.NotNull(result.PlayerAttack);
+        Assert.True(result.PlayerAttack.Hit);
+        Assert.Equal("Ragged Bandit", result.PlayerAttack.Target);
         Assert.True(target.Hp.Current < target.Hp.Max, "the named adversary should have taken damage");
         Assert.Equal(bystander.Hp.Max, bystander.Hp.Current); // the other adversary is untouched
     }
 
     [Fact]
-    public async Task AttackPlayer_AutoSelectsLivingAdversary_AndResolves()
+    public async Task ResolveCombatRound_Other_ResolvesRetaliationFromLivingAdversary()
     {
         var hero = BuildHero(_zeroDice);
         _context.SetCharacterId(hero.Id);
@@ -257,10 +259,11 @@ public class GameToolsTests
         _context.SetActiveEncounterId(encounter.Id);
         _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
 
-        var result = await EncounterTools().AttackPlayer();
+        var result = await EncounterTools().ResolveCombatRound("Other");
 
-        Assert.NotNull(result);
-        Assert.True(result.DamageDealt >= 0);
+        Assert.Null(result.PlayerAttack);
+        Assert.Single(result.Retaliations);
+        Assert.Equal("Thug", result.Retaliations[0].AdversaryName);
     }
 
     [Fact]

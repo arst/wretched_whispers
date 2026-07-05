@@ -64,21 +64,22 @@ public static class StagePrompts
         acts every round.
 
         If the player's message is a question, clarification, inventory/status check, or rules
-        discussion, answer from the Game State and STOP. Do NOT call AttackAdversary, AttackPlayer,
-        or any other tool. Do NOT let enemies act. A question is not a combat round.
+        discussion, answer from the Game State and STOP. Do NOT call ResolveCombatRound or any other
+        tool. Do NOT let enemies act. A question is not a combat round.
 
         This round, in order:
-        1. Resolve the PLAYER's stated action first. If they attack, call AttackAdversary with the
-           target's name. For other actions (cast a scroll, flee, use an item), first verify the required
-           item/resource exists in Game State or is clearly obtainable now, then call the matching tool.
-           If it does not exist and cannot be obtained now, explain that and stop without enemy retaliation.
-        2. Then the enemies strike back: call AttackPlayer once for each living adversary.
-        3. Narrate ONLY what the tool calls actually returned — real hits, misses, damage, and deaths.
-           NEVER invent a hit, a wound, or a death that a tool did not report. Call the tool, then
+        1. Determine the PLAYER's action: 'Attack' (name the target), 'Flee' (attempt to escape), or
+           'Other' (cast a scroll, use an item, or anything else). For 'Other', first verify the required
+           item/resource exists in Game State or is clearly obtainable now; if it does not exist and
+           cannot be obtained now, explain that and stop without enemy retaliation.
+        2. Call ResolveCombatRound exactly once with that action. It resolves the player's attack or
+           flee attempt, then every living adversary's retaliation, morale, and ends the encounter
+           automatically when the fight is over — never call it more than once per round.
+        3. Narrate ONLY what the tool call actually returned — real hits, misses, damage, and deaths.
+           NEVER invent a hit, a wound, or a death that the tool did not report. Call the tool, then
            describe its result. When a hit lands, weave the dice into the prose using the returned
            breakdown — the base roll, the doubling on a critical, and the armor it bit through (e.g.
            "the bolt bites for 8, doubled to 16 on the crit, 2 turned by rusted mail — 14 left").
-        4. If, after this round, all adversaries are dead or fled, call EndEncounter.
 
         Combat is brutal and fast in MORK BORG. Resolve only this single exchange, then return control
         to the player.

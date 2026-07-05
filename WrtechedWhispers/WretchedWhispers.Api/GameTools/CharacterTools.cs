@@ -159,7 +159,7 @@ public sealed class CharacterTools(
     }
 
     [Description("Cast a scroll spell that the character possesses")]
-    [GameTool(SessionStage.Exploration)]
+    [GameTool(SessionStage.Exploration, SessionStage.Combat)]
     public async Task<CastOutcomeDto> CastScroll(
         [Description("Id of the scroll to cast")] Guid scrollId)
     {

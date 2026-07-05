@@ -78,7 +78,7 @@ public class PromptComposerTests : TestBase
         var result = _composer.Compose(context);
 
         Assert.Contains("Combat", result);
-        Assert.Contains("AttackPlayer", result);
+        Assert.Contains("ResolveCombatRound", result);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class PromptComposerTests : TestBase
         var result = _composer.Compose(context);
 
         Assert.Contains("A question is not a combat round", result);
-        Assert.Contains("Do NOT call AttackAdversary, AttackPlayer", result);
+        Assert.Contains("Do NOT call ResolveCombatRound", result);
     }
 
     [Fact]

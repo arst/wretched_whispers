@@ -87,41 +87,21 @@ public sealed class EncounterTools(
         return CreateEncounterDto(encounter);
     }
 
-    // ponytail: interim shim so the solution builds after EncounterService dropped its per-attack
-    // methods for ResolveRound. Task 9 replaces these two tools with a proper ResolveRound-based
-    // tool surface; until then, AttackPlayer triggers a full round of retaliation from every living
-    // adversary (not just one), a behavior change from the old single-adversary semantics.
-    [Description("A living adversary attacks the player character. The adversary is auto-selected.")]
+    [Description("Resolve EXACTLY ONE combat round from the player's action: resolves the player's attack or flee attempt, then every living adversary's retaliation, morale, and ends the encounter automatically when the fight is over. Call it once per player combat action — never more.")]
     [GameTool(SessionStage.Combat)]
-    public async Task<AdversaryAttackOutcomeDto> AttackPlayer()
+    public async Task<CombatRoundOutcomeDto> ResolveCombatRound(
+        [Description("The player's action this round: 'Attack' (strike an adversary), 'Flee' (attempt to escape), or 'Other' (the player's action was already resolved with another tool this turn - enemies still respond)")]
+        string action,
+        [Description("Name of the adversary to attack (Attack only; defaults to the nearest living adversary)")]
+        string? targetAdversaryName = null)
     {
-        var adversary = LivingAdversaries().FirstOrDefault()
-            ?? throw new InvalidOperationException("No living adversaries remain.");
-        var result = await encounterService.ResolveRound(
-            RequireEncounterId(), RequireCharacterId(), PlayerRoundAction.Other);
-        var retaliation = result.Retaliations.FirstOrDefault(r => r.AdversaryName == adversary.Name);
-        return new AdversaryAttackOutcomeDto(retaliation?.Outcome.DamageDealt ?? 0);
-    }
+        if (!Enum.TryParse<PlayerRoundAction>(action, ignoreCase: true, out var roundAction))
+            throw new ArgumentException(
+                $"Action '{action}' is not valid. Expected one of: Attack, Flee, Other.");
 
-    [Description("The player character attacks an adversary by name.")]
-    [GameTool(SessionStage.Combat)]
-    public async Task<CharacterAttackOutcomeDto> AttackAdversary(
-        [Description("Name of the adversary to attack")] string adversaryName)
-    {
-        var result = await encounterService.ResolveRound(
-            RequireEncounterId(), RequireCharacterId(), PlayerRoundAction.Attack, adversaryName);
-        var outcome = result.PlayerAttack
-            ?? throw new InvalidOperationException("No living adversaries remain.");
-        return new CharacterAttackOutcomeDto(outcome.Hit, outcome.Damage.Amount, outcome.Critical, outcome.Fumble,
-            outcome.WeaponBroken, outcome.TargetArmorDegraded, outcome.BaseDamageRoll, outcome.DamageReduction);
-    }
-
-    [Description("End the current encounter")]
-    [GameTool(SessionStage.Combat)]
-    public async Task<EncounterDto> EndEncounter()
-    {
-        var encounter = await encounterService.EndEncounter(RequireEncounterId());
-        return CreateEncounterDto(encounter);
+        var outcome = await encounterService.ResolveRound(
+            RequireEncounterId(), RequireCharacterId(), roundAction, targetAdversaryName);
+        return CombatRoundOutcomeDto.From(outcome);
     }
 
     [Description("Complete the resolution of the current encounter and return to exploration")]
@@ -140,13 +120,6 @@ public sealed class EncounterTools(
         }
 
         sessionContext.ClearActiveEncounter();
-    }
-
-    private IReadOnlyList<Adversary> LivingAdversaries()
-    {
-        var encounter = sessionContext.ActiveEncounter
-            ?? throw new InvalidOperationException("No active encounter.");
-        return encounter.LivingAdversaries;
     }
 
     private static EncounterDto CreateEncounterDto(Encounter encounter) => new()
