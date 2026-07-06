@@ -157,11 +157,15 @@ public sealed class Campaign
         {
             CurrentDay += CurrentHour / 24;
             CurrentHour %= 24;
-            Calendar.DawnRoll(DawnDice, dice);
-            return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calendar.WorldEnded, true);
+            // Report only the misery this dawn actually triggered (0 or 1), not the standing tally —
+            // otherwise every dawn would re-announce miseries the world already suffered.
+            var triggered = Calendar.DawnRoll(DawnDice, dice);
+            List<string> newMiseries = triggered is null ? [] : [triggered.Psalm];
+            return new AdvanceTimeOutcome(newMiseries, Calendar.WorldEnded, true);
         }
 
-        return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calendar.WorldEnded, false);
+        // No dawn crossed — no new misery, whatever the standing tally.
+        return new AdvanceTimeOutcome([], Calendar.WorldEnded, false);
     }
 
     public void Configure(string name, string description)

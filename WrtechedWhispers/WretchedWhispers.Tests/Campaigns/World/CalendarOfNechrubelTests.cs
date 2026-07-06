@@ -40,6 +40,33 @@ public class CalendarOfNechrubelTests : TestBase
     }
 
     [Fact]
+    public void DawnRoll_WhenMiseryTriggered_ReturnsItWithNonEmptyPsalm()
+    {
+        // Regression: a triggered misery must carry a psalm. The AdvanceTime outcome maps m.Psalm, so an
+        // empty psalm surfaced to the player/model as the bug "Miseries": [""].
+        var calendar = CreateCalendar();
+        SetupDiceRolls(0, 2, 3); // Dawn roll = 1 (triggers), misery index 34
+
+        var triggered = calendar.DawnRoll(DiceExpr.D20, Dice);
+
+        Assert.NotNull(triggered);
+        Assert.False(string.IsNullOrWhiteSpace(triggered!.Psalm));
+        Assert.Contains("First Misery", triggered.Psalm); // first misery of the descent
+    }
+
+    [Fact]
+    public void DawnRoll_WhenNoMiseryTriggered_ReturnsNull()
+    {
+        var calendar = CreateCalendar();
+        SetupDiceRolls(4); // Dawn roll = 5 on the d20 — not a 1, no misery
+
+        var triggered = calendar.DawnRoll(DiceExpr.D20, Dice);
+
+        Assert.Null(triggered);
+        Assert.Empty(calendar.Miseries);
+    }
+
+    [Fact]
     public void DawnRoll_CallMultipleTimes_AccumulatesMiseries()
     {
         // Arrange
