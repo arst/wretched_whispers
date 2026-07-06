@@ -38,7 +38,8 @@ public sealed class CharacterTools(
             throw new InvalidOperationException(
                 "A character already exists for this session. You cannot create another one.");
 
-        var character = await characterCreationService.Create(name);
+        var difficulty = sessionContext.Campaign?.Difficulty ?? Difficulty.Grim;
+        var character = await characterCreationService.Create(name, difficulty);
         await charactersRepository.Save(character);
         sessionContext.SetCharacterId(character.Id);
 
