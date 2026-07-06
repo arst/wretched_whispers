@@ -17,9 +17,10 @@ public class DomainAuthorityEvals
             "domain-authority");
 
     // GroundednessEvaluator hardcodes Temperature = 0 on its judge request. Reasoning-model
-    // deployments (e.g. gpt-5-mini) reject any non-default temperature, so we strip it back to
-    // null (provider default) on the way out. ponytail: narrow fix at the call site rather than
-    // a shared client decorator, since only this scenario's judge call needs it.
+    // deployments (e.g. gpt-5-mini) reject any non-default temperature, so strip it back to null
+    // (provider default). NOTE: this wraps the scenario's ONE shared client, so it applies to the
+    // game-under-test turn as well as the judge call — a no-op there today (AgentExecutor never
+    // sets Temperature), but rescope if a future scenario's game path relies on a temperature.
     private static ReportingConfiguration CreateGroundednessReporting(IChatClient chatClient) =>
         EvalSupport.CreateReportingConfiguration(
             chatClient.AsBuilder().ConfigureOptions(o => o.Temperature = null).Build(),
