@@ -69,15 +69,16 @@ public class AgentToolProviderTests
     }
 
     [Fact]
-    public void Exploration_HasExactly10Functions()
+    public void Exploration_HasExactly11Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
-        Assert.Equal(10, registered.Length);
-        Assert.Equal(10, tools.Count);
+        Assert.Equal(11, registered.Length);
+        Assert.Equal(11, tools.Count);
         Assert.Contains("Character.ChallengeCharacter", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
+        Assert.Contains("Campaign.RecordJournalEntry", registered);
         Assert.Contains("Encounter.CreateEncounter", registered);
         Assert.Contains("Dice.Roll", registered);
         Assert.DoesNotContain("Character.CreateCharacter", registered);
@@ -85,16 +86,17 @@ public class AgentToolProviderTests
     }
 
     [Fact]
-    public void Combat_HasExactly3Functions()
+    public void Combat_HasExactly4Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Combat);
 
-        Assert.Equal(3, registered.Length);
-        Assert.Equal(3, tools.Count);
+        Assert.Equal(4, registered.Length);
+        Assert.Equal(4, tools.Count);
         Assert.Contains("Encounter.ResolveCombatRound", registered);
         Assert.Contains("Character.CastScroll", registered);
         Assert.Contains("Dice.Roll", registered);
+        Assert.Contains("Campaign.RecordJournalEntry", registered);
     }
 
     [Fact]
@@ -106,6 +108,7 @@ public class AgentToolProviderTests
         // CompleteResolution lives on EncounterTools, so its telemetry group is "Encounter".
         Assert.Contains("Encounter.CompleteResolution", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
+        Assert.Contains("Campaign.RecordJournalEntry", registered);
         Assert.Contains("Character.AddItemToCharacterInventory", registered);
         Assert.DoesNotContain("Character.CreateCharacter", registered);
         Assert.DoesNotContain("Campaign.StartCampaign", registered);

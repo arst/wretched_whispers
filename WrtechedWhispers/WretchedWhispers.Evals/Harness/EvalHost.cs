@@ -138,6 +138,50 @@ public sealed class EvalHost : IAsyncDisposable
     }
 
     /// <summary>
+    /// Same seed as <see cref="CreateCombatAsync"/> (character joined, campaign started) but with no
+    /// encounter attached, so <c>DeriveStage</c> falls through to <see cref="SessionStage.Exploration"/>.
+    /// </summary>
+    public static async Task<EvalHost> CreateExplorationAsync(IChatClient chatClient)
+    {
+        var host = await CreateAsync(chatClient);
+
+        await using var scope = host._provider.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        SetTenantUser(sp);
+
+        var dice = sp.GetRequiredService<Dice>();
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var charactersRepo = sp.GetRequiredService<ICharactersRepository>();
+
+        var campaign = await campaignsRepo.Get(host.SessionId)
+            ?? throw new InvalidOperationException("Seed campaign was not found.");
+
+        var abilities = new Abilities(
+            agility: new AbilityScore(0),
+            presence: new AbilityScore(0),
+            strength: new AbilityScore(0),
+            toughness: new AbilityScore(0));
+        var equipment = new StartingEquipment(
+            Silver: 120,
+            FoodDays: 3,
+            Container: "satchel",
+            Gear1: null,
+            Gear2: null,
+            Weapon: Weapon.Create(WeaponKind.Staff),
+            Armor: new Armor(ArmorTier.Medium),
+            Shield: null,
+            Scrolls: []);
+        var character = Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
+        await charactersRepo.Save(character);
+
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        await campaignsRepo.SaveCampaign(campaign, TestUserId);
+
+        return host;
+    }
+
+    /// <summary>
     /// Creates a new <see cref="EvalTurnRunner"/> scoped to one eval turn and registers it for
     /// disposal. The runner is owned by this host and will be disposed when the host is disposed —
     /// callers must NOT dispose the runner themselves.

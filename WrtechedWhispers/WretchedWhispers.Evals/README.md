@@ -38,6 +38,9 @@ dotnet aieval report --path WrtechedWhispers/WretchedWhispers.Evals/bin/Debug/ne
 ## Current evals
 
 - **CampaignCreation-Turn1-Begin** — "begin" must call no tools (asks for a name).
-- **CampaignCreation-Turn2-Name** — a name must trigger `CreateCharacter -> ConfigureCampaign -> StartCampaign`, in that exact order.
+- **CampaignCreation-Turn2-Name** — a name must trigger `CreateCharacter -> ConfigureCampaign`, in that exact order (the campaign auto-starts once configured).
 - **Combat-InventoryQuestion-NoTurn** — an in-combat inventory/equipment question must answer from state without calling combat tools.
 - **Combat-MissingItemUse-NoTurn** — using a missing item in combat must not invent it or advance the round.
+- **Combat-PlayerAttack-OneRound** — a player attack must call `ResolveCombatRound` exactly once (journaling a notable event alongside it is permitted).
+- **Exploration-MemorableNpc-Journaled** — meeting a memorable NPC and making a promise must trigger `RecordJournalEntry`.
+- **Combat-Narration-Grounded** — LLM-judge groundedness of combat narration against the tool results it's based on, threshold >= 4.

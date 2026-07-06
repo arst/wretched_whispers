@@ -92,7 +92,8 @@ public sealed class Campaign
     private Campaign(Guid id, string name, string description, int currentDay, int currentHour,
         List<Guid> characters, CalendarOfNechrubel calendar,
         DiceExpr dawnDice, List<Guid> encounters,
-        bool isStarted = false, bool isEnded = false, bool isConfigured = false)
+        bool isStarted = false, bool isEnded = false, bool isConfigured = false,
+        List<JournalEntry>? journal = null)
     {
         Id = id;
         Name = name;
@@ -106,6 +107,7 @@ public sealed class Campaign
         IsStarted = isStarted;
         IsEnded = isEnded;
         IsConfigured = isConfigured;
+        Journal = journal ?? [];
     }
 
     [JsonInclude] public Guid Id { get; private set; }
@@ -131,6 +133,10 @@ public sealed class Campaign
     [JsonInclude] public bool IsEnded { get; private set; }
 
     [JsonInclude] public bool IsConfigured { get; private set; }
+
+    [JsonInclude] internal List<JournalEntry> Journal { get; }
+
+    [JsonIgnore] public IReadOnlyList<JournalEntry> JournalEntries => Journal.AsReadOnly();
 
     [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
@@ -173,6 +179,13 @@ public sealed class Campaign
     public void AddEncounter(Guid encounterId)
     {
         Encounters.Add(encounterId);
+    }
+
+    public void RecordJournalEntry(JournalCategory category, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            throw new ArgumentException("Journal text must not be empty.", nameof(text));
+        Journal.Add(new JournalEntry(category, text.Trim(), CurrentDay, CurrentHour));
     }
 
     public static Campaign Create(DiceExpr dawnDice, string name, string description)
