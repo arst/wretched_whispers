@@ -41,6 +41,7 @@ public static class TraceExporter
                     ["gameState"] = Parse(t.GameStateJson),
                     ["toolCalls"] = Parse(t.ToolCallsJson),
                     ["toolResults"] = Parse(t.ToolResultsJson),
+                    ["turnDelta"] = Parse(t.TurnDeltaJson),
                     ["suppressedNarrative"] = t.SuppressedNarrative,
                     ["narrative"] = t.Narrative
                 });

@@ -157,11 +157,6 @@ public sealed class TurnCoordinator(
                 new ChatMessage(ChatRole.Assistant, fullResponse.ToString()) { AuthorName = "Game_Master" },
                 ct);
 
-            await turnTraceRepository.Save(
-                BuildTrace(sessionId, chatSessionId, stage, playerMessage, gameStateJson,
-                    agentTrace, toolResults, fullResponse.ToString()),
-                ct);
-
             await uow.CommitAsync(ct);
 
             // Reload post-commit so the client sees committed state.
@@ -171,8 +166,29 @@ public sealed class TurnCoordinator(
             // Authoritative "what this turn changed", diffed from committed state — the source of truth
             // for the action's outcome, rendered beside the prose. Skipped when no character existed
             // before the turn (character creation is genesis, not a delta).
-            if (preTurnState.CharacterId is not null)
-                writer.TryWrite(TurnDeltaMapper.Compute(preTurnState, postTurnState));
+            var turnDelta = preTurnState.CharacterId is not null
+                ? TurnDeltaMapper.Compute(preTurnState, postTurnState)
+                : null;
+
+            // Persist the full turn trace AFTER commit, best-effort: it needs the post-commit delta, and a
+            // diagnostics write must never fail — or roll back — a turn the player already completed. A trace
+            // therefore only ever describes a committed turn, which is exactly what eval analysis wants.
+            try
+            {
+                await turnTraceRepository.Save(
+                    BuildTrace(sessionId, chatSessionId, stage, playerMessage, gameStateJson,
+                        agentTrace, toolResults, turnDelta, fullResponse.ToString()),
+                    ct);
+            }
+            catch (Exception traceEx)
+            {
+                logger.LogError(traceEx,
+                    "Turn trace persistence failed (turn already committed) — Session={SessionId}, Stage={Stage}",
+                    sessionId, stage);
+            }
+
+            if (turnDelta is not null)
+                writer.TryWrite(turnDelta);
 
             writer.TryWrite(postTurnState);
             writer.TryWrite(new TurnDone());
@@ -212,6 +228,7 @@ public sealed class TurnCoordinator(
         string gameStateJson,
         AgentTrace? agentTrace,
         IReadOnlyList<ToolResult> toolResults,
+        TurnDelta? turnDelta,
         string narrative)
     {
         var callsArray = new JsonArray();
@@ -236,6 +253,7 @@ public sealed class TurnCoordinator(
             GameStateJson = gameStateJson,
             ToolCallsJson = callsArray.ToJsonString(),
             ToolResultsJson = toolResultsJson,
+            TurnDeltaJson = turnDelta is null ? null : JsonSerializer.Serialize(turnDelta, TraceJson),
             SuppressedNarrative = agentTrace?.SuppressedNarrative,
             Narrative = narrative
         };

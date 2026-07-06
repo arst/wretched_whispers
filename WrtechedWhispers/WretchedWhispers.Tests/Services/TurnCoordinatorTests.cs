@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -48,12 +49,15 @@ public class TurnCoordinatorTests
         var ctx = new SessionContext { SessionId = _sessionId };
         var campaign = Core.Campaigns.Campaign.Create(
             Core.Campaigns.Difficulty.Grim, "Test Campaign", "A test");
-        var characterId = Guid.NewGuid();
-        campaign.JoinGame(characterId);
+        // Populate the Character too — the real loader always does when a character exists, and
+        // StateUpdateMapper (hence the per-turn delta) reads the Character, not just the id.
+        var character = TestCharacters.Create(new Core.Dices.Dice(new Infrastructure.SeededRandomService(1)));
+        campaign.JoinGame(character.Id);
         campaign.Start();
         ctx.Campaign = campaign;
+        ctx.Character = character;
         ctx.SetCampaignId(campaign.Id);
-        ctx.SetCharacterId(characterId);
+        ctx.SetCharacterId(character.Id);
         return ctx;
     }
 
@@ -161,6 +165,46 @@ public class TurnCoordinatorTests
         _contextLoader.Verify(
             l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()),
             Times.Exactly(2)); // once for context, once post-turn reload
+    }
+
+    [Fact]
+    public async Task Trace_PersistsTurnDelta_SoEvalsCanSeeWhatActuallyChanged()
+    {
+        // The turn trace must carry the authoritative delta, not just the narrative — that is what lets
+        // offline eval analysis tell a real outcome from a fabricated one. Here pre-state == post-state
+        // (same context returned for both loads), so the persisted delta records a no-op: the ground truth
+        // that would contradict any narrative claiming silver spent or an item gained.
+        SetupChatSession();
+
+        var context = MakeExplorationContext();
+        _contextLoader
+            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+
+        SetupToolsForExploration();
+        SetupAgentExecutorStreaming(
+            new NarrativeChunk("You haggle, but the crone waves you off."),
+            new AgentTrace([], SuppressedNarrative: null));
+
+        _chatHistoryRepo
+            .Setup(r => r.SaveMessage(_chatSessionId, It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        TurnTraceEntity? saved = null;
+        _turnTraceRepo
+            .Setup(r => r.Save(It.IsAny<TurnTraceEntity>(), It.IsAny<CancellationToken>()))
+            .Callback<TurnTraceEntity, CancellationToken>((t, _) => saved = t)
+            .Returns(Task.CompletedTask);
+
+        var coordinator = CreateCoordinator();
+        await foreach (var _ in coordinator.ExecuteTurnAsync(_sessionId, "I buy the map", CancellationToken.None)) { }
+
+        Assert.NotNull(saved);
+        Assert.NotNull(saved!.TurnDeltaJson);
+        var delta = JsonSerializer.Deserialize<TurnDelta>(
+            saved.TurnDeltaJson!, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        Assert.NotNull(delta);
+        Assert.True(delta!.IsNoOp);
     }
 
     [Fact]
