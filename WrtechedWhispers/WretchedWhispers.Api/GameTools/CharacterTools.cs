@@ -66,6 +66,7 @@ public sealed class CharacterTools(
             RequireCharacterId(), new Dr(challengeDr), abilityKind, consequenceOnFailure);
         return new ChallengeOutcomeDto(
             result.Outcome.IsSuccess, result.Outcome.Roll, result.Outcome.Modifier,
+            result.Outcome.Roll + result.Outcome.Modifier,
             result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead);
     }
 

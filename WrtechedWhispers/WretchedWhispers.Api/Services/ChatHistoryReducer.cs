@@ -73,7 +73,18 @@ public sealed class ChatHistoryReducer(
         }
 
         var updated = new ChatSummary(summaryText, covered + olderCount);
-        await chatHistoryRepository.SaveSummary(chatSessionId, updated, ct);
+        try
+        {
+            await chatHistoryRepository.SaveSummary(chatSessionId, updated, ct);
+        }
+        catch (Exception ex)
+        {
+            // Persisting the watermark failed — degrade gracefully rather than fail the player's
+            // turn. The fresh summary is still used for this turn's response; since the watermark
+            // did not advance, the next turn re-summarizes the same prefix and retries the save.
+            logger.LogWarning(ex, "Failed to persist summary watermark for session {SessionId}", chatSessionId);
+            return Compose(updated, recent);
+        }
 
         logger.LogInformation(
             "Rolled summary forward — covered {Covered} of {Total} messages, sending {Sent}",

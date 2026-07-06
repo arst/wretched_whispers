@@ -1,11 +1,5 @@
-using System.ClientModel;
-using Azure.AI.OpenAI;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
-using Microsoft.Extensions.AI.Evaluation.Reporting.Storage;
-using WretchedWhispers.Api.Models;
 using WretchedWhispers.Evals.Evaluators;
 using WretchedWhispers.Evals.Harness;
 using Xunit;
@@ -20,14 +14,14 @@ public class CampaignCreationEvals
     [Fact]
     public async Task Turn1_Begin_CallsNoTools()
     {
-        var chatClient = TryCreateAzureChatClient();
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
         if (chatClient is null)
         {
             Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
             return;
         }
 
-        var reporting = CreateReportingConfiguration(chatClient);
+        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
         await using ScenarioRun run = await reporting.CreateScenarioRunAsync("CampaignCreation-Turn1-Begin");
 
         var chatConfiguration = run.ChatConfiguration
@@ -47,14 +41,14 @@ public class CampaignCreationEvals
     [Fact]
     public async Task Turn2_Name_CreatesCampaignInOrder()
     {
-        var chatClient = TryCreateAzureChatClient();
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
         if (chatClient is null)
         {
             Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
             return;
         }
 
-        var reporting = CreateReportingConfiguration(chatClient);
+        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
         await using ScenarioRun run = await reporting.CreateScenarioRunAsync("CampaignCreation-Turn2-Name");
 
         var chatConfiguration = run.ChatConfiguration
@@ -78,14 +72,14 @@ public class CampaignCreationEvals
     [Fact]
     public async Task Combat_InventoryQuestion_AnswersWithoutTakingTurn()
     {
-        var chatClient = TryCreateAzureChatClient();
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
         if (chatClient is null)
         {
             Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
             return;
         }
 
-        var reporting = CreateReportingConfiguration(chatClient);
+        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
         await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Combat-InventoryQuestion-NoTurn");
 
         var chatConfiguration = run.ChatConfiguration
@@ -106,14 +100,14 @@ public class CampaignCreationEvals
     [Fact]
     public async Task Combat_MissingItemUse_DoesNotInventItemOrTakeTurn()
     {
-        var chatClient = TryCreateAzureChatClient();
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
         if (chatClient is null)
         {
             Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
             return;
         }
 
-        var reporting = CreateReportingConfiguration(chatClient);
+        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
         await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Combat-MissingItemUse-NoTurn");
 
         var chatConfiguration = run.ChatConfiguration
@@ -132,64 +126,6 @@ public class CampaignCreationEvals
             MentionsMissingItem(outcome.Narrative, "lantern"),
             $"Expected the GM to say the lantern is unavailable. Narrative: {outcome.Narrative}");
     }
-
-    // DiskBasedReportingConfiguration.Create signature (verified against 10.6.0):
-    //   Create(storageRootPath, evaluators, chatConfiguration, enableResponseCaching,
-    //          timeToLiveForCacheEntries, cachingKeys, executionName,
-    //          evaluationMetricInterpreter, tags)
-    // The plan omitted timeToLiveForCacheEntries (nullable TimeSpan) — we pass null to use the default.
-    // ChatConfiguration is not IAsyncDisposable; no await using needed.
-    private static ReportingConfiguration CreateReportingConfiguration(IChatClient chatClient)
-    {
-        var chatConfiguration = new ChatConfiguration(chatClient);
-        return DiskBasedReportingConfiguration.Create(
-            storageRootPath: Path.Combine(AppContext.BaseDirectory, ".eval-results"),
-            evaluators: [new ToolCallOrderEvaluator()],
-            chatConfiguration: chatConfiguration,
-            enableResponseCaching: true,
-            timeToLiveForCacheEntries: null,
-            executionName: "campaign-creation");
-    }
-
-    // Mirrors AgentConfiguration's Azure wiring. Values can come from appsettings, user secrets, or
-    // environment variables. Returns null if any are absent so the [Fact] skips cleanly.
-    private static IChatClient? TryCreateAzureChatClient()
-    {
-        var settings = LoadAzureOpenAiSettings();
-        if (string.IsNullOrWhiteSpace(settings.Endpoint)
-            || string.IsNullOrWhiteSpace(settings.ApiKey)
-            || string.IsNullOrWhiteSpace(settings.ChatModelDeployment))
-            return null;
-
-        var azure = new AzureOpenAIClient(new Uri(settings.Endpoint), new ApiKeyCredential(settings.ApiKey));
-        return azure.GetChatClient(settings.ChatModelDeployment).AsIChatClient();
-    }
-
-    private static AzureOpenAiSettings LoadAzureOpenAiSettings()
-    {
-        var config = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddJsonFile("appsettings.Development.json", optional: true)
-            .AddUserSecrets<CampaignCreationEvals>(optional: true)
-            .AddEnvironmentVariables()
-            .Build();
-
-        var section = config.GetSection(nameof(AzureOpenAiSettings));
-        var settings = section.Get<AzureOpenAiSettings>() ?? new AzureOpenAiSettings();
-
-        return new AzureOpenAiSettings
-        {
-            Endpoint = FirstNonEmpty(settings.Endpoint, config["AzureOpenAiSettings_Endpoint"]),
-            ApiKey = FirstNonEmpty(settings.ApiKey, config["AzureOpenAiSettings_ApiKey"]),
-            ChatModelDeployment = FirstNonEmpty(
-                settings.ChatModelDeployment,
-                config["AzureOpenAiSettings_ChatModelDeployment"])
-        };
-    }
-
-    private static string FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? "";
 
     private static bool MentionsMissingItem(string narrative, string item)
     {
