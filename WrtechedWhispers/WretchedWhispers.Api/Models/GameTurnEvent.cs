@@ -51,3 +51,17 @@ public record StateUpdate(
 public record TurnError(string Message) : GameTurnEvent("error");
 
 public record TurnDone() : GameTurnEvent("done");
+
+/// <summary>A single tool invocation the model made this turn, with its raw JSON arguments.</summary>
+public record ToolCallTrace(string Name, string? Arguments);
+
+/// <summary>
+/// Out-of-band capture event emitted LAST by <see cref="Services.AgentExecutor"/> so the
+/// <see cref="Services.TurnCoordinator"/> can persist a full turn trace (tool-call arguments + the
+/// suppressed pre-tool prose — neither of which is exposed by the player-facing events). Deliberately
+/// NOT registered as a <c>[JsonDerivedType]</c>: it must never be written to the SSE stream. The
+/// TurnCoordinator captures it and drops it; other consumers ignore it.
+/// </summary>
+public record AgentTrace(
+    IReadOnlyList<ToolCallTrace> ToolCalls,
+    string? SuppressedNarrative) : GameTurnEvent("agent_trace");

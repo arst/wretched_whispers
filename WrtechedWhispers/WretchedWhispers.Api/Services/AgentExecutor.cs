@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
@@ -61,6 +62,7 @@ public sealed class AgentExecutor(
         var preToolNarrative = new List<string>();
         var postToolNarrative = new List<string>();
         var toolResults = new List<ToolResult>();
+        var toolCalls = new List<ToolCallTrace>();
         var sawTool = false;
 
         var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
@@ -82,6 +84,9 @@ public sealed class AgentExecutor(
                     case FunctionCallContent call:
                         sawTool = true;
                         if (call.CallId is not null) callNames[call.CallId] = call.Name;
+                        // Capture name + args for the turn trace (offline error analysis). Args are the
+                        // valuable part — e.g. which itemDescription or dice expr the model passed.
+                        toolCalls.Add(new ToolCallTrace(call.Name, SerializeArgs(call.Arguments)));
                         // Durable, greppable audit of every tool invocation (args + result below). This is
                         // the only always-on record that a roll/round was actually resolved by the domain —
                         // the DB stores narrative text only, and OTel spans need a collector attached.
@@ -121,6 +126,27 @@ public sealed class AgentExecutor(
 
         foreach (var toolResult in toolResults)
             yield return toolResult;
+
+        // Out-of-band trace (last): carries the tool-call args and suppressed prose the player-facing
+        // events don't expose, so the TurnCoordinator can persist a complete turn trace. Not streamed.
+        var suppressed = sawTool && preToolNarrative.Count > 0 ? string.Concat(preToolNarrative) : null;
+        yield return new AgentTrace(toolCalls, suppressed);
+    }
+
+    private static string? SerializeArgs(IDictionary<string, object?>? arguments)
+    {
+        if (arguments is null || arguments.Count == 0)
+            return null;
+
+        try
+        {
+            return JsonSerializer.Serialize(arguments);
+        }
+        catch (NotSupportedException)
+        {
+            // A non-serializable arg value must never break a turn — trace fidelity is best-effort.
+            return null;
+        }
     }
 
     private AIAgent CreateAgent(IReadOnlyList<AIFunction> tools, SessionContext sessionContext)
