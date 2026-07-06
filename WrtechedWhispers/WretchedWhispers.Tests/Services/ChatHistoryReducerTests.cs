@@ -86,4 +86,20 @@ public sealed class ChatHistoryReducerTests
         Assert.Contains("kept", result[0].Text);   // stored summary still leads
         Assert.Equal(101, result.Count);           // stored summary + recent 100
     }
+
+    [Fact]
+    public async Task OverThreshold_SaveSummaryThrows_ReturnsFreshSummaryAnyway()
+    {
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatSummary?)null);
+        SetupSummarizerResponse("fresh summary");
+        _repo.Setup(r => r.SaveSummary(It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db unavailable"));
+
+        // 200 messages, none covered -> summarize oldest 100, keep 100; save fails but must not throw.
+        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(200), CancellationToken.None);
+
+        Assert.Equal(101, result.Count);
+        Assert.Contains("fresh summary", result[0].Text);
+    }
 }
