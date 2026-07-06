@@ -110,7 +110,7 @@ public class PromptComposerTests : TestBase
 
         var result = _composer.Compose(context);
 
-        Assert.Contains("first verify the required", result);
+        Assert.Contains("first verify the item/resource exists", result);
         Assert.Contains("explain in-world and STOP", result);
     }
 

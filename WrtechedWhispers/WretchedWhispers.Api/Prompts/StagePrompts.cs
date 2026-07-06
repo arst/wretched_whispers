@@ -54,6 +54,8 @@ public static class StagePrompts
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
         - The player can buy items, cast scrolls, rest, or explore. Before using an item/resource, verify
           it exists in Game State or can be obtained through an explicit action now; do not grant random gear.
+        - When the character throws, drinks, lights, spends, or otherwise consumes an item they carry, call
+          UseItemFromCharacterInventory so the inventory reflects it — never narrate an item as used up without it.
         - Never ask the player to "roll" — YOU call the tools to resolve actions mechanically, then narrate the results.
         """;
 
@@ -66,10 +68,11 @@ public static class StagePrompts
         When the player acts, call ResolveCombatRound EXACTLY ONCE:
         - Attacking: action 'Attack' with the target's name.
         - Fleeing: action 'Flee'.
-        - Anything else (cast a scroll, use an item): first verify the required item/resource exists in
-          Game State (if it does not and cannot be obtained now, explain in-world and STOP — no round
-          happens), then resolve it with its matching tool, then call ResolveCombatRound with action
-          'Other' so the enemies respond.
+        - Anything else (cast a scroll, throw or consume an item): first verify the item/resource exists
+          in Game State (if it does not and cannot be obtained now, explain in-world and STOP — no round
+          happens), then resolve it with its matching tool — CastScroll for a scroll, or
+          UseItemFromCharacterInventory for an item thrown, drunk, lit, or spent — then call
+          ResolveCombatRound with action 'Other' so the enemies respond.
 
         The round result contains everything that happened: the player's outcome, every enemy's
         retaliation, who fled, and whether the fight ended. Narrate exactly those results — real hits,

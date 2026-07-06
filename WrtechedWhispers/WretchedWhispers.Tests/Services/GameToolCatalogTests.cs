@@ -37,7 +37,7 @@ public class GameToolCatalogTests
     }
 
     [Fact]
-    public void Exploration_ExposesExactlyElevenTools()
+    public void Exploration_ExposesExactlyTwelveTools()
     {
         Assert.Equal(
             new[]
@@ -49,6 +49,7 @@ public class GameToolCatalogTests
                 "Character.BuyItem",
                 "Character.CastScroll",
                 "Character.ChallengeCharacter",
+                "Character.UseItemFromCharacterInventory",
                 "Dice.Roll",
                 "Encounter.AddAdversaryToEncounter",
                 "Encounter.CreateEncounter",
@@ -65,6 +66,7 @@ public class GameToolCatalogTests
             {
                 "Campaign.RecordJournalEntry",
                 "Character.CastScroll",
+                "Character.UseItemFromCharacterInventory",
                 "Dice.Roll",
                 "Encounter.ResolveCombatRound"
             },
@@ -85,7 +87,7 @@ public class GameToolCatalogTests
                 "Character.DegradeCharacterAbility",
                 "Character.ImproveCharacterAbility",
                 "Character.InfectCharacter",
-                "Character.RemoveItemFromCharacterInventory",
+                "Character.UseItemFromCharacterInventory",
                 // CompleteResolution lives on EncounterTools, so its group is "Encounter".
                 "Encounter.CompleteResolution"
             },

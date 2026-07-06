@@ -85,13 +85,22 @@ public sealed class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Remove an item from the character's inventory")]
-    [GameTool(SessionStage.Resolution)]
-    public async Task<CharacterDto> RemoveItemFromCharacterInventory(
-        [Description("Id of the inventory item to remove")] Guid itemId)
+    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
+    public async Task<CharacterDto> UseItemFromCharacterInventory(
+        [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription)
     {
         var character = await RequireCharacter();
-        character.RemoveItem(itemId);
+        // The model never sees item GUIDs, so resolve by the description it can read off Game State.
+        // On no match, hand back the current inventory so the model can retry with the exact string
+        // (transport surfaces tool errors to the model — the built-in correction loop).
+        var item = character.Inventory.InventoryItems
+            .FirstOrDefault(i => string.Equals(i.Description, itemDescription, StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+            throw new InvalidOperationException(
+                $"No item matching '{itemDescription}' is in the inventory. Current items: " +
+                $"{string.Join("; ", character.Inventory.InventoryItems.Select(i => i.Description))}.");
+        character.ConsumeItem(item.Id);
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }

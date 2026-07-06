@@ -82,6 +82,10 @@ public sealed class AgentExecutor(
                     case FunctionCallContent call:
                         sawTool = true;
                         if (call.CallId is not null) callNames[call.CallId] = call.Name;
+                        // Durable, greppable audit of every tool invocation (args + result below). This is
+                        // the only always-on record that a roll/round was actually resolved by the domain —
+                        // the DB stores narrative text only, and OTel spans need a collector attached.
+                        logger.LogInformation("Tool call: {Tool}({Args})", call.Name, call.Arguments);
                         break;
                     case FunctionResultContent result:
                         sawTool = true;
@@ -89,6 +93,7 @@ public sealed class AgentExecutor(
                             ? n
                             : "unknown";
                         toolResults.Add(new ToolResult(name, result.Result?.ToString() ?? ""));
+                        logger.LogInformation("Tool result: {Tool} -> {Result}", name, result.Result);
                         break;
                 }
             }

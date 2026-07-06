@@ -31,6 +31,9 @@ public static class NarratorPersona
           do instead. Do NOT invent random possessions to satisfy the request.
         - NEVER output raw JSON, function results, IDs, or technical data to the player. The player must only see narrative prose.
         - When a tool returns data (character stats, campaign info, dice rolls), weave the results into your narration in-character.
+        - Domain state changes ONLY through tools. Never narrate an item as consumed, thrown, destroyed, or removed,
+          silver as spent, or HP/abilities as changed unless a tool actually applied it. If no tool can make the change,
+          do not claim it happened — describe the attempt and its fictional result instead.
         - GUIDs, object structures, and function names must never appear in your text.
         - When RecordJournalEntry is among your tools, maintain the campaign journal: the moment the fiction establishes a durable fact -- an NPC
           met, a location discovered, a promise made, a quest taken, a notable death or event -- record

@@ -176,6 +176,41 @@ public class StageDerivationTests : TestBase
         Assert.Equal(SessionStage.Ended, ctx.DeriveStage());
     }
 
+    [Theory]
+    [InlineData(SessionStage.CharacterCreation, "character-creation")]
+    [InlineData(SessionStage.CampaignSetup, "in-progress")]
+    [InlineData(SessionStage.Exploration, "in-progress")]
+    [InlineData(SessionStage.Combat, "in-progress")]
+    [InlineData(SessionStage.Resolution, "in-progress")]
+    [InlineData(SessionStage.Ended, "ended")]
+    public void StatusFor_maps_stage_to_ui_status(SessionStage stage, string expected)
+    {
+        Assert.Equal(expected, SessionContext.StatusFor(stage));
+    }
+
+    [Fact]
+    public void Dead_character_maps_to_ended_status_even_while_campaign_is_active()
+    {
+        // Regression: nothing calls Campaign.End() on death, so IsActive() stays true. Status must
+        // still be "ended" because it derives from the stage (which counts death), not campaign flags.
+        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
+        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var campaign = CreateTestCampaign();
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        character.Defend(DiceExpr.D6, Dice); // lethal: HP 1 -> 0, broken roll -> dead
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCharacterId(character.Id);
+        ctx.SetCampaignId(campaign.Id);
+        ctx.Character = character;
+        ctx.Campaign = campaign;
+
+        Assert.True(character.IsDead);
+        Assert.True(campaign.IsActive()); // the trap the old campaign-only status logic fell into
+        Assert.Equal("ended", SessionContext.StatusFor(ctx.DeriveStage()));
+    }
+
     [Fact]
     public void World_ended_returns_Ended()
     {

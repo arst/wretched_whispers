@@ -25,8 +25,15 @@ builder.Services.AddCors(options =>
 });
 
 // EF Core + SQLite (Scoped lifetime for web API)
-builder.Services.AddDbContext<WretchedWhispersDbContext>(
-    options => options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
+builder.Services.AddDbContext<WretchedWhispersDbContext>(options =>
+{
+    options.UseSqlite(builder.Configuration.GetConnectionString("Default"));
+    // Dev only: turn EF's generic "An error occurred using a transaction" [20205] into the actual
+    // failing SQL, parameter values, and the entity/property that faulted. Sensitive data may include
+    // player input, so keep it out of production.
+    if (builder.Environment.IsDevelopment())
+        options.EnableDetailedErrors().EnableSensitiveDataLogging();
+});
 
 // Repositories, domain services, dice, JSON options (Scoped)
 builder.Services.AddDomainServices();

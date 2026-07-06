@@ -47,6 +47,16 @@ public sealed class SessionContext
         return SessionStage.Exploration;
     }
 
+    // The UI's coarse status is a pure function of the derived stage, so the two can never disagree
+    // (a dead character is Ended → "ended", not "in-progress"). Do NOT re-derive status from campaign
+    // flags alone: death lives on the Character, and DeriveStage is the single source of terminal truth.
+    public static string StatusFor(SessionStage stage) => stage switch
+    {
+        SessionStage.CharacterCreation => "character-creation",
+        SessionStage.Ended => "ended",
+        _ => "in-progress"
+    };
+
     public void SetCharacterId(Guid id) => CharacterId = id;
     public void SetCampaignId(Guid id) => CampaignId = id;
     public void SetActiveEncounterId(Guid id) => ActiveEncounterId = id;

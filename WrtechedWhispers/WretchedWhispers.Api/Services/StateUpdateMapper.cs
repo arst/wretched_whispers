@@ -66,17 +66,9 @@ public static class StateUpdateMapper
             isShieldBroken = character.Shield?.IsBroken ?? false;
         }
 
-        var stage = context.DeriveStage().ToString().ToLowerInvariant();
-
-        string status;
-        if (campaign is null || campaign.Players.Count == 0)
-            status = "character-creation";
-        else if (campaign.IsEnded || campaign.WorldEnded)
-            status = "ended";
-        else if (campaign.IsActive())
-            status = "in-progress";
-        else
-            status = "in-progress"; // has players, campaign not started yet (setup phase)
+        var derivedStage = context.DeriveStage();
+        var stage = derivedStage.ToString().ToLowerInvariant();
+        var status = SessionContext.StatusFor(derivedStage);
 
         return new StateUpdate(
             CampaignId: campaign?.Id,

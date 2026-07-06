@@ -69,13 +69,14 @@ public class AgentToolProviderTests
     }
 
     [Fact]
-    public void Exploration_HasExactly11Functions()
+    public void Exploration_HasExactly12Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
-        Assert.Equal(11, registered.Length);
-        Assert.Equal(11, tools.Count);
+        Assert.Equal(12, registered.Length);
+        Assert.Equal(12, tools.Count);
+        Assert.Contains("Character.UseItemFromCharacterInventory", registered);
         Assert.Contains("Character.ChallengeCharacter", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
         Assert.Contains("Campaign.RecordJournalEntry", registered);
@@ -86,13 +87,14 @@ public class AgentToolProviderTests
     }
 
     [Fact]
-    public void Combat_HasExactly4Functions()
+    public void Combat_HasExactly5Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Combat);
 
-        Assert.Equal(4, registered.Length);
-        Assert.Equal(4, tools.Count);
+        Assert.Equal(5, registered.Length);
+        Assert.Equal(5, tools.Count);
+        Assert.Contains("Character.UseItemFromCharacterInventory", registered);
         Assert.Contains("Encounter.ResolveCombatRound", registered);
         Assert.Contains("Character.CastScroll", registered);
         Assert.Contains("Dice.Roll", registered);

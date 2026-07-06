@@ -139,10 +139,11 @@ public static class SessionEndpoints
             int? currentHp = null;
             int? maxHp = null;
 
+            Character? character = null;
             var firstPlayerId = campaign.Players.FirstOrDefault();
             if (firstPlayerId != Guid.Empty)
             {
-                var character = await charactersRepo.Get(firstPlayerId);
+                character = await charactersRepo.Get(firstPlayerId);
                 if (character is not null)
                 {
                     characterName = character.Name;
@@ -151,7 +152,7 @@ public static class SessionEndpoints
                 }
             }
 
-            var status = DeriveStatus(campaign);
+            var status = DeriveStatus(campaign, character, firstPlayerId);
 
             // Check last played by looking at sessions for the campaign
             DateTime? lastPlayed = null;
@@ -289,12 +290,14 @@ public static class SessionEndpoints
         });
     }
 
-    private static string DeriveStatus(Campaign campaign)
+    // Same terminal truth as the live turn's state_update (StateUpdateMapper): status is a function of
+    // the derived stage, which counts character death — not campaign flags alone.
+    private static string DeriveStatus(Campaign campaign, Character? character, Guid firstPlayerId)
     {
-        if (campaign.Players.Count == 0)
-            return "character-creation";
-        if (campaign.IsActive())
-            return "in-progress";
-        return "ended";
+        var context = new SessionContext { Campaign = campaign, Character = character };
+        context.SetCampaignId(campaign.Id);
+        if (firstPlayerId != Guid.Empty)
+            context.SetCharacterId(firstPlayerId);
+        return SessionContext.StatusFor(context.DeriveStage());
     }
 }
