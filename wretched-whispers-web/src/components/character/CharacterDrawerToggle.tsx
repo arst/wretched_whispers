@@ -21,6 +21,7 @@ export default function CharacterDrawerToggle() {
   const miseryCount = useSessionStore((s) => s.miseryCount);
 
   const isVisible = (status === "in-progress" || status === "ended") && characterData !== null;
+  const silver = characterData?.silver;
 
   return (
     <div
@@ -33,11 +34,19 @@ export default function CharacterDrawerToggle() {
         className="min-h-[44px] flex items-center gap-2 cursor-pointer"
         aria-label={drawerOpen ? "Close character sheet" : "Open character sheet"}
       >
-        <span className={`text-xs font-bold ${characterData ? getHpTextColor(characterData.currentHp, characterData.maxHp) : "text-doom-ash"}`}>
-          HP
+        <span className="flex items-center gap-1.5 rounded border border-doom-card bg-doom-card/60 px-2 py-1">
+          <span className={`text-xs font-bold ${characterData ? getHpTextColor(characterData.currentHp, characterData.maxHp) : "text-doom-ash"}`}>
+            HP
+          </span>
+          <span className={`text-xs font-bold ${characterData ? getHpTextColor(characterData.currentHp, characterData.maxHp) : "text-doom-ash"}`}>
+            {characterData ? `${characterData.currentHp}/${characterData.maxHp}` : ""}
+          </span>
         </span>
-        <span className={`text-xs font-bold ${characterData ? getHpTextColor(characterData.currentHp, characterData.maxHp) : "text-doom-ash"}`}>
-          {characterData ? `${characterData.currentHp}/${characterData.maxHp}` : ""}
+        <span className="flex items-center gap-1.5 rounded border border-doom-yellow/30 bg-doom-yellow/10 px-2 py-1 text-xs font-bold uppercase text-doom-yellow hover:border-doom-yellow/60 transition-colors">
+          <span>Character</span>
+          {silver !== null && silver !== undefined && (
+            <span className="text-doom-bone">{silver} silver</span>
+          )}
         </span>
         {characterData && (
           <div className="hidden sm:block w-16">

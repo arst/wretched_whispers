@@ -11,7 +11,6 @@ using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Characters.Powers;
 using WretchedWhispers.Core.Characters.Status;
-using WretchedWhispers.Core.Characters.Status.Broken;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters;
@@ -102,7 +101,6 @@ public sealed class Character
 
     [JsonInclude] public InjurySet Injuries { get; private set; }
 
-    // Backward-compatible computed properties for CharacterPlugin and other consumers
     [JsonIgnore] public bool HasLostEye => Injuries.Has(InjuryKind.LostEye);
     [JsonIgnore] public bool HasStabbedLung => Injuries.Has(InjuryKind.StabbedLung);
     [JsonIgnore] public bool HasBrokenHand => Injuries.Has(InjuryKind.BrokenHand);
@@ -170,7 +168,7 @@ public sealed class Character
             var final = Math.Max(0, raw - reduction);
             dmg = Damage.From(final);
 
-            if (crit && targetArmor.Tier is not NoArmorTier) targetArmorDegraded = true;
+            if (crit && targetArmor.Tier is not ArmorTier.None) targetArmorDegraded = true;
         }
         else if (fumble)
         {
@@ -215,34 +213,13 @@ public sealed class Character
         if (Hp.IsZero)
         {
             var brokenOutcome = ResolveBroken(dice);
-            switch (brokenOutcome)
-            {
-                case null:
-                    break;
-                case DeadBroken:
-                    IsDead = true;
-                    break;
-                case BrokenHand:
-                    Injuries = Injuries.Add(InjuryKind.BrokenHand);
-                    break;
-                case CrushedFoot:
-                    Injuries = Injuries.Add(InjuryKind.CrushedFoot);
-                    break;
-                case EyeLost:
-                    Injuries = Injuries.Add(InjuryKind.LostEye);
-                    break;
-                case SeveredArm:
-                    Injuries = Injuries.Add(InjuryKind.SeveredArm);
-                    break;
-                case SmashedFace:
-                    Injuries = Injuries.Add(InjuryKind.SmashedFace);
-                    break;
-                case StabbedLung:
-                    Injuries = Injuries.Add(InjuryKind.StabbedLung);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(brokenOutcome));
-            }
+            if (brokenOutcome is null)
+                return;
+
+            if (brokenOutcome == InjuryKind.None)
+                IsDead = true;
+            else
+                Injuries = Injuries.Add(brokenOutcome.Value);
         }
     }
 
@@ -281,14 +258,14 @@ public sealed class Character
         return (avoided, critFree, fumble);
     }
 
-    private BrokenOutcome? ResolveBroken(Dice dice)
+    private InjuryKind? ResolveBroken(Dice dice)
     {
         if (!Hp.IsZero)
             return null;
 
         var d4 = dice.Roll(DiceExpr.D4);
 
-        if (d4 is 1 or 2) return BrokenOutcome.Dead();
+        if (d4 is 1 or 2) return InjuryKind.None;
 
         if (d4 > 4) return null;
 
@@ -296,12 +273,12 @@ public sealed class Character
 
         return d6 switch
         {
-            1 => BrokenOutcome.SeveredArm(),
-            2 => BrokenOutcome.CrushedFoot(),
-            3 => BrokenOutcome.SmashedFace(),
-            4 => BrokenOutcome.StabbedLung(),
-            5 => BrokenOutcome.BrokenHand(),
-            6 => BrokenOutcome.EyeLost(),
+            1 => InjuryKind.SeveredArm,
+            2 => InjuryKind.CrushedFoot,
+            3 => InjuryKind.SmashedFace,
+            4 => InjuryKind.StabbedLung,
+            5 => InjuryKind.BrokenHand,
+            6 => InjuryKind.LostEye,
             _ => throw new ArgumentOutOfRangeException()
         };
     }

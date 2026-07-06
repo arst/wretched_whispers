@@ -8,6 +8,6 @@ public static class ScrollRestrictionPolicy
 {
     public static bool CanUseScrolls(Weapon weapon, Armor armor)
     {
-        return !weapon.IsTwoHanded && armor.Tier is NoArmorTier or LightArmorTier;
+        return !weapon.IsTwoHanded && armor.Tier is ArmorTier.None or ArmorTier.Light;
     }
 }

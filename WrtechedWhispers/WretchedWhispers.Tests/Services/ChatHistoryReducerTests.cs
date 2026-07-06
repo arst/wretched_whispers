@@ -1,89 +1,89 @@
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using WretchedWhispers.Api.Services;
+using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;
 
-/// <summary>
-/// Verifies the chat-history reducer that restores summarization parity after the SK→Agent
-/// Framework migration: short sessions pass through untouched; long sessions are compacted to a
-/// single summary plus the recent tail so the model's context stays bounded.
-/// </summary>
-public class ChatHistoryReducerTests
+public sealed class ChatHistoryReducerTests
 {
-    private const int TargetCount = 100;
-    private const int ThresholdCount = 150;
+    private readonly Mock<IChatClient> _chatClient = new();
+    private readonly Mock<IChatHistoryRepository> _repo = new();
+    private readonly Guid _sessionId = Guid.NewGuid();
 
-    private static List<ChatMessage> MakeHistory(int count)
+    private ChatHistoryReducer CreateReducer() =>
+        new(_chatClient.Object, _repo.Object, NullLogger<ChatHistoryReducer>.Instance);
+
+    private static IReadOnlyList<ChatMessage> Messages(int count) =>
+        Enumerable.Range(0, count).Select(i => new ChatMessage(ChatRole.User, $"msg {i}")).ToList();
+
+    private void SetupSummarizerResponse(string text) =>
+        _chatClient
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, text)));
+
+    [Fact]
+    public async Task UnderThreshold_NoStoredSummary_ReturnsHistoryUnchanged_NoModelCall()
     {
-        var list = new List<ChatMessage>(count);
-        for (var i = 0; i < count; i++)
-        {
-            var role = i % 2 == 0 ? ChatRole.User : ChatRole.Assistant;
-            list.Add(new ChatMessage(role, $"message-{i}"));
-        }
-        return list;
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatSummary?)null);
+
+        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(10), CancellationToken.None);
+
+        Assert.Equal(10, result.Count);
+        _chatClient.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task BelowThreshold_ReturnsHistoryUnchanged_AndNeverCallsModel()
+    public async Task UnderThreshold_WithStoredSummary_PrependsSummary_SkipsCoveredMessages()
     {
-        var client = new CountingChatClient("should not be called");
-        var reducer = new ChatHistoryReducer(client, NullLogger<ChatHistoryReducer>.Instance);
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatSummary("earlier doom", 50));
 
-        var history = MakeHistory(ThresholdCount); // exactly at threshold => not reduced
-        var result = await reducer.ReduceAsync(history, CancellationToken.None);
+        // 120 total, 50 covered -> tail of 70, under threshold: summary + 70 messages, no model call.
+        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(120), CancellationToken.None);
 
-        Assert.Same(history, result);
-        Assert.Equal(0, client.Calls);
-    }
-
-    [Fact]
-    public async Task AboveThreshold_SummarizesOlder_KeepsRecentTail()
-    {
-        var client = new CountingChatClient("SUMMARY: the wretch bleeds in the dark.");
-        var reducer = new ChatHistoryReducer(client, NullLogger<ChatHistoryReducer>.Instance);
-
-        var history = MakeHistory(ThresholdCount + 20); // 170 messages
-        var result = await reducer.ReduceAsync(history, CancellationToken.None);
-
-        // 1 summary message + the most recent TargetCount messages.
-        Assert.Equal(TargetCount + 1, result.Count);
-        Assert.Equal(1, client.Calls);
-
-        // First message is the summary.
+        Assert.Equal(71, result.Count);
         Assert.Equal(ChatRole.System, result[0].Role);
-        Assert.Contains("SUMMARY: the wretch bleeds", result[0].Text);
-
-        // The recent tail is preserved verbatim and in order (last original message is last).
-        Assert.Equal(history[^1].Text, result[^1].Text);
-        Assert.Equal("message-169", result[^1].Text);
+        Assert.Contains("earlier doom", result[0].Text);
+        Assert.Equal("msg 50", result[1].Text);
+        _chatClient.VerifyNoOtherCalls();
     }
 
-    private sealed class CountingChatClient(string responseText) : IChatClient
+    [Fact]
+    public async Task OverThreshold_SummarizesTail_AdvancesWatermark()
     {
-        public int Calls { get; private set; }
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatSummary?)null);
+        SetupSummarizerResponse("fresh summary");
 
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
-        {
-            Calls++;
-            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
-        }
+        // 200 messages, none covered -> summarize oldest 100, keep 100.
+        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(200), CancellationToken.None);
 
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> messages, ChatOptions? options = null,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            Calls++;
-            yield return new ChatResponseUpdate(ChatRole.Assistant, responseText);
-            await Task.CompletedTask;
-        }
+        Assert.Equal(101, result.Count);
+        Assert.Contains("fresh summary", result[0].Text);
+        _repo.Verify(r => r.SaveSummary(
+            _sessionId,
+            It.Is<ChatSummary>(s => s.Text == "fresh summary" && s.CoveredCount == 100),
+            It.IsAny<CancellationToken>()));
+    }
 
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+    [Fact]
+    public async Task OverThreshold_EmptySummarizerResponse_DoesNotAdvanceWatermark()
+    {
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatSummary("kept", 20));
+        SetupSummarizerResponse("   ");
 
-        public void Dispose() { }
+        // 200 total, 20 covered -> tail 180 over threshold, but summarization fails.
+        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(200), CancellationToken.None);
+
+        _repo.Verify(r => r.SaveSummary(It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        Assert.Contains("kept", result[0].Text);   // stored summary still leads
+        Assert.Equal(101, result.Count);           // stored summary + recent 100
     }
 }

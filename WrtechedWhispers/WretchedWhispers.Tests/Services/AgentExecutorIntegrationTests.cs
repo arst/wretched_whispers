@@ -35,7 +35,7 @@ public class AgentExecutorIntegrationTests
         return new AgentExecutor(
             chatClient,
             historyRepo.Object,
-            new ChatHistoryReducer(chatClient, NullLogger<ChatHistoryReducer>.Instance),
+            new ChatHistoryReducer(chatClient, historyRepo.Object, NullLogger<ChatHistoryReducer>.Instance),
             new PromptComposer(),
             NullLogger<AgentExecutor>.Instance);
     }
@@ -140,41 +140,6 @@ public class AgentExecutorIntegrationTests
         Assert.Contains("Grim claws free", narrative);
         // The tool still ran.
         Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateCharacter");
-    }
-
-    [Fact]
-    public async Task StageToolGuard_BlocksAToolNotLegalForTheStage()
-    {
-        // CreateCharacter is legal in CharacterCreation but NOT in Combat. Build the agent WITH the
-        // CreateCharacter tool but guard it for the Combat stage: the defense-in-depth middleware must
-        // block the invocation even though the tool is physically present on the agent.
-        var (provider, _) = CreateToolProvider();
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
-
-        var client = new ScriptedChatClient(
-            ChatResponses.ToolCall("call_1", "CreateCharacter", new() { ["name"] = "Grim" }),
-            ChatResponses.Text("the call was refused."));
-        var functionInvoking = client.AsBuilder()
-            .UseFunctionInvocation(configure: c => { c.IncludeDetailedErrors = true; c.MaximumConsecutiveErrorsPerRequest = 3; })
-            .Build();
-
-        var agent = new ChatClientAgent(functionInvoking, new ChatClientAgentOptions
-            {
-                Name = "Game_Master",
-                UseProvidedChatClientAsIs = true,
-                ChatOptions = new ChatOptions { Tools = tools.Cast<AITool>().ToList() }
-            })
-            .WithStageToolGuard(SessionStage.Combat, NullLogger.Instance);
-
-        var session = await agent.CreateSessionAsync(CancellationToken.None);
-        await foreach (var _ in agent.RunStreamingAsync(
-            [new ChatMessage(ChatRole.User, "Grim")], session, null, CancellationToken.None))
-        {
-        }
-
-        // Blocked: CreateCharacter never executed, so it never set the session's character id.
-        Assert.Null(ctx.CharacterId);
     }
 
     [Fact]

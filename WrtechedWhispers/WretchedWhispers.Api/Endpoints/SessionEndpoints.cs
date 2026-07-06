@@ -235,30 +235,7 @@ public static class SessionEndpoints
             totalMessages,
             page,
             pageSize,
-            stateUpdate.CharacterName,
-            stateUpdate.CharacterHp,
-            stateUpdate.CharacterMaxHp,
-            stateUpdate.CharacterStrength,
-            stateUpdate.CharacterAgility,
-            stateUpdate.CharacterPresence,
-            stateUpdate.CharacterToughness,
-            stateUpdate.CharacterWeapon,
-            stateUpdate.CharacterArmor,
-            stateUpdate.CharacterInventory,
-            stateUpdate.HasLostEye,
-            stateUpdate.HasStabbedLung,
-            stateUpdate.HasBrokenHand,
-            stateUpdate.HasCrushedFoot,
-            stateUpdate.HasSeveredArm,
-            stateUpdate.HasSmashedFace,
-            stateUpdate.IsInfected,
-            stateUpdate.IsDizzyFromMagic,
-            stateUpdate.IsEncumbered,
-            stateUpdate.IsDead,
-            stateUpdate.ArmorTier,
-            stateUpdate.HasShield,
-            stateUpdate.IsShieldBroken,
-            stateUpdate.WorldEnded));
+            stateUpdate));
     }
 
     private static async Task<IResult> GetSessionMessages(

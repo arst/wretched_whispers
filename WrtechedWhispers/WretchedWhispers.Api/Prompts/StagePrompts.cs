@@ -50,7 +50,8 @@ public static class StagePrompts
         - When the character attempts ANY risky action, ALWAYS call ChallengeCharacter to test against a DR (usually 12). Never narrate success or failure without rolling.
         - When violence or combat begins, IMMEDIATELY call CreateEncounter to set up the fight, AddAdversaryToEncounter to add enemies, then StartEncounter to begin combat. Do NOT narrate combat without creating an encounter first.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
-        - The player can buy items, cast scrolls, rest, or explore.
+        - The player can buy items, cast scrolls, rest, or explore. Before using an item/resource, verify
+          it exists in Game State or can be obtained through an explicit action now; do not grant random gear.
         - Never ask the player to "roll" — YOU call the tools to resolve actions mechanically, then narrate the results.
         """;
 
@@ -59,9 +60,15 @@ public static class StagePrompts
         for the player's next action. Do NOT resolve the whole fight in a single turn — the player
         acts every round.
 
+        If the player's message is a question, clarification, inventory/status check, or rules
+        discussion, answer from the Game State and STOP. Do NOT call AttackAdversary, AttackPlayer,
+        or any other tool. Do NOT let enemies act. A question is not a combat round.
+
         This round, in order:
         1. Resolve the PLAYER's stated action first. If they attack, call AttackAdversary with the
-           target's name. For other actions (cast a scroll, flee, use an item), call the matching tool.
+           target's name. For other actions (cast a scroll, flee, use an item), first verify the required
+           item/resource exists in Game State or is clearly obtainable now, then call the matching tool.
+           If it does not exist and cannot be obtained now, explain that and stop without enemy retaliation.
         2. Then the enemies strike back: call AttackPlayer once for each living adversary.
         3. Narrate ONLY what the tool calls actually returned — real hits, misses, damage, and deaths.
            NEVER invent a hit, a wound, or a death that a tool did not report. Call the tool, then

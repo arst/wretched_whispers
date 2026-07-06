@@ -3,8 +3,13 @@ using WretchedWhispers.Api.Prompts;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 
@@ -77,6 +82,53 @@ public class PromptComposerTests : TestBase
     }
 
     [Fact]
+    public void Compose_for_Combat_treats_questions_as_not_actions()
+    {
+        var context = BuildContextForStage(SessionStage.Combat);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("A question is not a combat round", result);
+        Assert.Contains("Do NOT call AttackAdversary, AttackPlayer", result);
+    }
+
+    [Fact]
+    public void Compose_requires_inventory_check_before_using_items()
+    {
+        var context = BuildContextForStage(SessionStage.Exploration);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("first check the Game State", result);
+        Assert.Contains("Do NOT invent random possessions", result);
+    }
+
+    [Fact]
+    public void Compose_for_Combat_denies_missing_item_without_enemy_retaliation()
+    {
+        var context = BuildContextForStage(SessionStage.Combat);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("first verify the required", result);
+        Assert.Contains("stop without enemy retaliation", result);
+    }
+
+    [Fact]
+    public void Compose_snapshot_includes_inventory_and_equipment()
+    {
+        var context = BuildContextForStage(SessionStage.Combat);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("Weapon:", result);
+        Assert.Contains("Armor:", result);
+        Assert.Contains("Inventory", result);
+        Assert.Contains("Powers:", result);
+        Assert.Contains("Omens:", result);
+    }
+
+    [Fact]
     public void Compose_for_Ended_instructs_farewell_narration()
     {
         var context = BuildContextForStage(SessionStage.Ended);
@@ -118,16 +170,19 @@ public class PromptComposerTests : TestBase
 
             case SessionStage.CampaignSetup:
                 context.SetCharacterId(Guid.NewGuid());
+                context.Character = CreateMinimalCharacter();
                 break;
 
             case SessionStage.Exploration:
                 context.SetCharacterId(Guid.NewGuid());
+                context.Character = CreateMinimalCharacter();
                 context.SetCampaignId(Guid.NewGuid());
                 context.Campaign = CreateActiveCampaign();
                 break;
 
             case SessionStage.Combat:
                 context.SetCharacterId(Guid.NewGuid());
+                context.Character = CreateMinimalCharacter();
                 context.SetCampaignId(Guid.NewGuid());
                 context.Campaign = CreateActiveCampaign();
                 context.SetActiveEncounterId(Guid.NewGuid());
@@ -136,6 +191,7 @@ public class PromptComposerTests : TestBase
 
             case SessionStage.Resolution:
                 context.SetCharacterId(Guid.NewGuid());
+                context.Character = CreateMinimalCharacter();
                 context.SetCampaignId(Guid.NewGuid());
                 context.Campaign = CreateActiveCampaign();
                 context.SetActiveEncounterId(Guid.NewGuid());
@@ -144,6 +200,7 @@ public class PromptComposerTests : TestBase
 
             case SessionStage.Ended:
                 context.SetCharacterId(Guid.NewGuid());
+                context.Character = CreateMinimalCharacter();
                 context.SetCampaignId(Guid.NewGuid());
                 context.Campaign = CreateEndedCampaign();
                 break;
@@ -167,6 +224,31 @@ public class PromptComposerTests : TestBase
         campaign.Start();
         campaign.End();
         return campaign;
+    }
+
+    private Character CreateMinimalCharacter()
+    {
+        SetupDiceRolls(3);
+        return Character.Create(
+            Guid.NewGuid(),
+            "Tuck",
+            2,
+            new Abilities(
+                new AbilityScore(0),
+                new AbilityScore(0),
+                new AbilityScore(1),
+                new AbilityScore(0)),
+            new StartingEquipment(
+                120,
+                3,
+                "Sack",
+                new InventoryItem(Guid.NewGuid(), "Medicine chest", false, true, 5),
+                null,
+                Weapon.Create(WeaponKind.Staff),
+                new Armor(ArmorTier.Medium),
+                null,
+                []),
+            Dice);
     }
 
     private Encounter CreateStartedEncounter()
@@ -197,7 +279,7 @@ public class PromptComposerTests : TestBase
         return new Adversary(
             "Goblin",
             new Core.Characters.HitPoints(5, 5),
-            new Armor(NoArmorTier.Instance),
+            new Armor(ArmorTier.None),
             morale: 7,
             new AttackProfile("Claw", DiceExpr.D6));
     }

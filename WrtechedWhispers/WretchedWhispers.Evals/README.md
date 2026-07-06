@@ -6,9 +6,15 @@ default CI test run.
 
 ## Running
 
-Set the Azure OpenAI credentials the app uses (see `AgentConfiguration`):
+Set the Azure OpenAI credentials the app uses (see `AgentConfiguration`). The evals read the normal
+.NET configuration stack: `appsettings*.json`, user secrets, then environment variables.
 
 ```bash
+dotnet user-secrets set --project WrtechedWhispers/WretchedWhispers.Evals AzureOpenAiSettings:Endpoint "https://<resource>.openai.azure.com/"
+dotnet user-secrets set --project WrtechedWhispers/WretchedWhispers.Evals AzureOpenAiSettings:ApiKey "<key>"
+dotnet user-secrets set --project WrtechedWhispers/WretchedWhispers.Evals AzureOpenAiSettings:ChatModelDeployment "<deployment>"
+
+# or, in CI:
 export AzureOpenAiSettings__Endpoint="https://<resource>.openai.azure.com/"
 export AzureOpenAiSettings__ApiKey="<key>"
 export AzureOpenAiSettings__ChatModelDeployment="<deployment>"
@@ -31,5 +37,7 @@ dotnet aieval report --path WrtechedWhispers/WretchedWhispers.Evals/bin/Debug/ne
 
 ## Current evals
 
-- **CampaignCreation/Turn1-Begin** — "begin" must call no tools (asks for a name).
-- **CampaignCreation/Turn2-Name** — a name must trigger `CreateCharacter -> ConfigureCampaign -> StartCampaign`, in that exact order.
+- **CampaignCreation-Turn1-Begin** — "begin" must call no tools (asks for a name).
+- **CampaignCreation-Turn2-Name** — a name must trigger `CreateCharacter -> ConfigureCampaign -> StartCampaign`, in that exact order.
+- **Combat-InventoryQuestion-NoTurn** — an in-combat inventory/equipment question must answer from state without calling combat tools.
+- **Combat-MissingItemUse-NoTurn** — using a missing item in combat must not invent it or advance the round.

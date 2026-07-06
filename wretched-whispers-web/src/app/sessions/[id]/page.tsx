@@ -76,42 +76,6 @@ export default function GameSessionPage({
         const data: SessionDetailDto = await res.json();
         const store = useSessionStore.getState();
 
-        // Helper to hydrate character data from enriched DTO
-        function hydrateCharacter(dto: SessionDetailDto) {
-          if (dto.characterName && dto.characterHp != null) {
-            store.setCharacterData({
-              name: dto.characterName,
-              currentHp: dto.characterHp,
-              maxHp: dto.characterMaxHp!,
-              abilities: {
-                strength: dto.characterStrength ?? 0,
-                agility: dto.characterAgility ?? 0,
-                presence: dto.characterPresence ?? 0,
-                toughness: dto.characterToughness ?? 0,
-              },
-              weapon: dto.characterWeapon ?? null,
-              armor: dto.characterArmor ?? null,
-              inventory: dto.characterInventory ?? [],
-              // Injuries
-              hasLostEye: dto.characterHasLostEye ?? false,
-              hasStabbedLung: dto.characterHasStabbedLung ?? false,
-              hasBrokenHand: dto.characterHasBrokenHand ?? false,
-              hasCrushedFoot: dto.characterHasCrushedFoot ?? false,
-              hasSeveredArm: dto.characterHasSeveredArm ?? false,
-              hasSmashedFace: dto.characterHasSmashedFace ?? false,
-              // Status effects
-              isInfected: dto.characterIsInfected ?? false,
-              isDizzyFromMagic: dto.characterIsDizzyFromMagic ?? false,
-              isEncumbered: dto.characterIsEncumbered ?? false,
-              isDead: dto.characterIsDead ?? false,
-              // Equipment condition
-              armorTier: dto.characterArmorTier ?? "none",
-              hasShield: dto.characterHasShield ?? false,
-              isShieldBroken: dto.characterIsShieldBroken ?? false,
-            });
-          }
-        }
-
         // If there are more messages than one page, load the LAST page
         // so the user sees the most recent messages first
         if (data.totalMessages > data.pageSize) {
@@ -122,19 +86,16 @@ export default function GameSessionPage({
           if (latestRes.ok) {
             const latestData: SessionDetailDto = await latestRes.json();
             store.setSession(latestData.sessionId, latestData.status, latestData.messages, latestData.totalMessages);
-            hydrateCharacter(latestData);
-            useSessionStore.setState({ currentDay: latestData.currentDay });
+            store.setStateUpdate(latestData.state);
           } else {
             // Fallback to first page if last page request fails
             store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
-            hydrateCharacter(data);
-            useSessionStore.setState({ currentDay: data.currentDay });
+            store.setStateUpdate(data.state);
           }
         } else {
           // Session fits in one page, use as-is
           store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
-          hydrateCharacter(data);
-          useSessionStore.setState({ currentDay: data.currentDay });
+          store.setStateUpdate(data.state);
         }
 
         // New character-creation session with no messages: show splash and trigger narrator

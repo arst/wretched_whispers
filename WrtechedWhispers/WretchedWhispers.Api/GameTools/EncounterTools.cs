@@ -14,9 +14,7 @@ namespace WretchedWhispers.Api.GameTools;
 /// <summary>
 /// Encounter and combat game-master tools. Auto-fills encounter/character ids from
 /// <see cref="SessionContext"/> (the model only ever names an adversary), validates arguments, and
-/// calls the domain directly. Also owns CompleteResolution, the post-combat lifecycle step. Replaces
-/// the former EncounterWrapperPlugin/ResolutionWrapperPlugin → IEncounterOperations →
-/// EncounterPluginAdapter → EncounterPlugin stack.
+/// calls the domain directly. Also owns CompleteResolution, the post-combat lifecycle step.
 /// </summary>
 [Description("Manage encounters and combat: create them, add adversaries, start combat, execute attacks, end encounters, and resolve the aftermath.")]
 public sealed class EncounterTools(
@@ -189,19 +187,19 @@ public sealed class EncounterTools(
 
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier) => armorTier switch
     {
-        LightArmorTier => ArmorTierDto.Light,
-        MediumArmorTier => ArmorTierDto.Medium,
-        HeavyArmorTier => ArmorTierDto.Heavy,
-        NoArmorTier => ArmorTierDto.None,
+        ArmorTier.Light => ArmorTierDto.Light,
+        ArmorTier.Medium => ArmorTierDto.Medium,
+        ArmorTier.Heavy => ArmorTierDto.Heavy,
+        ArmorTier.None => ArmorTierDto.None,
         _ => throw new ArgumentException($"Unknown armor tier: {armorTier}.")
     };
 
     private static Armor GenerateArmor(ArmorTierDto armorType) => armorType switch
     {
-        ArmorTierDto.Light => new Armor(LightArmorTier.Instance),
-        ArmorTierDto.Medium => new Armor(MediumArmorTier.Instance),
-        ArmorTierDto.Heavy => new Armor(HeavyArmorTier.Instance),
-        ArmorTierDto.None => new Armor(NoArmorTier.Instance),
+        ArmorTierDto.Light => new Armor(ArmorTier.Light),
+        ArmorTierDto.Medium => new Armor(ArmorTier.Medium),
+        ArmorTierDto.Heavy => new Armor(ArmorTier.Heavy),
+        ArmorTierDto.None => new Armor(ArmorTier.None),
         _ => throw new ArgumentException(
             $"Unknown armor type: {armorType}. Expected one of: light, medium, heavy, none.")
     };

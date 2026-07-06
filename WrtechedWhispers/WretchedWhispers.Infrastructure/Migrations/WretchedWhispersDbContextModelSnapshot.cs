@@ -15,7 +15,7 @@ namespace WretchedWhispers.Infrastructure.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "9.0.16");
+            modelBuilder.HasAnnotation("ProductVersion", "9.0.17");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUser", b =>
                 {
@@ -230,6 +230,12 @@ namespace WretchedWhispers.Infrastructure.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SummaryCoveredCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SummaryText")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

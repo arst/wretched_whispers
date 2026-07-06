@@ -35,7 +35,7 @@ public class EncounterRoundTripTests : TestBase
 
         var adversary = new Adversary("Goblin",
             new HitPoints(5, 5),
-            new Armor(LightArmorTier.Instance),
+            new Armor(ArmorTier.Light),
             7,
             new AttackProfile("Claw", DiceExpr.D4));
         encounter.AddAdversary(adversary);

@@ -39,6 +39,8 @@ public sealed class AgentExecutor(
         {
             c.IncludeDetailedErrors = true;
             c.MaximumConsecutiveErrorsPerRequest = 3;
+            // Hard ceiling on tool-call iterations per turn — bounds a runaway (but non-erroring) loop.
+            c.MaximumIterationsPerRequest = 15;
         })
         .Build();
     public async IAsyncEnumerable<GameTurnEvent> ExecuteAsync(
@@ -53,7 +55,7 @@ public sealed class AgentExecutor(
 
         var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
         // Bound the model's context on long sessions (summarize older messages).
-        history = await historyReducer.ReduceAsync(history, ct);
+        history = await historyReducer.ReduceAsync(chatSessionId, history, ct);
         var agent = CreateAgent(tools, sessionContext);
 
         var preToolNarrative = new List<string>();
@@ -131,8 +133,6 @@ public sealed class AgentExecutor(
             }
         });
 
-        // Defense-in-depth: block any tool call that is not stage-legal, even though the agent was
-        // built with only the stage's tools (see StageToolGuard).
-        return agent.WithStageToolGuard(sessionContext.DeriveStage(), logger);
+        return agent;
     }
 }

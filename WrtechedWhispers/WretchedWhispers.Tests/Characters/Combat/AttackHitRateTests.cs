@@ -34,7 +34,7 @@ public class AttackHitRateTests
             Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
             Gear1: null, Gear2: null,
             Weapon: Weapon.Create(WeaponKind.Sword), // melee => uses Strength
-            Armor: new Armor(NoArmorTier.Instance),
+            Armor: new Armor(ArmorTier.None),
             Shield: null, Scrolls: []);
         return Character.Create(Guid.NewGuid(), "TestHero", 20, abilities, equipment, dice);
     }
@@ -50,7 +50,7 @@ public class AttackHitRateTests
         var hits = 0;
         for (var i = 0; i < trials; i++)
         {
-            var outcome = hero.Attack(new Armor(NoArmorTier.Instance), dice);
+            var outcome = hero.Attack(new Armor(ArmorTier.None), dice);
             if (outcome.Hit) hits++;
         }
 
@@ -71,7 +71,7 @@ public class AttackHitRateTests
         var hits = 0;
         for (var i = 0; i < trials; i++)
         {
-            var outcome = strongHero.Attack(new Armor(NoArmorTier.Instance), dice);
+            var outcome = strongHero.Attack(new Armor(ArmorTier.None), dice);
             if (outcome.Hit) hits++;
         }
 
@@ -97,7 +97,7 @@ public class AttackHitRateTests
         // Sword is d6. Creation dice are irrelevant (explicit stats/gear); combat dice are scripted.
         var hero = CreateHero(new Dice(new SeededRandomService(1)));
         // d20 -> 15 (hit, no crit), d6 -> 4 (base damage), NoArmor reduction rolls nothing.
-        var outcome = hero.Attack(new Armor(NoArmorTier.Instance), ScriptedDice(14, 3));
+        var outcome = hero.Attack(new Armor(ArmorTier.None), ScriptedDice(14, 3));
 
         Assert.True(outcome.Hit);
         Assert.False(outcome.Critical);
@@ -111,7 +111,7 @@ public class AttackHitRateTests
     {
         var hero = CreateHero(new Dice(new SeededRandomService(1)));
         // d20 -> 20 (natural crit), d6 -> 5 (base damage).
-        var outcome = hero.Attack(new Armor(NoArmorTier.Instance), ScriptedDice(19, 4));
+        var outcome = hero.Attack(new Armor(ArmorTier.None), ScriptedDice(19, 4));
 
         Assert.True(outcome.Critical);
         Assert.Equal(5, outcome.BaseDamageRoll);

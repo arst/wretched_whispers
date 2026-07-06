@@ -8,7 +8,7 @@ export function useAutoScroll(deps: unknown[]) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const userScrolledUp = useRef(false);
-  const isPrepend = useRef(false);
+  const isPrependRef = useRef(false);
 
   // Track whether user has manually scrolled up
   useEffect(() => {
@@ -29,8 +29,8 @@ export function useAutoScroll(deps: unknown[]) {
   // Auto-scroll when dependencies change (new messages, streaming text)
   useEffect(() => {
     if (userScrolledUp.current) return;
-    if (isPrepend.current) {
-      isPrepend.current = false; // Reset after one skip
+    if (isPrependRef.current) {
+      isPrependRef.current = false; // Reset after one skip
       return;
     }
 
@@ -43,5 +43,5 @@ export function useAutoScroll(deps: unknown[]) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  return { containerRef, bottomRef, scrollToBottom, isPrepend };
+  return { containerRef, bottomRef, scrollToBottom, isPrependRef };
 }

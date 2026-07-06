@@ -21,6 +21,7 @@ public static class StateUpdateMapper
         string? characterWeapon = null;
         string? characterArmor = null;
         string[]? characterInventory = null;
+        int? characterSilver = null;
         bool hasLostEye = false;
         bool hasStabbedLung = false;
         bool hasBrokenHand = false;
@@ -46,16 +47,10 @@ public static class StateUpdateMapper
             characterPresence = character.Abilities.Presence.Modifier;
             characterToughness = character.Abilities.Toughness.Modifier;
             characterWeapon = character.Weapon.Kind.ToString();
-            characterArmor = character.Armor.Tier switch
-            {
-                NoArmorTier => "None",
-                LightArmorTier => "Light Armor",
-                MediumArmorTier => "Medium Armor",
-                HeavyArmorTier => "Heavy Armor",
-                _ => "Unknown"
-            };
+            characterArmor = character.Armor.Tier.DisplayName();
             characterInventory = character.Inventory.InventoryItems
                 .Select(i => i.Description).ToArray();
+            characterSilver = character.Silver;
             hasLostEye = character.HasLostEye;
             hasStabbedLung = character.HasStabbedLung;
             hasBrokenHand = character.HasBrokenHand;
@@ -66,14 +61,7 @@ public static class StateUpdateMapper
             isDizzyFromMagic = character.IsDizzyFromMagic;
             isEncumbered = character.IsEncumbered;
             isDead = character.IsDead;
-            armorTier = character.Armor.Tier switch
-            {
-                NoArmorTier => "none",
-                LightArmorTier => "light",
-                MediumArmorTier => "medium",
-                HeavyArmorTier => "heavy",
-                _ => "none"
-            };
+            armorTier = character.Armor.Tier.Token();
             hasShield = character.Shield is not null;
             isShieldBroken = character.Shield?.IsBroken ?? false;
         }
@@ -105,6 +93,7 @@ public static class StateUpdateMapper
             CharacterWeapon: characterWeapon,
             CharacterArmor: characterArmor,
             CharacterInventory: characterInventory,
+            CharacterSilver: characterSilver,
             MiseryCount: campaign?.Miseries.Count ?? 0,
             Stage: stage,
             Status: status,

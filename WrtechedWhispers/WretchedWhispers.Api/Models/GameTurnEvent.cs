@@ -29,6 +29,7 @@ public record StateUpdate(
     string? CharacterWeapon,
     string? CharacterArmor,
     string[]? CharacterInventory,
+    int? CharacterSilver,
     int MiseryCount,
     string Stage,
     string Status,

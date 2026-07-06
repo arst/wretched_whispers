@@ -42,7 +42,7 @@ public class CharacterRoundTripTests : TestBase
             Guid.NewGuid(), "SavedHero", 10, abilities,
             new StartingEquipment(50, 3, "Sack", null, null,
                 Weapon.Create(WeaponKind.Sword),
-                new Armor(LightArmorTier.Instance), null, []), Dice);
+                new Armor(ArmorTier.Light), null, []), Dice);
 
         await _repo.Save(character);
         var loaded = await _repo.Get(character.Id);
@@ -59,7 +59,7 @@ public class CharacterRoundTripTests : TestBase
         Assert.Equal(character.Silver, loaded.Silver);
         Assert.Equal(character.FoodDays, loaded.FoodDays);
         Assert.Equal(character.Weapon.Kind, loaded.Weapon.Kind);
-        Assert.IsType<LightArmorTier>(loaded.Armor.Tier);
+        Assert.Equal(ArmorTier.Light, loaded.Armor.Tier);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class CharacterRoundTripTests : TestBase
             Guid.NewGuid(), "MutableHero", 10, abilities,
             new StartingEquipment(0, 1, "Sack", null, null,
                 Weapon.Create(WeaponKind.Knife),
-                new Armor(NoArmorTier.Instance), null, []), Dice);
+                new Armor(ArmorTier.None), null, []), Dice);
 
         await _repo.Save(character);
 
@@ -114,7 +114,7 @@ public class CharacterRoundTripTests : TestBase
             Guid.NewGuid(), "InjuredPersistence", 1, abilities,
             new StartingEquipment(0, 1, "Sack", null, null,
                 Weapon.Create(WeaponKind.Knife),
-                new Armor(NoArmorTier.Instance), null, []), Dice);
+                new Armor(ArmorTier.None), null, []), Dice);
 
         // Force injury
         character.Defend(DiceExpr.D4, Dice);
@@ -154,7 +154,7 @@ public class CharacterRoundTripTests : TestBase
             new StartingEquipment(100, 5, "Backpack",
                 gear1, gear2,
                 Weapon.Create(WeaponKind.Zweihander),
-                new Armor(HeavyArmorTier.Instance),
+                new Armor(ArmorTier.Heavy),
                 new Shield(), scrolls), Dice);
 
         await _repo.Save(character);
@@ -162,7 +162,7 @@ public class CharacterRoundTripTests : TestBase
 
         Assert.NotNull(loaded);
         Assert.Equal(character.Weapon.Kind, loaded.Weapon.Kind);
-        Assert.IsType<HeavyArmorTier>(loaded.Armor.Tier);
+        Assert.Equal(ArmorTier.Heavy, loaded.Armor.Tier);
         Assert.NotNull(loaded.Shield);
         Assert.Equal(2, loaded.Scrolls.Count);
         Assert.Equal(character.Inventory.InventoryItems.Count, loaded.Inventory.InventoryItems.Count);

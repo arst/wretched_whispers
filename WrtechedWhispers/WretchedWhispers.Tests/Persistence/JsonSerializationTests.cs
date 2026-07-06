@@ -22,13 +22,6 @@ public class JsonSerializationTests : TestBase
     private readonly JsonSerializerOptions _options = AggregateJsonOptions.Create();
 
     [Fact]
-    public void AggregateJsonOptions_Create_ReturnsOptionsWithArmorTierConverter()
-    {
-        var options = AggregateJsonOptions.Create();
-        Assert.Contains(options.Converters, c => c is ArmorTierConverter);
-    }
-
-    [Fact]
     public void Character_RoundTrips_BasicProperties()
     {
         SetupDiceRolls(3); // PowerPool.Create needs d4 roll
@@ -42,7 +35,7 @@ public class JsonSerializationTests : TestBase
             Guid.NewGuid(), "TestHero", 10, abilities,
             new StartingEquipment(50, 3, "Sack", null, null,
                 Weapon.Create(WeaponKind.Sword),
-                new Armor(LightArmorTier.Instance),
+                new Armor(ArmorTier.Light),
                 null, []), Dice);
 
         var json = JsonSerializer.Serialize(character, _options);
@@ -71,7 +64,7 @@ public class JsonSerializationTests : TestBase
             Guid.NewGuid(), "BrokenHero", 10, abilities,
             new StartingEquipment(0, 1, "Sack", null, null,
                 Weapon.Create(WeaponKind.Knife),
-                new Armor(NoArmorTier.Instance), null, []), Dice);
+                new Armor(ArmorTier.None), null, []), Dice);
 
         character.Infect();
 
@@ -104,7 +97,7 @@ public class JsonSerializationTests : TestBase
             new StartingEquipment(100, 5, "Backpack",
                 gear1, gear2,
                 Weapon.Create(WeaponKind.Zweihander),
-                new Armor(HeavyArmorTier.Instance),
+                new Armor(ArmorTier.Heavy),
                 new Shield(), scrolls), Dice);
 
         var json = JsonSerializer.Serialize(character, _options);
@@ -112,7 +105,7 @@ public class JsonSerializationTests : TestBase
 
         Assert.Equal(character.Weapon.Kind, deserialized.Weapon.Kind);
         Assert.Equal(character.Weapon.DamageDie, deserialized.Weapon.DamageDie);
-        Assert.IsType<HeavyArmorTier>(deserialized.Armor.Tier);
+        Assert.Equal(ArmorTier.Heavy, deserialized.Armor.Tier);
         Assert.NotNull(deserialized.Shield);
         Assert.Equal(2, deserialized.Scrolls.Count);
         Assert.Equal(character.Inventory.InventoryItems.Count, deserialized.Inventory.InventoryItems.Count);
@@ -139,7 +132,7 @@ public class JsonSerializationTests : TestBase
             Guid.NewGuid(), "InjuredHero", 1, abilities,
             new StartingEquipment(0, 1, "Sack", null, null,
                 Weapon.Create(WeaponKind.Knife),
-                new Armor(NoArmorTier.Instance), null, []), Dice);
+                new Armor(ArmorTier.None), null, []), Dice);
 
         // Force injury by defending with 1 HP against an attack
         character.Defend(DiceExpr.D4, Dice);
@@ -192,7 +185,7 @@ public class JsonSerializationTests : TestBase
 
         var adversary = new Adversary("Goblin",
             new HitPoints(5, 5),
-            new Armor(LightArmorTier.Instance),
+            new Armor(ArmorTier.Light),
             7,
             new AttackProfile("Claw", DiceExpr.D4));
         encounter.AddAdversary(adversary);
@@ -209,27 +202,18 @@ public class JsonSerializationTests : TestBase
     }
 
     [Theory]
-    [InlineData("heavy", typeof(HeavyArmorTier))]
-    [InlineData("medium", typeof(MediumArmorTier))]
-    [InlineData("light", typeof(LightArmorTier))]
-    [InlineData("none", typeof(NoArmorTier))]
-    public void ArmorTier_Polymorphic_RoundTrips(string expectedDiscriminator, Type expectedType)
+    [InlineData("heavy", ArmorTier.Heavy)]
+    [InlineData("medium", ArmorTier.Medium)]
+    [InlineData("light", ArmorTier.Light)]
+    [InlineData("none", ArmorTier.None)]
+    public void ArmorTier_RoundTrips(string expectedJson, ArmorTier tier)
     {
-        ArmorTier tier = expectedDiscriminator switch
-        {
-            "heavy" => HeavyArmorTier.Instance,
-            "medium" => MediumArmorTier.Instance,
-            "light" => LightArmorTier.Instance,
-            "none" => NoArmorTier.Instance,
-            _ => throw new ArgumentException()
-        };
-
         var json = JsonSerializer.Serialize(tier, _options);
-        Assert.Contains($"\"$type\":\"{expectedDiscriminator}\"", json);
+        Assert.Equal($"\"{expectedJson}\"", json);
 
         var deserialized = JsonSerializer.Deserialize<ArmorTier>(json, _options)!;
-        Assert.IsType(expectedType, deserialized);
-        Assert.Equal(tier.DefencePenalty, deserialized.DefencePenalty);
-        Assert.Equal(tier.AgilityPenalty, deserialized.AgilityPenalty);
+        Assert.Equal(tier, deserialized);
+        Assert.Equal(tier.DefencePenalty(), deserialized.DefencePenalty());
+        Assert.Equal(tier.AgilityPenalty(), deserialized.AgilityPenalty());
     }
 }
