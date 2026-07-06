@@ -55,6 +55,7 @@ export interface LoginResponse {
 export type SseEventType =
   | "narrative"
   | "tool_result"
+  | "turn_delta"
   | "state_update"
   | "done"
   | "error";
@@ -66,6 +67,25 @@ export interface NarrativeEvent {
 export interface ToolResultEvent {
   function: string;
   result: unknown;
+}
+
+// Authoritative account of what THIS turn changed — a deterministic diff of committed domain state,
+// never written by the model. Rendered beside the prose as the source of truth for the outcome; a
+// purchase the narration invented but no tool applied arrives here as all-zero (isNoOp).
+export interface TurnDeltaEvent {
+  silverChange: number;
+  hpChange: number;
+  itemsAdded: string[];
+  itemsRemoved: string[];
+  hoursElapsed: number;
+  strengthChange: number;
+  agilityChange: number;
+  presenceChange: number;
+  toughnessChange: number;
+  miseryChange: number;
+  newAfflictions: string[];
+  died: boolean;
+  worldEnded: boolean;
 }
 
 export interface StateUpdateEvent {

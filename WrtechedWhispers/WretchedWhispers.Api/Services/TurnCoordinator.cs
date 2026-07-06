@@ -111,9 +111,12 @@ public sealed class TurnCoordinator(
         activity?.SetTag("session.stage", stage.ToString());
         activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
 
-        // Snapshot the state the model sees as INPUT for this turn, frozen to a string before any tool
-        // mutates the loaded aggregates. This is the "why did the model do X" context for error analysis.
-        var gameStateJson = JsonSerializer.Serialize(StateUpdateMapper.Map(context), TraceJson);
+        // Snapshot the state the model sees as INPUT for this turn, frozen before any tool mutates the
+        // loaded aggregates (StateUpdate is an immutable record over copied values). Serves two roles:
+        // the "why did the model do X" context for error analysis, and the BEFORE side of the per-turn
+        // delta computed post-commit.
+        var preTurnState = StateUpdateMapper.Map(context);
+        var gameStateJson = JsonSerializer.Serialize(preTurnState, TraceJson);
 
         try
         {
@@ -154,16 +157,40 @@ public sealed class TurnCoordinator(
                 new ChatMessage(ChatRole.Assistant, fullResponse.ToString()) { AuthorName = "Game_Master" },
                 ct);
 
-            await turnTraceRepository.Save(
-                BuildTrace(sessionId, chatSessionId, stage, playerMessage, gameStateJson,
-                    agentTrace, toolResults, fullResponse.ToString()),
-                ct);
-
             await uow.CommitAsync(ct);
 
             // Reload post-commit so the client sees committed state.
             var postTurnContext = await contextLoader.LoadAsync(sessionId, ct);
-            writer.TryWrite(StateUpdateMapper.Map(postTurnContext));
+            var postTurnState = StateUpdateMapper.Map(postTurnContext);
+
+            // Authoritative "what this turn changed", diffed from committed state — the source of truth
+            // for the action's outcome, rendered beside the prose. Skipped when no character existed
+            // before the turn (character creation is genesis, not a delta).
+            var turnDelta = preTurnState.CharacterId is not null
+                ? TurnDeltaMapper.Compute(preTurnState, postTurnState)
+                : null;
+
+            // Persist the full turn trace AFTER commit, best-effort: it needs the post-commit delta, and a
+            // diagnostics write must never fail — or roll back — a turn the player already completed. A trace
+            // therefore only ever describes a committed turn, which is exactly what eval analysis wants.
+            try
+            {
+                await turnTraceRepository.Save(
+                    BuildTrace(sessionId, chatSessionId, stage, playerMessage, gameStateJson,
+                        agentTrace, toolResults, turnDelta, fullResponse.ToString()),
+                    ct);
+            }
+            catch (Exception traceEx)
+            {
+                logger.LogError(traceEx,
+                    "Turn trace persistence failed (turn already committed) — Session={SessionId}, Stage={Stage}",
+                    sessionId, stage);
+            }
+
+            if (turnDelta is not null)
+                writer.TryWrite(turnDelta);
+
+            writer.TryWrite(postTurnState);
             writer.TryWrite(new TurnDone());
 
             logger.LogInformation(
@@ -201,6 +228,7 @@ public sealed class TurnCoordinator(
         string gameStateJson,
         AgentTrace? agentTrace,
         IReadOnlyList<ToolResult> toolResults,
+        TurnDelta? turnDelta,
         string narrative)
     {
         var callsArray = new JsonArray();
@@ -225,6 +253,7 @@ public sealed class TurnCoordinator(
             GameStateJson = gameStateJson,
             ToolCallsJson = callsArray.ToJsonString(),
             ToolResultsJson = toolResultsJson,
+            TurnDeltaJson = turnDelta is null ? null : JsonSerializer.Serialize(turnDelta, TraceJson),
             SuppressedNarrative = agentTrace?.SuppressedNarrative,
             Narrative = narrative
         };

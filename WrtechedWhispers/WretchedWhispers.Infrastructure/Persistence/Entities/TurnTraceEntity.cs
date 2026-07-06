@@ -25,6 +25,14 @@ public class TurnTraceEntity
     /// <summary>JSON array of { name, result } — what those tools returned.</summary>
     public string ToolResultsJson { get; set; } = "[]";
 
+    /// <summary>
+    /// Serialized <c>TurnDelta</c> — the authoritative diff of committed state before vs. after this turn
+    /// (silver/HP/item/time changes). Null for a turn with no character yet (character creation). This is
+    /// the ground truth for eval labelling: it says what the turn ACTUALLY changed, independent of what the
+    /// narrative claimed — so a fabricated outcome shows up as a narrative with an all-zero delta.
+    /// </summary>
+    public string? TurnDeltaJson { get; set; }
+
     /// <summary>Pre-tool prose the fabrication guardrail suppressed (the model's attempted fabrication), if any.</summary>
     public string? SuppressedNarrative { get; set; }
 

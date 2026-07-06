@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ChatMessageDto, ToolResultEvent, StateUpdateEvent, CharacterData } from "@/types/api";
+import type { ChatMessageDto, ToolResultEvent, TurnDeltaEvent, StateUpdateEvent, CharacterData } from "@/types/api";
 
 export interface Message {
   id: string;
@@ -7,6 +7,7 @@ export interface Message {
   content: string;
   authorName: string | null;
   toolResults: ToolResultEvent[];
+  turnDelta: TurnDeltaEvent | null;
 }
 
 interface SessionState {
@@ -33,6 +34,7 @@ interface SessionState {
   startStreaming: () => void;
   appendNarrativeChunk: (text: string) => void;
   addToolResult: (result: ToolResultEvent) => void;
+  setTurnDelta: (delta: TurnDeltaEvent) => void;
   setStateUpdate: (update: StateUpdateEvent) => void;
   finishStreaming: () => void;
   setError: (message: string) => void;
@@ -75,6 +77,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         content: dto.content ?? "",
         authorName: dto.authorName,
         toolResults: [],
+        turnDelta: null,
       })),
       totalMessages,
       hasMoreMessages: dtos.length < totalMessages,
@@ -95,6 +98,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
           content,
           authorName: null,
           toolResults: [],
+          turnDelta: null,
         },
       ],
     })),
@@ -114,6 +118,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
           content: "",
           authorName: "Game Master",
           toolResults: [],
+          turnDelta: null,
         },
       ],
     }));
@@ -132,6 +137,16 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         msg.id === streamingMessageId
           ? { ...msg, toolResults: [...msg.toolResults, result] }
           : msg
+      ),
+    }));
+  },
+
+  setTurnDelta: (delta) => {
+    const { streamingMessageId } = get();
+    if (!streamingMessageId) return;
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.id === streamingMessageId ? { ...msg, turnDelta: delta } : msg
       ),
     }));
   },
@@ -236,6 +251,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
           content: dto.content ?? "",
           authorName: dto.authorName,
           toolResults: [],
+          turnDelta: null,
         })),
         ...state.messages,
       ],
