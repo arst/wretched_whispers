@@ -47,7 +47,7 @@ public class TurnCoordinatorTests
     {
         var ctx = new SessionContext { SessionId = _sessionId };
         var campaign = Core.Campaigns.Campaign.Create(
-            Core.Dices.DiceExpr.Parse("d6"), "Test Campaign", "A test");
+            Core.Campaigns.Difficulty.Grim, "Test Campaign", "A test");
         var characterId = Guid.NewGuid();
         campaign.JoinGame(characterId);
         campaign.Start();
@@ -63,7 +63,7 @@ public class TurnCoordinatorTests
         // (see StageDerivationTests). Ending the campaign is the lightest way to reach that stage.
         var ctx = new SessionContext { SessionId = _sessionId };
         var campaign = Core.Campaigns.Campaign.Create(
-            Core.Dices.DiceExpr.Parse("d6"), "Test Campaign", "A test");
+            Core.Campaigns.Difficulty.Grim, "Test Campaign", "A test");
         var characterId = Guid.NewGuid();
         campaign.JoinGame(characterId);
         campaign.Start();

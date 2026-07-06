@@ -161,10 +161,10 @@ public class JsonSerializationTests : TestBase
     public void Campaign_RoundTrips_PreservingState()
     {
         SetupDiceRolls(3); // dawnDice not needed for Create, but just in case
-        var campaign = Campaign.Create(DiceExpr.D6, "DoomCampaign", "The end is nigh");
+        var campaign = Campaign.Create(Difficulty.Grim, "DoomCampaign", "The end is nigh");
         var charId = Guid.NewGuid();
         campaign.JoinGame(charId);
-        campaign.Configure(DiceExpr.D6, "DoomCampaign", "The end is nigh");
+        campaign.Configure( "DoomCampaign", "The end is nigh");
 
         var json = JsonSerializer.Serialize(campaign, _options);
         var deserialized = JsonSerializer.Deserialize<Campaign>(json, _options)!;

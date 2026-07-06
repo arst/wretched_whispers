@@ -194,7 +194,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
 
         // Act
-        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "E2E Tenant Test", "Verifying tenant propagation");
+        var campaign = Campaign.Create(Difficulty.Grim, "E2E Tenant Test", "Verifying tenant propagation");
         await campaignsRepo.SaveCampaign(campaign);
 
         // Assert: Check the database entity has the correct UserId

@@ -7,7 +7,6 @@ using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Api.Endpoints;
@@ -108,7 +107,7 @@ public static class SessionEndpoints
             return Results.Unauthorized();
 
         var campaign = Campaign.Create(
-            DiceExpr.Parse("d6"),
+            Difficulty.Grim,
             "New Campaign",
             "A new journey into doom");
 

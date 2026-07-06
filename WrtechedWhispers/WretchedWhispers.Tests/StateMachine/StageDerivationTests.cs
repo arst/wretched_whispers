@@ -33,7 +33,7 @@ public class StageDerivationTests : TestBase
 
     private static Campaign CreateTestCampaign()
     {
-        return Campaign.Create(DiceExpr.D6, "Doom Campaign", "The world crumbles");
+        return Campaign.Create(Difficulty.Grim, "Doom Campaign", "The world crumbles");
     }
 
     [Fact]

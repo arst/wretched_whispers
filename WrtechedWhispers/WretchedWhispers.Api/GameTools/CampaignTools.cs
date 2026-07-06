@@ -2,7 +2,6 @@ using System.ComponentModel;
 using WretchedWhispers.Api.GameTools.Models;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core.Campaigns;
-using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Api.GameTools;
 
@@ -20,17 +19,13 @@ public sealed class CampaignTools(
         sessionContext.CampaignId
         ?? throw new InvalidOperationException("No campaign exists for this session.");
 
-    [Description("Configure the campaign's name, description, and dawn roll pace. The campaign already exists; it begins automatically once it is configured and the character has been created.")]
+    [Description("Configure the campaign's name and description. The campaign already exists; it begins automatically once it is configured and the character has been created.")]
     [GameTool(SessionStage.CharacterCreation, SessionStage.CampaignSetup)]
     public async Task<CampaignDto> ConfigureCampaign(
-        [Description("Dice expression for dawn rolls (e.g., 'd100' for very slow, 'd6' for fast)")]
-        string diceExpression,
         [Description("The name of the campaign")] string name,
         [Description("A description of the campaign's setting, goals, or theme")] string description)
     {
-        ToolGuard.DiceExpression(diceExpression, nameof(diceExpression));
-        var campaign = await campaignService.ConfigureCampaign(
-            RequireCampaignId(), DiceExpr.Parse(diceExpression), name, description);
+        var campaign = await campaignService.ConfigureCampaign(RequireCampaignId(), name, description);
         return CreateCampaignDto(campaign);
     }
 

@@ -75,7 +75,7 @@ public sealed class EvalHost : IAsyncDisposable
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var chatRepo = sp.GetRequiredService<IChatHistoryRepository>();
 
-            var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Eval Campaign", "A doomed eval run");
+            var campaign = Campaign.Create(Difficulty.Grim, "Eval Campaign", "A doomed eval run");
             await campaignsRepo.SaveCampaign(campaign, TestUserId);
             chatSessionId = await chatRepo.CreateSession(campaign.Id);
 

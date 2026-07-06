@@ -211,7 +211,7 @@ public class PromptComposerTests : TestBase
 
     private static Campaign CreateActiveCampaign()
     {
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "A test");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
         campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
         return campaign;
@@ -219,7 +219,7 @@ public class PromptComposerTests : TestBase
 
     private static Campaign CreateEndedCampaign()
     {
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "A test");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
         campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
         campaign.End();

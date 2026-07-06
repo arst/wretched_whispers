@@ -10,12 +10,11 @@ public class CampaignTests : TestBase
     public void Create_ShouldCreateNewCampaignWithCorrectProperties()
     {
         // Arrange
-        var dawnDice = DiceExpr.D6;
         const string name = "Test Campaign";
         const string description = "A test campaign description";
 
         // Act
-        var campaign = Campaign.Create(dawnDice, name, description);
+        var campaign = Campaign.Create(Difficulty.Grim, name, description);
 
         // Assert
         Assert.NotEqual(Guid.Empty, campaign.Id);
@@ -33,7 +32,7 @@ public class CampaignTests : TestBase
     public void JoinGame_ShouldAddPlayerToCampaign()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var playerId = Guid.NewGuid();
 
         // Act
@@ -48,7 +47,7 @@ public class CampaignTests : TestBase
     public void JoinGame_ShouldAddMultiplePlayersToCampaign()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var player1Id = Guid.NewGuid();
         var player2Id = Guid.NewGuid();
 
@@ -66,7 +65,7 @@ public class CampaignTests : TestBase
     public void Start_ShouldStartCampaignWhenPlayersPresent()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var playerId = Guid.NewGuid();
         campaign.JoinGame(playerId);
 
@@ -81,7 +80,7 @@ public class CampaignTests : TestBase
     public void Start_ShouldThrowExceptionWhenNoPlayers()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
 
         // Act & Assert
         var exception = Assert.Throws<InvalidOperationException>(() => campaign.Start());
@@ -93,7 +92,7 @@ public class CampaignTests : TestBase
     public void Start_ShouldThrowExceptionWhenAlreadyStarted()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var playerId = Guid.NewGuid();
         campaign.JoinGame(playerId);
         campaign.Start();
@@ -107,7 +106,7 @@ public class CampaignTests : TestBase
     public void End_ShouldEndActiveCampaign()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var playerId = Guid.NewGuid();
         campaign.JoinGame(playerId);
         campaign.Start();
@@ -123,7 +122,7 @@ public class CampaignTests : TestBase
     public void End_ShouldThrowExceptionWhenNotStarted()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
 
         // Act & Assert
         var exception = Assert.Throws<InvalidOperationException>(() => campaign.End());
@@ -134,7 +133,7 @@ public class CampaignTests : TestBase
     public void IsActive_ShouldReturnFalseForNewCampaign()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
 
         // Act & Assert
         Assert.False(campaign.IsActive());
@@ -144,7 +143,7 @@ public class CampaignTests : TestBase
     public void IsActive_ShouldReturnTrueForStartedCampaign()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var playerId = Guid.NewGuid();
         campaign.JoinGame(playerId);
         campaign.Start();
@@ -157,7 +156,7 @@ public class CampaignTests : TestBase
     public void IsActive_ShouldReturnFalseForEndedCampaign()
     {
         // Arrange
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var playerId = Guid.NewGuid();
         campaign.JoinGame(playerId);
         campaign.Start();
@@ -171,7 +170,7 @@ public class CampaignTests : TestBase
     public void Campaign_ShouldStartWithDay1Hour0()
     {
         // Arrange & Act
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
 
         // Assert
         Assert.Equal(1, campaign.CurrentDay);
@@ -182,8 +181,8 @@ public class CampaignTests : TestBase
     public void Campaign_ShouldHaveUniqueIds()
     {
         // Arrange & Act
-        var campaign1 = Campaign.Create(DiceExpr.D6, "Campaign 1", "Description 1");
-        var campaign2 = Campaign.Create(DiceExpr.D6, "Campaign 2", "Description 2");
+        var campaign1 = Campaign.Create(Difficulty.Grim, "Campaign 1", "Description 1");
+        var campaign2 = Campaign.Create(Difficulty.Grim, "Campaign 2", "Description 2");
 
         // Assert
         Assert.NotEqual(campaign1.Id, campaign2.Id);

@@ -26,9 +26,8 @@ public static class StagePrompts
         STEP 2 — On the player's next message (their name), run the entire opening in ONE turn,
         calling tools FIRST and then narrating their results (never invent stats or outcomes):
           1. CreateCharacter with the given name.
-          2. ConfigureCampaign — give the campaign a doom-appropriate name and description and
-             choose a fitting dawn-roll pace yourself (the world is ending; lean ominous). The
-             campaign begins automatically once the character exists and the campaign is configured.
+          2. ConfigureCampaign — give the campaign a doom-appropriate name and description.
+             The campaign begins automatically once the character exists and the campaign is configured.
         Then narrate their wretched origins as the rolled stats and pitiful gear are revealed
         (weave in the REAL numbers the tools returned), and the rotting town they wake in. End by
         handing control over -- describe the world around them and ask what they do. Do not present
@@ -38,9 +37,8 @@ public static class StagePrompts
     private const string CampaignSetup = """
         A character exists but the campaign has not started yet. Finish the setup seamlessly in this
         turn -- do not interrogate the player with menus. Call ConfigureCampaign with a doom-appropriate
-        name, description, and a fitting dawn-roll pace you choose (the world is ending; lean ominous);
-        the campaign begins automatically. Then narrate the rotting world they wake into and end by
-        asking what they do.
+        name and description; the campaign begins automatically. Then narrate the rotting world they wake
+        into and end by asking what they do.
         """;
 
     private const string Exploration = """
