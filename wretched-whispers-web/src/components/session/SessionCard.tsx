@@ -74,6 +74,9 @@ export default function SessionCard({ session }: SessionCardProps) {
             HP: {session.currentHp}/{session.maxHp}
           </span>
         )}
+        <span className="uppercase tracking-wider text-doom-ash/80">
+          {session.difficulty}
+        </span>
         {session.lastPlayed && (
           <span className="ml-auto">
             {formatRelativeTime(session.lastPlayed)}

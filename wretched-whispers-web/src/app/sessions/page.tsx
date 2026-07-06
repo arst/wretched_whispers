@@ -3,15 +3,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import type { SessionPreviewDto, CreateSessionResponse } from "@/types/api";
+import type { SessionPreviewDto, CreateSessionResponse, Difficulty } from "@/types/api";
 import SessionCard from "@/components/session/SessionCard";
 import Button from "@/components/ui/Button";
+import DifficultyPicker from "@/components/session/DifficultyPicker";
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<SessionPreviewDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const router = useRouter();
 
   const loadSessions = useCallback(async () => {
@@ -45,12 +47,16 @@ export default function SessionsPage() {
     loadSessions();
   }, [loadSessions]);
 
-  async function handleCreateSession() {
+  async function handleCreateSession(difficulty: Difficulty) {
     setCreating(true);
     setError("");
 
     try {
-      const res = await apiFetch("/sessions", { method: "POST" });
+      const res = await apiFetch("/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ difficulty }),
+      });
       if (!res.ok) {
         throw new Error(`Failed to create session (${res.status})`);
       }
@@ -61,6 +67,7 @@ export default function SessionsPage() {
         err instanceof Error ? err.message : "The abyss refused your offering."
       );
       setCreating(false);
+      setPickerOpen(false);
     }
   }
 
@@ -72,8 +79,7 @@ export default function SessionsPage() {
         </h1>
         <Button
           variant="primary"
-          onClick={handleCreateSession}
-          loading={creating}
+          onClick={() => setPickerOpen(true)}
         >
           New Session
         </Button>
@@ -102,6 +108,14 @@ export default function SessionsPage() {
             <SessionCard key={session.sessionId} session={session} />
           ))}
         </div>
+      )}
+
+      {pickerOpen && (
+        <DifficultyPicker
+          onConfirm={handleCreateSession}
+          onCancel={() => setPickerOpen(false)}
+          busy={creating}
+        />
       )}
     </div>
   );
