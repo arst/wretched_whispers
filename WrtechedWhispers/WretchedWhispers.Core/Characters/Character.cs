@@ -365,9 +365,30 @@ public sealed class Character
         var outcome = rollResults + Abilities[ability].Modifier;
         var nat = rollResults switch { 1 => Natural.One, 20 => Natural.Twenty, _ => Natural.None };
 
-        return nat is Natural.One ? ChallengeOutcome.Fail(nat)
-            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat)
-            : outcome >= challenge.Value ? ChallengeOutcome.Success(nat) : ChallengeOutcome.Fail(nat);
+        var modifier = Abilities[ability].Modifier;
+        return nat is Natural.One ? ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value)
+            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat, rollResults, modifier, challenge.Value)
+            : outcome >= challenge.Value
+                ? ChallengeOutcome.Success(nat, rollResults, modifier, challenge.Value)
+                : ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value);
+    }
+
+    public int SufferConsequence(ChallengeConsequence consequence, Dice dice)
+    {
+        if (consequence is ChallengeConsequence.None)
+            return 0;
+
+        var severityDie = consequence switch
+        {
+            ChallengeConsequence.Minor => DiceExpr.D(1, 2),
+            ChallengeConsequence.Serious => DiceExpr.D(1, 6),
+            ChallengeConsequence.Deadly => DiceExpr.D(1, 10),
+            _ => throw new ArgumentOutOfRangeException(nameof(consequence))
+        };
+
+        var damage = dice.Roll(severityDie);
+        ReceiveDamage(damage, dice);
+        return damage;
     }
 
     public void Improve(AbilityKind kind, int delta)

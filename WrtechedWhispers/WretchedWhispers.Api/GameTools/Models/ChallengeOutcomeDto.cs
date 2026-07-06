@@ -1,9 +1,3 @@
-using System.ComponentModel;
-using System.Text.Json.Serialization;
-
 namespace WretchedWhispers.Api.GameTools.Models;
 
-public record ChallengeOutcomeDto(
-    [property: JsonPropertyName("IsSuccess")]
-    [property: Description("Whether the challenge was successfully completed")]
-    bool IsSuccess);
+public record ChallengeOutcomeDto(bool IsSuccess, int Roll, int Modifier, int Dr, int DamageTaken, bool IsDead);
