@@ -1,5 +1,7 @@
 // Session types — match backend DTOs (camelCase from System.Text.Json)
 
+export type Difficulty = "StoryMode" | "Grim" | "Doomed" | "Hardcore";
+
 export interface SessionPreviewDto {
   sessionId: string;
   campaignName: string;
@@ -8,6 +10,7 @@ export interface SessionPreviewDto {
   currentHp: number | null;
   maxHp: number | null;
   status: "character-creation" | "in-progress" | "ended";
+  difficulty: Difficulty;
   lastPlayed: string | null;
 }
 
@@ -19,6 +22,7 @@ export interface SessionDetailDto {
   currentDay: number;
   currentHour: number;
   status: string;
+  difficulty: Difficulty;
   messages: ChatMessageDto[];
   totalMessages: number;
   page: number;

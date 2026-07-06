@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
@@ -377,16 +378,16 @@ public sealed class Character
     public ChallengeOutcome AttemptFlee(Dice dice) =>
         Challenge(new Dr(12), AbilityKind.Agility, dice, Armor.AgilityPenalty);
 
-    public int SufferConsequence(ChallengeConsequence consequence, Dice dice)
+    public int SufferConsequence(ChallengeConsequence consequence, DifficultySettings settings, Dice dice)
     {
         if (consequence is ChallengeConsequence.None)
             return 0;
 
         var severityDie = consequence switch
         {
-            ChallengeConsequence.Minor => DiceExpr.D(1, 2),
-            ChallengeConsequence.Serious => DiceExpr.D(1, 4),
-            ChallengeConsequence.Deadly => DiceExpr.D(1, 6),
+            ChallengeConsequence.Minor => settings.MinorDamage,
+            ChallengeConsequence.Serious => settings.SeriousDamage,
+            ChallengeConsequence.Deadly => settings.DeadlyDamage,
             _ => throw new ArgumentOutOfRangeException(nameof(consequence))
         };
 

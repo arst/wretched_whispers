@@ -28,12 +28,11 @@ public class CampaignServiceTests : TestBase
     public async Task CreateCampaign_ShouldSaveCampaign()
     {
         // Arrange
-        var dawnDice = new DiceExpr(1, 6);
         var name = "Test Campaign";
         var description = "A test campaign";
 
         // Act
-        await _service.CreateCampaign(dawnDice, name, description);
+        await _service.CreateCampaign(Difficulty.Grim, name, description);
 
         // Assert
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
@@ -46,7 +45,7 @@ public class CampaignServiceTests : TestBase
         var campaignId = Guid.NewGuid();
         var characterId = Guid.NewGuid();
 
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var character = CreateTestCharacter(characterId);
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
@@ -114,7 +113,7 @@ public class CampaignServiceTests : TestBase
         // Arrange
         var campaignId = Guid.NewGuid();
         var encounterId = Guid.NewGuid();
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
         // Act
@@ -146,7 +145,7 @@ public class CampaignServiceTests : TestBase
         // Arrange: the auto-start rule is order-independent -- a player who joined before the
         // campaign was configured still triggers a start the moment Configure completes.
         var campaignId = Guid.NewGuid();
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var characterId = Guid.NewGuid();
 
         campaign.JoinGame(characterId);
@@ -154,7 +153,7 @@ public class CampaignServiceTests : TestBase
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
         // Act
-        await _service.ConfigureCampaign(campaignId, new DiceExpr(1, 20), "Doom", "The end");
+        await _service.ConfigureCampaign(campaignId, "Doom", "The end");
 
         // Assert
         Assert.True(campaign.IsActive());
@@ -171,7 +170,7 @@ public class CampaignServiceTests : TestBase
         // Act & Assert
         try
         {
-            await _service.ConfigureCampaign(campaignId, new DiceExpr(1, 20), "Doom", "The end");
+            await _service.ConfigureCampaign(campaignId, "Doom", "The end");
             Assert.Fail("Expected ArgumentException was not thrown");
         }
         catch (ArgumentException ex)
@@ -185,7 +184,7 @@ public class CampaignServiceTests : TestBase
     {
         // Arrange
         var campaignId = Guid.NewGuid();
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var characterId = Guid.NewGuid();
 
         campaign.JoinGame(characterId);
@@ -225,7 +224,7 @@ public class CampaignServiceTests : TestBase
     {
         // Arrange
         var campaignId = Guid.NewGuid();
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var characterId = Guid.NewGuid();
 
         campaign.JoinGame(characterId);
@@ -245,7 +244,7 @@ public class CampaignServiceTests : TestBase
     {
         // Arrange
         var campaignId = Guid.NewGuid();
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
@@ -280,7 +279,7 @@ public class CampaignServiceTests : TestBase
     {
         // Arrange
         var campaignId = Guid.NewGuid();
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         const int hours = 5;
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
@@ -299,7 +298,7 @@ public class CampaignServiceTests : TestBase
         // Arrange
         var campaignId = Guid.NewGuid();
         var characterId = Guid.NewGuid();
-        var campaign = Campaign.Create(new DiceExpr(1, 6), "Test Campaign", "Description");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         var character = CreateTestCharacter(characterId);
         const int hours = 8;
 

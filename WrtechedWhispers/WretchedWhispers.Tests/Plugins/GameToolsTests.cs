@@ -53,7 +53,7 @@ public class GameToolsTests
     [Fact]
     public async Task CreateCharacter_SetsCharacterId_JoinsButDoesNotStartCampaign()
     {
-        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Test", "desc");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
         _context.SetCampaignId(campaign.Id);
         _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
 
@@ -167,11 +167,11 @@ public class GameToolsTests
     [Fact]
     public async Task ConfigureCampaign_UpdatesExistingCampaign()
     {
-        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Default", "default desc");
+        var campaign = Campaign.Create(Difficulty.Grim, "Default", "default desc");
         _context.SetCampaignId(campaign.Id);
         _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
 
-        var result = await CampaignTools().ConfigureCampaign("d100", "Doom Awaits", "A slow march to annihilation");
+        var result = await CampaignTools().ConfigureCampaign("Doom Awaits", "A slow march to annihilation");
 
         Assert.Equal("Doom Awaits", result.Name);
         Assert.Equal("A slow march to annihilation", result.Description);
@@ -181,12 +181,12 @@ public class GameToolsTests
     [Fact]
     public async Task ConfigureCampaign_AutoStartsWhenPlayerAlreadyJoined()
     {
-        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Dark", "desc");
+        var campaign = Campaign.Create(Difficulty.Grim, "Dark", "desc");
         campaign.JoinGame(Guid.NewGuid()); // a player has already joined before setup completes
         _context.SetCampaignId(campaign.Id);
         _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
 
-        await CampaignTools().ConfigureCampaign("d100", "Doom Awaits", "A slow march to annihilation");
+        await CampaignTools().ConfigureCampaign("Doom Awaits", "A slow march to annihilation");
 
         Assert.True(campaign.IsActive());
         _campaignsRepo.Verify(r => r.SaveCampaign(campaign), Times.Once);

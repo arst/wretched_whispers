@@ -1,4 +1,5 @@
 using Moq;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
@@ -13,7 +14,7 @@ public class CharacterCreationServiceTests : TestBase
     {
         var repoMock = new Mock<ICharactersRepository>();
         var service = new CharacterCreationService(repoMock.Object, Dice);
-        var character = await service.Create("Hero");
+        var character = await service.Create("Hero", Difficulty.Grim);
 
         Assert.NotNull(character);
         Assert.Equal("Hero", character.Name);
@@ -40,7 +41,7 @@ public class CharacterCreationServiceTests : TestBase
         var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
-            var character = await service.Create($"Hero{i}");
+            var character = await service.Create($"Hero{i}", Difficulty.Grim);
             Assert.NotNull(character.Weapon);
             Assert.True(Enum.IsDefined(typeof(WeaponKind), character.Weapon.Kind));
         }
@@ -53,7 +54,7 @@ public class CharacterCreationServiceTests : TestBase
         var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
-            var character = await service.Create($"Hero{i}");
+            var character = await service.Create($"Hero{i}", Difficulty.Grim);
             Assert.InRange(character.Abilities.Agility.Modifier, -3, 6);
             Assert.InRange(character.Abilities.Presence.Modifier, -3, 6);
             Assert.InRange(character.Abilities.Strength.Modifier, -3, 6);
@@ -68,7 +69,7 @@ public class CharacterCreationServiceTests : TestBase
         var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
-            var character = await service.Create($"Hero{i}");
+            var character = await service.Create($"Hero{i}", Difficulty.Grim);
             Assert.True(character.Hp.Current >= 1);
             Assert.True(character.Hp.Max >= 1);
         }
@@ -81,7 +82,7 @@ public class CharacterCreationServiceTests : TestBase
         var service = new CharacterCreationService(repoMock.Object, Dice);
         for (var i = 0; i < 10; i++)
         {
-            var character = await service.Create($"Hero{i}");
+            var character = await service.Create($"Hero{i}", Difficulty.Grim);
             if (character.Inventory.Container.Contains("backpack"))
                 Assert.True(character.Inventory.InventoryItems.Count <= 7);
             else if (character.Inventory.Container.Contains("sack"))

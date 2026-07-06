@@ -21,8 +21,8 @@ public class CampaignMultiTenancyTests : SqliteTestBase
     public async Task GetForUser_ReturnsOnlyCampaignsBelongingToThatUser()
     {
         // Create and save campaigns for two different users
-        var campaignA = Campaign.Create(DiceExpr.D6, "Campaign A", "Test campaign A");
-        var campaignB = Campaign.Create(DiceExpr.D6, "Campaign B", "Test campaign B");
+        var campaignA = Campaign.Create(Difficulty.Grim, "Campaign A", "Test campaign A");
+        var campaignB = Campaign.Create(Difficulty.Grim, "Campaign B", "Test campaign B");
 
         await _repo.SaveCampaign(campaignA, "user-A");
         await _repo.SaveCampaign(campaignB, "user-B");
@@ -38,7 +38,7 @@ public class CampaignMultiTenancyTests : SqliteTestBase
     [Fact]
     public async Task SaveCampaign_WithUserId_SetsUserIdOnEntity()
     {
-        var campaign = Campaign.Create(DiceExpr.D6, "Tenant Campaign", "Test tenant campaign");
+        var campaign = Campaign.Create(Difficulty.Grim, "Tenant Campaign", "Test tenant campaign");
 
         await _repo.SaveCampaign(campaign, "user-X");
 
@@ -61,7 +61,7 @@ public class CampaignMultiTenancyTests : SqliteTestBase
     public async Task ParameterlessSaveCampaign_UsesITenantContextUserId()
     {
         TenantContext.SetUserId("tenant-user-1");
-        var campaign = Campaign.Create(DiceExpr.D6, "Tenant Test", "Verify tenant propagation");
+        var campaign = Campaign.Create(Difficulty.Grim, "Tenant Test", "Verify tenant propagation");
 
         await _repo.SaveCampaign(campaign);
 
@@ -73,7 +73,7 @@ public class CampaignMultiTenancyTests : SqliteTestBase
     [Fact]
     public async Task ParameterlessSaveCampaign_UpdatesExistingCampaignUserId()
     {
-        var campaign = Campaign.Create(DiceExpr.D6, "Update Test", "Verify update propagation");
+        var campaign = Campaign.Create(Difficulty.Grim, "Update Test", "Verify update propagation");
 
         // Save with explicit userId "user-A"
         await _repo.SaveCampaign(campaign, "user-A");
@@ -93,7 +93,7 @@ public class CampaignMultiTenancyTests : SqliteTestBase
         // Two overlapping turns on the same session (e.g. a double-submit): both load the campaign at
         // the same Version, both try to commit. The optimistic-concurrency token must let the first
         // win and make the second throw — the cross-instance backstop the in-memory guard can't give.
-        var campaign = Campaign.Create(DiceExpr.D6, "Race", "Concurrent turns");
+        var campaign = Campaign.Create(Difficulty.Grim, "Race", "Concurrent turns");
         await _repo.SaveCampaign(campaign, "user-A");
 
         // Second request scope: its own context + change tracker over the same database.
@@ -117,7 +117,7 @@ public class CampaignMultiTenancyTests : SqliteTestBase
         // Use real TenantContext (not StubTenantContext) -- UserId not set
         var realTenantContext = new TenantContext();
         var repo = new SqliteCampaignsRepository(Db, JsonOptions, realTenantContext);
-        var campaign = Campaign.Create(DiceExpr.D6, "Throw Test", "Should throw");
+        var campaign = Campaign.Create(Difficulty.Grim, "Throw Test", "Should throw");
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => repo.SaveCampaign(campaign));

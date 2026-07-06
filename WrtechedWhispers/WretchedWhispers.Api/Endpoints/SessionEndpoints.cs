@@ -7,7 +7,6 @@ using WretchedWhispers.Api.Services;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Api.Endpoints;
@@ -101,14 +100,15 @@ public static class SessionEndpoints
     private static async Task<IResult> CreateSession(
         HttpContext http,
         ICampaignsRepository campaignsRepo,
-        IChatHistoryRepository chatHistoryRepo)
+        IChatHistoryRepository chatHistoryRepo,
+        CreateSessionRequest? request = null)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Results.Unauthorized();
 
         var campaign = Campaign.Create(
-            DiceExpr.Parse("d6"),
+            request?.Difficulty ?? Difficulty.Grim,
             "New Campaign",
             "A new journey into doom");
 
@@ -171,6 +171,7 @@ public static class SessionEndpoints
                 currentHp,
                 maxHp,
                 status,
+                campaign.Difficulty,
                 lastPlayed));
         }
 
@@ -232,6 +233,7 @@ public static class SessionEndpoints
             campaign.CurrentDay,
             campaign.CurrentHour,
             stateUpdate.Status,
+            campaign.Difficulty,
             messages,
             totalMessages,
             page,

@@ -93,7 +93,7 @@ public sealed class Campaign
         List<Guid> characters, CalendarOfNechrubel calendar,
         DiceExpr dawnDice, List<Guid> encounters,
         bool isStarted = false, bool isEnded = false, bool isConfigured = false,
-        List<JournalEntry>? journal = null)
+        List<JournalEntry>? journal = null, Difficulty difficulty = Difficulty.Grim)
     {
         Id = id;
         Name = name;
@@ -108,6 +108,7 @@ public sealed class Campaign
         IsEnded = isEnded;
         IsConfigured = isConfigured;
         Journal = journal ?? [];
+        Difficulty = difficulty;
     }
 
     [JsonInclude] public Guid Id { get; private set; }
@@ -133,6 +134,8 @@ public sealed class Campaign
     [JsonInclude] public bool IsEnded { get; private set; }
 
     [JsonInclude] public bool IsConfigured { get; private set; }
+
+    [JsonInclude] public Difficulty Difficulty { get; private set; }
 
     [JsonInclude] internal List<JournalEntry> Journal { get; }
 
@@ -161,11 +164,10 @@ public sealed class Campaign
         return new AdvanceTimeOutcome(Miseries.Select(m => m.Psalm).ToList(), Calendar.WorldEnded, false);
     }
 
-    public void Configure(DiceExpr dawnDice, string name, string description)
+    public void Configure(string name, string description)
     {
         if (IsStarted) throw new InvalidOperationException("Cannot configure a campaign that is already started.");
 
-        DawnDice = dawnDice;
         Name = name;
         Description = description;
         IsConfigured = true;
@@ -188,9 +190,11 @@ public sealed class Campaign
         Journal.Add(new JournalEntry(category, text.Trim(), CurrentDay, CurrentHour));
     }
 
-    public static Campaign Create(DiceExpr dawnDice, string name, string description)
+    public static Campaign Create(Difficulty difficulty, string name, string description)
     {
-        return new Campaign(Guid.NewGuid(), name, description, 1, 0, [], new CalendarOfNechrubel(), dawnDice, []);
+        var settings = DifficultyPresets.For(difficulty);
+        return new Campaign(Guid.NewGuid(), name, description, 1, 0, [], new CalendarOfNechrubel(),
+            settings.DawnDice, [], difficulty: difficulty);
     }
 
     public void Start()

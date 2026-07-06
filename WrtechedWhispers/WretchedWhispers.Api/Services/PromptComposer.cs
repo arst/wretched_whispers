@@ -1,4 +1,5 @@
 using WretchedWhispers.Api.Prompts;
+using WretchedWhispers.Core.Campaigns;
 
 namespace WretchedWhispers.Api.Services;
 
@@ -10,12 +11,16 @@ public sealed class PromptComposer
         var persona = NarratorPersona.Text;
         var stageInstructions = StagePrompts.For(stage);
         var snapshot = context.FormatSnapshot();
+        var toneNote = DifficultyPresets.For(context.Campaign?.Difficulty ?? Difficulty.Grim).GmToneNote;
 
         return $"""
             {persona}
 
             ## Current Stage: {stage}
             {stageInstructions}
+
+            ## Difficulty
+            {toneNote}
 
             ## Game State
             {snapshot}

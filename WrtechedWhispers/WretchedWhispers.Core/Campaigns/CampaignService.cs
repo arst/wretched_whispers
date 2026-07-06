@@ -9,18 +9,18 @@ public class CampaignService(
     ICharactersRepository charactersRepository,
     Dice dice)
 {
-    public async Task CreateCampaign(DiceExpr dawnDice, string name, string description)
+    public async Task CreateCampaign(Difficulty difficulty, string name, string description)
     {
-        var campaign = Campaign.Create(dawnDice, name, description);
+        var campaign = Campaign.Create(difficulty, name, description);
         await campaignsRepository.SaveCampaign(campaign);
     }
 
-    public async Task<Campaign> ConfigureCampaign(Guid campaignId, DiceExpr dawnDice, string name, string description)
+    public async Task<Campaign> ConfigureCampaign(Guid campaignId, string name, string description)
     {
         var campaign = await campaignsRepository.Get(campaignId);
         if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
 
-        campaign.Configure(dawnDice, name, description);
+        campaign.Configure(name, description);
         TryAutoStart(campaign);
         await campaignsRepository.SaveCampaign(campaign);
         return campaign;

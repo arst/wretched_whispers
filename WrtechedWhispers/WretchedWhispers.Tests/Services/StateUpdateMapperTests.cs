@@ -19,7 +19,7 @@ public class StateUpdateMapperTests
     [Fact]
     public void Map_WithNoCharacter_ReturnsNullCharacterFields()
     {
-        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Test", "desc");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
         var context = new SessionContext { SessionId = Guid.NewGuid() };
         context.Campaign = campaign;
 
@@ -47,7 +47,7 @@ public class StateUpdateMapperTests
     public void Map_WithCharacter_ReturnsSilver()
     {
         var context = new SessionContext { SessionId = Guid.NewGuid() };
-        context.Campaign = Campaign.Create(DiceExpr.Parse("d6"), "Test", "desc");
+        context.Campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
         context.Character = CreateCharacter();
 
         var result = StateUpdateMapper.Map(context);
@@ -59,7 +59,7 @@ public class StateUpdateMapperTests
     public void Map_WithCharacter_SerializesSilverAsCamelCase()
     {
         var context = new SessionContext { SessionId = Guid.NewGuid() };
-        context.Campaign = Campaign.Create(DiceExpr.Parse("d6"), "Test", "desc");
+        context.Campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
         context.Character = CreateCharacter();
 
         var json = JsonSerializer.Serialize(

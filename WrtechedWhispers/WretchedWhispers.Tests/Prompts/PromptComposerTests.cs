@@ -139,6 +139,16 @@ public class PromptComposerTests : TestBase
     }
 
     [Fact]
+    public void Compose_includes_difficulty_tone_note()
+    {
+        var context = BuildContextForStage(SessionStage.Exploration);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("Difficulty: GRIM", result);
+    }
+
+    [Fact]
     public void NarratorPersona_Text_contains_doom_metal_tone_guidance()
     {
         Assert.Contains("doom metal", NarratorPersona.Text, StringComparison.OrdinalIgnoreCase);
@@ -211,7 +221,7 @@ public class PromptComposerTests : TestBase
 
     private static Campaign CreateActiveCampaign()
     {
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "A test");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
         campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
         return campaign;
@@ -219,7 +229,7 @@ public class PromptComposerTests : TestBase
 
     private static Campaign CreateEndedCampaign()
     {
-        var campaign = Campaign.Create(DiceExpr.D6, "Test Campaign", "A test");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
         campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
         campaign.End();

@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
@@ -11,12 +12,12 @@ namespace WretchedWhispers.Core.Characters.Create;
 
 public class CharacterCreationService(ICharactersRepository charactersRepository, Dice dice)
 {
-    public async Task<Character> Create(string name)
+    public async Task<Character> Create(string name, Difficulty difficulty)
     {
         var id = Guid.NewGuid();
         var abilities = RollAbilities();
         var equipment = RollStartingEquipment(abilities);
-        var maxHp = RollStartingHealthPoints(abilities);
+        var maxHp = RollStartingHealthPoints(abilities) + DifficultyPresets.For(difficulty).StartingHpBonus;
         const int numberOfOmens = 0; // TODO: Implement as d2 roll when enabled
 
         var character = Character.Create(id, name, maxHp, abilities, equipment, dice);

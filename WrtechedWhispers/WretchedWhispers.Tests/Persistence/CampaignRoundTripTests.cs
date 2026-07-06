@@ -25,7 +25,7 @@ public class CampaignRoundTripTests : TestBase
     [Fact]
     public async Task Save_Then_Get_ReturnsCampaignWithMatchingState()
     {
-        var campaign = Campaign.Create(DiceExpr.D6, "DoomCampaign", "The end is nigh");
+        var campaign = Campaign.Create(Difficulty.Grim, "DoomCampaign", "The end is nigh");
         var charId = Guid.NewGuid();
         campaign.JoinGame(charId);
 

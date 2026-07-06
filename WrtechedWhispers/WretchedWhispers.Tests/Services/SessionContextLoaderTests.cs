@@ -38,7 +38,7 @@ public class SessionContextLoaderTests
     public async Task Load_CampaignWithNoPlayers_ReturnsCampaignSetupNotReached()
     {
         var sessionId = Guid.NewGuid();
-        var campaign = Campaign.Create(DiceExpr.Parse("d6"), "Test", "desc");
+        var campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
         typeof(Campaign).GetProperty("Id")!.SetValue(campaign, sessionId);
         _campaignsRepo.Setup(r => r.Get(sessionId)).ReturnsAsync(campaign);
 

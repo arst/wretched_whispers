@@ -26,9 +26,8 @@ public static class StagePrompts
         STEP 2 — On the player's next message (their name), run the entire opening in ONE turn,
         calling tools FIRST and then narrating their results (never invent stats or outcomes):
           1. CreateCharacter with the given name.
-          2. ConfigureCampaign — give the campaign a doom-appropriate name and description and
-             choose a fitting dawn-roll pace yourself (the world is ending; lean ominous). The
-             campaign begins automatically once the character exists and the campaign is configured.
+          2. ConfigureCampaign — give the campaign a doom-appropriate name and description.
+             The campaign begins automatically once the character exists and the campaign is configured.
         Then narrate their wretched origins as the rolled stats and pitiful gear are revealed
         (weave in the REAL numbers the tools returned), and the rotting town they wake in. End by
         handing control over -- describe the world around them and ask what they do. Do not present
@@ -38,9 +37,8 @@ public static class StagePrompts
     private const string CampaignSetup = """
         A character exists but the campaign has not started yet. Finish the setup seamlessly in this
         turn -- do not interrogate the player with menus. Call ConfigureCampaign with a doom-appropriate
-        name, description, and a fitting dawn-roll pace you choose (the world is ending; lean ominous);
-        the campaign begins automatically. Then narrate the rotting world they wake into and end by
-        asking what they do.
+        name and description; the campaign begins automatically. Then narrate the rotting world they wake
+        into and end by asking what they do.
         """;
 
     private const string Exploration = """
@@ -48,10 +46,8 @@ public static class StagePrompts
         - Describe environments: rotting, rusted, broken, corrupted.
         - Call ChallengeCharacter only when a risky action has real, uncertain stakes AND a plausible way to
           fail. Routine or low-stakes actions need no roll — just narrate them. When you do test, use a DR
-          (usually 12) and choose consequenceOnFailure conservatively: default to None or Minor; use Serious
-          only for genuine danger; reserve Deadly for explicit death-traps (a pit of spikes, a long fall, a
-          swung blade). Do NOT attach damage to ordinary exploration — the wretch should die to real peril,
-          not paper cuts. Whenever you do roll, never narrate success, failure, or harm without it; weave the
+          (usually 12) and choose consequenceOnFailure to match the stakes AND the Difficulty guidance in
+          your instructions. Whenever you roll, never narrate success, failure, or harm without it; weave the
           returned roll, modifier, DR, and damage into the prose.
         - When violence or combat begins, IMMEDIATELY call CreateEncounter to set up the fight, AddAdversaryToEncounter to add enemies, then StartEncounter to begin combat. Do NOT narrate combat without creating an encounter first.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
