@@ -64,6 +64,7 @@ export default function ChatWindow() {
                 key={msg.id}
                 content={msg.content}
                 toolResults={msg.toolResults}
+                turnDelta={msg.turnDelta}
                 isStreaming={isCurrentlyStreaming}
               />
             );

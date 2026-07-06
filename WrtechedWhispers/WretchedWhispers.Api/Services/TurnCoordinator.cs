@@ -111,9 +111,12 @@ public sealed class TurnCoordinator(
         activity?.SetTag("session.stage", stage.ToString());
         activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
 
-        // Snapshot the state the model sees as INPUT for this turn, frozen to a string before any tool
-        // mutates the loaded aggregates. This is the "why did the model do X" context for error analysis.
-        var gameStateJson = JsonSerializer.Serialize(StateUpdateMapper.Map(context), TraceJson);
+        // Snapshot the state the model sees as INPUT for this turn, frozen before any tool mutates the
+        // loaded aggregates (StateUpdate is an immutable record over copied values). Serves two roles:
+        // the "why did the model do X" context for error analysis, and the BEFORE side of the per-turn
+        // delta computed post-commit.
+        var preTurnState = StateUpdateMapper.Map(context);
+        var gameStateJson = JsonSerializer.Serialize(preTurnState, TraceJson);
 
         try
         {
@@ -163,7 +166,15 @@ public sealed class TurnCoordinator(
 
             // Reload post-commit so the client sees committed state.
             var postTurnContext = await contextLoader.LoadAsync(sessionId, ct);
-            writer.TryWrite(StateUpdateMapper.Map(postTurnContext));
+            var postTurnState = StateUpdateMapper.Map(postTurnContext);
+
+            // Authoritative "what this turn changed", diffed from committed state — the source of truth
+            // for the action's outcome, rendered beside the prose. Skipped when no character existed
+            // before the turn (character creation is genesis, not a delta).
+            if (preTurnState.CharacterId is not null)
+                writer.TryWrite(TurnDeltaMapper.Compute(preTurnState, postTurnState));
+
+            writer.TryWrite(postTurnState);
             writer.TryWrite(new TurnDone());
 
             logger.LogInformation(

@@ -2,17 +2,20 @@
 
 import { useSessionStore } from "@/stores/sessionStore";
 import ToolResultCallout from "./ToolResultCallout";
-import type { ToolResultEvent } from "@/types/api";
+import TurnLedger from "./TurnLedger";
+import type { ToolResultEvent, TurnDeltaEvent } from "@/types/api";
 
 interface NarratorMessageProps {
   content: string;
   toolResults: ToolResultEvent[];
+  turnDelta: TurnDeltaEvent | null;
   isStreaming?: boolean;
 }
 
 export default function NarratorMessage({
   content,
   toolResults,
+  turnDelta,
   isStreaming,
 }: NarratorMessageProps) {
   // When streaming, read from the dedicated streamingText field
@@ -39,6 +42,11 @@ export default function NarratorMessage({
           {toolResults.map((tr, i) => (
             <ToolResultCallout key={i} toolResult={tr} />
           ))}
+        </div>
+      )}
+      {turnDelta && (
+        <div className="mt-3">
+          <TurnLedger delta={turnDelta} />
         </div>
       )}
     </div>

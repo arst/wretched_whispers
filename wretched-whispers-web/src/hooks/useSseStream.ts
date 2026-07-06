@@ -6,6 +6,7 @@ import { useSessionStore } from "@/stores/sessionStore";
 import type {
   NarrativeEvent,
   ToolResultEvent,
+  TurnDeltaEvent,
   StateUpdateEvent,
   SseErrorEvent,
 } from "@/types/api";
@@ -74,6 +75,11 @@ function handleMessage(ev: SseMessage, abort: () => void) {
     case "tool_result": {
       const data: ToolResultEvent = JSON.parse(ev.data);
       s.addToolResult(data);
+      break;
+    }
+    case "turn_delta": {
+      const data: TurnDeltaEvent = JSON.parse(ev.data);
+      s.setTurnDelta(data);
       break;
     }
     case "state_update": {
