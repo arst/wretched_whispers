@@ -121,6 +121,68 @@ public class DomainAuthorityEvals
     }
 
     [Fact]
+    public async Task Exploration_Resting_CallsRest()
+    {
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
+        if (chatClient is null)
+        {
+            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
+            return;
+        }
+
+        var reporting = CreateReporting(chatClient);
+        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Exploration-Rest-HealsViaRest");
+
+        var chatConfiguration = run.ChatConfiguration
+            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var host = await EvalHost.CreateExplorationAsync(chatConfiguration.ChatClient);
+        // Resting must go through Rest (heals HP + restores abilities + advances time). Regression guard against
+        // the GM narrating the character healing while only advancing time or journaling, leaving HP untouched.
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I find a sheltered corner of the ruin, bind my wounds, and rest for six hours to recover my strength.");
+
+        EvaluationResult result = await run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new RequiredToolCallsContext(["Rest"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallContainsEvaluator.MetricName);
+        Assert.True(metric.Value,
+            $"Expected a Rest call for recovery; got [{string.Join(", ", outcome.ToolCalls)}]. " +
+            "The GM must not narrate healing or recovery without Rest.");
+    }
+
+    [Fact]
+    public async Task Exploration_CastingScroll_CallsCastScroll()
+    {
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
+        if (chatClient is null)
+        {
+            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
+            return;
+        }
+
+        var reporting = CreateReporting(chatClient);
+        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Exploration-CastScroll-SpendsUse");
+
+        var chatConfiguration = run.ChatConfiguration
+            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var host = await EvalHost.CreateExplorationAsync(chatConfiguration.ChatClient);
+        // Casting a scroll must go through CastScroll (spends the use + returns the effect). Regression guard
+        // against the GM narrating the spell going off while only rolling or journaling, leaving the scroll intact.
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I unfurl my scroll and cast it, unleashing its power on the barred iron door before me.");
+
+        EvaluationResult result = await run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new RequiredToolCallsContext(["CastScroll"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallContainsEvaluator.MetricName);
+        Assert.True(metric.Value,
+            $"Expected a CastScroll call; got [{string.Join(", ", outcome.ToolCalls)}]. " +
+            "The GM must not narrate a spell cast or a scroll spent without CastScroll.");
+    }
+
+    [Fact]
     public async Task Combat_Narration_IsGroundedInToolResults()
     {
         var chatClient = EvalSupport.TryCreateAzureChatClient();
