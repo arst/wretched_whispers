@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICampaignsRepository, SqliteCampaignsRepository>();
         services.AddScoped<IEncountersRepository, SqliteEncountersRepository>();
         services.AddScoped<IChatHistoryRepository, SqliteChatHistoryRepository>();
+        services.AddScoped<ITurnTraceRepository, SqliteTurnTraceRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 
         services.AddScoped<CharacterCreationService>();

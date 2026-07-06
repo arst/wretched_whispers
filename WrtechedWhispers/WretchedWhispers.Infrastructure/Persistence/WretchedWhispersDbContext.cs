@@ -17,6 +17,7 @@ public class WretchedWhispersDbContext : IdentityUserContext<IdentityUser>
     public DbSet<EncounterEntity> Encounters => Set<EncounterEntity>();
     public DbSet<ChatSessionEntity> ChatSessions => Set<ChatSessionEntity>();
     public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
+    public DbSet<TurnTraceEntity> TurnTraces => Set<TurnTraceEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

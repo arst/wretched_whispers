@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Api.Configuration;
 using WretchedWhispers.Api.Endpoints;
+using WretchedWhispers.Api.Services;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
@@ -75,6 +76,15 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
     scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
         .LogInformation("Database migrated successfully");
+}
+
+// Offline CLI: dump all turn traces to JSON for error analysis, then exit (no web host).
+//   dotnet run --project WretchedWhispers.Api -- export-traces [outDir]
+if (args is ["export-traces", ..])
+{
+    var outDir = args.Length > 1 ? args[1] : "./traces-export";
+    await TraceExporter.ExportAsync(app.Services, outDir);
+    return;
 }
 
 app.UseCors();

@@ -1,10 +1,13 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Api.Services;
 
@@ -18,9 +21,13 @@ public sealed class TurnCoordinator(
     IAgentToolProvider toolProvider,
     IAgentExecutor agentExecutor,
     IChatHistoryRepository chatHistoryRepository,
+    ITurnTraceRepository turnTraceRepository,
     IUnitOfWork unitOfWork,
     ILogger<TurnCoordinator> logger)
 {
+    private static readonly JsonSerializerOptions TraceJson =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
     public IAsyncEnumerable<GameTurnEvent> ExecuteTurnAsync(
         Guid sessionId,
         string playerMessage,
@@ -88,9 +95,25 @@ public sealed class TurnCoordinator(
         }
 
         var stage = context.DeriveStage();
+
+        // Domain is final: a dead character or an ended world accepts no further actions. Do NOT run the
+        // narrator — with no tools it cannot mutate anything, but it could still fabricate a "revival" in
+        // prose (which is exactly what happened). Re-sync the client to the ended state and refuse the turn.
+        if (stage == SessionStage.Ended)
+        {
+            logger.LogInformation("Turn refused — session already ended. Session={SessionId}", sessionId);
+            writer.TryWrite(StateUpdateMapper.Map(context));
+            writer.TryWrite(new TurnError("This story has ended. Begin a new character to continue."));
+            return;
+        }
+
         var (tools, registeredFunctions) = toolProvider.GetToolsForStage(context, stage);
         activity?.SetTag("session.stage", stage.ToString());
         activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
+
+        // Snapshot the state the model sees as INPUT for this turn, frozen to a string before any tool
+        // mutates the loaded aggregates. This is the "why did the model do X" context for error analysis.
+        var gameStateJson = JsonSerializer.Serialize(StateUpdateMapper.Map(context), TraceJson);
 
         try
         {
@@ -102,10 +125,18 @@ public sealed class TurnCoordinator(
 
             var narrativeChunks = new List<NarrativeChunk>();
             var toolResults = new List<ToolResult>();
+            AgentTrace? agentTrace = null;
 
             // Every stage — including Combat — runs one agent turn per player message.
             await foreach (var evt in agentExecutor.ExecuteAsync(tools, context, chatSessionId, playerMessage, ct))
             {
+                // AgentTrace is an out-of-band capture event — persist it, never stream it to the client.
+                if (evt is AgentTrace trace)
+                {
+                    agentTrace = trace;
+                    continue;
+                }
+
                 writer.TryWrite(evt);
 
                 if (evt is NarrativeChunk chunk)
@@ -121,6 +152,11 @@ public sealed class TurnCoordinator(
             await chatHistoryRepository.SaveMessage(
                 chatSessionId,
                 new ChatMessage(ChatRole.Assistant, fullResponse.ToString()) { AuthorName = "Game_Master" },
+                ct);
+
+            await turnTraceRepository.Save(
+                BuildTrace(sessionId, chatSessionId, stage, playerMessage, gameStateJson,
+                    agentTrace, toolResults, fullResponse.ToString()),
                 ct);
 
             await uow.CommitAsync(ct);
@@ -153,5 +189,44 @@ public sealed class TurnCoordinator(
             logger.LogError(ex, "Turn failed — Session={SessionId}, Stage={Stage}", sessionId, stage);
             writer.TryWrite(new TurnError("An error occurred while processing your action"));
         }
+    }
+
+    // Assembles one turn trace row. Tool-call arguments and tool results are stored as embedded JSON
+    // (not escaped strings) so the exporter emits clean nested objects for error analysis.
+    private static TurnTraceEntity BuildTrace(
+        Guid campaignId,
+        Guid chatSessionId,
+        SessionStage stage,
+        string playerMessage,
+        string gameStateJson,
+        AgentTrace? agentTrace,
+        IReadOnlyList<ToolResult> toolResults,
+        string narrative)
+    {
+        var callsArray = new JsonArray();
+        foreach (var call in agentTrace?.ToolCalls ?? [])
+            callsArray.Add(new JsonObject
+            {
+                ["name"] = call.Name,
+                ["arguments"] = call.Arguments is null ? null : JsonNode.Parse(call.Arguments)
+            });
+
+        var toolResultsJson = JsonSerializer.Serialize(
+            toolResults.Select(t => new { name = t.Function, result = t.Result }), TraceJson);
+
+        return new TurnTraceEntity
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaignId,
+            ChatSessionId = chatSessionId,
+            Stage = stage.ToString(),
+            Timestamp = DateTime.UtcNow,
+            PlayerMessage = playerMessage,
+            GameStateJson = gameStateJson,
+            ToolCallsJson = callsArray.ToJsonString(),
+            ToolResultsJson = toolResultsJson,
+            SuppressedNarrative = agentTrace?.SuppressedNarrative,
+            Narrative = narrative
+        };
     }
 }

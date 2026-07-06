@@ -5,6 +5,7 @@ using Moq;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Api.Services;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Infrastructure.Persistence.Entities;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;
@@ -18,6 +19,7 @@ public class TurnCoordinatorTests
     private readonly Mock<IAgentToolProvider> _toolProvider = new();
     private readonly Mock<IAgentExecutor> _agentExecutor = new();
     private readonly Mock<IChatHistoryRepository> _chatHistoryRepo = new();
+    private readonly Mock<ITurnTraceRepository> _turnTraceRepo = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
 
     public TurnCoordinatorTests()
@@ -37,6 +39,7 @@ public class TurnCoordinatorTests
             _toolProvider.Object,
             _agentExecutor.Object,
             _chatHistoryRepo.Object,
+            _turnTraceRepo.Object,
             _unitOfWork.Object,
             NullLogger<TurnCoordinator>.Instance);
 
@@ -48,6 +51,23 @@ public class TurnCoordinatorTests
         var characterId = Guid.NewGuid();
         campaign.JoinGame(characterId);
         campaign.Start();
+        ctx.Campaign = campaign;
+        ctx.SetCampaignId(campaign.Id);
+        ctx.SetCharacterId(characterId);
+        return ctx;
+    }
+
+    private SessionContext MakeEndedContext()
+    {
+        // A dead character, an ended world, and an ended campaign all derive to SessionStage.Ended
+        // (see StageDerivationTests). Ending the campaign is the lightest way to reach that stage.
+        var ctx = new SessionContext { SessionId = _sessionId };
+        var campaign = Core.Campaigns.Campaign.Create(
+            Core.Dices.DiceExpr.Parse("d6"), "Test Campaign", "A test");
+        var characterId = Guid.NewGuid();
+        campaign.JoinGame(characterId);
+        campaign.Start();
+        campaign.End();
         ctx.Campaign = campaign;
         ctx.SetCampaignId(campaign.Id);
         ctx.SetCharacterId(characterId);
@@ -107,7 +127,8 @@ public class TurnCoordinatorTests
 
         SetupAgentExecutorStreaming(
             new NarrativeChunk("The dungeon echoes..."),
-            new NarrativeChunk(" You see a shadow."));
+            new NarrativeChunk(" You see a shadow."),
+            new AgentTrace([new ToolCallTrace("Dice.Roll", "{\"expr\":\"d20\"}")], SuppressedNarrative: null));
 
         _chatHistoryRepo
             .Setup(r => r.SaveMessage(
@@ -129,6 +150,13 @@ public class TurnCoordinatorTests
         Assert.Contains(events, e => e is NarrativeChunk);
         Assert.Contains(events, e => e is StateUpdate);
         Assert.IsType<TurnDone>(events[^1]);
+
+        // The turn is captured for offline error analysis.
+        _turnTraceRepo.Verify(
+            r => r.Save(It.IsAny<TurnTraceEntity>(), It.IsAny<CancellationToken>()), Times.Once);
+
+        // The AgentTrace capture event is consumed by the coordinator, never streamed to the client.
+        Assert.DoesNotContain(events, e => e is AgentTrace);
 
         _contextLoader.Verify(
             l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()),
@@ -268,6 +296,45 @@ public class TurnCoordinatorTests
         Assert.Single(events);
         var error = Assert.IsType<TurnError>(events[0]);
         Assert.Equal("No chat session found for this campaign", error.Message);
+    }
+
+    [Fact]
+    public async Task EndedSession_RefusesTurn_WithoutRunningNarrator()
+    {
+        // Arrange — the game is over (dead character / ended world). The player still sends an action.
+        SetupChatSession();
+        _contextLoader
+            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeEndedContext());
+
+        var coordinator = CreateCoordinator();
+
+        // Act
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "continue", CancellationToken.None))
+            events.Add(evt);
+
+        // Assert — the client is re-synced to the ended state, then the turn is refused. No narration
+        // (the model could fabricate a revival), no TurnDone.
+        Assert.Contains(events, e => e is StateUpdate);
+        var error = events.OfType<TurnError>().Single();
+        Assert.Equal("This story has ended. Begin a new character to continue.", error.Message);
+        Assert.DoesNotContain(events, e => e is NarrativeChunk);
+        Assert.DoesNotContain(events, e => e is TurnDone);
+
+        // A refused turn produced no trace (the transaction never opened).
+        _turnTraceRepo.Verify(
+            r => r.Save(It.IsAny<TurnTraceEntity>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // Domain authority: the narrator is NEVER invoked on a finished game.
+        _agentExecutor.Verify(
+            a => a.ExecuteAsync(
+                It.IsAny<IReadOnlyList<AIFunction>>(),
+                It.IsAny<SessionContext>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static async IAsyncEnumerable<GameTurnEvent> ThrowingAsyncEnumerable(Exception ex)
