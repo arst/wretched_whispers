@@ -35,10 +35,18 @@ public class DomainAuthorityEvals
 
         EvaluationResult result = await run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ExpectedToolCallOrderContext(["ResolveCombatRound"])]);
+            additionalContext: [new RequiredToolCallsContext(["ResolveCombatRound"])]);
 
-        var metric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
-        Assert.True(metric.Value, $"Expected exactly one ResolveCombatRound; got [{string.Join(", ", outcome.ToolCalls)}]");
+        var metric = result.Get<BooleanMetric>(ToolCallContainsEvaluator.MetricName);
+        Assert.True(metric.Value, $"Expected a ResolveCombatRound call; got [{string.Join(", ", outcome.ToolCalls)}]");
+
+        // The persona instructs the GM to journal notable events, and a combat kill qualifies —
+        // so RecordJournalEntry is permitted alongside the round. Everything else stays strict:
+        // exactly one ResolveCombatRound (one player action = one round), no other tool may appear.
+        Assert.Equal(1, outcome.ToolCalls.Count(c => c == "ResolveCombatRound"));
+        Assert.All(
+            outcome.ToolCalls.Where(c => c != "ResolveCombatRound"),
+            c => Assert.Equal("RecordJournalEntry", c));
     }
 
     [Fact]
