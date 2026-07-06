@@ -46,10 +46,8 @@ public static class StagePrompts
         - Describe environments: rotting, rusted, broken, corrupted.
         - Call ChallengeCharacter only when a risky action has real, uncertain stakes AND a plausible way to
           fail. Routine or low-stakes actions need no roll — just narrate them. When you do test, use a DR
-          (usually 12) and choose consequenceOnFailure conservatively: default to None or Minor; use Serious
-          only for genuine danger; reserve Deadly for explicit death-traps (a pit of spikes, a long fall, a
-          swung blade). Do NOT attach damage to ordinary exploration — the wretch should die to real peril,
-          not paper cuts. Whenever you do roll, never narrate success, failure, or harm without it; weave the
+          (usually 12) and choose consequenceOnFailure to match the stakes AND the Difficulty guidance in
+          your instructions. Whenever you roll, never narrate success, failure, or harm without it; weave the
           returned roll, modifier, DR, and damage into the prose.
         - When violence or combat begins, IMMEDIATELY call CreateEncounter to set up the fight, AddAdversaryToEncounter to add enemies, then StartEncounter to begin combat. Do NOT narrate combat without creating an encounter first.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.

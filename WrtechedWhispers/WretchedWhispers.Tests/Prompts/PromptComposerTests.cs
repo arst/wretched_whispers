@@ -139,6 +139,16 @@ public class PromptComposerTests : TestBase
     }
 
     [Fact]
+    public void Compose_includes_difficulty_tone_note()
+    {
+        var context = BuildContextForStage(SessionStage.Exploration);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("Difficulty: GRIM", result);
+    }
+
+    [Fact]
     public void NarratorPersona_Text_contains_doom_metal_tone_guidance()
     {
         Assert.Contains("doom metal", NarratorPersona.Text, StringComparison.OrdinalIgnoreCase);
