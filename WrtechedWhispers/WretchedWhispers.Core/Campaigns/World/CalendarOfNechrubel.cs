@@ -48,14 +48,22 @@ public sealed class CalendarOfNechrubel
         }
     }
 
-    private static readonly string[] Ordinals =
-        ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh"];
+    // Original doom-metal verses (NOT the copyrighted MÖRK BORG rulebook psalms) — one per step of the
+    // descent toward the end, escalating in dread; the seventh unmakes the world. The domain hands the
+    // narrator the verse; the narrator renders the horror in the scene.
+    private static readonly string[] Psalms =
+    [
+        "The First Misery of the Calendar of Nechrubel is read: the sun sickens and no longer warms the stones, and frost creeps into the marrow of the living.",
+        "The Second Misery is read: the wells turn black and brackish, and what crawls up from them at night is not water.",
+        "The Third Misery is read: the beasts turn upon their keepers, and the crows grow fat and bold upon the faithful.",
+        "The Fourth Misery is read: a plague of weeping sores walks the roads, and the dead lie unburied for want of living hands.",
+        "The Fifth Misery is read: the stars fall from their sockets one by one, and the night keeps no more mercy than the day.",
+        "The Sixth Misery is read: the earth splits open and the old buried things climb free, ravenous after their long sleep.",
+        "The Seventh and final Misery is read: the last psalm is spoken and the world is unmade — nothing remains but the dark and the end of all things.",
+    ];
 
-    private static string MiseryPsalm(int ordinal)
-    {
-        var name = ordinal >= 1 && ordinal <= Ordinals.Length ? Ordinals[ordinal - 1] : $"{ordinal}th";
-        return ordinal >= 7
-            ? "The Seventh and final Misery of the Calendar of Nechrubel is read — the Calendar is complete and the world ends."
-            : $"The {name} Misery of the Calendar of Nechrubel befalls the dying world.";
-    }
+    private static string MiseryPsalm(int ordinal) =>
+        ordinal >= 1 && ordinal <= Psalms.Length
+            ? Psalms[ordinal - 1]
+            : $"A Misery of the Calendar of Nechrubel befalls the dying world.";
 }
