@@ -46,10 +46,13 @@ public static class StagePrompts
     private const string Exploration = """
         The campaign is underway. The character wanders a dying world.
         - Describe environments: rotting, rusted, broken, corrupted.
-        - When the character attempts ANY risky action, ALWAYS call ChallengeCharacter to test against a DR
-          (usually 12), choosing consequenceOnFailure by the fiction's stakes — None for harmless stumbles,
-          Minor for scrapes, Serious for real danger, Deadly when failure should maim or kill. Never narrate
-          success, failure, or harm without rolling; weave the returned roll, modifier, DR, and damage into the prose.
+        - Call ChallengeCharacter only when a risky action has real, uncertain stakes AND a plausible way to
+          fail. Routine or low-stakes actions need no roll — just narrate them. When you do test, use a DR
+          (usually 12) and choose consequenceOnFailure conservatively: default to None or Minor; use Serious
+          only for genuine danger; reserve Deadly for explicit death-traps (a pit of spikes, a long fall, a
+          swung blade). Do NOT attach damage to ordinary exploration — the wretch should die to real peril,
+          not paper cuts. Whenever you do roll, never narrate success, failure, or harm without it; weave the
+          returned roll, modifier, DR, and damage into the prose.
         - When violence or combat begins, IMMEDIATELY call CreateEncounter to set up the fight, AddAdversaryToEncounter to add enemies, then StartEncounter to begin combat. Do NOT narrate combat without creating an encounter first.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
         - The player can buy items, cast scrolls, rest, or explore. Before using an item/resource, verify

@@ -10,13 +10,16 @@ namespace WretchedWhispers.Tests.Characters.Challenge;
 public sealed class ChallengeConsequenceTests : TestBase
 {
     [Theory]
-    [InlineData(ChallengeConsequence.Minor, 2)]   // d2
-    [InlineData(ChallengeConsequence.Serious, 6)] // d6
-    [InlineData(ChallengeConsequence.Deadly, 10)] // d10
+    [InlineData(ChallengeConsequence.Minor, 2)]  // d2
+    [InlineData(ChallengeConsequence.Serious, 4)] // d4
+    [InlineData(ChallengeConsequence.Deadly, 6)]  // d6
     public void SufferConsequence_RollsSeverityDie_AppliesDamage(ChallengeConsequence severity, int expectedSides)
     {
         var character = TestCharacters.Create(Dice); // same construction idiom as Task 4
         var hpBefore = character.Hp.Current;
+        // Character creation itself rolls dice (incl. a d4), which would collide with the severity-die
+        // Verify below. Clear recorded invocations so we count only the consequence roll.
+        MockRandomService.Invocations.Clear();
         SetupDiceRoll(expectedSides, 0); // severity die -> 1 damage
 
         var damage = character.SufferConsequence(severity, Dice);

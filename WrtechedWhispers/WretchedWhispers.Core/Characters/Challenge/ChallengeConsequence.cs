@@ -6,8 +6,8 @@ public enum ChallengeConsequence
     None,
     /// <summary>d2 damage — scrapes and bruises.</summary>
     Minor,
-    /// <summary>d6 damage — a real wound.</summary>
+    /// <summary>d4 damage — a real wound.</summary>
     Serious,
-    /// <summary>d10 damage — can kill outright.</summary>
+    /// <summary>d6 damage — can still kill a weakened wretch.</summary>
     Deadly
 }
