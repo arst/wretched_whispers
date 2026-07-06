@@ -1,3 +1,5 @@
+using WretchedWhispers.Core.Campaigns;
+
 namespace WretchedWhispers.Api.Models;
 
 public record SessionDetailDto(
@@ -8,6 +10,7 @@ public record SessionDetailDto(
     int CurrentDay,
     int CurrentHour,
     string Status,
+    Difficulty Difficulty,
     List<ChatMessageDto> Messages,
     int TotalMessages,
     int Page,

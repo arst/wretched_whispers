@@ -1,3 +1,5 @@
+using WretchedWhispers.Core.Campaigns;
+
 namespace WretchedWhispers.Api.Models;
 
 public record SessionPreviewDto(
@@ -8,5 +10,6 @@ public record SessionPreviewDto(
     int? CurrentHp,
     int? MaxHp,
     string Status,
+    Difficulty Difficulty,
     DateTime? LastPlayed
 );

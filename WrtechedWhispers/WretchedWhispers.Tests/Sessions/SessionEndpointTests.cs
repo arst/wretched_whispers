@@ -51,6 +51,59 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     [Fact]
+    public async Task CreateSession_WithoutBody_DefaultsToGrimDifficulty()
+    {
+        var token = await RegisterAndLogin("no-body-difficulty@test.com");
+        var request = AuthPost("/sessions", token);
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Grim", json[0].GetProperty("difficulty").GetString());
+    }
+
+    [Fact]
+    public async Task CreateSession_WithDifficulty_ReturnsSelectedDifficultyOnPreviewAndDetail()
+    {
+        var token = await RegisterAndLogin("difficulty-session@test.com");
+        var request = AuthPost("/sessions", token);
+        request.Content = JsonContent.Create(new { difficulty = "Hardcore" });
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var createJson = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()!;
+
+        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var listRaw = await listResponse.Content.ReadAsStringAsync();
+        // Pins the wire casing: HTTP layer has no global enum converter registered (unlike the domain
+        // blob's AggregateJsonOptions), so the Difficulty type's own [JsonConverter] attribute applies
+        // and emits the exact enum member spelling (PascalCase), not camelCase.
+        Assert.Contains("\"difficulty\":\"Hardcore\"", listRaw);
+
+        var detailResponse = await _client.SendAsync(AuthGet($"/sessions/{sessionId}", token));
+        var detailJson = await detailResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Hardcore", detailJson.GetProperty("difficulty").GetString());
+    }
+
+    [Fact]
+    public async Task CreateSession_AcceptsLowercaseDifficulty_RequestReadIsCaseInsensitive()
+    {
+        var token = await RegisterAndLogin("lowercase-difficulty@test.com");
+        var request = AuthPost("/sessions", token);
+        request.Content = JsonContent.Create(new { difficulty = "hardcore" });
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Hardcore", json[0].GetProperty("difficulty").GetString());
+    }
+
+    [Fact]
     public async Task ListSessions_ReturnsEmptyForNewUser()
     {
         var token = await RegisterAndLogin("empty-list@test.com");
