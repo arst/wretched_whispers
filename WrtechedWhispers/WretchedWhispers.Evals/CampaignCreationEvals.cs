@@ -15,7 +15,7 @@ namespace WretchedWhispers.Evals;
 public class CampaignCreationEvals
 {
     private static readonly string[] CreateCampaignTools =
-        ["CreateCharacter", "ConfigureCampaign", "StartCampaign"];
+        ["CreateCharacter", "ConfigureCampaign"];
 
     [Fact]
     public async Task Turn1_Begin_CallsNoTools()

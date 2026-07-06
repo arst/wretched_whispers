@@ -15,6 +15,17 @@ public class CampaignService(
         await campaignsRepository.SaveCampaign(campaign);
     }
 
+    public async Task<Campaign> ConfigureCampaign(Guid campaignId, DiceExpr dawnDice, string name, string description)
+    {
+        var campaign = await campaignsRepository.Get(campaignId);
+        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+
+        campaign.Configure(dawnDice, name, description);
+        TryAutoStart(campaign);
+        await campaignsRepository.SaveCampaign(campaign);
+        return campaign;
+    }
+
     public async Task JoinCampaign(Guid campaignId, Guid characterId)
     {
         var character = await charactersRepository.Get(characterId);
@@ -24,8 +35,17 @@ public class CampaignService(
         if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
 
         campaign.JoinGame(character.Id);
+        TryAutoStart(campaign);
 
         await campaignsRepository.SaveCampaign(campaign);
+    }
+
+    // The campaign begins the moment it is configured AND has a player — a deterministic domain rule,
+    // not a model decision. Order-independent.
+    private static void TryAutoStart(Campaign campaign)
+    {
+        if (campaign is { IsConfigured: true, IsEnded: false } && campaign.Players.Count > 0 && !campaign.IsActive())
+            campaign.Start();
     }
 
     public async Task AttachEncounter(Guid campaignId, Guid encounterId)
@@ -35,14 +55,6 @@ public class CampaignService(
 
         campaign.AddEncounter(encounterId);
 
-        await campaignsRepository.SaveCampaign(campaign);
-    }
-
-    public async Task StartCampaign(Guid campaignId)
-    {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
-        campaign.Start();
         await campaignsRepository.SaveCampaign(campaign);
     }
 

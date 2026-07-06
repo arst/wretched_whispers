@@ -64,6 +64,13 @@ public sealed class Encounter
         IsEnded = true;
     }
 
+    /// <summary>Ends the encounter because the player escaped — adversaries may still be active.</summary>
+    public void EndByPlayerEscape()
+    {
+        if (!IsStarted) throw new InvalidOperationException("Can't end an encounter that hasn't started.");
+        IsEnded = true;
+    }
+
     public void Resolve()
     {
         if (!IsEnded) throw new InvalidOperationException("Can't resolve an encounter that hasn't ended.");

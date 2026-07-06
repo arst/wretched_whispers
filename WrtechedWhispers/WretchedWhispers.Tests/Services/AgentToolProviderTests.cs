@@ -51,23 +51,21 @@ public class AgentToolProviderTests
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
 
-        Assert.Equal(3, registered.Length);
-        Assert.Equal(3, tools.Count);
+        Assert.Equal(2, registered.Length);
+        Assert.Equal(2, tools.Count);
         Assert.Contains("Character.CreateCharacter", registered);
         Assert.Contains("Campaign.ConfigureCampaign", registered);
-        Assert.Contains("Campaign.StartCampaign", registered);
     }
 
     [Fact]
-    public void CampaignSetup_HasExactly2Functions()
+    public void CampaignSetup_HasExactly1Function()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.CampaignSetup);
 
-        Assert.Equal(2, registered.Length);
-        Assert.Equal(2, tools.Count);
+        Assert.Single(registered);
+        Assert.Single(tools);
         Assert.Contains("Campaign.ConfigureCampaign", registered);
-        Assert.Contains("Campaign.StartCampaign", registered);
     }
 
     [Fact]
@@ -87,16 +85,15 @@ public class AgentToolProviderTests
     }
 
     [Fact]
-    public void Combat_HasExactly4Functions()
+    public void Combat_HasExactly3Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Combat);
 
-        Assert.Equal(4, registered.Length);
-        Assert.Equal(4, tools.Count);
-        Assert.Contains("Encounter.AttackPlayer", registered);
-        Assert.Contains("Encounter.AttackAdversary", registered);
-        Assert.Contains("Encounter.EndEncounter", registered);
+        Assert.Equal(3, registered.Length);
+        Assert.Equal(3, tools.Count);
+        Assert.Contains("Encounter.ResolveCombatRound", registered);
+        Assert.Contains("Character.CastScroll", registered);
         Assert.Contains("Dice.Roll", registered);
     }
 
