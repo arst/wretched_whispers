@@ -89,6 +89,38 @@ public class DomainAuthorityEvals
     }
 
     [Fact]
+    public async Task Exploration_BuyingItem_CallsBuyItem()
+    {
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
+        if (chatClient is null)
+        {
+            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
+            return;
+        }
+
+        var reporting = CreateReporting(chatClient);
+        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Exploration-BuyItem-DeductsAndAdds");
+
+        var chatConfiguration = run.ChatConfiguration
+            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var host = await EvalHost.CreateExplorationAsync(chatConfiguration.ChatClient);
+        // A purchase must go through BuyItem (deduct silver + add item). Regression guard against the GM
+        // narrating the transaction — silver spent, map gained — while only rolling a haggle check and
+        // journaling, leaving inventory and silver untouched.
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I haggle with the market crone and buy the tattered map fragment from her for 4 silver.");
+
+        EvaluationResult result = await run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new RequiredToolCallsContext(["BuyItem"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallContainsEvaluator.MetricName);
+        Assert.True(metric.Value,
+            $"Expected a BuyItem call for a purchase; got [{string.Join(", ", outcome.ToolCalls)}]. " +
+            "The GM must not narrate silver spent or an item gained without BuyItem.");
+    }
+
+    [Fact]
     public async Task Combat_Narration_IsGroundedInToolResults()
     {
         var chatClient = EvalSupport.TryCreateAzureChatClient();
