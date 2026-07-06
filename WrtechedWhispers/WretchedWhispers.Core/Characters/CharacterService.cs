@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Dices;
@@ -7,7 +8,7 @@ namespace WretchedWhispers.Core.Characters;
 public class CharacterService(ICharactersRepository charactersRepository, Dice dice)
 {
     public async Task<ChallengeResult> ChallengePlayer(
-        Guid characterId, Dr dr, AbilityKind ability,
+        Guid characterId, Dr dr, AbilityKind ability, DifficultySettings settings,
         ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None)
     {
         var character = await charactersRepository.Get(characterId);
@@ -19,7 +20,7 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
         var damageTaken = 0;
         if (!outcome.IsSuccess && consequenceOnFailure is not ChallengeConsequence.None)
         {
-            damageTaken = character.SufferConsequence(consequenceOnFailure, dice);
+            damageTaken = character.SufferConsequence(consequenceOnFailure, settings, dice);
             await charactersRepository.Save(character);
         }
 
