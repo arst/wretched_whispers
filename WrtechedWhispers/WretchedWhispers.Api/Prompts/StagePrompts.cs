@@ -53,6 +53,10 @@ public static class StagePrompts
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
         - The player can buy items, cast scrolls, rest, or explore. Before using an item/resource, verify
           it exists in Game State or can be obtained through an explicit action now; do not grant random gear.
+        - When the player buys or trades for an item, call BuyItem — it deducts the silver AND adds the item in
+          one step. To grant a free, found, or looted item, call AddItemToCharacterInventory. NEVER narrate
+          silver spent or an item entering the pack unless the tool applied it; a haggle roll or a journal entry
+          does not move silver or add the item.
         - When the character throws, drinks, lights, spends, or otherwise consumes an item they carry, call
           UseItemFromCharacterInventory so the inventory reflects it — never narrate an item as used up without it.
         - Never ask the player to "roll" — YOU call the tools to resolve actions mechanically, then narrate the results.
