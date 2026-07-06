@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
+using Microsoft.Extensions.AI.Evaluation.Quality;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
 using WretchedWhispers.Evals.Evaluators;
 using WretchedWhispers.Evals.Harness;
@@ -13,6 +14,16 @@ public class DomainAuthorityEvals
         EvalSupport.CreateReportingConfiguration(
             chatClient,
             [new ToolCallOrderEvaluator(), new ToolCallContainsEvaluator()],
+            "domain-authority");
+
+    // GroundednessEvaluator hardcodes Temperature = 0 on its judge request. Reasoning-model
+    // deployments (e.g. gpt-5-mini) reject any non-default temperature, so we strip it back to
+    // null (provider default) on the way out. ponytail: narrow fix at the call site rather than
+    // a shared client decorator, since only this scenario's judge call needs it.
+    private static ReportingConfiguration CreateGroundednessReporting(IChatClient chatClient) =>
+        EvalSupport.CreateReportingConfiguration(
+            chatClient.AsBuilder().ConfigureOptions(o => o.Temperature = null).Build(),
+            [new GroundednessEvaluator()],
             "domain-authority");
 
     [Fact]
@@ -74,5 +85,36 @@ public class DomainAuthorityEvals
 
         var metric = result.Get<BooleanMetric>(ToolCallContainsEvaluator.MetricName);
         Assert.True(metric.Value, $"Expected a RecordJournalEntry call; got [{string.Join(", ", outcome.ToolCalls)}]");
+    }
+
+    [Fact]
+    public async Task Combat_Narration_IsGroundedInToolResults()
+    {
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
+        if (chatClient is null)
+        {
+            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
+            return;
+        }
+
+        var reporting = CreateGroundednessReporting(chatClient);
+        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Combat-Narration-Grounded");
+
+        var chatConfiguration = run.ChatConfiguration
+            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var host = await EvalHost.CreateCombatAsync(chatConfiguration.ChatClient);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!");
+
+        var groundingContext = string.Join("\n",
+            outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
+
+        EvaluationResult result = await run.EvaluateAsync(
+            messages: [new ChatMessage(ChatRole.User, "I strike the plague priest with my staff!")],
+            modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
+            additionalContext: [new GroundednessEvaluatorContext(groundingContext)]);
+
+        var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
+        Assert.NotNull(metric.Value);
+        Assert.True(metric.Value >= 4, $"Groundedness {metric.Value}: narration drifted from tool results. Narrative: {outcome.Narrative}");
     }
 }
