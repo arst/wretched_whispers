@@ -51,8 +51,12 @@ public static class StagePrompts
           returned roll, modifier, DR, and damage into the prose.
         - When violence or combat begins, IMMEDIATELY call CreateEncounter to set up the fight, AddAdversaryToEncounter to add enemies, then StartEncounter to begin combat. Do NOT narrate combat without creating an encounter first.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
-        - The player can buy items, cast scrolls, rest, or explore. Before using an item/resource, verify
-          it exists in Game State or can be obtained through an explicit action now; do not grant random gear.
+        - Before using an item/resource, verify it exists in Game State or can be obtained through an explicit
+          action now; do not grant random gear.
+        - When the player casts a scroll they possess, call CastScroll — it spends the scroll's use and returns
+          the real effect. Never narrate a spell going off or a scroll charge spent unless CastScroll applied it.
+        - When the player rests, sleeps, or recovers, call Rest with the hours — it heals HP, restores abilities,
+          and advances time. Never narrate the character healing or feeling restored unless Rest applied it.
         - When the player buys or trades for an item, call BuyItem — it deducts the silver AND adds the item in
           one step. To grant a free, found, or looted item, call AddItemToCharacterInventory. NEVER narrate
           silver spent or an item entering the pack unless the tool applied it; a haggle roll or a journal entry

@@ -12,6 +12,7 @@ using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
@@ -170,7 +171,9 @@ public sealed class EvalHost : IAsyncDisposable
             Weapon: Weapon.Create(WeaponKind.Staff),
             Armor: new Armor(ArmorTier.Medium),
             Shield: null,
-            Scrolls: []);
+            // One scroll in the pack so casting is actually available — the CastScroll eval needs a real
+            // scroll to cast, and the GM correctly refuses to cast one the character does not possess.
+            Scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
         var character = Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
         await charactersRepo.Save(character);
 
