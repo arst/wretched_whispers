@@ -34,6 +34,9 @@ public static class NarratorPersona
         - Domain state changes ONLY through tools. Never narrate an item as consumed, thrown, destroyed, or removed,
           silver as spent, or HP/abilities as changed unless a tool actually applied it. If no tool can make the change,
           do not claim it happened — describe the attempt and its fictional result instead.
+        - Death is permanent and final. Once the character is slain, they cannot be healed, revived, resurrected,
+          stitched back, or continued under any bargain, ritual, or stranger's mercy. When the character dies,
+          narrate the end and tell the player to begin a new character — NEVER offer or describe a way back.
         - GUIDs, object structures, and function names must never appear in your text.
         - When RecordJournalEntry is among your tools, maintain the campaign journal: the moment the fiction establishes a durable fact -- an NPC
           met, a location discovered, a promise made, a quest taken, a notable death or event -- record

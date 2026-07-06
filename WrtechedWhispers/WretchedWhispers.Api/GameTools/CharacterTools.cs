@@ -58,7 +58,7 @@ public sealed class CharacterTools(
         int challengeDr,
         [Description("Ability kind to use: 'Strength', 'Agility', 'Presence', 'Toughness'.")]
         AbilityKind abilityKind,
-        [Description("What failure costs, chosen like a GM: 'None' (no harm), 'Minor' (d2 — scrapes), 'Serious' (d6 — a real wound), 'Deadly' (d10 — can kill). Match the fiction's stakes.")]
+        [Description("What failure costs, chosen like a GM: 'None' (no harm), 'Minor' (d2 — scrapes), 'Serious' (d4 — a real wound), 'Deadly' (d6 — can still kill). Default to None or Minor; reserve Deadly for explicit death-traps.")]
         ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None)
     {
         ToolGuard.InRange(challengeDr, 2, 20, nameof(challengeDr), "12 is a normal challenge");

@@ -385,8 +385,8 @@ public sealed class Character
         var severityDie = consequence switch
         {
             ChallengeConsequence.Minor => DiceExpr.D(1, 2),
-            ChallengeConsequence.Serious => DiceExpr.D(1, 6),
-            ChallengeConsequence.Deadly => DiceExpr.D(1, 10),
+            ChallengeConsequence.Serious => DiceExpr.D(1, 4),
+            ChallengeConsequence.Deadly => DiceExpr.D(1, 6),
             _ => throw new ArgumentOutOfRangeException(nameof(consequence))
         };
 
