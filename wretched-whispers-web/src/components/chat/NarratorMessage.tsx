@@ -38,11 +38,19 @@ export default function NarratorMessage({
         )}
       </div>
       {toolResults.length > 0 && (
-        <div className="mt-3 flex flex-col gap-2">
-          {toolResults.map((tr, i) => (
-            <ToolResultCallout key={i} toolResult={tr} />
-          ))}
-        </div>
+        // Collapsed by default so the raw tool calls don't overload the player — the "This turn"
+        // ledger below already carries the outcome. Native <details> = expand on click, no JS state.
+        <details className="mt-3 group">
+          <summary className="cursor-pointer select-none list-none text-doom-yellow/60 text-xs uppercase tracking-wider hover:text-doom-yellow">
+            <span className="inline-block transition-transform group-open:rotate-90">▸</span>{" "}
+            {toolResults.length} tool {toolResults.length === 1 ? "call" : "calls"}
+          </summary>
+          <div className="mt-2 flex flex-col gap-2">
+            {toolResults.map((tr, i) => (
+              <ToolResultCallout key={i} toolResult={tr} />
+            ))}
+          </div>
+        </details>
       )}
       {turnDelta && (
         <div className="mt-3">
