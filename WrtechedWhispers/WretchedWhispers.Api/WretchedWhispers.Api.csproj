@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
+    <PackageReference Include="OpenAI" Version="2.10.0" />
     <PackageReference Include="Microsoft.Agents.AI" Version="1.9.0" />
     <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.9.0" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.13.1" />
@@ -19,5 +20,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>WretchedWhispers.Console-dev</UserSecretsId>
   </PropertyGroup>
+
+  <!-- Desktop build: -p:DesktopBuild=true switches on the Photino native shell + the
+       #if DESKTOP runtime branch. Off (the default) → hosted web build, never ships Photino. -->
+  <PropertyGroup Condition="'$(DesktopBuild)'=='true'">
+    <DefineConstants>$(DefineConstants);DESKTOP</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Desktop\**" Condition="'$(DesktopBuild)'!='true'" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(DesktopBuild)'=='true'">
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
+  </ItemGroup>
 
 </Project>

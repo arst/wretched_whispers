@@ -2,6 +2,7 @@
 
 import Header from "@/components/layout/Header";
 import AuthGuard from "@/components/layout/AuthGuard";
+import DesktopSettingsGate from "@/components/layout/DesktopSettingsGate";
 
 export default function SessionsLayout({
   children,
@@ -10,8 +11,10 @@ export default function SessionsLayout({
 }>) {
   return (
     <AuthGuard>
-      <Header />
-      {children}
+      <DesktopSettingsGate>
+        <Header />
+        {children}
+      </DesktopSettingsGate>
     </AuthGuard>
   );
 }

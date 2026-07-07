@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -12,13 +13,30 @@ import CharacterDrawer from "@/components/character/CharacterDrawer";
 import EndCard from "@/components/session/EndCard";
 import type { SessionDetailDto } from "@/types/api";
 
-export default function GameSessionPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+// Session id comes from the ?id= query string rather than a dynamic route segment, so the app
+// static-exports cleanly for the desktop build (Next's output:export has no runtime dynamic routes).
+function LoadingDots() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
+          style={{ animation: "doom-pulse 1.4s ease-in-out infinite" }}
+        />
+        <span
+          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
+          style={{ animation: "doom-pulse 1.4s ease-in-out 0.2s infinite" }}
+        />
+        <span
+          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
+          style={{ animation: "doom-pulse 1.4s ease-in-out 0.4s infinite" }}
+        />
+      </div>
+    </div>
+  );
+}
 
+function GameSession({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
@@ -34,18 +52,20 @@ export default function GameSessionPage({
   const worldEnded = useSessionStore((s) => s.worldEnded);
   const currentDay = useSessionStore((s) => s.currentDay);
   const characterData = useSessionStore((s) => s.characterData);
+  const failedMessage = useSessionStore((s) => s.failedMessage);
 
   const showEndCard = status === "ended" && !isStreaming;
   const isDead = characterData?.isDead ?? false;
 
-  const { sendAction } = useSseStream(id);
+  const { sendAction, retry } = useSseStream(id);
 
-  // Auto-dismiss error after 5 seconds
+  // Auto-dismiss transient errors after 5s — but keep a retryable failure on screen so the player
+  // can act on it.
   useEffect(() => {
-    if (!error) return;
+    if (!error || failedMessage) return;
     const timer = setTimeout(() => clearError(), 5000);
     return () => clearTimeout(timer);
-  }, [error, clearError]);
+  }, [error, failedMessage, clearError]);
 
   // Transition from splash when first narrative chunk arrives
   useEffect(() => {
@@ -53,6 +73,13 @@ export default function GameSessionPage({
       setShowSplash(false);
     }
   }, [showSplash, streamingText]);
+
+  // If the opening turn fails (e.g. rate-limited), drop the splash so the retry banner is reachable.
+  useEffect(() => {
+    if (showSplash && error) {
+      setShowSplash(false);
+    }
+  }, [showSplash, error]);
 
   // Load session on mount
   useEffect(() => {
@@ -162,24 +189,7 @@ export default function GameSessionPage({
 
   // Loading state
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-            style={{ animation: "doom-pulse 1.4s ease-in-out infinite" }}
-          />
-          <span
-            className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-            style={{ animation: "doom-pulse 1.4s ease-in-out 0.2s infinite" }}
-          />
-          <span
-            className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-            style={{ animation: "doom-pulse 1.4s ease-in-out 0.4s infinite" }}
-          />
-        </div>
-      </div>
-    );
+    return <LoadingDots />;
   }
 
   return (
@@ -192,10 +202,19 @@ export default function GameSessionPage({
         />
       )}
 
-      {/* Error banner */}
+      {/* Error banner — with a Retry when the failed turn can be resent */}
       {error && (
-        <div className="bg-doom-pink/20 border-b border-doom-pink text-doom-pink text-sm text-center py-2 px-4">
-          {error}
+        <div className="bg-doom-pink/20 border-b border-doom-pink text-doom-pink text-sm py-2 px-4 flex items-center justify-center gap-3">
+          <span>{error}</span>
+          {failedMessage && (
+            <button
+              onClick={retry}
+              disabled={isStreaming}
+              className="uppercase tracking-wider text-xs border border-doom-pink px-2 py-0.5 hover:bg-doom-pink hover:text-doom-black transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 
@@ -227,5 +246,19 @@ export default function GameSessionPage({
         />
       )}
     </div>
+  );
+}
+
+function GameSessionFromQuery() {
+  const id = useSearchParams().get("id") ?? "";
+  return <GameSession id={id} />;
+}
+
+export default function GameSessionPage() {
+  // useSearchParams requires a Suspense boundary under static export.
+  return (
+    <Suspense fallback={<LoadingDots />}>
+      <GameSessionFromQuery />
+    </Suspense>
   );
 }

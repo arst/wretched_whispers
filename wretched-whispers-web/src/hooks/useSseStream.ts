@@ -94,7 +94,7 @@ function handleMessage(ev: SseMessage, abort: () => void) {
     case "error": {
       const data: SseErrorEvent = JSON.parse(ev.data);
       s.setError(data.message);
-      s.finishStreaming();
+      s.failStreaming();
       abort();
       break;
     }
@@ -117,6 +117,9 @@ export function useSseStream(sessionId: string) {
 
       if (store.isStreaming) return;
 
+      // New attempt: clear any prior retry state so a stale failed message can't be resent.
+      store.setFailedMessage(null);
+
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -138,10 +141,9 @@ export function useSseStream(sessionId: string) {
         });
 
         if (response.status === 409) {
-          useSessionStore
-            .getState()
-            .setError("The narrator is still speaking...");
-          useSessionStore.getState().finishStreaming();
+          const s = useSessionStore.getState();
+          s.setError("The narrator is still speaking...");
+          s.failStreaming();
           return;
         }
 
@@ -156,7 +158,11 @@ export function useSseStream(sessionId: string) {
         );
 
         const s = useSessionStore.getState();
-        if (s.isStreaming) {
+        if (s.error) {
+          // The stream delivered an error event (e.g. the model rate-limited). Remember this turn's
+          // message so the player can retry it — the backend rolled the turn back, so it's safe.
+          s.setFailedMessage(message);
+        } else if (s.isStreaming) {
           s.finishStreaming();
         }
       } catch (err) {
@@ -164,16 +170,26 @@ export function useSseStream(sessionId: string) {
           return;
         }
         const s = useSessionStore.getState();
-        if (s.isStreaming) {
-          s.finishStreaming();
-        }
+        s.failStreaming();
         if (!s.error) {
           s.setError("Connection to the narrator was lost.");
         }
+        s.setFailedMessage(message);
       }
     },
     [sessionId]
   );
 
-  return { sendAction };
+  // Resend the last failed turn's message. Silent: the player bubble (if any) is already on screen,
+  // and the backend discarded the failed turn, so this is a clean re-run rather than a duplicate.
+  const retry = useCallback(() => {
+    const store = useSessionStore.getState();
+    const message = store.failedMessage;
+    if (message === null) return;
+    store.clearError();
+    store.setFailedMessage(null);
+    sendAction(message, { silent: true });
+  }, [sendAction]);
+
+  return { sendAction, retry };
 }

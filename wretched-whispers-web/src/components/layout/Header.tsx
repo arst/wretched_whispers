@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
+import { useDesktopSettingsStore } from "@/stores/desktopSettingsStore";
 import { logout } from "@/lib/auth";
 import CharacterDrawerToggle from "@/components/character/CharacterDrawerToggle";
+
+const isDesktop = process.env.NEXT_PUBLIC_DESKTOP === "1";
 
 export default function Header() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isHydrated = useAuthStore((s) => s.isHydrated);
+  const openSettings = useDesktopSettingsStore((s) => s.setOpen);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-doom-dark border-b border-doom-card flex items-center px-4">
@@ -31,12 +35,23 @@ export default function Header() {
             >
               Sessions
             </Link>
-            <button
-              onClick={logout}
-              className="text-doom-ash text-sm uppercase tracking-wider hover:text-doom-pink transition-colors cursor-pointer"
-            >
-              Logout
-            </button>
+            {isDesktop ? (
+              <button
+                onClick={() => openSettings(true)}
+                aria-label="Settings"
+                title="Settings"
+                className="text-doom-ash text-lg hover:text-doom-yellow transition-colors cursor-pointer leading-none"
+              >
+                ⚙
+              </button>
+            ) : (
+              <button
+                onClick={logout}
+                className="text-doom-ash text-sm uppercase tracking-wider hover:text-doom-pink transition-colors cursor-pointer"
+              >
+                Logout
+              </button>
+            )}
           </>
         ) : (
           <Link

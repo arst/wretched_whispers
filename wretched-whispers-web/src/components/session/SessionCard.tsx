@@ -43,7 +43,7 @@ function formatRelativeTime(dateStr: string): string {
 export default function SessionCard({ session }: SessionCardProps) {
   return (
     <Link
-      href={`/sessions/${session.sessionId}`}
+      href={`/sessions/play?id=${session.sessionId}`}
       className={`block bg-doom-card border border-doom-card hover:border-doom-yellow/30 transition-colors p-5 ${
         session.status === "ended" ? "opacity-75" : ""
       }`}

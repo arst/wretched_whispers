@@ -12,13 +12,17 @@ interface AuthState {
   setHydrated: () => void;
 }
 
+// Desktop build has no login — the backend authenticates every request as the local user — so the
+// client starts already "authenticated" and the login gate (AuthGuard) is bypassed.
+const isDesktop = process.env.NEXT_PUBLIC_DESKTOP === "1";
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       accessToken: null,
       refreshToken: null,
       expiresAt: null,
-      isAuthenticated: false,
+      isAuthenticated: isDesktop,
       isHydrated: false,
 
       setTokens: (access, refresh, expiresIn) =>

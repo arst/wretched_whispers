@@ -426,3 +426,6 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 .idea/
+# Desktop packaging: built SPA copied into the API + self-contained output
+WrtechedWhispers/WretchedWhispers.Api/wwwroot/
+/dist/
