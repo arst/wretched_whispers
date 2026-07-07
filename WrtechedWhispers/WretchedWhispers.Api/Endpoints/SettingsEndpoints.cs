@@ -20,7 +20,10 @@ public static class SettingsEndpoints
 
         app.MapPost("/settings", async (DesktopSettingsRequest req, DesktopLlmOptions opt, CancellationToken ct) =>
         {
-            var key = req.ApiKey?.Trim() ?? "";
+            // A blank key on re-save means "keep the current key" — so the user can reopen settings to
+            // change only the model or base URL without re-pasting (and re-exposing) their key.
+            var current = opt.Snapshot();
+            var key = string.IsNullOrWhiteSpace(req.ApiKey) ? current.ApiKey : req.ApiKey.Trim();
             var model = string.IsNullOrWhiteSpace(req.Model) ? "gpt-4o" : req.Model.Trim();
             var baseUrl = req.BaseUrl?.Trim() ?? "";
             opt.Update(key, model, baseUrl);
