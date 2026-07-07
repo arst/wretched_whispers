@@ -61,7 +61,7 @@ export default function SessionsPage() {
         throw new Error(`Failed to create session (${res.status})`);
       }
       const data: CreateSessionResponse = await res.json();
-      router.push(`/sessions/${data.sessionId}`);
+      router.push(`/sessions/play?id=${data.sessionId}`);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "The abyss refused your offering."

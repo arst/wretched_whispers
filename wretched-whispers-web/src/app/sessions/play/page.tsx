@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -12,13 +13,30 @@ import CharacterDrawer from "@/components/character/CharacterDrawer";
 import EndCard from "@/components/session/EndCard";
 import type { SessionDetailDto } from "@/types/api";
 
-export default function GameSessionPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+// Session id comes from the ?id= query string rather than a dynamic route segment, so the app
+// static-exports cleanly for the desktop build (Next's output:export has no runtime dynamic routes).
+function LoadingDots() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
+          style={{ animation: "doom-pulse 1.4s ease-in-out infinite" }}
+        />
+        <span
+          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
+          style={{ animation: "doom-pulse 1.4s ease-in-out 0.2s infinite" }}
+        />
+        <span
+          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
+          style={{ animation: "doom-pulse 1.4s ease-in-out 0.4s infinite" }}
+        />
+      </div>
+    </div>
+  );
+}
 
+function GameSession({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
@@ -162,24 +180,7 @@ export default function GameSessionPage({
 
   // Loading state
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-            style={{ animation: "doom-pulse 1.4s ease-in-out infinite" }}
-          />
-          <span
-            className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-            style={{ animation: "doom-pulse 1.4s ease-in-out 0.2s infinite" }}
-          />
-          <span
-            className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-            style={{ animation: "doom-pulse 1.4s ease-in-out 0.4s infinite" }}
-          />
-        </div>
-      </div>
-    );
+    return <LoadingDots />;
   }
 
   return (
@@ -227,5 +228,19 @@ export default function GameSessionPage({
         />
       )}
     </div>
+  );
+}
+
+function GameSessionFromQuery() {
+  const id = useSearchParams().get("id") ?? "";
+  return <GameSession id={id} />;
+}
+
+export default function GameSessionPage() {
+  // useSearchParams requires a Suspense boundary under static export.
+  return (
+    <Suspense fallback={<LoadingDots />}>
+      <GameSessionFromQuery />
+    </Suspense>
   );
 }

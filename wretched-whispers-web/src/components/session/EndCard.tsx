@@ -59,7 +59,7 @@ export default function EndCard({
       if (!res.ok) throw new Error("Failed");
       const data: CreateSessionResponse = await res.json();
       onRestart();
-      router.push(`/sessions/${data.sessionId}`);
+      router.push(`/sessions/play?id=${data.sessionId}`);
     } catch {
       setError("The fates resist. Try again.");
       setRestarting(false);
