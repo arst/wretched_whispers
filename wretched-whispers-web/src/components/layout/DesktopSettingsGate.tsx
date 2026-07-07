@@ -16,6 +16,7 @@ export default function DesktopSettingsGate({
   const [needsKey, setNeedsKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("gpt-4o");
+  const [baseUrl, setBaseUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,9 +24,10 @@ export default function DesktopSettingsGate({
     if (!isDesktop) return;
     fetch("/settings")
       .then((r) => r.json())
-      .then((d: { hasKey: boolean; model?: string }) => {
+      .then((d: { hasKey: boolean; model?: string; baseUrl?: string }) => {
         setNeedsKey(!d.hasKey);
         if (d.model) setModel(d.model);
+        if (d.baseUrl) setBaseUrl(d.baseUrl);
         setReady(true);
       })
       .catch(() => {
@@ -42,7 +44,11 @@ export default function DesktopSettingsGate({
       const res = await fetch("/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: apiKey.trim(), model: model.trim() }),
+        body: JSON.stringify({
+          apiKey: apiKey.trim(),
+          model: model.trim(),
+          baseUrl: baseUrl.trim(),
+        }),
       });
       const d: { hasKey: boolean } = await res.json();
       if (!d.hasKey) throw new Error("rejected");
@@ -68,13 +74,13 @@ export default function DesktopSettingsGate({
             YOUR KEY
           </h1>
           <p className="text-doom-ash text-sm mt-2">
-            Wretched Whispers runs on your own OpenAI key. It is stored only on
-            this machine and never leaves it except to call OpenAI.
+            Wretched Whispers runs on your own OpenAI-compatible key. It is stored
+            only on this machine and never leaves it except to call the API.
           </p>
         </div>
 
         <label className="flex flex-col gap-1 text-xs uppercase tracking-wider text-doom-ash">
-          OpenAI API Key
+          API Key
           <input
             type="password"
             value={apiKey}
@@ -93,6 +99,21 @@ export default function DesktopSettingsGate({
             onChange={(e) => setModel(e.target.value)}
             className="bg-doom-black border border-doom-card focus:border-doom-yellow/50 outline-none text-doom-bone text-sm px-3 py-2 font-mono"
           />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs uppercase tracking-wider text-doom-ash">
+          Base URL <span className="normal-case text-doom-ash/60">(optional)</span>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="https://openrouter.ai/api/v1"
+            className="bg-doom-black border border-doom-card focus:border-doom-yellow/50 outline-none text-doom-bone text-sm px-3 py-2 font-mono"
+          />
+          <span className="normal-case text-doom-ash/60 text-[11px]">
+            Leave blank for OpenAI. For OpenRouter use the URL above and a
+            tool-calling model.
+          </span>
         </label>
 
         {error && <p className="text-doom-pink text-sm">{error}</p>}

@@ -6,78 +6,88 @@ using OpenAI;
 namespace WretchedWhispers.Api.Configuration;
 
 /// <summary>
-/// Mutable holder for the desktop user's own OpenAI key + model. The key is entered at runtime
-/// (first-run settings screen) and can change, so it lives here rather than in immutable config.
+/// Mutable holder for the desktop user's own OpenAI-compatible credentials: key, model, and an optional
+/// base URL (leave empty for OpenAI itself; set e.g. https://openrouter.ai/api/v1 for OpenRouter). Entered
+/// at runtime on the first-run settings screen, so it lives here rather than in immutable config.
 /// Thread-safe: read via <see cref="Snapshot"/>, written via <see cref="Update"/> from POST /settings.
 /// </summary>
-public sealed class DesktopLlmOptions(string apiKey, string model)
+public sealed class DesktopLlmOptions(string apiKey, string model, string baseUrl = "")
 {
     private readonly Lock _gate = new();
     private string _apiKey = apiKey;
     private string _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o" : model;
+    private string _baseUrl = baseUrl ?? "";
 
     public bool HasKey
     {
         get { lock (_gate) return !string.IsNullOrWhiteSpace(_apiKey); }
     }
 
-    public (string ApiKey, string Model) Snapshot()
+    public (string ApiKey, string Model, string BaseUrl) Snapshot()
     {
-        lock (_gate) return (_apiKey, _model);
+        lock (_gate) return (_apiKey, _model, _baseUrl);
     }
 
-    public void Update(string apiKey, string model)
+    public void Update(string apiKey, string model, string baseUrl)
     {
         lock (_gate)
         {
             _apiKey = apiKey ?? "";
             _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o" : model.Trim();
+            _baseUrl = baseUrl?.Trim() ?? "";
         }
     }
 }
 
 /// <summary>
-/// <see cref="IChatClient"/> that (re)builds the underlying OpenAI client lazily from the current
-/// <see cref="DesktopLlmOptions"/>. Lets a freshly-pasted key take effect without restarting the app,
-/// and throws a friendly error (not a raw 401) when no key is set yet. Same transport resilience as
-/// the hosted Azure client: bounded per-request timeout + transport retries (never the tool loop).
+/// <see cref="IChatClient"/> that (re)builds the underlying OpenAI-compatible client lazily from the
+/// current <see cref="DesktopLlmOptions"/>. Lets a freshly-pasted key / model / base URL take effect
+/// without restarting the app, and throws a friendly error (not a raw 401) when no key is set yet. Same
+/// transport resilience as the hosted Azure client: bounded per-request timeout + transport retries.
 /// </summary>
 public sealed class ReloadableOpenAIChatClient : IChatClient
 {
     private readonly DesktopLlmOptions _options;
-    private readonly OpenAIClientOptions _clientOptions;
+    private readonly TimeSpan _timeout;
+    private readonly int _maxRetries;
     private readonly Lock _gate = new();
     private IChatClient? _inner;
-    private string _key = "";
-    private string _model = "";
+    private (string Key, string Model, string BaseUrl) _built;
 
     public ReloadableOpenAIChatClient(DesktopLlmOptions options, TimeSpan timeout, int maxRetries)
     {
         _options = options;
-        _clientOptions = new OpenAIClientOptions
-        {
-            NetworkTimeout = timeout,
-            RetryPolicy = new ClientRetryPolicy(maxRetries)
-        };
+        _timeout = timeout;
+        _maxRetries = maxRetries;
     }
 
     private IChatClient Inner()
     {
-        var (key, model) = _options.Snapshot();
-        if (string.IsNullOrWhiteSpace(key))
+        var current = _options.Snapshot();
+        if (string.IsNullOrWhiteSpace(current.ApiKey))
             throw new InvalidOperationException(
-                "No OpenAI API key configured. Open Settings and paste your key to begin.");
+                "No API key configured. Open Settings and paste your key to begin.");
 
         lock (_gate)
         {
-            if (_inner is null || key != _key || model != _model)
+            if (_inner is null || current != _built)
             {
                 _inner?.Dispose();
-                _inner = new OpenAIClient(new ApiKeyCredential(key), _clientOptions)
-                    .GetChatClient(model)
+
+                var clientOptions = new OpenAIClientOptions
+                {
+                    NetworkTimeout = _timeout,
+                    RetryPolicy = new ClientRetryPolicy(_maxRetries)
+                };
+                // Empty base URL → OpenAI's default endpoint. Set it for OpenAI-compatible gateways
+                // (OpenRouter, Together, a local server, …).
+                if (!string.IsNullOrWhiteSpace(current.BaseUrl))
+                    clientOptions.Endpoint = new Uri(current.BaseUrl);
+
+                _inner = new OpenAIClient(new ApiKeyCredential(current.ApiKey), clientOptions)
+                    .GetChatClient(current.Model)
                     .AsIChatClient();
-                _key = key;
-                _model = model;
+                _built = current;
             }
             return _inner;
         }

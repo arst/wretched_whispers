@@ -38,7 +38,8 @@ public static class AgentConfiguration
         {
             // Desktop: the user's key is entered at runtime and can change, so the client rebuilds lazily.
             services.AddSingleton(_ => new DesktopLlmOptions(
-                configuration["Llm:ApiKey"] ?? "", configuration["Llm:Model"] ?? "gpt-4o"));
+                configuration["Llm:ApiKey"] ?? "", configuration["Llm:Model"] ?? "gpt-4o",
+                configuration["Llm:BaseUrl"] ?? ""));
             services.AddSingleton<IChatClient>(sp =>
                 new ReloadableOpenAIChatClient(sp.GetRequiredService<DesktopLlmOptions>(), timeout, maxRetryAttempts));
         }

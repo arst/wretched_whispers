@@ -45,6 +45,7 @@ public static class DesktopHost
                 {
                     if (!string.IsNullOrWhiteSpace(s.ApiKey)) cfg["Llm:ApiKey"] = s.ApiKey;
                     if (!string.IsNullOrWhiteSpace(s.Model)) cfg["Llm:Model"] = s.Model;
+                    if (!string.IsNullOrWhiteSpace(s.BaseUrl)) cfg["Llm:BaseUrl"] = s.BaseUrl;
                 }
             }
             catch
@@ -66,5 +67,5 @@ public static class DesktopHost
             .Load(new Uri(url))
             .WaitForClose();
 
-    private sealed record Persisted(string? Provider, string? ApiKey, string? Model);
+    private sealed record Persisted(string? Provider, string? ApiKey, string? Model, string? BaseUrl);
 }
