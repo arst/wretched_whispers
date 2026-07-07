@@ -52,18 +52,20 @@ function GameSession({ id }: { id: string }) {
   const worldEnded = useSessionStore((s) => s.worldEnded);
   const currentDay = useSessionStore((s) => s.currentDay);
   const characterData = useSessionStore((s) => s.characterData);
+  const failedMessage = useSessionStore((s) => s.failedMessage);
 
   const showEndCard = status === "ended" && !isStreaming;
   const isDead = characterData?.isDead ?? false;
 
-  const { sendAction } = useSseStream(id);
+  const { sendAction, retry } = useSseStream(id);
 
-  // Auto-dismiss error after 5 seconds
+  // Auto-dismiss transient errors after 5s — but keep a retryable failure on screen so the player
+  // can act on it.
   useEffect(() => {
-    if (!error) return;
+    if (!error || failedMessage) return;
     const timer = setTimeout(() => clearError(), 5000);
     return () => clearTimeout(timer);
-  }, [error, clearError]);
+  }, [error, failedMessage, clearError]);
 
   // Transition from splash when first narrative chunk arrives
   useEffect(() => {
@@ -71,6 +73,13 @@ function GameSession({ id }: { id: string }) {
       setShowSplash(false);
     }
   }, [showSplash, streamingText]);
+
+  // If the opening turn fails (e.g. rate-limited), drop the splash so the retry banner is reachable.
+  useEffect(() => {
+    if (showSplash && error) {
+      setShowSplash(false);
+    }
+  }, [showSplash, error]);
 
   // Load session on mount
   useEffect(() => {
@@ -193,10 +202,19 @@ function GameSession({ id }: { id: string }) {
         />
       )}
 
-      {/* Error banner */}
+      {/* Error banner — with a Retry when the failed turn can be resent */}
       {error && (
-        <div className="bg-doom-pink/20 border-b border-doom-pink text-doom-pink text-sm text-center py-2 px-4">
-          {error}
+        <div className="bg-doom-pink/20 border-b border-doom-pink text-doom-pink text-sm py-2 px-4 flex items-center justify-center gap-3">
+          <span>{error}</span>
+          {failedMessage && (
+            <button
+              onClick={retry}
+              disabled={isStreaming}
+              className="uppercase tracking-wider text-xs border border-doom-pink px-2 py-0.5 hover:bg-doom-pink hover:text-doom-black transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 

@@ -18,6 +18,7 @@ interface SessionState {
   streamingMessageId: string | null;
   streamingText: string;
   error: string | null;
+  failedMessage: string | null;
   characterData: CharacterData | null;
   drawerOpen: boolean;
   totalMessages: number;
@@ -37,6 +38,8 @@ interface SessionState {
   setTurnDelta: (delta: TurnDeltaEvent) => void;
   setStateUpdate: (update: StateUpdateEvent) => void;
   finishStreaming: () => void;
+  failStreaming: () => void;
+  setFailedMessage: (message: string | null) => void;
   setError: (message: string) => void;
   clearError: () => void;
   reset: () => void;
@@ -57,6 +60,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   streamingMessageId: null,
   streamingText: "",
   error: null,
+  failedMessage: null,
   characterData: null,
   drawerOpen: false,
   totalMessages: 0,
@@ -86,6 +90,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       streamingMessageId: null,
       streamingText: "",
       error: null,
+      failedMessage: null,
     }),
 
   addPlayerMessage: (content) =>
@@ -214,6 +219,37 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }));
   },
 
+  // A turn failed (429, dropped connection, server error). Drop the empty assistant placeholder the
+  // failed turn left behind (keep it only if it managed to stream real text or a tool/delta) so the
+  // chat shows just the player's message + the retry banner. The player message stays so retry can
+  // resend it silently. The backend rolls the turn back, so nothing was persisted server-side.
+  failStreaming: () => {
+    const { streamingMessageId, streamingText } = get();
+    set((state) => ({
+      isStreaming: false,
+      streamingMessageId: null,
+      streamingText: "",
+      messages: streamingMessageId
+        ? state.messages
+            .filter(
+              (m) =>
+                !(
+                  m.id === streamingMessageId &&
+                  streamingText.trim() === "" &&
+                  m.toolResults.length === 0 &&
+                  !m.turnDelta
+                )
+            )
+            .map((m) =>
+              m.id === streamingMessageId ? { ...m, content: streamingText } : m
+            )
+        : state.messages,
+    }));
+  },
+
+  setFailedMessage: (message) =>
+    set({ failedMessage: message }),
+
   setError: (message) =>
     set({ error: message }),
 
@@ -229,6 +265,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       streamingMessageId: null,
       streamingText: "",
       error: null,
+      failedMessage: null,
       characterData: null,
       drawerOpen: false,
       totalMessages: 0,
