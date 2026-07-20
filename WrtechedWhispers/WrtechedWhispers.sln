@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Api", "Wre
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Evals", "WretchedWhispers.Evals\WretchedWhispers.Evals.csproj", "{E467EB98-B153-465C-A91A-57A164A65833}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WretchedWhispers.Engine", "WretchedWhispers.Engine\WretchedWhispers.Engine.csproj", "{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -80,6 +82,18 @@ Global
 		{E467EB98-B153-465C-A91A-57A164A65833}.Release|x64.Build.0 = Release|Any CPU
 		{E467EB98-B153-465C-A91A-57A164A65833}.Release|x86.ActiveCfg = Release|Any CPU
 		{E467EB98-B153-465C-A91A-57A164A65833}.Release|x86.Build.0 = Release|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Debug|x64.Build.0 = Debug|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Debug|x86.Build.0 = Debug|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Release|x64.ActiveCfg = Release|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Release|x64.Build.0 = Release|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Release|x86.ActiveCfg = Release|Any CPU
+		{EEAFAAFA-F2CE-4A19-A5F8-C51FF2E83A0A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
