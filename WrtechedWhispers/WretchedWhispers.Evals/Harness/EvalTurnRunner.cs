@@ -1,7 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Services;
+using WretchedWhispers.Engine.Models;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Evals.Harness;

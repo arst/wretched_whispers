@@ -1,5 +1,5 @@
-using WretchedWhispers.Api.Models;
-using WretchedWhispers.Api.Services;
+using WretchedWhispers.Engine.Models;
+using WretchedWhispers.Engine.Services;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;

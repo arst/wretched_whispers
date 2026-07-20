@@ -1,4 +1,4 @@
-using WretchedWhispers.Api.Services;
+using WretchedWhispers.Engine.Services;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;

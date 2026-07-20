@@ -1,6 +1,6 @@
 using Xunit;
-using WretchedWhispers.Api.Prompts;
-using WretchedWhispers.Api.Services;
+using WretchedWhispers.Engine.Prompts;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
