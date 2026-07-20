@@ -1,4 +1,5 @@
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Engine.Models;
 
 namespace WretchedWhispers.Api.Models;
 

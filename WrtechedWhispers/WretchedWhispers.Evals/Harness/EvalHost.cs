@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using WretchedWhispers.Api.Services;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;

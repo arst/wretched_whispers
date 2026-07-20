@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using WretchedWhispers.Api.Services;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 

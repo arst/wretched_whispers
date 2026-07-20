@@ -5,7 +5,7 @@ using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
 using Microsoft.Extensions.AI.Evaluation.Reporting.Storage;
 using Microsoft.Extensions.Configuration;
-using WretchedWhispers.Api.Models;
+using WretchedWhispers.Engine.Models;
 
 namespace WretchedWhispers.Evals.Harness;
 

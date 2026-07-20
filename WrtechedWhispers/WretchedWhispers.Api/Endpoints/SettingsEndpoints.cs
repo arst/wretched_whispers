@@ -1,5 +1,5 @@
 using System.Text.Json;
-using WretchedWhispers.Api.Configuration;
+using WretchedWhispers.Engine.Configuration;
 
 namespace WretchedWhispers.Api.Endpoints;
 

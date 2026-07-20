@@ -1,6 +1,6 @@
 using Moq;
-using WretchedWhispers.Api.GameTools;
-using WretchedWhispers.Api.Services;
+using WretchedWhispers.Engine.GameTools;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
