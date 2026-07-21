@@ -67,6 +67,10 @@ export default function DesktopSettingsGate({
     }
   }
 
+  // Web build never shows the key screen — the hosted API has its own key. Structural, so no
+  // state-polarity refactor can regress it again.
+  if (!isDesktop) return <>{children}</>;
+
   if (!ready) return null;
 
   // First run (no key) is mandatory and non-dismissible; the header gear opens it again later.
