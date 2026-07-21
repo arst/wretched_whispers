@@ -102,6 +102,7 @@ public static class StateUpdateMapper
             ArmorTier: armorTier,
             HasShield: hasShield,
             IsShieldBroken: isShieldBroken,
-            WorldEnded: campaign?.WorldEnded ?? false);
+            WorldEnded: campaign?.WorldEnded ?? false,
+            CurrentLocationName: campaign?.CurrentLocationName);
     }
 }

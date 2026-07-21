@@ -5,6 +5,8 @@ import { useAuthStore } from "@/stores/authStore";
 import { useDesktopSettingsStore } from "@/stores/desktopSettingsStore";
 import { logout } from "@/lib/auth";
 import CharacterDrawerToggle from "@/components/character/CharacterDrawerToggle";
+import JournalDrawerToggle from "@/components/journal/JournalDrawerToggle";
+import MapDrawerToggle from "@/components/map/MapDrawerToggle";
 
 const isDesktop = process.env.NEXT_PUBLIC_DESKTOP === "1";
 
@@ -29,6 +31,8 @@ export default function Header() {
         ) : isAuthenticated ? (
           <>
             <CharacterDrawerToggle />
+            <JournalDrawerToggle />
+            <MapDrawerToggle />
             <Link
               href="/sessions"
               className="text-doom-bone text-sm uppercase tracking-wider hover:text-doom-yellow transition-colors"

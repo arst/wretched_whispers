@@ -124,6 +124,7 @@ export interface StateUpdateEvent {
   isShieldBroken?: boolean;
   // World state
   worldEnded?: boolean;
+  currentLocationName?: string | null;
 }
 
 export interface CharacterData {
@@ -160,4 +161,19 @@ export interface CharacterData {
 
 export interface SseErrorEvent {
   message: string;
+}
+
+export interface JournalEntryDto {
+  category: string;
+  text: string;
+  day: number;
+  hour: number;
+}
+
+export interface PoiDto {
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  connectedTo: string | null;
 }

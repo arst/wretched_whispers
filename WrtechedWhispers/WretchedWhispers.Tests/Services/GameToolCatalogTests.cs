@@ -37,14 +37,16 @@ public class GameToolCatalogTests
     }
 
     [Fact]
-    public void Exploration_ExposesExactlyTwelveTools()
+    public void Exploration_ExposesExactlyFourteenTools()
     {
         Assert.Equal(
             new[]
             {
                 "Campaign.AdvanceTime",
                 "Campaign.RecordJournalEntry",
+                "Campaign.RecordPointOfInterest",
                 "Campaign.Rest",
+                "Campaign.SetPartyLocation",
                 "Character.AddItemToCharacterInventory",
                 "Character.BuyItem",
                 "Character.CastScroll",
@@ -81,7 +83,9 @@ public class GameToolCatalogTests
             {
                 "Campaign.AdvanceTime",
                 "Campaign.RecordJournalEntry",
+                "Campaign.RecordPointOfInterest",
                 "Campaign.Rest",
+                "Campaign.SetPartyLocation",
                 "Character.AddItemToCharacterInventory",
                 "Character.CureInfection",
                 "Character.DegradeCharacterAbility",

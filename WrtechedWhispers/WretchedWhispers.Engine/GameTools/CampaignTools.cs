@@ -61,6 +61,30 @@ public sealed class CampaignTools(
         return $"Recorded. The journal holds {campaign.JournalEntries.Count} entries.";
     }
 
+    [Description("Chart a place on the regional map the first time the fiction establishes it: a town entered, a dungeon found, a landmark sighted. Assign approximate map coordinates consistent with the geography already charted. Does not move the party.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<string> RecordPointOfInterest(
+        [Description("Kind of place: 'Town', 'Dungeon', 'Landmark', 'Ruin', or 'Camp'")]
+        PoiType type,
+        [Description("Unique name of the place")] string name,
+        [Description("Approximate west-east position on the map, 0-100 (0 is west)")] int x,
+        [Description("Approximate north-south position on the map, 0-100 (0 is north)")] int y,
+        [Description("Optional: name of an already-charted place this one connects to by road or trail")]
+        string? connectedTo = null)
+    {
+        var campaign = await campaignService.RecordPointOfInterest(RequireCampaignId(), type, name, x, y, connectedTo);
+        return $"Charted. The map holds {campaign.Pois.Count} places.";
+    }
+
+    [Description("Mark where the party currently is. Call when the party arrives at a charted place.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<string> SetPartyLocation(
+        [Description("Name of an already-charted place")] string locationName)
+    {
+        var campaign = await campaignService.SetPartyLocation(RequireCampaignId(), locationName);
+        return $"The party is now at {campaign.CurrentLocationName}.";
+    }
+
     private static CampaignDto CreateCampaignDto(Campaign campaign) => new(
         campaign.Id,
         campaign.Name,

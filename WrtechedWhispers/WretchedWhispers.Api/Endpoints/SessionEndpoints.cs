@@ -34,6 +34,8 @@ public static class SessionEndpoints
         group.MapGet("/", ListSessions);
         group.MapGet("/{sessionId:guid}", GetSessionDetail);
         group.MapGet("/{sessionId:guid}/messages", GetSessionMessages);
+        group.MapGet("/{sessionId:guid}/journal", GetSessionJournal);
+        group.MapGet("/{sessionId:guid}/map", GetSessionMap);
 
         group.MapPost("/{sessionId:guid}/actions", async (
             Guid sessionId,
@@ -240,6 +242,50 @@ public static class SessionEndpoints
             page,
             pageSize,
             stateUpdate));
+    }
+
+    private static async Task<IResult> GetSessionMap(
+        Guid sessionId,
+        HttpContext http,
+        ICampaignsRepository campaignsRepo)
+    {
+        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
+
+        // Verify campaign exists and belongs to user
+        var userCampaigns = await campaignsRepo.GetForUser(userId);
+        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        if (campaign is null)
+            return Results.NotFound();
+
+        var pois = campaign.Pois
+            .Select(p => new PoiDto(p.Name, p.Type.ToString(), p.X, p.Y, p.ConnectedTo))
+            .ToList();
+
+        return Results.Ok(new { pois, currentLocationName = campaign.CurrentLocationName });
+    }
+
+    private static async Task<IResult> GetSessionJournal(
+        Guid sessionId,
+        HttpContext http,
+        ICampaignsRepository campaignsRepo)
+    {
+        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
+
+        // Verify campaign exists and belongs to user
+        var userCampaigns = await campaignsRepo.GetForUser(userId);
+        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        if (campaign is null)
+            return Results.NotFound();
+
+        var entries = campaign.JournalEntries
+            .Select(e => new JournalEntryDto(e.Category.ToString(), e.Text, e.Day, e.Hour))
+            .ToList();
+
+        return Results.Ok(new { entries });
     }
 
     private static async Task<IResult> GetSessionMessages(
