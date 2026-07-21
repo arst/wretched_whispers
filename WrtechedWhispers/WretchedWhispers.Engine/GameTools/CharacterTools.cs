@@ -60,12 +60,15 @@ public sealed class CharacterTools(
         [Description("Ability kind to use: 'Strength', 'Agility', 'Presence', 'Toughness'.")]
         AbilityKind abilityKind,
         [Description("What failure costs, chosen like a GM: 'None' (no harm), 'Minor' (scrapes), 'Serious' (a real wound), 'Deadly' (can kill). Follow the difficulty guidance in your instructions when choosing.")]
-        ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None)
+        ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None,
+        [Description("Spend one omen to lower this test's DR by 4 - COSTS one of the player's omens (see Omens in Game State). Fails if no omens remain. Only use when the player asks to spend an omen, or at a truly dramatic moment.")]
+        bool spendOmenToLowerDr = false)
     {
         ToolGuard.InRange(challengeDr, 2, 20, nameof(challengeDr), "12 is a normal challenge");
         var settings = DifficultyPresets.For(sessionContext.Campaign?.Difficulty ?? Difficulty.Grim);
         var result = await characterService.ChallengePlayer(
-            RequireCharacterId(), new Dr(challengeDr), abilityKind, settings, consequenceOnFailure);
+            RequireCharacterId(), new Dr(challengeDr), abilityKind, settings, consequenceOnFailure,
+            spendOmenToLowerDr);
         return new ChallengeOutcomeDto(
             result.Outcome.IsSuccess, result.Outcome.Roll, result.Outcome.Modifier,
             result.Outcome.Roll + result.Outcome.Modifier,

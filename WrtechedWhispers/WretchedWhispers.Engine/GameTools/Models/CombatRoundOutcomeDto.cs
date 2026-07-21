@@ -9,7 +9,8 @@ public sealed record PlayerAttackDto(
 public sealed record FleeAttemptDto(bool Success, int Roll, int Modifier, int Dr);
 
 public sealed record RetaliationDto(
-    string AdversaryName, int DamageDealt, bool Avoided, bool CriticalFreeAttack, bool FumbleDoubleDamage);
+    string AdversaryName, int DamageDealt, bool Avoided, bool CriticalFreeAttack, bool FumbleDoubleDamage,
+    int OmenDamageReduction = 0);
 
 public sealed record CombatRoundOutcomeDto(
     PlayerAttackDto? PlayerAttack,
@@ -29,7 +30,7 @@ public sealed record CombatRoundOutcomeDto(
             : null,
         outcome.Retaliations
             .Select(r => new RetaliationDto(r.AdversaryName, r.Outcome.DamageDealt, r.Outcome.Avoided,
-                r.Outcome.CriticalFreeAttack, r.Outcome.FumbleDoubleDamage))
+                r.Outcome.CriticalFreeAttack, r.Outcome.FumbleDoubleDamage, r.Outcome.OmenDamageReduction))
             .ToList(),
         outcome.AdversariesFledThisRound,
         outcome.EncounterEnded,

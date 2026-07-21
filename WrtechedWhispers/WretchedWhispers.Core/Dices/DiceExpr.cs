@@ -12,6 +12,9 @@ public readonly record struct DiceExpr(int Count, int Sides, int Constant = 0)
     public static DiceExpr D12 => new(1, 12);
     public static DiceExpr D20 => new(1, 20);
 
+    /// <summary>The highest value this expression can roll.</summary>
+    public int Max => Count * Sides + Constant;
+
     public static DiceExpr operator +(DiceExpr e, int k)
     {
         return e with { Constant = e.Constant + k };

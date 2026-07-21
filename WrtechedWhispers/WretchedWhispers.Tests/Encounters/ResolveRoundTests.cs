@@ -20,7 +20,8 @@ public sealed class ResolveRoundTests : TestBase
     private EncounterService CreateService() =>
         new(Dice, _charactersRepo.Object, _encountersRepo.Object);
 
-    private (Encounter encounter, Character character) Arrange(int adversaries = 1, int adversaryHp = 4)
+    private (Encounter encounter, Character character) Arrange(int adversaries = 1, int adversaryHp = 4,
+        int startingOmens = 0)
     {
         var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
         for (var i = 0; i < adversaries; i++)
@@ -29,7 +30,7 @@ public sealed class ResolveRoundTests : TestBase
                 new AttackProfile("claws", DiceExpr.Parse("d4"))));
         encounter.StartEncounter();
 
-        var character = TestCharacters.Create(Dice);
+        var character = TestCharacters.Create(Dice, startingOmens: startingOmens);
         _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
         _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
         return (encounter, character);
@@ -217,5 +218,91 @@ public sealed class ResolveRoundTests : TestBase
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             CreateService().ResolveRound(encounter.Id, character.Id, PlayerRoundAction.Attack, null));
+    }
+
+    [Fact]
+    public async Task OmenMaxDamage_AttackDealsWeaponMax_AndSpendsOmen()
+    {
+        var (encounter, character) = Arrange(adversaries: 1, adversaryHp: 100, startingOmens: 1);
+        // d20 attack 15 (hit, no crit); weapon damage is NOT rolled (maxed);
+        // then retaliation: d20 defence 10 (fail), d4 claw 2.
+        SetupDiceRolls(14, 9, 1);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Attack, "Ghoul 1",
+            omenUse: CombatOmenUse.MaxDamage);
+
+        Assert.NotNull(outcome.PlayerAttack);
+        var attack = outcome.PlayerAttack.Value;
+        Assert.Equal(6, attack.BaseDamageRoll); // Sword d6 max
+        Assert.Equal(6, attack.Damage.Amount);
+        Assert.Equal(0, character.Omens.Count);
+    }
+
+    [Fact]
+    public async Task OmenReduceDamage_FirstHitReducedByD6_AndSpendsOmen()
+    {
+        var (encounter, character) = Arrange(startingOmens: 1);
+        // d20 defence 5 (fail), d4 claw 4, omen d6 3 -> 1 damage taken.
+        SetupDiceRolls(4, 3, 2);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null,
+            omenUse: CombatOmenUse.ReduceDamageTaken);
+
+        var retaliation = Assert.Single(outcome.Retaliations);
+        Assert.Equal(3, retaliation.Outcome.OmenDamageReduction);
+        Assert.Equal(1, retaliation.Outcome.DamageDealt);
+        Assert.Equal(0, character.Omens.Count);
+    }
+
+    [Fact]
+    public async Task OmenReduceDamage_FloorsAtZero_OmenStillSpent()
+    {
+        var (encounter, character) = Arrange(startingOmens: 1);
+        // d20 defence 5 (fail), d4 claw 2, omen d6 6 -> damage floored to 0.
+        SetupDiceRolls(4, 1, 5);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null,
+            omenUse: CombatOmenUse.ReduceDamageTaken);
+
+        var retaliation = Assert.Single(outcome.Retaliations);
+        Assert.Equal(6, retaliation.Outcome.OmenDamageReduction);
+        Assert.Equal(0, retaliation.Outcome.DamageDealt);
+        Assert.Equal(0, character.Omens.Count);
+    }
+
+    [Fact]
+    public async Task OmenRequested_NoOmensRemaining_Throws_NoStateChange()
+    {
+        var (encounter, character) = Arrange(startingOmens: 0);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            CreateService().ResolveRound(encounter.Id, character.Id, PlayerRoundAction.Attack, null,
+                omenUse: CombatOmenUse.MaxDamage));
+
+        _encountersRepo.Verify(r => r.Save(It.IsAny<Encounter>()), Times.Never);
+        _charactersRepo.Verify(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task OmenReduceDamage_TwoAdversaries_OnlyFirstDamagingHitReduced()
+    {
+        var (encounter, character) = Arrange(adversaries: 2, startingOmens: 2);
+        // Ghoul 1: d20 defence 5 (fail), d4 claw 4, omen d6 3 -> 1 damage, shield consumed.
+        // Ghoul 2: d20 defence 5 (fail), d4 claw 4 -> full 4 damage, no second omen spent.
+        SetupDiceRolls(4, 3, 2, 4, 3);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null,
+            omenUse: CombatOmenUse.ReduceDamageTaken);
+
+        Assert.Equal(2, outcome.Retaliations.Count);
+        Assert.Equal(3, outcome.Retaliations[0].Outcome.OmenDamageReduction);
+        Assert.Equal(1, outcome.Retaliations[0].Outcome.DamageDealt);
+        Assert.Equal(0, outcome.Retaliations[1].Outcome.OmenDamageReduction);
+        Assert.Equal(4, outcome.Retaliations[1].Outcome.DamageDealt);
+        Assert.Equal(1, character.Omens.Count);
     }
 }

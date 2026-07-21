@@ -18,9 +18,9 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         var abilities = RollAbilities();
         var equipment = RollStartingEquipment(abilities);
         var maxHp = RollStartingHealthPoints(abilities) + DifficultyPresets.For(difficulty).StartingHpBonus;
-        const int numberOfOmens = 0; // TODO: Implement as d2 roll when enabled
+        var numberOfOmens = dice.Roll(DiceExpr.D2);
 
-        var character = Character.Create(id, name, maxHp, abilities, equipment, dice);
+        var character = Character.Create(id, name, maxHp, abilities, equipment, dice, numberOfOmens);
         await charactersRepository.Save(character);
 
         return character;

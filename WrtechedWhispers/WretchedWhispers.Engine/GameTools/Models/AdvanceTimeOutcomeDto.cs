@@ -12,4 +12,7 @@ public record AdvanceTimeOutcomeDto(
     bool IsWorldEnded,
     [property: JsonPropertyName("IsNewDawn")]
     [property: Description("Whether a new dawn has occurred, resetting daily resources")]
-    bool IsNewDawn);
+    bool IsNewDawn,
+    [property: JsonPropertyName("OmensRefreshed")]
+    [property: Description("Omens regained by the full night's rest (0 if none were refreshed)")]
+    int OmensRefreshed = 0);

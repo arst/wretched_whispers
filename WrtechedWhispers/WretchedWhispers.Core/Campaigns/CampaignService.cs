@@ -135,18 +135,19 @@ public class CampaignService(
         var outcome = campaign.AdvanceTime(hours, dice);
         await campaignsRepository.SaveCampaign(campaign);
 
+        var omensRefreshed = 0;
         foreach (var playerId in campaign.Players)
         {
             var character = await charactersRepository.Get(playerId);
 
             if (character is null) throw new InvalidOperationException("Player character not found.");
-            character.Rest(hours, dice);
+            omensRefreshed += character.Rest(hours, dice);
 
             if (outcome.IsNewDawn) character.StartNewDay(dice);
 
             await charactersRepository.Save(character);
         }
 
-        return outcome;
+        return outcome with { OmensRefreshed = omensRefreshed };
     }
 }
