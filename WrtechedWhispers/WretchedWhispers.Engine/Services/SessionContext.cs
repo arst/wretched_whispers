@@ -105,6 +105,16 @@ public sealed class SessionContext
                 foreach (var entry in Campaign.JournalEntries)
                     sb.AppendLine($"    [Day {entry.Day}, {entry.Category}] {entry.Text}");
             }
+
+            if (Campaign.Pois.Count > 0)
+            {
+                sb.AppendLine("  Map (0-100 grid, y=0 is north):");
+                foreach (var poi in Campaign.Pois)
+                    sb.AppendLine($"    - {poi.Name} ({poi.Type}) at ({poi.X},{poi.Y})"
+                        + (poi.ConnectedTo is null ? "" : $", path to {poi.ConnectedTo}"));
+                if (Campaign.CurrentLocationName is not null)
+                    sb.AppendLine($"  Party location: {Campaign.CurrentLocationName}");
+            }
         }
 
         if (ActiveEncounter is not null)

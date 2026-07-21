@@ -58,6 +58,26 @@ public class CampaignService(
         return campaign;
     }
 
+    public async Task<Campaign> RecordPointOfInterest(Guid campaignId, PoiType type, string name, int x, int y, string? connectedTo)
+    {
+        var campaign = await campaignsRepository.Get(campaignId);
+        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+
+        campaign.RecordPointOfInterest(type, name, x, y, connectedTo);
+        await campaignsRepository.SaveCampaign(campaign);
+        return campaign;
+    }
+
+    public async Task<Campaign> SetPartyLocation(Guid campaignId, string name)
+    {
+        var campaign = await campaignsRepository.Get(campaignId);
+        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+
+        campaign.SetPartyLocation(name);
+        await campaignsRepository.SaveCampaign(campaign);
+        return campaign;
+    }
+
     public async Task AttachEncounter(Guid campaignId, Guid encounterId)
     {
         var campaign = await campaignsRepository.Get(campaignId);

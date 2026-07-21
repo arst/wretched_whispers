@@ -232,6 +232,86 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     [Fact]
+    public async Task GetSessionJournal_ReturnsEntriesForOwner_NotFoundForOtherUser()
+    {
+        var tokenA = await RegisterAndLogin("journal-owner@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", tokenA));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()!;
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+
+        // Record a journal entry through the domain, same scoped-DI path the game tools use
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+            var entity = await db.Campaigns.FindAsync(campaignId);
+            sp.GetRequiredService<ITenantContext>().SetUserId(entity!.UserId);
+            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+            var campaign = await campaignsRepo.Get(campaignId);
+            campaign!.RecordJournalEntry(JournalCategory.Npc, "Met the grave-priest Ulmt");
+            await campaignsRepo.SaveCampaign(campaign);
+        }
+
+        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", tokenA));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var entries = json.GetProperty("entries");
+        Assert.Equal(1, entries.GetArrayLength());
+        Assert.Equal("Npc", entries[0].GetProperty("category").GetString());
+        Assert.Equal("Met the grave-priest Ulmt", entries[0].GetProperty("text").GetString());
+        Assert.Equal(1, entries[0].GetProperty("day").GetInt32());
+        Assert.Equal(0, entries[0].GetProperty("hour").GetInt32());
+
+        // Other user gets 404, not 403
+        var tokenB = await RegisterAndLogin("journal-other@test.com");
+        var otherResponse = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", tokenB));
+        Assert.Equal(HttpStatusCode.NotFound, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSessionMap_ReturnsPoisForOwner_NotFoundForOtherUser()
+    {
+        var tokenA = await RegisterAndLogin("map-owner@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", tokenA));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()!;
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+
+        // Chart POIs through the domain, same scoped-DI path the game tools use
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+            var entity = await db.Campaigns.FindAsync(campaignId);
+            sp.GetRequiredService<ITenantContext>().SetUserId(entity!.UserId);
+            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+            var campaign = await campaignsRepo.Get(campaignId);
+            campaign!.RecordPointOfInterest(PoiType.Town, "Galgenbeck", 48, 30);
+            campaign.RecordPointOfInterest(PoiType.Dungeon, "Rot-Black Sludge", 60, 42, "Galgenbeck");
+            campaign.SetPartyLocation("Galgenbeck");
+            await campaignsRepo.SaveCampaign(campaign);
+        }
+
+        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/map", tokenA));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Galgenbeck", json.GetProperty("currentLocationName").GetString());
+        var pois = json.GetProperty("pois");
+        Assert.Equal(2, pois.GetArrayLength());
+        Assert.Equal("Galgenbeck", pois[0].GetProperty("name").GetString());
+        Assert.Equal("Town", pois[0].GetProperty("type").GetString());
+        Assert.Equal(48, pois[0].GetProperty("x").GetInt32());
+        Assert.Equal(30, pois[0].GetProperty("y").GetInt32());
+        Assert.Equal("Galgenbeck", pois[1].GetProperty("connectedTo").GetString());
+
+        // Other user gets 404, not 403
+        var tokenB = await RegisterAndLogin("map-other@test.com");
+        var otherResponse = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/map", tokenB));
+        Assert.Equal(HttpStatusCode.NotFound, otherResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task CampaignsRepository_ParameterlessSaveCampaign_PreservesTenantUserId_ThroughScopedDI()
     {
         // Arrange: Create a DI scope from the real application (same as the turn pipeline)

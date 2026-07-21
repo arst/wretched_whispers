@@ -47,7 +47,8 @@ public record StateUpdate(
     string ArmorTier,
     bool HasShield,
     bool IsShieldBroken,
-    bool WorldEnded) : GameTurnEvent("state_update");
+    bool WorldEnded,
+    string? CurrentLocationName) : GameTurnEvent("state_update");
 
 /// <summary>
 /// The authoritative account of what THIS turn changed — a deterministic diff of the domain state

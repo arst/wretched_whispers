@@ -93,7 +93,8 @@ public sealed class Campaign
         List<Guid> characters, CalendarOfNechrubel calendar,
         DiceExpr dawnDice, List<Guid> encounters,
         bool isStarted = false, bool isEnded = false, bool isConfigured = false,
-        List<JournalEntry>? journal = null, Difficulty difficulty = Difficulty.Grim)
+        List<JournalEntry>? journal = null, Difficulty difficulty = Difficulty.Grim,
+        List<PointOfInterest>? pointsOfInterest = null, string? currentLocationName = null)
     {
         Id = id;
         Name = name;
@@ -109,6 +110,8 @@ public sealed class Campaign
         IsConfigured = isConfigured;
         Journal = journal ?? [];
         Difficulty = difficulty;
+        PointsOfInterest = pointsOfInterest ?? [];
+        CurrentLocationName = currentLocationName;
     }
 
     [JsonInclude] public Guid Id { get; private set; }
@@ -140,6 +143,12 @@ public sealed class Campaign
     [JsonInclude] internal List<JournalEntry> Journal { get; }
 
     [JsonIgnore] public IReadOnlyList<JournalEntry> JournalEntries => Journal.AsReadOnly();
+
+    [JsonInclude] internal List<PointOfInterest> PointsOfInterest { get; }
+
+    [JsonIgnore] public IReadOnlyList<PointOfInterest> Pois => PointsOfInterest.AsReadOnly();
+
+    [JsonInclude] public string? CurrentLocationName { get; private set; }
 
     [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
@@ -192,6 +201,37 @@ public sealed class Campaign
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("Journal text must not be empty.", nameof(text));
         Journal.Add(new JournalEntry(category, text.Trim(), CurrentDay, CurrentHour));
+    }
+
+    public void RecordPointOfInterest(PoiType type, string name, int x, int y, string? connectedTo = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Point of interest name must not be empty.", nameof(name));
+        name = name.Trim();
+        if (PointsOfInterest.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException($"'{name}' is already charted on the map.", nameof(name));
+
+        string? canonicalConnection = null;
+        if (connectedTo is not null)
+        {
+            var target = PointsOfInterest.FirstOrDefault(p =>
+                p.Name.Equals(connectedTo.Trim(), StringComparison.OrdinalIgnoreCase));
+            canonicalConnection = target?.Name
+                ?? throw new ArgumentException($"'{connectedTo}' is not on the map.", nameof(connectedTo));
+        }
+
+        PointsOfInterest.Add(new PointOfInterest(
+            name, type, Math.Clamp(x, 0, 100), Math.Clamp(y, 0, 100), canonicalConnection, CurrentDay));
+    }
+
+    public void SetPartyLocation(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Location name must not be empty.", nameof(name));
+        var poi = PointsOfInterest.FirstOrDefault(p =>
+            p.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
+        CurrentLocationName = poi?.Name
+            ?? throw new ArgumentException($"'{name}' is not on the map.", nameof(name));
     }
 
     public static Campaign Create(Difficulty difficulty, string name, string description)

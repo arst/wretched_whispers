@@ -10,6 +10,8 @@ import ChatWindow from "@/components/chat/ChatWindow";
 import ChatInput from "@/components/chat/ChatInput";
 import SplashScreen from "@/components/chat/SplashScreen";
 import CharacterDrawer from "@/components/character/CharacterDrawer";
+import JournalDrawer from "@/components/journal/JournalDrawer";
+import MapDrawer from "@/components/map/MapDrawer";
 import EndCard from "@/components/session/EndCard";
 import type { SessionDetailDto } from "@/types/api";
 
@@ -227,6 +229,12 @@ function GameSession({ id }: { id: string }) {
 
       {/* Character sheet drawer */}
       <CharacterDrawer />
+
+      {/* Campaign journal drawer */}
+      <JournalDrawer />
+
+      {/* Regional map drawer */}
+      <MapDrawer />
 
       {/* Chat area */}
       <ChatWindow />

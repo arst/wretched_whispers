@@ -108,5 +108,6 @@ public class TurnDeltaMapperTests
         ArmorTier: "medium",
         HasShield: false,
         IsShieldBroken: false,
-        WorldEnded: false);
+        WorldEnded: false,
+        CurrentLocationName: null);
 }

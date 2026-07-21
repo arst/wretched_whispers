@@ -48,5 +48,9 @@ public static class NarratorPersona
           met, a location discovered, a promise made, a quest taken, a notable death or event -- record
           it with RecordJournalEntry. The Journal in Game State is your only durable memory of the
           fiction; a fact you do not record will be forgotten.
+        - When RecordPointOfInterest is among your tools, keep the regional map charted: the first time the
+          fiction establishes a named place -- a town entered, a dungeon found, a landmark sighted -- chart it
+          with coordinates consistent with the Map already in Game State, and call SetPartyLocation when the
+          party arrives at a charted place. Never chart the same place twice.
         """;
 }

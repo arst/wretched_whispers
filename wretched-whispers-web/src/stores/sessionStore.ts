@@ -21,6 +21,8 @@ interface SessionState {
   failedMessage: string | null;
   characterData: CharacterData | null;
   drawerOpen: boolean;
+  journalOpen: boolean;
+  mapOpen: boolean;
   totalMessages: number;
   currentPage: number;
   hasMoreMessages: boolean;
@@ -28,6 +30,7 @@ interface SessionState {
   miseryCount: number;
   worldEnded: boolean;
   currentDay: number;
+  currentLocationName: string | null;
 
   // Actions
   setSession: (sessionId: string, status: string, messages: ChatMessageDto[], totalMessages?: number) => void;
@@ -44,6 +47,8 @@ interface SessionState {
   clearError: () => void;
   reset: () => void;
   toggleDrawer: () => void;
+  toggleJournal: () => void;
+  toggleMap: () => void;
   prependMessages: (msgs: ChatMessageDto[], total: number) => void;
   setLoadingMore: (loading: boolean) => void;
 }
@@ -63,6 +68,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   failedMessage: null,
   characterData: null,
   drawerOpen: false,
+  journalOpen: false,
+  mapOpen: false,
   totalMessages: 0,
   currentPage: 1,
   hasMoreMessages: false,
@@ -70,6 +77,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   miseryCount: 0,
   worldEnded: false,
   currentDay: 1,
+  currentLocationName: null,
 
   setSession: (sessionId, status, dtos, totalMessages = 0) =>
     set({
@@ -162,6 +170,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       miseryCount: update.miseryCount,
       worldEnded: update.worldEnded ?? false,
       currentDay: update.currentDay,
+      currentLocationName: update.currentLocationName ?? null,
     };
 
     if (update.characterName && update.characterHp != null) {
@@ -268,6 +277,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       failedMessage: null,
       characterData: null,
       drawerOpen: false,
+      journalOpen: false,
+      mapOpen: false,
       totalMessages: 0,
       currentPage: 1,
       hasMoreMessages: false,
@@ -275,9 +286,14 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       miseryCount: 0,
       worldEnded: false,
       currentDay: 1,
+      currentLocationName: null,
     }),
 
   toggleDrawer: () => set((s) => ({ drawerOpen: !s.drawerOpen })),
+
+  toggleJournal: () => set((s) => ({ journalOpen: !s.journalOpen })),
+
+  toggleMap: () => set((s) => ({ mapOpen: !s.mapOpen })),
 
   prependMessages: (msgs, total) =>
     set((state) => ({
