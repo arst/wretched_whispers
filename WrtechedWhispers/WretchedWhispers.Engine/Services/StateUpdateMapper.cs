@@ -35,6 +35,8 @@ public static class StateUpdateMapper
         string armorTier = "none";
         bool hasShield = false;
         bool isShieldBroken = false;
+        int? characterOmens = null;
+        string[]? characterScrolls = null;
 
         if (character is not null)
         {
@@ -64,6 +66,9 @@ public static class StateUpdateMapper
             armorTier = character.Armor.Tier.Token();
             hasShield = character.Shield is not null;
             isShieldBroken = character.Shield?.IsBroken ?? false;
+            characterOmens = character.Omens.Count;
+            characterScrolls = character.Scrolls
+                .Select(s => $"{s.Description} ({s.School})").ToArray();
         }
 
         var derivedStage = context.DeriveStage();
@@ -103,6 +108,10 @@ public static class StateUpdateMapper
             HasShield: hasShield,
             IsShieldBroken: isShieldBroken,
             WorldEnded: campaign?.WorldEnded ?? false,
-            CurrentLocationName: campaign?.CurrentLocationName);
+            CurrentLocationName: campaign?.CurrentLocationName,
+            CharacterOmens: characterOmens,
+            CharacterScrolls: characterScrolls,
+            MiseryPsalms: campaign?.Miseries
+                .Select(m => string.IsNullOrEmpty(m.Psalm) ? m.Code : m.Psalm).ToArray() ?? []);
     }
 }

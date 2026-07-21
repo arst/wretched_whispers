@@ -48,7 +48,10 @@ public record StateUpdate(
     bool HasShield,
     bool IsShieldBroken,
     bool WorldEnded,
-    string? CurrentLocationName) : GameTurnEvent("state_update");
+    string? CurrentLocationName,
+    int? CharacterOmens,
+    string[]? CharacterScrolls,
+    string[] MiseryPsalms) : GameTurnEvent("state_update");
 
 /// <summary>
 /// The authoritative account of what THIS turn changed — a deterministic diff of the domain state

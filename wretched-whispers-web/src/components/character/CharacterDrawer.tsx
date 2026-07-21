@@ -185,6 +185,36 @@ export default function CharacterDrawer() {
           </div>
         </div>
 
+        {/* Omens section */}
+        <div className="px-8 pt-6">
+          <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
+            <span className="text-xs font-bold uppercase text-doom-ash">
+              OMENS
+            </span>
+            <div className="mt-2 text-doom-yellow text-sm font-bold">
+              {characterData.omens}
+            </div>
+          </div>
+        </div>
+
+        {/* Scrolls section */}
+        {characterData.scrolls.length > 0 && (
+          <div className="px-8 pt-6">
+            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
+              <span className="text-xs font-bold uppercase text-doom-ash">
+                SCROLLS
+              </span>
+              <div className="mt-2 space-y-1">
+                {characterData.scrolls.map((scroll) => (
+                  <div key={scroll} className="text-doom-bone text-sm">
+                    {scroll}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Inventory section */}
         <div className="px-8 pt-6 pb-8">
           <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
