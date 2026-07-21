@@ -9,20 +9,23 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
 {
     public async Task<ChallengeResult> ChallengePlayer(
         Guid characterId, Dr dr, AbilityKind ability, DifficultySettings settings,
-        ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None)
+        ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None,
+        bool spendOmenToLowerDr = false)
     {
         var character = await charactersRepository.Get(characterId);
 
         if (character is null) throw new ArgumentException($"Character with id {characterId} does not exist.");
 
-        var outcome = character.Challenge(dr, ability, dice);
+        var outcome = character.Challenge(dr, ability, dice, spendOmenToLowerDr: spendOmenToLowerDr);
 
         var damageTaken = 0;
-        if (!outcome.IsSuccess && consequenceOnFailure is not ChallengeConsequence.None)
-        {
+        var consequenceApplied = !outcome.IsSuccess && consequenceOnFailure is not ChallengeConsequence.None;
+        if (consequenceApplied)
             damageTaken = character.SufferConsequence(consequenceOnFailure, settings, dice);
+
+        // A spent omen must persist even when the test succeeds.
+        if (spendOmenToLowerDr || consequenceApplied)
             await charactersRepository.Save(character);
-        }
 
         return new ChallengeResult(outcome, damageTaken, character.IsDead);
     }

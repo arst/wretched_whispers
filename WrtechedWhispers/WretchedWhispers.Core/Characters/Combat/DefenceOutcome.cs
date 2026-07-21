@@ -4,4 +4,5 @@ public readonly record struct DefenceOutcome(
     int DamageDealt,
     bool Avoided,
     bool CriticalFreeAttack,
-    bool FumbleDoubleDamage);
+    bool FumbleDoubleDamage,
+    int OmenDamageReduction = 0);

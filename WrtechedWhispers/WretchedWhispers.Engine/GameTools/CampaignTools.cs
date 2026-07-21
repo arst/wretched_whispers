@@ -46,7 +46,8 @@ public sealed class CampaignTools(
     {
         ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
         var outcome = await campaignService.AdvanceTimeWithRest(RequireCampaignId(), hours);
-        return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
+        return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn,
+            outcome.OmensRefreshed);
     }
 
     [Description("Record a lasting fact in the campaign journal — the GM's memory of the fiction. Use it the moment something durable is established: an NPC met, a location discovered, a promise made, a quest taken, or a notable event (a death, a betrayal, a discovery).")]

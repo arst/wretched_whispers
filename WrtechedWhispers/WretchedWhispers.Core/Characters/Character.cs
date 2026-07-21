@@ -133,9 +133,13 @@ public sealed class Character
         IsDizzyFromMagic = false;
     }
 
-    public AttackOutcome Attack(Armor targetArmor, Dice dice)
+    public AttackOutcome Attack(Armor targetArmor, Dice dice, bool spendOmenForMaxDamage = false)
     {
-        var outcome = ResolveAttack(targetArmor, dice);
+        // Pre-declared spend: the omen is consumed before the roll, even if the attack misses.
+        if (spendOmenForMaxDamage && !Omens.TrySpend())
+            throw new ArgumentException("No omens remaining.");
+
+        var outcome = ResolveAttack(targetArmor, dice, spendOmenForMaxDamage);
 
         if (outcome.Fumble)
             // Weapon breaks => fallback to Improvised
@@ -147,7 +151,7 @@ public sealed class Character
             outcome.TargetArmorDegraded, outcome.BaseDamageRoll, outcome.DamageReduction);
     }
 
-    private AttackOutcome ResolveAttack(Armor targetArmor, Dice dice)
+    private AttackOutcome ResolveAttack(Armor targetArmor, Dice dice, bool spendOmenForMaxDamage = false)
     {
         var abilityKind = Weapon.IsRanged ? AbilityKind.Presence : AbilityKind.Strength;
         var test = Challenge(new Dr(12), abilityKind, dice);
@@ -162,7 +166,7 @@ public sealed class Character
         var reduction = 0;
         if (hit)
         {
-            baseRoll = dice.Roll(Weapon.DamageDie);
+            baseRoll = spendOmenForMaxDamage ? Weapon.DamageDie.Max : dice.Roll(Weapon.DamageDie);
             var raw = crit ? baseRoll * 2 : baseRoll;
             // Armor damage reduction delegated to ArmorTier
             reduction = targetArmor.Tier.RollDamageReduction(dice);
@@ -180,7 +184,7 @@ public sealed class Character
         return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded, baseRoll, reduction);
     }
 
-    public DefenceOutcome Defend(DiceExpr attackDie, Dice dice)
+    public DefenceOutcome Defend(DiceExpr attackDie, Dice dice, bool spendOmenToReduceDamage = false)
     {
         var outcome = ResolveDefence(dice);
 
@@ -194,6 +198,16 @@ public sealed class Character
             };
 
         var damage = CalculateDamageAfterDefense(attackDie, outcome, dice);
+
+        // Silent TrySpend: the model-facing "no omens" guard lives in ResolveRound before any
+        // mutation — throwing here would corrupt a half-resolved round.
+        var omenReduction = 0;
+        if (spendOmenToReduceDamage && damage > 0 && Omens.TrySpend())
+        {
+            omenReduction = dice.Roll(DiceExpr.D6);
+            damage = Math.Max(0, damage - omenReduction);
+        }
+
         ReceiveDamage(damage, dice);
 
         // TODO: Implement armor tier degradation + shield break
@@ -203,7 +217,8 @@ public sealed class Character
             DamageDealt = damage,
             Avoided = outcome.IsAvoided,
             CriticalFreeAttack = outcome.IsCritFree,
-            FumbleDoubleDamage = outcome.IsFumble
+            FumbleDoubleDamage = outcome.IsFumble,
+            OmenDamageReduction = omenReduction
         };
     }
 
@@ -284,17 +299,24 @@ public sealed class Character
         };
     }
 
-    public void Rest(int hours, Dice dice)
+    /// <summary>Returns the number of omens refreshed (0 if none). MORK BORG: omens refill (d2)
+    /// only after a full night's rest once all are spent.</summary>
+    public int Rest(int hours, Dice dice)
     {
         if (IsInfected)
         {
             ReceiveDamage(dice.Roll(DiceExpr.D6), dice);
-            return;
+            return 0;
         }
 
         var isFullNightRest = hours >= 8;
         var heal = isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4);
         Hp = Hp.Heal(heal);
+
+        if (!isFullNightRest || Omens.Count != 0) return 0;
+        var refreshed = dice.Roll(DiceExpr.D2);
+        Omens.Refill(refreshed);
+        return refreshed;
     }
 
     public void BuyItem(int price, InventoryItem item)
@@ -334,8 +356,15 @@ public sealed class Character
         return CastOutcome.Fizzle(scroll.Description, loss);
     }
 
-    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int penalty = 0)
+    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int penalty = 0,
+        bool spendOmenToLowerDr = false)
     {
+        if (spendOmenToLowerDr)
+        {
+            if (!Omens.TrySpend()) throw new ArgumentException("No omens remaining.");
+            challenge = new Dr(challenge.Value - 4);
+        }
+
         // Encumbrance penalty
         if (ability is AbilityKind.Strength or AbilityKind.Agility && IsEncumbered)
             challenge = new Dr(challenge.Value + 2);

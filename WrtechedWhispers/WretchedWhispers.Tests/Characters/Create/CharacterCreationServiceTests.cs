@@ -35,6 +35,20 @@ public class CharacterCreationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Create_RollsD2ForStartingOmens()
+    {
+        var repoMock = new Mock<ICharactersRepository>();
+        var service = new CharacterCreationService(repoMock.Object, Dice);
+        // Only d2 rolls are mocked to land on 2; ability/HP/gear dice use the mock default (roll 1),
+        // whose gear results involve no d2 — so the sole d2 in creation is the omen roll.
+        SetupDiceRoll(2, 1);
+
+        var character = await service.Create("Hero", Difficulty.Grim);
+
+        Assert.Equal(2, character.Omens.Count);
+    }
+
+    [Fact]
     public async Task Create_AlwaysHasAWeapon()
     {
         var repoMock = new Mock<ICharactersRepository>();

@@ -58,7 +58,8 @@ public class EncounterService(
     /// <summary>Resolves one whole combat round: the player's declared action, then retaliation from
     /// every adversary still standing (unless the player fled), then end-of-round bookkeeping.</summary>
     public async Task<CombatRoundOutcome> ResolveRound(
-        Guid encounterId, Guid characterId, PlayerRoundAction action, string? targetName = null)
+        Guid encounterId, Guid characterId, PlayerRoundAction action, string? targetName = null,
+        CombatOmenUse omenUse = CombatOmenUse.None)
     {
         var encounter = await encountersRepository.Get(encounterId)
             ?? throw new InvalidOperationException("Encounter not found");
@@ -66,6 +67,8 @@ public class EncounterService(
             ?? throw new InvalidOperationException("Character not found");
         if (!encounter.IsStarted || encounter.IsEnded)
             throw new InvalidOperationException("The encounter is not in active combat.");
+        if (omenUse is not CombatOmenUse.None && character.Omens.Count == 0)
+            throw new ArgumentException("No omens remaining.");
 
         AttackOutcome? playerAttack = null;
         string? attackedName = null;
@@ -83,7 +86,8 @@ public class EncounterService(
                 var target = living.FirstOrDefault(a =>
                         a.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
                     ?? living[0];
-                var outcome = character.Attack(target.Armor, dice);
+                var outcome = character.Attack(target.Armor, dice,
+                    spendOmenForMaxDamage: omenUse is CombatOmenUse.MaxDamage);
                 encounter.ProcessPlayerAttackOutcome(outcome, target.Id, dice);
                 playerAttack = outcome;
                 attackedName = target.Name;
@@ -102,10 +106,14 @@ public class EncounterService(
         var retaliations = new List<AdversaryRetaliation>();
         if (!playerFled)
         {
+            // The omen shield covers the first hit that actually deals damage this round.
+            var omenShieldAvailable = omenUse is CombatOmenUse.ReduceDamageTaken;
             foreach (var adversary in ActiveAdversaries(encounter))
             {
                 if (character.IsDead) break;
-                var defence = character.Defend(adversary.Attack.DamageDie, dice);
+                var defence = character.Defend(adversary.Attack.DamageDie, dice,
+                    spendOmenToReduceDamage: omenShieldAvailable);
+                if (defence.OmenDamageReduction > 0) omenShieldAvailable = false;
                 encounter.ProcessPlayerDefenceOutcome(defence, adversary.Id);
                 retaliations.Add(new AdversaryRetaliation(adversary.Name, defence));
             }

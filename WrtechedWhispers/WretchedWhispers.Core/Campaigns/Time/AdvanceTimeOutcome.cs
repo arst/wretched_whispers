@@ -1,3 +1,3 @@
 namespace WretchedWhispers.Core.Campaigns.Time;
 
-public record AdvanceTimeOutcome(List<string> Miseries, bool IsWorldEnded, bool IsNewDawn);
+public record AdvanceTimeOutcome(List<string> Miseries, bool IsWorldEnded, bool IsNewDawn, int OmensRefreshed = 0);

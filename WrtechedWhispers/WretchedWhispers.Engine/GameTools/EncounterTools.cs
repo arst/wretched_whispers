@@ -93,14 +93,16 @@ public sealed class EncounterTools(
         [Description("The player's action this round: 'Attack' (strike an adversary), 'Flee' (attempt to escape), or 'Other' (the player's action was already resolved with another tool this turn - enemies still respond)")]
         string action,
         [Description("Name of the adversary to attack (Attack only; defaults to the nearest living adversary)")]
-        string? targetAdversaryName = null)
+        string? targetAdversaryName = null,
+        [Description("Optional omen spend - COSTS one of the player's omens (see Omens in Game State). 'MaxDamage': the player's attack this round deals its weapon's maximum damage. 'ReduceDamageTaken': the first hit the player suffers this round is reduced by d6. Fails if no omens remain. Only use when the player asks to spend an omen, or at a truly dramatic moment.")]
+        CombatOmenUse omenUse = CombatOmenUse.None)
     {
         if (!Enum.TryParse<PlayerRoundAction>(action, ignoreCase: true, out var roundAction))
             throw new ArgumentException(
                 $"Action '{action}' is not valid. Expected one of: Attack, Flee, Other.");
 
         var outcome = await encounterService.ResolveRound(
-            RequireEncounterId(), RequireCharacterId(), roundAction, targetAdversaryName);
+            RequireEncounterId(), RequireCharacterId(), roundAction, targetAdversaryName, omenUse);
         return CombatRoundOutcomeDto.From(outcome);
     }
 

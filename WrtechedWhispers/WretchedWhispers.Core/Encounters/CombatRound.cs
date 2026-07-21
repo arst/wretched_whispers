@@ -7,6 +7,9 @@ namespace WretchedWhispers.Core.Encounters;
 /// already resolved by a different tool this turn (scroll, item) — the round still runs retaliation.</summary>
 public enum PlayerRoundAction { Attack, Flee, Other }
 
+/// <summary>Pre-declared omen spend for one combat round. One omen per round at most.</summary>
+public enum CombatOmenUse { None, MaxDamage, ReduceDamageTaken }
+
 public enum EncounterEndReason { None, AllDefeated, PlayerFled, PlayerDead }
 
 public sealed record AdversaryRetaliation(string AdversaryName, DefenceOutcome Outcome);
