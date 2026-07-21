@@ -31,6 +31,7 @@ interface SessionState {
   worldEnded: boolean;
   currentDay: number;
   currentLocationName: string | null;
+  miseryPsalms: string[];
 
   // Actions
   setSession: (sessionId: string, status: string, messages: ChatMessageDto[], totalMessages?: number) => void;
@@ -78,6 +79,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   worldEnded: false,
   currentDay: 1,
   currentLocationName: null,
+  miseryPsalms: [],
 
   setSession: (sessionId, status, dtos, totalMessages = 0) =>
     set({
@@ -171,6 +173,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       worldEnded: update.worldEnded ?? false,
       currentDay: update.currentDay,
       currentLocationName: update.currentLocationName ?? null,
+      miseryPsalms: update.miseryPsalms ?? [],
     };
 
     if (update.characterName && update.characterHp != null) {
@@ -204,6 +207,9 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         armorTier: update.armorTier ?? "none",
         hasShield: update.hasShield ?? false,
         isShieldBroken: update.isShieldBroken ?? false,
+        // Powers
+        omens: update.characterOmens ?? 0,
+        scrolls: update.characterScrolls ?? [],
       };
     }
 
@@ -287,6 +293,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       worldEnded: false,
       currentDay: 1,
       currentLocationName: null,
+      miseryPsalms: [],
     }),
 
   toggleDrawer: () => set((s) => ({ drawerOpen: !s.drawerOpen })),

@@ -9,6 +9,7 @@ export default function JournalDrawer() {
   const sessionId = useSessionStore((s) => s.sessionId);
   const journalOpen = useSessionStore((s) => s.journalOpen);
   const toggleJournal = useSessionStore((s) => s.toggleJournal);
+  const miseryPsalms = useSessionStore((s) => s.miseryPsalms);
   const drawerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [entries, setEntries] = useState<JournalEntryDto[] | null>(null);
@@ -131,6 +132,20 @@ export default function JournalDrawer() {
         </div>
 
         <div className="px-8 pt-6 pb-8 space-y-4">
+          {miseryPsalms.length > 0 && (
+            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-pink">
+              <span className="text-xs font-bold uppercase text-doom-ash">
+                MISERIES {miseryPsalms.length}/7
+              </span>
+              <div className="mt-2 space-y-1">
+                {miseryPsalms.map((psalm) => (
+                  <div key={psalm} className="text-doom-pink text-sm">
+                    {psalm}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {entries === null && (
             <p className="text-doom-ash text-sm">Loading...</p>
           )}

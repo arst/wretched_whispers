@@ -125,6 +125,9 @@ export interface StateUpdateEvent {
   // World state
   worldEnded?: boolean;
   currentLocationName?: string | null;
+  characterOmens?: number;
+  characterScrolls?: string[];
+  miseryPsalms?: string[];
 }
 
 export interface CharacterData {
@@ -157,6 +160,9 @@ export interface CharacterData {
   armorTier: string;
   hasShield: boolean;
   isShieldBroken: boolean;
+  // Powers
+  omens: number;
+  scrolls: string[];
 }
 
 export interface SseErrorEvent {

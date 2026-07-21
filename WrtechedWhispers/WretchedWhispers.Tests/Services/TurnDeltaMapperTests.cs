@@ -109,5 +109,8 @@ public class TurnDeltaMapperTests
         HasShield: false,
         IsShieldBroken: false,
         WorldEnded: false,
-        CurrentLocationName: null);
+        CurrentLocationName: null,
+        CharacterOmens: 0,
+        CharacterScrolls: [],
+        MiseryPsalms: []);
 }
