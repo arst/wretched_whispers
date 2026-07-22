@@ -9,7 +9,7 @@ export interface SessionPreviewDto {
   characterName: string | null;
   currentHp: number | null;
   maxHp: number | null;
-  status: "character-creation" | "in-progress" | "ended";
+  status: "character-creation" | "in-progress" | "ended" | "fallen";
   difficulty: Difficulty;
   lastPlayed: string | null;
 }
@@ -174,6 +174,11 @@ export interface JournalEntryDto {
   text: string;
   day: number;
   hour: number;
+}
+
+export interface FallenCharacterDto {
+  name: string;
+  dayDied: number;
 }
 
 export interface PoiDto {
