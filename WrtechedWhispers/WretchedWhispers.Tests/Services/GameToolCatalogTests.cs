@@ -37,7 +37,7 @@ public class GameToolCatalogTests
     }
 
     [Fact]
-    public void Exploration_ExposesExactlyFourteenTools()
+    public void Exploration_ExposesExactlyFifteenTools()
     {
         Assert.Equal(
             new[]
@@ -55,7 +55,8 @@ public class GameToolCatalogTests
                 "Dice.Roll",
                 "Encounter.AddAdversaryToEncounter",
                 "Encounter.CreateEncounter",
-                "Encounter.StartEncounter"
+                "Encounter.StartEncounter",
+                "Encounter.TurnEncounterHostile"
             },
             Flatten(SessionStage.Exploration));
     }

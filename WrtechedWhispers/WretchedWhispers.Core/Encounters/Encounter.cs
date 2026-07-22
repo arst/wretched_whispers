@@ -9,7 +9,8 @@ public sealed class Encounter
 {
     [JsonConstructor]
     private Encounter(Guid id, EncounterType initialType, EncounterType currentType, string name, string description,
-        List<Adversary> adversaries, bool isStarted = false, bool isEnded = false, bool isResolved = false)
+        List<Adversary> adversaries, bool isStarted = false, bool isEnded = false, bool isResolved = false,
+        InitialReaction? reaction = null, int? reactionRoll = null)
     {
         Id = id;
         InitialType = initialType;
@@ -20,6 +21,8 @@ public sealed class Encounter
         IsStarted = isStarted;
         IsEnded = isEnded;
         IsResolved = isResolved;
+        Reaction = reaction;
+        ReactionRoll = reactionRoll;
     }
 
     private Encounter(Guid id, EncounterType initialType, string name, string description)
@@ -30,6 +33,8 @@ public sealed class Encounter
     public Guid Id { get; }
     public EncounterType InitialType { get; }
     [JsonInclude] public EncounterType CurrentType { get; private set; }
+    [JsonInclude] public InitialReaction? Reaction { get; private set; }
+    [JsonInclude] public int? ReactionRoll { get; private set; }
     public string Name { get; }
     public string Description { get; }
     [JsonInclude] public List<Adversary> Adversaries { get; private set; }
@@ -49,6 +54,9 @@ public sealed class Encounter
 
     public void StartEncounter()
     {
+        if (CurrentType == EncounterType.Friendly)
+            throw new InvalidOperationException(
+                "The encounter is friendly — call TurnEncounterHostile first; the fiction must escalate before combat can start.");
         if (Adversaries.Count == 0)
             throw new InvalidOperationException("Can't start an encounter without adversaries.");
         IsStarted = true;
@@ -62,6 +70,14 @@ public sealed class Encounter
         if (anyActiveAdversaries)
             throw new InvalidOperationException("Can't end an encounter with active adversaries.");
         IsEnded = true;
+    }
+
+    /// <summary>Escalates a friendly meeting to hostile (player aggression, collapsed talks).
+    /// Idempotent when already hostile; only a finished encounter refuses.</summary>
+    public void TurnHostile()
+    {
+        if (IsEnded) throw new InvalidOperationException("Can't turn a finished encounter hostile.");
+        ElevateToHostile();
     }
 
     /// <summary>Ends the encounter because the player escaped — adversaries may still be active.</summary>
@@ -107,14 +123,28 @@ public sealed class Encounter
     private void Initiate(EncounterType initialType, Dice dice)
     {
         if (initialType is not EncounterType.Unknown)
+        {
+            CurrentType = initialType;
             return;
+        }
 
-        var reaction = RollInitialReaction(dice);
-        if (reaction is InitialReaction.Kill or InitialReaction.Angered)
+        var rollResult = dice.Roll(DiceExpr.D(2, 6));
+        ReactionRoll = rollResult;
+        Reaction = MapReaction(rollResult);
+        if (Reaction is InitialReaction.Kill or InitialReaction.Angered)
             ElevateToHostile();
         else
             ElevateToFriendly();
     }
+
+    private static InitialReaction MapReaction(int rollResult) => rollResult switch
+    {
+        2 or 3 => InitialReaction.Kill,
+        >= 4 and <= 6 => InitialReaction.Angered,
+        7 or 8 => InitialReaction.Indifferent,
+        9 or 10 => InitialReaction.AlmostFriendly,
+        _ => InitialReaction.Helpful
+    };
 
     private void ElevateToFriendly()
     {
@@ -124,21 +154,6 @@ public sealed class Encounter
     private void ElevateToHostile()
     {
         CurrentType = EncounterType.Hostile;
-    }
-
-    private static InitialReaction RollInitialReaction(Dice dice)
-    {
-        var initialReactionDiceExpr = DiceExpr.D(2, 6);
-        var rollResult = dice.Roll(initialReactionDiceExpr);
-
-        return rollResult switch
-        {
-            2 or 3 => InitialReaction.Kill,
-            >= 4 and <= 6 => InitialReaction.Angered,
-            7 or 8 => InitialReaction.Indifferent,
-            9 or 10 => InitialReaction.AlmostFriendly,
-            _ => InitialReaction.Helpful
-        };
     }
 
     private bool ShouldCheckMorale()

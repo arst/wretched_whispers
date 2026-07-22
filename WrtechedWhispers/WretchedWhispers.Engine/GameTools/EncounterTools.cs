@@ -36,9 +36,10 @@ public sealed class EncounterTools(
     public async Task<EncounterDto> CreateEncounter(
         [Description("The name of the encounter")] string name,
         [Description("A description of the encounter setting or narrative context")] string description,
-        [Description("Initial type: Friendly, Hostile, or Unknown")] string initialEncounterType)
+        [Description("Initial type. 'Unknown' = the domain rolls the Mörk Borg reaction table and returns the result — the DEFAULT for any first meeting whose attitude the fiction leaves open. Pre-declare 'Hostile' or 'Friendly' ONLY when the fiction predetermines the attitude (an ambush, a sworn enemy, a hired guide).")] string initialEncounterType)
     {
-        if (!Enum.TryParse(initialEncounterType, out EncounterType type))
+        if (!Enum.TryParse(initialEncounterType, ignoreCase: true, out EncounterType type)
+            || !Enum.IsDefined(type))
             throw new ArgumentException(
                 $"Encounter type {initialEncounterType} is not valid. Expected one of: Friendly, Hostile, Unknown.");
 
@@ -87,6 +88,14 @@ public sealed class EncounterTools(
         return CreateEncounterDto(encounter);
     }
 
+    [Description("Escalate the current encounter to Hostile. Use ONLY when the fiction legitimately escalates — the player attacks first, negotiation collapses, treachery is revealed. Never use it to override a rolled reaction without in-fiction cause. Required before StartEncounter when the encounter is Friendly.")]
+    [GameTool(SessionStage.Exploration)]
+    public async Task<EncounterDto> TurnEncounterHostile()
+    {
+        var encounter = await encounterService.TurnHostile(RequireEncounterId());
+        return CreateEncounterDto(encounter);
+    }
+
     [Description("Resolve EXACTLY ONE combat round from the player's action: resolves the player's attack or flee attempt, then every living adversary's retaliation, morale, and ends the encounter automatically when the fight is over. Call it once per player combat action — never more.")]
     [GameTool(SessionStage.Combat)]
     public async Task<CombatRoundOutcomeDto> ResolveCombatRound(
@@ -129,6 +138,9 @@ public sealed class EncounterTools(
         Id = encounter.Id,
         Name = encounter.Name,
         Description = encounter.Description,
+        Disposition = encounter.CurrentType.ToString(),
+        Reaction = encounter.Reaction?.ToString(),
+        ReactionRoll = encounter.ReactionRoll,
         Adversaries = encounter.Adversaries.Select(e => new AdversaryDto
         {
             Id = e.Id,

@@ -48,6 +48,16 @@ public class EncounterService(
         return encounter;
     }
 
+    public async Task<Encounter> TurnHostile(Guid encounterId)
+    {
+        var encounter = await encountersRepository.Get(encounterId) ??
+                        throw new InvalidOperationException("Encounter not found");
+        encounter.TurnHostile();
+        await encountersRepository.Save(encounter);
+
+        return encounter;
+    }
+
     public async Task<bool> IsEncounterActive(Guid encounterId)
     {
         var encounter = await encountersRepository.Get(encounterId) ??
