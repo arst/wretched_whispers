@@ -157,14 +157,7 @@ public static class SessionEndpoints
 
             var status = DeriveStatus(campaign, character, firstPlayerId);
 
-            // Check last played by looking at sessions for the campaign
-            DateTime? lastPlayed = null;
-            var sessions = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
-            if (sessions.Count > 0)
-            {
-                // Use campaign creation as proxy since we don't track timestamps on chat sessions yet
-                lastPlayed = DateTime.UtcNow;
-            }
+            var lastPlayed = await chatHistoryRepo.GetLastActivity(campaign.Id);
 
             previews.Add(new SessionPreviewDto(
                 campaign.Id,
@@ -178,7 +171,7 @@ public static class SessionEndpoints
                 lastPlayed));
         }
 
-        return Results.Ok(previews);
+        return Results.Ok(previews.OrderByDescending(p => p.LastPlayed ?? DateTime.MinValue));
     }
 
     private static async Task<IResult> GetSessionDetail(

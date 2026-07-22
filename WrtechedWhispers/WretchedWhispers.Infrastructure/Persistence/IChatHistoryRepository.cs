@@ -11,6 +11,7 @@ public interface IChatHistoryRepository
     Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default);
     Task<Guid> CreateSession(Guid campaignId, CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetSessionsForCampaign(Guid campaignId, CancellationToken ct = default);
+    Task<DateTime?> GetLastActivity(Guid campaignId, CancellationToken ct = default);
     Task<ChatSummary?> GetSummary(Guid sessionId, CancellationToken ct = default);
     Task SaveSummary(Guid sessionId, ChatSummary summary, CancellationToken ct = default);
 }

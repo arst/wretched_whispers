@@ -33,6 +33,23 @@ public class ChatHistoryRoundTripTests : IDisposable
     }
 
     [Fact]
+    public async Task GetLastActivity_TracksMessagesAndFallsBackToSessionStart()
+    {
+        var campaignId = Guid.NewGuid();
+
+        Assert.Null(await _repo.GetLastActivity(campaignId));
+
+        var sessionId = await _repo.CreateSession(campaignId);
+        var afterCreate = await _repo.GetLastActivity(campaignId);
+        Assert.NotNull(afterCreate);
+
+        await _repo.SaveMessage(sessionId, new ChatMessage(ChatRole.User, "hello"));
+        var afterMessage = await _repo.GetLastActivity(campaignId);
+        Assert.NotNull(afterMessage);
+        Assert.True(afterMessage >= afterCreate);
+    }
+
+    [Fact]
     public async Task SaveMessage_LoadSession_RoundTripsSimpleUserTextMessage()
     {
         var campaignId = Guid.NewGuid();
