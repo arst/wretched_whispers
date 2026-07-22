@@ -105,7 +105,7 @@ export interface StateUpdateEvent {
   characterInventory?: string[];
   characterSilver?: number;
   miseryCount: number;
-  status: "character-creation" | "in-progress" | "ended";
+  status: "character-creation" | "in-progress" | "ended" | "fallen";
   // Injuries (from Plan 01 backend enrichment, per D-08)
   hasLostEye?: boolean;
   hasStabbedLung?: boolean;

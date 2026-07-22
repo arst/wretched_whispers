@@ -293,7 +293,8 @@ public static class SessionEndpoints
         ICampaignsRepository campaignsRepo,
         ICharactersRepository charactersRepo,
         IChatHistoryRepository chatHistoryRepo,
-        ChatHistoryReducer chatHistoryReducer)
+        ChatHistoryReducer chatHistoryReducer,
+        SessionConcurrencyGuard guard)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -305,35 +306,49 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        if (campaign.WorldEnded || campaign.IsEnded)
-            return Results.Conflict(new { error = "This world has ended. Nothing walks it now." });
+        if (!await guard.TryAcquire(sessionId))
+            return Results.Conflict(new { error = "GM response already in progress" });
 
-        var firstPlayerId = campaign.Players.FirstOrDefault();
-        if (firstPlayerId == Guid.Empty)
-            return Results.Conflict(new { error = "No character to bury." });
+        try
+        {
+            if (campaign.WorldEnded || campaign.IsEnded)
+                return Results.Conflict(new { error = "This world has ended. Nothing walks it now." });
 
-        var character = await charactersRepo.Get(firstPlayerId);
-        if (character is null || !character.IsDead)
-            return Results.Conflict(new { error = "The wretch still breathes." });
+            var firstPlayerId = campaign.Players.FirstOrDefault();
+            if (firstPlayerId == Guid.Empty)
+                return Results.Conflict(new { error = "No character to bury." });
 
-        var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
-        var fallenChronicleId = chronicles.FirstOrDefault();
+            var character = await charactersRepo.Get(firstPlayerId);
+            if (character is null || !character.IsDead)
+                return Results.Conflict(new { error = "The wretch still breathes." });
 
-        campaign.BuryCharacter(character.Id, character.Name);
-        await campaignsRepo.SaveCampaign(campaign, userId);
+            var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
+            var fallenChronicleId = chronicles.FirstOrDefault();
 
-        // The new chronicle becomes the active one (newest-first ordering). Epitaph is best-effort.
-        var newChronicleId = await chatHistoryRepo.CreateSession(campaign.Id);
-        if (fallenChronicleId != Guid.Empty)
-            await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, http.RequestAborted);
+            // Create the new chronicle first: if burial/save then fails, the campaign stays
+            // unburied (retryable) and the orphan chronicle is just an empty, harmless row —
+            // never a dead wretch stuck resuming inside their own chronicle. No compensation.
+            var newChronicleId = await chatHistoryRepo.CreateSession(campaign.Id);
 
-        return Results.Ok(new { status = "character-creation" });
+            campaign.BuryCharacter(character.Id, character.Name);
+            await campaignsRepo.SaveCampaign(campaign, userId);
+
+            if (fallenChronicleId != Guid.Empty)
+                await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, http.RequestAborted);
+
+            return Results.Ok(new { status = "character-creation" });
+        }
+        finally
+        {
+            guard.Release(sessionId);
+        }
     }
 
     private static async Task<IResult> AbandonSession(
         Guid sessionId,
         HttpContext http,
-        ICampaignsRepository campaignsRepo)
+        ICampaignsRepository campaignsRepo,
+        SessionConcurrencyGuard guard)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -345,12 +360,22 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        if (!campaign.IsActive())
-            return Results.Conflict(new { error = "This campaign has already ended." });
+        if (!await guard.TryAcquire(sessionId))
+            return Results.Conflict(new { error = "GM response already in progress" });
 
-        campaign.End();
-        await campaignsRepo.SaveCampaign(campaign, userId);
-        return Results.Ok(new { status = "ended" });
+        try
+        {
+            if (!campaign.IsActive())
+                return Results.Conflict(new { error = "This campaign has already ended." });
+
+            campaign.End();
+            await campaignsRepo.SaveCampaign(campaign, userId);
+            return Results.Ok(new { status = "ended" });
+        }
+        finally
+        {
+            guard.Release(sessionId);
+        }
     }
 
     private static async Task<IResult> GetSessionMessages(

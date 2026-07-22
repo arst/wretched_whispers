@@ -29,13 +29,17 @@ export default function JournalDrawer() {
   useEffect(() => {
     if (!journalOpen || !sessionId) return;
     setEntries(null);
+    setFallen([]);
     apiFetch(`/sessions/${sessionId}/journal`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
         setEntries(data.entries);
         setFallen(data.fallen ?? []);
       })
-      .catch(() => setEntries([]));
+      .catch(() => {
+        setEntries([]);
+        setFallen([]);
+      });
   }, [journalOpen, sessionId]);
 
   // Focus trap

@@ -455,6 +455,37 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     [Fact]
+    public async Task Successor_AlreadyEnded_ReturnsConflict()
+    {
+        var token = await RegisterAndLogin("successor-ended@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId"));
+
+        await SeedCharacterInCampaign(campaignId, dead: false);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+            var entity = await db.Campaigns.FindAsync(campaignId)
+                ?? throw new InvalidOperationException("seed campaign missing");
+            sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+            var campaign = await campaignsRepo.Get(campaignId)
+                ?? throw new InvalidOperationException("campaign missing");
+            campaign.End();
+            await campaignsRepo.SaveCampaign(campaign);
+        }
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/successor", token));
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Journal_IncludesFallenCharacters()
     {
         var token = await RegisterAndLogin("journal-fallen@test.com");
