@@ -38,7 +38,8 @@ public sealed class EncounterTools(
         [Description("A description of the encounter setting or narrative context")] string description,
         [Description("Initial type. 'Unknown' = the domain rolls the Mörk Borg reaction table and returns the result — the DEFAULT for any first meeting whose attitude the fiction leaves open. Pre-declare 'Hostile' or 'Friendly' ONLY when the fiction predetermines the attitude (an ambush, a sworn enemy, a hired guide).")] string initialEncounterType)
     {
-        if (!Enum.TryParse(initialEncounterType, out EncounterType type))
+        if (!Enum.TryParse(initialEncounterType, ignoreCase: true, out EncounterType type)
+            || !Enum.IsDefined(type))
             throw new ArgumentException(
                 $"Encounter type {initialEncounterType} is not valid. Expected one of: Friendly, Hostile, Unknown.");
 

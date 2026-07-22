@@ -238,6 +238,13 @@ public class GameToolsTests
     }
 
     [Fact]
+    public async Task CreateEncounter_NumericType_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => EncounterTools().CreateEncounter("Strangers", "Figures in the fog", "5"));
+    }
+
+    [Fact]
     public async Task TurnEncounterHostile_FlipsDisposition()
     {
         var encounter = Encounter.Create("Guide", "A hired guide", EncounterType.Friendly, _zeroDice);

@@ -56,7 +56,7 @@ public sealed class Encounter
     {
         if (CurrentType == EncounterType.Friendly)
             throw new InvalidOperationException(
-                "The encounter is friendly — call TurnHostile first; the fiction must escalate before combat can start.");
+                "The encounter is friendly — call TurnEncounterHostile first; the fiction must escalate before combat can start.");
         if (Adversaries.Count == 0)
             throw new InvalidOperationException("Can't start an encounter without adversaries.");
         IsStarted = true;

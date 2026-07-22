@@ -51,7 +51,7 @@ every ambush without fixing this first.
   - `Unknown` path: roll once, store both `Reaction` and `ReactionRoll`, then collapse as
     today (Kill/Angered → Hostile, else Friendly).
 - `StartEncounter()`: throws `InvalidOperationException` while `CurrentType == Friendly`
-  ("The encounter is friendly — call TurnHostile first; the fiction must escalate before
+  ("The encounter is friendly — call TurnEncounterHostile first; the fiction must escalate before
   combat can start."). Existing adversary-count guard unchanged.
 - New `public void TurnHostile()`: throws `InvalidOperationException` if `IsEnded`; otherwise
   sets `CurrentType = Hostile`. **Idempotent** — a no-op when already Hostile or already
@@ -109,8 +109,9 @@ covering:
   Hostile (the player attacking IS fiction-predetermined). Accepted, not a gap.
 - **Legacy blobs** — pre-deploy encounters persist `CurrentType = Friendly` even when declared
   Hostile (the latent bug). Unstarted ones are never reloaded; already-started ones never pass
-  through `StartEncounter` again (`ResolveRound` doesn't check `CurrentType`). Worst case
-  self-heals via `TurnHostile`. No migration.
+  through `StartEncounter` again (`ResolveRound` doesn't check `CurrentType`). Worst case is a
+  legacy mid-combat session showing `Disposition: Friendly` in the snapshot; combat itself
+  proceeds unaffected (`ResolveRound` never reads `CurrentType`). No migration.
 - **Residual (named, not fixed):** `SessionContextLoader` does one repository `Get` per
   attached encounter id until it finds a started-unresolved one; faded encounters lengthen
   that scan marginally. Pre-existing cost class.

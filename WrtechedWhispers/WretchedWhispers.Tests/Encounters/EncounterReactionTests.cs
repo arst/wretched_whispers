@@ -21,9 +21,14 @@ public sealed class EncounterReactionTests : TestBase
     // Mock is 0-based per die: SetupDiceRolls(a, b) -> 2d6 total a + b + 2.
     [Theory]
     [InlineData(0, 0, 2, InitialReaction.Kill, EncounterType.Hostile)]
+    [InlineData(1, 0, 3, InitialReaction.Kill, EncounterType.Hostile)]
     [InlineData(1, 1, 4, InitialReaction.Angered, EncounterType.Hostile)]
+    [InlineData(2, 2, 6, InitialReaction.Angered, EncounterType.Hostile)]
     [InlineData(3, 2, 7, InitialReaction.Indifferent, EncounterType.Friendly)]
+    [InlineData(3, 3, 8, InitialReaction.Indifferent, EncounterType.Friendly)]
     [InlineData(4, 3, 9, InitialReaction.AlmostFriendly, EncounterType.Friendly)]
+    [InlineData(4, 4, 10, InitialReaction.AlmostFriendly, EncounterType.Friendly)]
+    [InlineData(5, 4, 11, InitialReaction.Helpful, EncounterType.Friendly)]
     [InlineData(5, 5, 12, InitialReaction.Helpful, EncounterType.Friendly)]
     public void UnknownCreation_RollsAndStoresReaction(
         int die1, int die2, int expectedRoll, InitialReaction expectedReaction, EncounterType expectedType)
