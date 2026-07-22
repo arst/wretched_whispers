@@ -21,7 +21,7 @@ public sealed class ResolveRoundTests : TestBase
         new(Dice, _charactersRepo.Object, _encountersRepo.Object);
 
     private (Encounter encounter, Character character) Arrange(int adversaries = 1, int adversaryHp = 4,
-        int startingOmens = 0)
+        int startingOmens = 0, int characterHp = 20)
     {
         var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
         for (var i = 0; i < adversaries; i++)
@@ -30,7 +30,7 @@ public sealed class ResolveRoundTests : TestBase
                 new AttackProfile("claws", DiceExpr.Parse("d4"))));
         encounter.StartEncounter();
 
-        var character = TestCharacters.Create(Dice, startingOmens: startingOmens);
+        var character = TestCharacters.Create(Dice, startingOmens: startingOmens, maxHp: characterHp);
         _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
         _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
         return (encounter, character);
@@ -208,6 +208,30 @@ public sealed class ResolveRoundTests : TestBase
         Assert.Equal(EncounterEndReason.PlayerDead, outcome.EndReason);
         Assert.True(outcome.EncounterEnded);
         Assert.False(encounter.IsEnded); // stage derivation handles player death, not the encounter
+        Assert.Equal(0, outcome.PlayerCurrentHp);
+        Assert.False(outcome.PlayerBroken); // dead is not Broken
+    }
+
+    [Fact]
+    public async Task Retaliation_ZeroesPlayerButSurvivesBroken_ReportsBrokenAlive_NotDead()
+    {
+        // The fabrication guard for combat: a claw drops a 1-HP wretch to 0, the Broken table rolls an
+        // injury (survives). The round must report PlayerBroken=true, PlayerCurrentHp=0, IsDead=false —
+        // so the narrator describes a collapse, not a death.
+        var (encounter, character) = Arrange(adversaries: 1, characterHp: 1);
+        // d20 defence 5 (fail vs 12), d4 claw 1 (1 HP -> 0), Broken d4 = 3 (injury branch, survives),
+        // injury d6 = 3 (SmashedFace).
+        SetupDiceRolls(4, 0, 2, 2);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null);
+
+        Assert.False(character.IsDead);
+        Assert.True(character.HasSmashedFace);
+        Assert.Equal(0, outcome.PlayerCurrentHp);
+        Assert.True(outcome.PlayerBroken);
+        Assert.Equal(EncounterEndReason.None, outcome.EndReason);
+        Assert.False(outcome.EncounterEnded);
     }
 
     [Fact]

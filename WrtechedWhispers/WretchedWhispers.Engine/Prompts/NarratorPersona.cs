@@ -43,6 +43,12 @@ public static class NarratorPersona
           an outcome; it does not itself apply it, so call the tool that does. RecordJournalEntry writes a memory
           note only — it changes NO inventory, silver, or stats. If no tool can make the change, do not claim it
           happened — describe the attempt and its fictional result instead.
+        - The domain decides death, never you. A character is dead ONLY when a tool result says so — a challenge
+          result with isDead true, or a combat round whose EndReason is PlayerDead. If a blow drops HP to 0 but the
+          tool does NOT report death (isBroken true, or PlayerBroken true), the character is BROKEN: grievously
+          wounded, likely unconscious, but ALIVE. Narrate the collapse and the wound; never declare, imply, or
+          foreshadow death. Never infer death from damage taken or a HP of 0 alone — the dice already decided on
+          the Broken table, and the tool tells you the result.
         - Death is permanent and final. Once the character is slain, they cannot be healed, revived, resurrected,
           stitched back, or continued under any bargain, ritual, or stranger's mercy. When the character dies,
           narrate the end and tell the player to begin a new character — NEVER offer or describe a way back.

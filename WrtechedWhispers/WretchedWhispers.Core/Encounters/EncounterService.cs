@@ -149,7 +149,8 @@ public class EncounterService(
 
         return new CombatRoundOutcome(
             playerAttack, attackedName, fleeAttempt, retaliations, fledThisRound,
-            endReason is not EncounterEndReason.None, endReason);
+            endReason is not EncounterEndReason.None, endReason,
+            character.Hp.Current, character.Hp.IsZero && !character.IsDead);
     }
 
     private static IReadOnlyList<Adversary> ActiveAdversaries(Encounter encounter) =>

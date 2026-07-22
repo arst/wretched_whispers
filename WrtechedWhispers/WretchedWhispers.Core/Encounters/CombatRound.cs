@@ -15,7 +15,9 @@ public enum EncounterEndReason { None, AllDefeated, PlayerFled, PlayerDead }
 public sealed record AdversaryRetaliation(string AdversaryName, DefenceOutcome Outcome);
 
 /// <summary>Everything that happened in one domain-resolved combat round, in resolution order:
-/// player action, adversary retaliation, morale flights, and whether the encounter ended.</summary>
+/// player action, adversary retaliation, morale flights, and whether the encounter ended.
+/// PlayerCurrentHp/PlayerBroken carry the player's post-round condition so the model narrates the
+/// domain truth: PlayerBroken (0 HP, survived with an injury) is ALIVE, not dead.</summary>
 public sealed record CombatRoundOutcome(
     AttackOutcome? PlayerAttack,
     string? PlayerAttackTarget,
@@ -23,4 +25,6 @@ public sealed record CombatRoundOutcome(
     IReadOnlyList<AdversaryRetaliation> Retaliations,
     IReadOnlyList<string> AdversariesFledThisRound,
     bool EncounterEnded,
-    EncounterEndReason EndReason);
+    EncounterEndReason EndReason,
+    int PlayerCurrentHp,
+    bool PlayerBroken);
