@@ -49,9 +49,14 @@ export default function SessionCard({ session }: SessionCardProps) {
       }`}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
-        <h3 className="font-display text-doom-yellow text-lg tracking-wider leading-tight">
-          {session.campaignName}
-        </h3>
+        <div>
+          <h3 className="font-display text-doom-yellow text-lg tracking-wider leading-tight">
+            {session.campaignName}
+          </h3>
+          {session.characterName && (
+            <p className="text-doom-bone text-sm mt-0.5">{session.characterName}</p>
+          )}
+        </div>
         <span
           className={`text-xs uppercase tracking-wider border px-2 py-0.5 shrink-0 ${statusStyles[session.status]}`}
         >
@@ -66,9 +71,6 @@ export default function SessionCard({ session }: SessionCardProps) {
       )}
 
       <div className="flex items-center gap-4 text-xs text-doom-ash">
-        {session.characterName && (
-          <span className="text-doom-bone">{session.characterName}</span>
-        )}
         {session.currentHp !== null && session.maxHp !== null && (
           <span>
             HP: {session.currentHp}/{session.maxHp}

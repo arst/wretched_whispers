@@ -41,6 +41,22 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             .ToListAsync(ct);
     }
 
+    public async Task<DateTime?> GetLastActivity(Guid campaignId, CancellationToken ct = default)
+    {
+        var sessionIds = _db.ChatSessions
+            .Where(s => s.CampaignId == campaignId)
+            .Select(s => s.Id);
+
+        var lastMessage = await _db.ChatMessages
+            .Where(m => sessionIds.Contains(m.SessionId))
+            .MaxAsync(m => (DateTime?)m.Timestamp, ct);
+
+        // A session with no messages yet still counts as activity (just created).
+        return lastMessage ?? await _db.ChatSessions
+            .Where(s => s.CampaignId == campaignId)
+            .MaxAsync(s => (DateTime?)s.StartedAt, ct);
+    }
+
     public async Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default)
     {
         var orderIndex = await _db.ChatMessages
