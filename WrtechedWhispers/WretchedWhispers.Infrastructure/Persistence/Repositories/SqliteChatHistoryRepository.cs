@@ -35,8 +35,10 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
 
     public async Task<IReadOnlyList<Guid>> GetSessionsForCampaign(Guid campaignId, CancellationToken ct = default)
     {
+        // Newest-first: the head of the list is the ACTIVE chronicle (one chat session per wretch).
         return await _db.ChatSessions
             .Where(s => s.CampaignId == campaignId)
+            .OrderByDescending(s => s.StartedAt)
             .Select(s => s.Id)
             .ToListAsync(ct);
     }
