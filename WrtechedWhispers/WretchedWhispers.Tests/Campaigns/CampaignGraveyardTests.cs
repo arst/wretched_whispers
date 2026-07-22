@@ -87,7 +87,7 @@ public sealed class CampaignGraveyardTests : TestBase
         using var doc = JsonDocument.Parse(json);
         var stripped = new Dictionary<string, JsonElement>();
         foreach (var prop in doc.RootElement.EnumerateObject())
-            if (prop.Name != "Fallen")
+            if (prop.Name != "fallen")
                 stripped[prop.Name] = prop.Value;
         var legacyJson = JsonSerializer.Serialize(stripped);
 
