@@ -57,6 +57,19 @@ public sealed class SessionContext
         _ => "in-progress"
     };
 
+    // "fallen" is the one status that is not a pure function of the stage: the stage is Ended, but the
+    // death is recoverable — the player may bury the wretch and roll a new one. World-ended and an
+    // explicitly ended campaign remain terminal.
+    public string DeriveStatus()
+    {
+        var stage = DeriveStage();
+        if (stage == SessionStage.Ended
+            && Character is { IsDead: true }
+            && Campaign is { WorldEnded: false, IsEnded: false })
+            return "fallen";
+        return StatusFor(stage);
+    }
+
     public void SetCharacterId(Guid id) => CharacterId = id;
     public void SetCampaignId(Guid id) => CampaignId = id;
     public void SetActiveEncounterId(Guid id) => ActiveEncounterId = id;

@@ -340,6 +340,6 @@ public static class SessionEndpoints
         context.SetCampaignId(campaign.Id);
         if (firstPlayerId != Guid.Empty)
             context.SetCharacterId(firstPlayerId);
-        return SessionContext.StatusFor(context.DeriveStage());
+        return context.DeriveStatus();
     }
 }
