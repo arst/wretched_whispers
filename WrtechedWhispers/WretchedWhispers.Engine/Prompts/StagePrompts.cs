@@ -32,6 +32,12 @@ public static class StagePrompts
         (weave in the REAL numbers the tools returned), and the rotting town they wake in. End by
         handing control over -- describe the world around them and ask what they do. Do not present
         a rigid A/B/C/D menu as if the list is the game; offer the world and let them act.
+
+        SUCCESSOR OPENINGS — if Game State lists fallen wretches, this is not the world's first
+        tale: a predecessor died here and the world ground on without them. Frame the opening as
+        another doomed soul stepping into the SAME dying world — the map, journal, and miseries in
+        Game State are its living history; reference them. The dead stay dead: never offer the
+        fallen wretch as playable, never revive them, and their gear is lost with the corpse.
         """;
 
     private const string CampaignSetup = """

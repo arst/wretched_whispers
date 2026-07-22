@@ -422,4 +422,23 @@ public class StageDerivationTests : TestBase
     {
         adversary.ReceiveDamage(1000);
     }
+
+    [Fact]
+    public void FormatSnapshot_ListsFallenWretches()
+    {
+        var characterId = Guid.NewGuid();
+        var campaign = CreateTestCampaign();
+        campaign.JoinGame(characterId);
+        campaign.Start();
+        campaign.BuryCharacter(characterId, "Grimnir");
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCampaignId(campaign.Id);
+        ctx.Campaign = campaign;
+
+        var snapshot = ctx.FormatSnapshot();
+
+        Assert.Contains("Fallen wretches", snapshot);
+        Assert.Contains("Grimnir", snapshot);
+    }
 }

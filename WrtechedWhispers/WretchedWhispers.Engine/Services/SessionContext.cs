@@ -128,6 +128,13 @@ public sealed class SessionContext
                 if (Campaign.CurrentLocationName is not null)
                     sb.AppendLine($"  Party location: {Campaign.CurrentLocationName}");
             }
+
+            if (Campaign.FallenCharacters.Count > 0)
+            {
+                sb.AppendLine("  Fallen wretches (dead, gone, unrecoverable):");
+                foreach (var f in Campaign.FallenCharacters)
+                    sb.AppendLine($"    - {f.Name}, died day {f.DayDied}");
+            }
         }
 
         if (ActiveEncounter is not null)
