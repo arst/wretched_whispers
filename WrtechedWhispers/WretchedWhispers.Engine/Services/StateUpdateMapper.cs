@@ -73,7 +73,7 @@ public static class StateUpdateMapper
 
         var derivedStage = context.DeriveStage();
         var stage = derivedStage.ToString().ToLowerInvariant();
-        var status = SessionContext.StatusFor(derivedStage);
+        var status = context.DeriveStatus();
 
         return new StateUpdate(
             CampaignId: campaign?.Id,

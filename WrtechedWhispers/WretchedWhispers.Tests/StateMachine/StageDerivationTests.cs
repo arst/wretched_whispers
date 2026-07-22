@@ -189,10 +189,11 @@ public class StageDerivationTests : TestBase
     }
 
     [Fact]
-    public void Dead_character_maps_to_ended_status_even_while_campaign_is_active()
+    public void Dead_character_maps_to_fallen_status_even_while_campaign_is_active()
     {
         // Regression: nothing calls Campaign.End() on death, so IsActive() stays true. Status must
-        // still be "ended" because it derives from the stage (which counts death), not campaign flags.
+        // still be "fallen" (recoverable death) because it derives from the stage (which counts death)
+        // plus the world/campaign not being terminally over — not from campaign flags alone.
         MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
         var character = CreateTestCharacter(Dice, maxHp: 1);
         var campaign = CreateTestCampaign();
@@ -208,7 +209,92 @@ public class StageDerivationTests : TestBase
 
         Assert.True(character.IsDead);
         Assert.True(campaign.IsActive()); // the trap the old campaign-only status logic fell into
-        Assert.Equal("ended", SessionContext.StatusFor(ctx.DeriveStage()));
+        Assert.Equal("fallen", ctx.DeriveStatus());
+    }
+
+    [Fact]
+    public async Task DeriveStatus_DeadCharacter_WorldAlsoEnded_IsEnded_NotFallen()
+    {
+        // Kill the character first (same lethal-defend idiom as Character_dead_returns_Ended).
+        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
+        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var campaign = CreateTestCampaign();
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        character.Defend(DiceExpr.D6, Dice); // lethal
+
+        // Campaign.AdvanceTime is internal to Core, so the only public way to drive 7 real dawns from
+        // this assembly is through CampaignService — same mocked-repository idiom as CampaignServiceTests.
+        var campaignsRepository = new Mock<ICampaignsRepository>();
+        var charactersRepository = new Mock<ICharactersRepository>();
+        campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        charactersRepository.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        var campaignService = new CampaignService(campaignsRepository.Object, charactersRepository.Object, Dice);
+
+        // 7 dawns: each is a dawn roll of 1 (triggers a misery), a unique two-digit misery code, and the
+        // still-joined dead character's daily power reset (StartNewDay rolls its own die) — all drawn from
+        // the same dice queue, in call order.
+        var rolls = new List<int>();
+        for (var day = 0; day < 7; day++)
+        {
+            rolls.Add(0); // dawn roll -> 1 (triggers)
+            rolls.Add(day); // misery die 1 -> day+1
+            rolls.Add(0); // misery die 2 -> 1 (codes "11","21",...,"71": all unique)
+            rolls.Add(0); // StartNewDay's powers-reset roll (value irrelevant here)
+        }
+        SetupDiceRolls(rolls.ToArray());
+
+        for (var day = 0; day < 7; day++)
+            await campaignService.AdvanceTime(campaign.Id, 24);
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCharacterId(character.Id);
+        ctx.SetCampaignId(campaign.Id);
+        ctx.Character = character;
+        ctx.Campaign = campaign;
+
+        Assert.True(campaign.WorldEnded);
+        Assert.Equal("ended", ctx.DeriveStatus());
+    }
+
+    [Fact]
+    public void DeriveStatus_AbandonedCampaign_IsEnded_NotFallen()
+    {
+        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
+        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var campaign = CreateTestCampaign();
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        character.Defend(DiceExpr.D6, Dice); // lethal
+        campaign.End();
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCharacterId(character.Id);
+        ctx.SetCampaignId(campaign.Id);
+        ctx.Character = character;
+        ctx.Campaign = campaign;
+
+        Assert.Equal("ended", ctx.DeriveStatus());
+    }
+
+    [Fact]
+    public void DeriveStatus_BuriedCharacter_ActiveCampaign_IsCharacterCreation()
+    {
+        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
+        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var campaign = CreateTestCampaign();
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        character.Defend(DiceExpr.D6, Dice); // lethal
+        campaign.BuryCharacter(character.Id, character.Name);
+
+        // Post-burial the loader finds no player, so the context has no character.
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCampaignId(campaign.Id);
+        ctx.Campaign = campaign;
+
+        Assert.Equal(SessionStage.CharacterCreation, ctx.DeriveStage());
+        Assert.Equal("character-creation", ctx.DeriveStatus());
     }
 
     [Fact]
@@ -335,5 +421,24 @@ public class StageDerivationTests : TestBase
     private static void KillAdversary(WretchedWhispers.Core.Adversaries.Adversary adversary)
     {
         adversary.ReceiveDamage(1000);
+    }
+
+    [Fact]
+    public void FormatSnapshot_ListsFallenWretches()
+    {
+        var characterId = Guid.NewGuid();
+        var campaign = CreateTestCampaign();
+        campaign.JoinGame(characterId);
+        campaign.Start();
+        campaign.BuryCharacter(characterId, "Grimnir");
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCampaignId(campaign.Id);
+        ctx.Campaign = campaign;
+
+        var snapshot = ctx.FormatSnapshot();
+
+        Assert.Contains("Fallen wretches", snapshot);
+        Assert.Contains("Grimnir", snapshot);
     }
 }

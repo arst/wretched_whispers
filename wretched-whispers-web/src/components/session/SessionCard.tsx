@@ -14,12 +14,15 @@ const statusStyles: Record<SessionPreviewDto["status"], string> = {
     "border-green-600 text-green-500",
   ended:
     "border-doom-pink text-doom-pink",
+  fallen:
+    "border-doom-pink text-doom-pink",
 };
 
 const statusLabels: Record<SessionPreviewDto["status"], string> = {
   "character-creation": "Creating Character",
   "in-progress": "In Progress",
-  ended: "\u2620 Ended",
+  ended: "Ended",
+  fallen: "\u2620 Fallen",
 };
 
 function formatRelativeTime(dateStr: string): string {

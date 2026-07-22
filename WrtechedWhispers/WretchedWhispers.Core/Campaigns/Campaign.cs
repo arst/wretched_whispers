@@ -94,7 +94,8 @@ public sealed class Campaign
         DiceExpr dawnDice, List<Guid> encounters,
         bool isStarted = false, bool isEnded = false, bool isConfigured = false,
         List<JournalEntry>? journal = null, Difficulty difficulty = Difficulty.Grim,
-        List<PointOfInterest>? pointsOfInterest = null, string? currentLocationName = null)
+        List<PointOfInterest>? pointsOfInterest = null, string? currentLocationName = null,
+        List<FallenCharacter>? fallen = null)
     {
         Id = id;
         Name = name;
@@ -112,6 +113,7 @@ public sealed class Campaign
         Difficulty = difficulty;
         PointsOfInterest = pointsOfInterest ?? [];
         CurrentLocationName = currentLocationName;
+        Fallen = fallen ?? [];
     }
 
     [JsonInclude] public Guid Id { get; private set; }
@@ -149,6 +151,10 @@ public sealed class Campaign
     [JsonIgnore] public IReadOnlyList<PointOfInterest> Pois => PointsOfInterest.AsReadOnly();
 
     [JsonInclude] public string? CurrentLocationName { get; private set; }
+
+    [JsonInclude] internal List<FallenCharacter> Fallen { get; }
+
+    [JsonIgnore] public IReadOnlyList<FallenCharacter> FallenCharacters => Fallen.AsReadOnly();
 
     [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
@@ -232,6 +238,14 @@ public sealed class Campaign
             p.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
         CurrentLocationName = poi?.Name
             ?? throw new ArgumentException($"'{name}' is not on the map.", nameof(name));
+    }
+
+    public void BuryCharacter(Guid characterId, string name)
+    {
+        if (!Characters.Remove(characterId))
+            throw new ArgumentException("Character is not part of this campaign.", nameof(characterId));
+        Fallen.Add(new FallenCharacter(characterId, name, CurrentDay));
+        RecordJournalEntry(JournalCategory.Event, $"Here fell {name}.");
     }
 
     public static Campaign Create(Difficulty difficulty, string name, string description)

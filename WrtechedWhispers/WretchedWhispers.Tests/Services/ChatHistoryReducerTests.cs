@@ -102,4 +102,82 @@ public sealed class ChatHistoryReducerTests
         Assert.Equal(101, result.Count);
         Assert.Contains("fresh summary", result[0].Text);
     }
+
+    [Fact]
+    public async Task SeedEpitaph_SummarizesFallenChronicle_SeedsNewChronicleAtZero()
+    {
+        var fallenId = Guid.NewGuid();
+        var newId = Guid.NewGuid();
+        _repo.Setup(r => r.LoadSession(fallenId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Messages(30));
+        _repo.Setup(r => r.GetSummary(fallenId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatSummary?)null);
+        SetupSummarizerResponse("Grimnir died screaming beneath Galgenbeck.");
+
+        var seeded = await CreateReducer().SeedEpitaphAsync(fallenId, newId, CancellationToken.None);
+
+        Assert.True(seeded);
+        _repo.Verify(r => r.SaveSummary(
+            newId,
+            It.Is<ChatSummary>(s => s.Text.Contains("Grimnir") && s.CoveredCount == 0),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SeedEpitaph_IncludesStoredRollingSummary_SkipsCoveredMessages()
+    {
+        var fallenId = Guid.NewGuid();
+        var newId = Guid.NewGuid();
+        _repo.Setup(r => r.LoadSession(fallenId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Messages(120));
+        _repo.Setup(r => r.GetSummary(fallenId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatSummary("earlier doom", 50));
+        IEnumerable<ChatMessage>? sent = null;
+        _chatClient
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .Callback<IEnumerable<ChatMessage>, ChatOptions?, CancellationToken>((m, _, _) => sent = m)
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "the tale, finished")));
+
+        var seeded = await CreateReducer().SeedEpitaphAsync(fallenId, newId, CancellationToken.None);
+
+        Assert.True(seeded);
+        Assert.NotNull(sent);
+        var sentList = sent.ToList();
+        // stored summary + 70 uncovered messages, not the covered 50 again
+        Assert.Equal(71, sentList.Count);
+        Assert.Contains("earlier doom", sentList[0].Text);
+    }
+
+    [Fact]
+    public async Task SeedEpitaph_EmptyChronicle_ReturnsFalse_NoModelCall()
+    {
+        var fallenId = Guid.NewGuid();
+        _repo.Setup(r => r.LoadSession(fallenId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ChatMessage>());
+
+        var seeded = await CreateReducer().SeedEpitaphAsync(fallenId, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(seeded);
+        _chatClient.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task SeedEpitaph_SummarizerThrows_ReturnsFalse()
+    {
+        var fallenId = Guid.NewGuid();
+        _repo.Setup(r => r.LoadSession(fallenId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Messages(10));
+        _repo.Setup(r => r.GetSummary(fallenId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatSummary?)null);
+        _chatClient
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("model unavailable"));
+
+        var seeded = await CreateReducer().SeedEpitaphAsync(fallenId, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(seeded);
+        _repo.Verify(r => r.SaveSummary(It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

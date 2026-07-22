@@ -13,6 +13,7 @@ import CharacterDrawer from "@/components/character/CharacterDrawer";
 import JournalDrawer from "@/components/journal/JournalDrawer";
 import MapDrawer from "@/components/map/MapDrawer";
 import EndCard from "@/components/session/EndCard";
+import DeathPanel from "@/components/session/DeathPanel";
 import type { SessionDetailDto } from "@/types/api";
 
 // Session id comes from the ?id= query string rather than a dynamic route segment, so the app
@@ -57,6 +58,7 @@ function GameSession({ id }: { id: string }) {
   const failedMessage = useSessionStore((s) => s.failedMessage);
 
   const showEndCard = status === "ended" && !isStreaming;
+  const showDeathPanel = status === "fallen" && !isStreaming;
   const isDead = characterData?.isDead ?? false;
 
   const { sendAction, retry } = useSseStream(id);
@@ -240,7 +242,11 @@ function GameSession({ id }: { id: string }) {
       <ChatWindow />
 
       {/* Input bar */}
-      <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
+      {showDeathPanel ? (
+        <DeathPanel sessionId={id} characterName={characterData?.name ?? null} />
+      ) : (
+        <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
+      )}
 
       {/* End card overlay */}
       {showEndCard && characterData && (

@@ -161,4 +161,21 @@ public class ChatHistoryRoundTripTests : IDisposable
         Assert.Single(loadedB);
         Assert.Equal("Session B message", loadedB[0].Text);
     }
+
+    [Fact]
+    public async Task GetSessionsForCampaign_ReturnsNewestFirst()
+    {
+        var campaignId = Guid.NewGuid();
+        var older = await _repo.CreateSession(campaignId);
+        var newer = await _repo.CreateSession(campaignId);
+
+        // Make ordering unambiguous regardless of clock resolution.
+        var olderEntity = _db.Db.ChatSessions.Single(s => s.Id == older);
+        olderEntity.StartedAt = DateTime.UtcNow.AddMinutes(-10);
+        await _db.Db.SaveChangesAsync();
+
+        var sessions = await _repo.GetSessionsForCampaign(campaignId);
+
+        Assert.Equal(new[] { newer, older }, sessions);
+    }
 }

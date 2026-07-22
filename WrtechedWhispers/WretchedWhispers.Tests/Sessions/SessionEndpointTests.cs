@@ -1,14 +1,25 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Moq;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
@@ -312,6 +323,205 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     [Fact]
+    public async Task Successor_WithLivingCharacter_ReturnsConflict()
+    {
+        var token = await RegisterAndLogin("successor-living@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId"));
+
+        await SeedCharacterInCampaign(campaignId, dead: false);
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/successor", token));
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Successor_NotOwner_ReturnsNotFound()
+    {
+        var tokenA = await RegisterAndLogin("successor-owner@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", tokenA));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+
+        var tokenB = await RegisterAndLogin("successor-other@test.com");
+        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/successor", tokenB));
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Successor_DeadCharacter_BuriesAndOpensNewChronicle()
+    {
+        var token = await RegisterAndLogin("successor-dead@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId"));
+
+        await SeedCharacterInCampaign(campaignId, dead: true);
+
+        Guid originalChronicleId;
+        int sessionCountBefore;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var chatHistoryRepo = scope.ServiceProvider.GetRequiredService<IChatHistoryRepository>();
+            var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaignId);
+            sessionCountBefore = chronicles.Count;
+            originalChronicleId = chronicles.First();
+        }
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/successor", token));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("character-creation", body.GetProperty("status").GetString());
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+            var campaign = await campaignsRepo.Get(campaignId)
+                ?? throw new InvalidOperationException("campaign missing");
+            Assert.Empty(campaign.Players);
+            Assert.Single(campaign.FallenCharacters);
+            Assert.Equal("TestHero", campaign.FallenCharacters[0].Name);
+
+            var chatHistoryRepo = sp.GetRequiredService<IChatHistoryRepository>();
+            var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaignId);
+            Assert.Equal(sessionCountBefore + 1, chronicles.Count);
+            Assert.NotEqual(originalChronicleId, chronicles.First());
+        }
+    }
+
+    [Fact]
+    public async Task Abandon_ActiveCampaign_EndsIt()
+    {
+        var token = await RegisterAndLogin("abandon-active@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId"));
+
+        await SeedCharacterInCampaign(campaignId, dead: false);
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/abandon", token));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("ended", body.GetProperty("status").GetString());
+
+        using var scope = _factory.Services.CreateScope();
+        var campaignsRepo = scope.ServiceProvider.GetRequiredService<ICampaignsRepository>();
+        var campaign = await campaignsRepo.Get(campaignId)
+            ?? throw new InvalidOperationException("campaign missing");
+        Assert.True(campaign.IsEnded);
+    }
+
+    [Fact]
+    public async Task Abandon_AlreadyEnded_ReturnsConflict()
+    {
+        var token = await RegisterAndLogin("abandon-ended@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId"));
+
+        await SeedCharacterInCampaign(campaignId, dead: false);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+            var entity = await db.Campaigns.FindAsync(campaignId)
+                ?? throw new InvalidOperationException("seed campaign missing");
+            sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+            var campaign = await campaignsRepo.Get(campaignId)
+                ?? throw new InvalidOperationException("campaign missing");
+            campaign.End();
+            await campaignsRepo.SaveCampaign(campaign);
+        }
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/abandon", token));
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Successor_AlreadyEnded_ReturnsConflict()
+    {
+        var token = await RegisterAndLogin("successor-ended@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId"));
+
+        await SeedCharacterInCampaign(campaignId, dead: false);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+            var entity = await db.Campaigns.FindAsync(campaignId)
+                ?? throw new InvalidOperationException("seed campaign missing");
+            sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+            var campaign = await campaignsRepo.Get(campaignId)
+                ?? throw new InvalidOperationException("campaign missing");
+            campaign.End();
+            await campaignsRepo.SaveCampaign(campaign);
+        }
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/successor", token));
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Journal_IncludesFallenCharacters()
+    {
+        var token = await RegisterAndLogin("journal-fallen@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = createJson.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId"));
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+            var entity = await db.Campaigns.FindAsync(campaignId)
+                ?? throw new InvalidOperationException("seed campaign missing");
+            sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+            var campaign = await campaignsRepo.Get(campaignId)
+                ?? throw new InvalidOperationException("campaign missing");
+            var characterId = Guid.NewGuid();
+            campaign.JoinGame(characterId);
+            campaign.BuryCharacter(characterId, "Ulmt the Wretched");
+            await campaignsRepo.SaveCampaign(campaign);
+        }
+
+        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", token));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var fallen = json.GetProperty("fallen");
+        Assert.Equal(1, fallen.GetArrayLength());
+        Assert.Equal("Ulmt the Wretched", fallen[0].GetProperty("name").GetString());
+        Assert.True(fallen[0].TryGetProperty("dayDied", out _));
+    }
+
+    [Fact]
     public async Task CampaignsRepository_ParameterlessSaveCampaign_PreservesTenantUserId_ThroughScopedDI()
     {
         // Arrange: Create a DI scope from the real application (same as the turn pipeline)
@@ -383,6 +593,60 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.True(listJson.GetArrayLength() >= 1, "User A should still see their session after plugin save");
     }
 
+    // Mirrors StageDerivationTests.CreateTestCharacter: minimal valid character with an overridable
+    // maxHp so a single Defend can be forced lethal.
+    private static Character CreateTestCharacter(Dice dice, int maxHp = 20)
+    {
+        var abilities = new Abilities(
+            new AbilityScore(0), new AbilityScore(0),
+            new AbilityScore(0), new AbilityScore(0));
+        var equipment = new StartingEquipment(
+            Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
+            Gear1: null, Gear2: null,
+            Weapon: Weapon.Create(WeaponKind.Sword),
+            Armor: new Armor(ArmorTier.None),
+            Shield: null, Scrolls: []);
+        return Character.Create(Guid.NewGuid(), "TestHero", maxHp, abilities, equipment, dice);
+    }
+
+    // Seeds a character into the given campaign via the same scoped-DI path the game tools use
+    // (tenant context set from the persisted entity, then repositories resolved from that scope).
+    // When `dead` is true, the character is driven to death the same way StageDerivationTests does:
+    // maxHp 1 + a blanket-1 dice mock so Defend's damage roll and the resulting broken-d4 roll both
+    // guarantee IsDead == true.
+    private async Task<Guid> SeedCharacterInCampaign(Guid campaignId, bool dead)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+        var entity = await db.Campaigns.FindAsync(campaignId)
+            ?? throw new InvalidOperationException("seed campaign missing");
+        sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var charactersRepo = sp.GetRequiredService<ICharactersRepository>();
+        var campaign = await campaignsRepo.Get(campaignId)
+            ?? throw new InvalidOperationException("seed campaign missing");
+
+        var mockRandom = new Mock<IRandomService>();
+        if (dead)
+            mockRandom.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
+        var dice = new Dice(mockRandom.Object);
+        var character = CreateTestCharacter(dice, maxHp: dead ? 1 : 20);
+        if (dead)
+        {
+            character.Defend(DiceExpr.D6, dice);
+            Assert.True(character.IsDead, "seeded character should be dead");
+        }
+        await charactersRepo.Save(character);
+
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        await campaignsRepo.SaveCampaign(campaign);
+
+        return character.Id;
+    }
+
     private async Task<string> RegisterAndLogin(string email)
     {
         await _client.PostAsJsonAsync("/auth/register", new
@@ -442,6 +706,15 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
                 services.AddDbContext<WretchedWhispersDbContext>(options =>
                     options.UseSqlite(_connection));
+
+                // Test host has no real Azure/OpenAI config (empty endpoint), so the production
+                // IChatClient factory throws at construction time. Swap in a no-op fake so any
+                // handler that injects ChatHistoryReducer (which requires IChatClient) can still
+                // be constructed; the epitaph path degrades gracefully from there (see
+                // ChatHistoryReducer.SeedEpitaphAsync, which returns false on an empty chronicle
+                // without ever calling the model).
+                services.RemoveAll<IChatClient>();
+                services.AddSingleton<IChatClient>(new NoOpChatClient());
             });
 
             builder.UseEnvironment("Development");
@@ -453,5 +726,29 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             _connection?.Close();
             _connection?.Dispose();
         }
+    }
+
+    // ponytail: minimal fake mirroring AgentExecutorIntegrationTests.ScriptedChatClient — just
+    // enough of IChatClient for DI to construct ChatHistoryReducer; never expected to be called
+    // for real by these tests (seeded chronicles have no messages, so SeedEpitaphAsync bails out
+    // before reaching the model).
+    private sealed class NoOpChatClient : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Empty)));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var response = await GetResponseAsync(messages, options, cancellationToken);
+            foreach (var message in response.Messages)
+                yield return new ChatResponseUpdate(message.Role, message.Contents);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
     }
 }

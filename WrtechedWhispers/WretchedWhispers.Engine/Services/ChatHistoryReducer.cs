@@ -44,6 +44,20 @@ public sealed class ChatHistoryReducer(
         as terse narrative prose that clearly states the current game state.
         """;
 
+    private const string EpitaphInstructions =
+        """
+        A MORK BORG player character has died. Summarize their chronicle as a finished tale, in
+        PAST TENSE and THIRD PERSON — the wretch is dead and stays dead. A new doomed soul will
+        walk the same dying world; this summary is the history they inherit. Preserve:
+        - The fallen wretch's name, their deeds, and how they died
+        - NPCs met, their relationships and current dispositions
+        - Locations visited and the state they were left in
+        - Unresolved hooks, promises, quests, and threats still loose in the world
+        - World events: miseries suffered, omens, the grinding approach of the end
+        Do NOT carry over the dead character's hit points, inventory, or any second-person "you"
+        phrasing. Write terse, doom-laden narrative prose.
+        """;
+
     public async Task<IReadOnlyList<ChatMessage>> ReduceAsync(
         Guid chatSessionId, IReadOnlyList<ChatMessage> history, CancellationToken ct)
     {
@@ -92,6 +106,44 @@ public sealed class ChatHistoryReducer(
             updated.CoveredCount, history.Count, recent.Count + 1);
 
         return Compose(updated, recent);
+    }
+
+    /// <summary>
+    /// Compacts a dead wretch's chronicle into a past-tense epitaph and seeds it as the successor
+    /// chronicle's summary (coveredCount 0 — it precedes all of the new session's messages, which
+    /// Compose then injects every turn). Best-effort: burial must never fail on a summarizer hiccup,
+    /// because the world's hard state lives on the campaign and is re-injected every turn regardless.
+    /// </summary>
+    public async Task<bool> SeedEpitaphAsync(Guid fallenChronicleId, Guid newChronicleId, CancellationToken ct)
+    {
+        try
+        {
+            var history = await chatHistoryRepository.LoadSession(fallenChronicleId, ct);
+            if (history is null || history.Count == 0)
+                return false;
+
+            var stored = await chatHistoryRepository.GetSummary(fallenChronicleId, ct);
+            var toSummarize = new List<ChatMessage>();
+            if (stored is not null)
+                toSummarize.Add(SummaryMessage(stored.Text));
+            toSummarize.AddRange(history.Skip(stored?.CoveredCount ?? 0));
+
+            var options = new ChatOptions { Instructions = EpitaphInstructions };
+            var response = await chatClient.GetResponseAsync(toSummarize, options, ct);
+            if (string.IsNullOrWhiteSpace(response.Text))
+            {
+                logger.LogWarning("Epitaph summarization returned empty for chronicle {ChronicleId}", fallenChronicleId);
+                return false;
+            }
+
+            await chatHistoryRepository.SaveSummary(newChronicleId, new ChatSummary(response.Text, 0), ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Epitaph summarization failed for chronicle {ChronicleId}", fallenChronicleId);
+            return false;
+        }
     }
 
     private static ChatMessage SummaryMessage(string text) =>

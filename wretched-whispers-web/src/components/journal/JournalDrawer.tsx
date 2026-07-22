@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { apiFetch } from "@/lib/api";
-import type { JournalEntryDto } from "@/types/api";
+import type { JournalEntryDto, FallenCharacterDto } from "@/types/api";
 
 export default function JournalDrawer() {
   const sessionId = useSessionStore((s) => s.sessionId);
@@ -13,6 +13,7 @@ export default function JournalDrawer() {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [entries, setEntries] = useState<JournalEntryDto[] | null>(null);
+  const [fallen, setFallen] = useState<FallenCharacterDto[]>([]);
 
   // Mount/unmount with transition support
   useEffect(() => {
@@ -28,10 +29,17 @@ export default function JournalDrawer() {
   useEffect(() => {
     if (!journalOpen || !sessionId) return;
     setEntries(null);
+    setFallen([]);
     apiFetch(`/sessions/${sessionId}/journal`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => setEntries(data.entries))
-      .catch(() => setEntries([]));
+      .then((data) => {
+        setEntries(data.entries);
+        setFallen(data.fallen ?? []);
+      })
+      .catch(() => {
+        setEntries([]);
+        setFallen([]);
+      });
   }, [journalOpen, sessionId]);
 
   // Focus trap
@@ -141,6 +149,20 @@ export default function JournalDrawer() {
                 {miseryPsalms.map((psalm) => (
                   <div key={psalm} className="text-doom-pink text-sm">
                     {psalm}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {fallen.length > 0 && (
+            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-ash">
+              <span className="text-xs font-bold uppercase text-doom-ash">
+                GRAVEYARD
+              </span>
+              <div className="mt-2 space-y-1">
+                {fallen.map((f, i) => (
+                  <div key={i} className="text-doom-bone text-sm">
+                    &#9760; {f.name} — died day {f.dayDied}
                   </div>
                 ))}
               </div>

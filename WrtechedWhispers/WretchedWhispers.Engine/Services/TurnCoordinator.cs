@@ -104,7 +104,9 @@ public sealed class TurnCoordinator(
         {
             logger.LogInformation("Turn refused — session already ended. Session={SessionId}", sessionId);
             writer.TryWrite(StateUpdateMapper.Map(context));
-            writer.TryWrite(new TurnError("This story has ended. Begin a new character to continue."));
+            writer.TryWrite(new TurnError(context.DeriveStatus() == "fallen"
+                ? "The wretch has fallen. Roll a new one or abandon this world."
+                : "This story has ended. Begin a new character to continue."));
             return;
         }
 
