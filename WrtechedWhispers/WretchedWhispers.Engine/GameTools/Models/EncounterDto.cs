@@ -17,6 +17,18 @@ public class EncounterDto
     [Description("Description of the encounter setting and circumstances")]
     public string Description { get; set; } = string.Empty;
 
+    [JsonPropertyName("Disposition")]
+    [Description("Current disposition: Friendly (combat cannot start) or Hostile")]
+    public string Disposition { get; set; } = string.Empty;
+
+    [JsonPropertyName("Reaction")]
+    [Description("Rolled Mörk Borg reaction when the encounter was created as Unknown: Kill, Angered, Indifferent, AlmostFriendly, or Helpful. Null when the type was pre-declared.")]
+    public string? Reaction { get; set; }
+
+    [JsonPropertyName("ReactionRoll")]
+    [Description("The raw 2d6 reaction roll behind Reaction. Null when the type was pre-declared.")]
+    public int? ReactionRoll { get; set; }
+
     [JsonPropertyName("Adversaries")]
     [Description("All adversaries in this encounter")]
     public List<AdversaryDto> Adversaries { get; set; } = new();

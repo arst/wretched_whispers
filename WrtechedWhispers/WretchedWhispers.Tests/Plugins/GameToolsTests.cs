@@ -212,6 +212,51 @@ public class GameToolsTests
     }
 
     [Fact]
+    public async Task CreateEncounter_Unknown_ReturnsRolledReactionInDto()
+    {
+        // 0-based mock: 3,2 -> 2d6 = 7 -> Indifferent -> Friendly.
+        var mock = new Mock<IRandomService>();
+        var queue = new Queue<int>([3, 2]);
+        mock.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(() => queue.Dequeue());
+        var dice = new Dice(mock.Object);
+
+        var result = await EncounterTools(dice).CreateEncounter("Strangers", "Figures in the fog", "Unknown");
+
+        Assert.Equal("Friendly", result.Disposition);
+        Assert.Equal("Indifferent", result.Reaction);
+        Assert.Equal(7, result.ReactionRoll);
+    }
+
+    [Fact]
+    public async Task CreateEncounter_Hostile_ReportsHostileDispositionWithoutReaction()
+    {
+        var result = await EncounterTools().CreateEncounter("Ambush", "Bandits leap out", "Hostile");
+
+        Assert.Equal("Hostile", result.Disposition);
+        Assert.Null(result.Reaction);
+        Assert.Null(result.ReactionRoll);
+    }
+
+    [Fact]
+    public async Task TurnEncounterHostile_FlipsDisposition()
+    {
+        var encounter = Encounter.Create("Guide", "A hired guide", EncounterType.Friendly, _zeroDice);
+        _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
+        _context.SetActiveEncounterId(encounter.Id);
+
+        var result = await EncounterTools().TurnEncounterHostile();
+
+        Assert.Equal("Hostile", result.Disposition);
+        _encountersRepo.Verify(r => r.Save(It.Is<Encounter>(e => e.CurrentType == EncounterType.Hostile)), Times.Once);
+    }
+
+    [Fact]
+    public async Task TurnEncounterHostile_WithoutActiveEncounter_Throws()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(() => EncounterTools().TurnEncounterHostile());
+    }
+
+    [Fact]
     public async Task ResolveCombatRound_Attack_SelectsTheNamedAdversary()
     {
         var hero = BuildHero(_zeroDice);
