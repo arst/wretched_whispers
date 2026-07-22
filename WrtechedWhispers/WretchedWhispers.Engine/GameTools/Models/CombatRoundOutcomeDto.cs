@@ -18,7 +18,11 @@ public sealed record CombatRoundOutcomeDto(
     IReadOnlyList<RetaliationDto> Retaliations,
     IReadOnlyList<string> AdversariesFled,
     bool EncounterEnded,
-    string EndReason)
+    string EndReason,
+    // Post-round player condition. PlayerBroken (0 HP, alive) is a survived hit, NOT death — the model
+    // narrates a collapse. Death is only the PlayerDead EndReason.
+    int PlayerCurrentHp,
+    bool PlayerBroken)
 {
     public static CombatRoundOutcomeDto From(CombatRoundOutcome outcome) => new(
         outcome.PlayerAttack is { } attack && outcome.PlayerAttackTarget is { } target
@@ -34,5 +38,7 @@ public sealed record CombatRoundOutcomeDto(
             .ToList(),
         outcome.AdversariesFledThisRound,
         outcome.EncounterEnded,
-        outcome.EndReason.ToString());
+        outcome.EndReason.ToString(),
+        outcome.PlayerCurrentHp,
+        outcome.PlayerBroken);
 }

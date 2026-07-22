@@ -72,7 +72,7 @@ public sealed class CharacterTools(
         return new ChallengeOutcomeDto(
             result.Outcome.IsSuccess, result.Outcome.Roll, result.Outcome.Modifier,
             result.Outcome.Roll + result.Outcome.Modifier,
-            result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead);
+            result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead, result.CurrentHp);
     }
 
     [Description("Add an item to the character's inventory")]

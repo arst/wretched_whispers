@@ -27,6 +27,6 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
         if (spendOmenToLowerDr || consequenceApplied)
             await charactersRepository.Save(character);
 
-        return new ChallengeResult(outcome, damageTaken, character.IsDead);
+        return new ChallengeResult(outcome, damageTaken, character.IsDead, character.Hp.Current);
     }
 }

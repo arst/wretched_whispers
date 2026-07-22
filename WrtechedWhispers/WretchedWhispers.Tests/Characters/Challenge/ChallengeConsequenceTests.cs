@@ -64,6 +64,31 @@ public sealed class ChallengeConsequenceTests : TestBase
     }
 
     [Fact]
+    public async Task ChallengePlayer_ConsequenceZeroesHp_SurvivesBroken_ReportsAliveAndZeroHp()
+    {
+        // The playtest bug: a DR-12 test fails, fall damage zeroes a 3-HP wretch, the Broken table
+        // rolls an injury (not death) — the character is ALIVE at 0 HP. ChallengeResult must report
+        // IsDead=false and CurrentHp=0 so the narrator can't fabricate a death.
+        var character = TestCharacters.Create(Dice, maxHp: 3);
+        var repo = new Mock<ICharactersRepository>();
+        repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        var service = new CharacterService(repo.Object, Dice);
+        // d20 -> 7 (fail vs 12); Deadly d6 -> 3 damage (3 HP -> 0); Broken d4 -> 3 (injury branch, survives);
+        // injury d6 -> 3 (SmashedFace).
+        SetupDiceRolls(6, 2, 2, 2);
+
+        var result = await service.ChallengePlayer(
+            character.Id, new Dr(12), AbilityKind.Agility, DifficultyPresets.For(Difficulty.Grim),
+            ChallengeConsequence.Deadly);
+
+        Assert.False(result.Outcome.IsSuccess);
+        Assert.Equal(3, result.DamageTaken);
+        Assert.False(result.IsDead);
+        Assert.Equal(0, result.CurrentHp);
+        Assert.True(character.HasSmashedFace); // survived Broken with an injury
+    }
+
+    [Fact]
     public async Task ChallengePlayer_Success_NoConsequence_NoSave()
     {
         var character = TestCharacters.Create(Dice);
