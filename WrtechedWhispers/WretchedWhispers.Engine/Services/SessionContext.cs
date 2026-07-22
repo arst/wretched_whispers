@@ -140,6 +140,10 @@ public sealed class SessionContext
         if (ActiveEncounter is not null)
         {
             sb.AppendLine($"Active Encounter: {ActiveEncounter.Name}");
+            sb.AppendLine($"  Disposition: {ActiveEncounter.CurrentType}"
+                + (ActiveEncounter.Reaction is null
+                    ? ""
+                    : $" (reaction roll {ActiveEncounter.ReactionRoll} — {ActiveEncounter.Reaction})"));
             sb.AppendLine($"  Living Adversaries: {ActiveEncounter.LivingAdversaries.Count}");
             sb.AppendLine($"  Dead Adversaries: {ActiveEncounter.DeadAdversaries.Count}");
         }

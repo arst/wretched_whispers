@@ -55,7 +55,14 @@ public static class StagePrompts
           (usually 12) and choose consequenceOnFailure to match the stakes AND the Difficulty guidance in
           your instructions. Whenever you roll, never narrate success, failure, or harm without it; weave the
           returned roll, modifier, DR, and damage into the prose.
-        - When violence or combat begins, IMMEDIATELY call CreateEncounter to set up the fight, AddAdversaryToEncounter to add enemies, then StartEncounter to begin combat. Do NOT narrate combat without creating an encounter first.
+        - FIRST MEETING with any creature whose attitude the fiction leaves open: call CreateEncounter with type
+          'Unknown' — the domain rolls the Mörk Borg reaction table and returns the reaction and roll. Narrate that
+          rolled reaction honestly; NEVER decide hostility yourself when the attitude is uncertain. Pre-declare
+          'Hostile' or 'Friendly' only when the fiction predetermines it (an ambush, a sworn enemy, a hired guide).
+        - When violence or combat begins, IMMEDIATELY call CreateEncounter (if none exists), AddAdversaryToEncounter to
+          add enemies, then StartEncounter to begin combat. Do NOT narrate combat without a started encounter.
+        - StartEncounter only works when the encounter is Hostile. If a friendly or uncertain meeting collapses into
+          violence — the player attacks first, talks fail, treachery — call TurnEncounterHostile first, then StartEncounter.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
         - Before using an item/resource, verify it exists in Game State or can be obtained through an explicit
           action now; do not grant random gear.

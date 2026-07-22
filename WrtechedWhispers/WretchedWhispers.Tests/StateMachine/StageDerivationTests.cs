@@ -424,6 +424,36 @@ public class StageDerivationTests : TestBase
     }
 
     [Fact]
+    public void FormatSnapshot_ShowsRolledReactionDisposition()
+    {
+        SetupDiceRolls(1, 1); // 2d6 = 4 -> Angered -> Hostile
+        var encounter = Encounter.Create("Strangers", "Figures in the fog", EncounterType.Unknown, Dice);
+        encounter.AddAdversary(CreateMinimalAdversary());
+        encounter.StartEncounter();
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.ActiveEncounter = encounter;
+
+        var snapshot = ctx.FormatSnapshot();
+
+        Assert.Contains("Disposition: Hostile (reaction roll 4 — Angered)", snapshot);
+    }
+
+    [Fact]
+    public void FormatSnapshot_ShowsPreDeclaredDispositionWithoutReaction()
+    {
+        var encounter = Encounter.Create("Guide", "A hired guide", EncounterType.Friendly, Dice);
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.ActiveEncounter = encounter;
+
+        var snapshot = ctx.FormatSnapshot();
+
+        Assert.Contains("Disposition: Friendly", snapshot);
+        Assert.DoesNotContain("reaction roll", snapshot);
+    }
+
+    [Fact]
     public void FormatSnapshot_ListsFallenWretches()
     {
         var characterId = Guid.NewGuid();
