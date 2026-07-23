@@ -1,6 +1,7 @@
 using Moq;
 using System.Linq;
 using Xunit;
+using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 
 namespace WretchedWhispers.Tests.Characters;
@@ -171,5 +172,23 @@ public sealed class GettingBetterTests : TestBase
 
         Assert.False(character.CanGetBetter);
         Assert.Throws<InvalidOperationException>(() => character.GetBetter(Dice, allowAbilityLoss: true));
+    }
+
+    [Fact]
+    public void GettingBetterOutcomeDto_MapsOutcomeFaithfully()
+    {
+        var outcome = new GettingBetterOutcome(24, 3, 23,
+            new[] { new AbilityChange(AbilityKind.Strength, 1, -1, 2) });
+
+        var dto = WretchedWhispers.Engine.GameTools.Models.GettingBetterOutcomeDto.From(outcome);
+
+        Assert.Equal(24, dto.HpRoll);
+        Assert.Equal(3, dto.HpGained);
+        Assert.Equal(23, dto.NewMaxHp);
+        var ability = Assert.Single(dto.Abilities);
+        Assert.Equal("Strength", ability.Ability);
+        Assert.Equal(1, ability.Roll);
+        Assert.Equal(-1, ability.Delta);
+        Assert.Equal(2, ability.NewScore);
     }
 }
