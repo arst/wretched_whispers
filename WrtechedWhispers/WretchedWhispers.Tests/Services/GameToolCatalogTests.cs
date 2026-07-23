@@ -37,7 +37,7 @@ public class GameToolCatalogTests
     }
 
     [Fact]
-    public void Exploration_ExposesExactlyFifteenTools()
+    public void Exploration_ExposesExactlySixteenTools()
     {
         Assert.Equal(
             new[]
@@ -51,6 +51,7 @@ public class GameToolCatalogTests
                 "Character.BuyItem",
                 "Character.CastScroll",
                 "Character.ChallengeCharacter",
+                "Character.GettingBetter",
                 "Character.UseItemFromCharacterInventory",
                 "Dice.Roll",
                 "Encounter.AddAdversaryToEncounter",
@@ -90,6 +91,7 @@ public class GameToolCatalogTests
                 "Character.AddItemToCharacterInventory",
                 "Character.CureInfection",
                 "Character.DegradeCharacterAbility",
+                "Character.GettingBetter",
                 "Character.ImproveCharacterAbility",
                 "Character.InfectCharacter",
                 "Character.UseItemFromCharacterInventory",

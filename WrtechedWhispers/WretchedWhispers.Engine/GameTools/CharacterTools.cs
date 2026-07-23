@@ -75,6 +75,16 @@ public sealed class CharacterTools(
             result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead, result.CurrentHp);
     }
 
+    [Description("MORK BORG 'Getting Better': the post-adventure improvement ritual and the ONLY leveling mechanic. Call ONLY when the fiction concludes a genuine adventure or scenario -- a quest completed, a dungeon survived, a nemesis dead -- never after a routine fight. Requires a full night's rest since the last ritual (fails otherwise). The domain rolls everything: 6d10 vs max HP (max grows by d6 on success) and a d6 against each ability (improve, or on harder difficulties worsen). Narrate the returned result.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<GettingBetterOutcomeDto> GettingBetter()
+    {
+        var settings = DifficultyPresets.For(sessionContext.Campaign?.Difficulty ?? Difficulty.Grim);
+        var outcome = await characterService.GetBetter(
+            RequireCharacterId(), settings.AbilityLossOnGettingBetter);
+        return GettingBetterOutcomeDto.From(outcome);
+    }
+
     [Description("Add an item to the character's inventory")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> AddItemToCharacterInventory(
