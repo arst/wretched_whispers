@@ -9,4 +9,7 @@ public sealed record DifficultySettings(
     DiceExpr SeriousDamage,
     DiceExpr DeadlyDamage,
     DiceExpr DawnDice,
-    string GmToneNote);
+    string GmToneNote,
+    // MORK BORG "Getting Better": whether a low ability roll (d6 < score) degrades the ability.
+    // RAW says yes; StoryMode is improvement-only so forgiving campaigns don't regress.
+    bool AbilityLossOnGettingBetter);

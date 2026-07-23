@@ -32,4 +32,13 @@ public class DifficultyPresetsTests
         Assert.Equal(DiceExpr.D(1, 4), s.SeriousDamage);
         Assert.Equal(DiceExpr.D(1, 6), s.DeadlyDamage);
     }
+
+    [Fact]
+    public void AbilityLossOnGettingBetter_DisabledOnlyInStoryMode()
+    {
+        Assert.False(DifficultyPresets.For(Difficulty.StoryMode).AbilityLossOnGettingBetter);
+        Assert.True(DifficultyPresets.For(Difficulty.Grim).AbilityLossOnGettingBetter);
+        Assert.True(DifficultyPresets.For(Difficulty.Doomed).AbilityLossOnGettingBetter);
+        Assert.True(DifficultyPresets.For(Difficulty.Hardcore).AbilityLossOnGettingBetter);
+    }
 }
