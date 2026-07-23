@@ -1,4 +1,3 @@
-using Moq;
 using System.Linq;
 using Xunit;
 using WretchedWhispers.Core.Characters;
@@ -88,6 +87,22 @@ public sealed class GettingBetterTests : TestBase
         Assert.Equal(23, outcome.NewMaxHp);
         Assert.Equal(23, character.Hp.Max);
         Assert.Equal(20, character.Hp.Current); // RAW: only the maximum grows
+    }
+
+    [Fact]
+    public void GetBetter_HpRollExactlyEqualsMax_StillIncreases()
+    {
+        // Meet-or-beat: 6d10 of six 4s = 24 EXACTLY equals max 24 -> the check passes.
+        var character = TestCharacters.Create(Dice, startingOmens: 1, maxHp: 24);
+        SetupDiceRolls(0 /* heal d6 */);
+        character.Rest(8, Dice);
+        SetupDiceRolls(3, 3, 3, 3, 3, 3, /* hp d6 */ 2, /* abilities */ 0, 0, 0, 0);
+
+        var outcome = character.GetBetter(Dice, allowAbilityLoss: true);
+
+        Assert.Equal(24, outcome.HpRoll);
+        Assert.Equal(3, outcome.HpGained);
+        Assert.Equal(27, character.Hp.Max);
     }
 
     [Fact]
