@@ -38,7 +38,8 @@ public sealed class Character
         InjurySet injuries = default,
         bool isInfected = false,
         bool isDizzyFromMagic = false,
-        bool isDead = false)
+        bool isDead = false,
+        bool canGetBetter = false)
     {
         Id = id;
         Name = name;
@@ -57,6 +58,7 @@ public sealed class Character
         IsInfected = isInfected;
         IsDizzyFromMagic = isDizzyFromMagic;
         IsDead = isDead;
+        CanGetBetter = canGetBetter;
     }
 
     private Character(
@@ -99,6 +101,9 @@ public sealed class Character
     [JsonIgnore] public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
 
     [JsonInclude] public bool IsDead { get; private set; }
+
+    /// <summary>MORK BORG "Getting Better" gate: set by a full night's rest, consumed by the ritual.</summary>
+    [JsonInclude] public bool CanGetBetter { get; private set; }
 
     [JsonInclude] public InjurySet Injuries { get; private set; }
 
@@ -312,6 +317,8 @@ public sealed class Character
         var isFullNightRest = hours >= 8;
         var heal = isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4);
         Hp = Hp.Heal(heal);
+
+        if (isFullNightRest) CanGetBetter = true;
 
         if (!isFullNightRest || Omens.Count != 0) return 0;
         var refreshed = dice.Roll(DiceExpr.D2);
