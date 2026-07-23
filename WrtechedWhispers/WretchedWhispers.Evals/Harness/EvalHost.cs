@@ -141,8 +141,11 @@ public sealed class EvalHost : IAsyncDisposable
     /// <summary>
     /// Same seed as <see cref="CreateCombatAsync"/> (character joined, campaign started) but with no
     /// encounter attached, so <c>DeriveStage</c> falls through to <see cref="SessionStage.Exploration"/>.
+    /// Pass <paramref name="extraGear"/> to seed inventory items a scenario needs (default keeps the
+    /// shared seed byte-identical so existing scenarios' cached responses stay valid).
     /// </summary>
-    public static async Task<EvalHost> CreateExplorationAsync(IChatClient chatClient)
+    public static async Task<EvalHost> CreateExplorationAsync(
+        IChatClient chatClient, IReadOnlyList<InventoryItem>? extraGear = null)
     {
         var host = await CreateAsync(chatClient);
 
@@ -175,6 +178,7 @@ public sealed class EvalHost : IAsyncDisposable
             // scroll to cast, and the GM correctly refuses to cast one the character does not possess.
             Scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
         var character = Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
+        foreach (var item in extraGear ?? []) character.AddItem(item);
         await charactersRepo.Save(character);
 
         campaign.JoinGame(character.Id);

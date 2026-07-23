@@ -70,6 +70,26 @@ public class StateUpdateMapperTests
         Assert.Equal(120, document.RootElement.GetProperty("characterSilver").GetInt32());
     }
 
+    [Fact]
+    public void Map_ExpandsInventoryQuantitiesToUnits()
+    {
+        // One entry per UNIT, not per item: the UI groups them back with a xN badge, and the
+        // turn-delta multiset diff needs units so a quantity decrement (3 torches -> 2) surfaces
+        // as one removed entry instead of vanishing.
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        context.Campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
+        var character = CreateCharacter();
+        character.AddItem(new InventoryItem(Guid.NewGuid(), "torches", false, true, 3));
+        character.AddItem(new InventoryItem(Guid.NewGuid(), "crowbar", false, false, 1));
+        context.Character = character;
+
+        var result = StateUpdateMapper.Map(context);
+
+        Assert.Equal(
+            new[] { "torches", "torches", "torches", "crowbar" },
+            result.CharacterInventory);
+    }
+
     private static Character CreateCharacter()
     {
         var abilities = new Abilities(

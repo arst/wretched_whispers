@@ -2,6 +2,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
+using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Evals.Evaluators;
 using WretchedWhispers.Evals.Harness;
 using Xunit;
@@ -16,14 +17,19 @@ public class DomainAuthorityEvals
             [new ToolCallOrderEvaluator(), new ToolCallContainsEvaluator()],
             "domain-authority");
 
-    // GroundednessEvaluator hardcodes Temperature = 0 on its judge request. Reasoning-model
-    // deployments (e.g. gpt-5-mini) reject any non-default temperature, so strip it back to null
-    // (provider default). NOTE: this wraps the scenario's ONE shared client, so it applies to the
-    // game-under-test turn as well as the judge call — a no-op there today (AgentExecutor never
-    // sets Temperature), but rescope if a future scenario's game path relies on a temperature.
+    // GroundednessEvaluator hardcodes Temperature = 0 and a MaxOutputTokens cap on its judge request.
+    // Reasoning-model deployments (e.g. gpt-5-mini) reject any non-default temperature, and burn the
+    // token cap on hidden reasoning — returning an EMPTY judge response that fails score parsing — so
+    // strip both back to null (provider defaults). NOTE: this wraps the scenario's ONE shared client,
+    // so it applies to the game-under-test turn as well as the judge call — a no-op there today
+    // (AgentExecutor never sets either), but rescope if a future scenario's game path relies on them.
     private static ReportingConfiguration CreateGroundednessReporting(IChatClient chatClient) =>
         EvalSupport.CreateReportingConfiguration(
-            chatClient.AsBuilder().ConfigureOptions(o => o.Temperature = null).Build(),
+            chatClient.AsBuilder().ConfigureOptions(o =>
+            {
+                o.Temperature = null;
+                o.MaxOutputTokens = null;
+            }).Build(),
             [new GroundednessEvaluator()],
             "domain-authority");
 
@@ -180,6 +186,48 @@ public class DomainAuthorityEvals
         Assert.True(metric.Value,
             $"Expected a CastScroll call; got [{string.Join(", ", outcome.ToolCalls)}]. " +
             "The GM must not narrate a spell cast or a scroll spent without CastScroll.");
+    }
+
+    [Fact]
+    public async Task Exploration_CampNarration_DoesNotFabricateItemUse()
+    {
+        var chatClient = EvalSupport.TryCreateAzureChatClient();
+        if (chatClient is null)
+        {
+            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
+            return;
+        }
+
+        var reporting = CreateGroundednessReporting(chatClient);
+        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Exploration-Camp-NoFabricatedItemUse");
+
+        var chatConfiguration = run.ChatConfiguration
+            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        // Playtest regression: "camp for the night" produced "You take one of your torches...
+        // Torches: 2 (you used one)" while the ONLY tool called was Rest — the GM invented the
+        // consumption as camp color and computed its own count off the snapshot's x3.
+        await using var host = await EvalHost.CreateExplorationAsync(
+            chatConfiguration.ChatClient,
+            [new InventoryItem(Guid.NewGuid(), "torches", isBulky: false, isOneTimeUse: true, quantity: 3)]);
+        const string playerMessage = "We camp for the night. I sleep until dawn.";
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage);
+
+        var groundingContext =
+            "Character inventory before the turn: torches x3. Inventory changes ONLY through a "
+            + "UseItemFromCharacterInventory result below; without one, every count is unchanged.\n"
+            + string.Join("\n", outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
+
+        EvaluationResult result = await run.EvaluateAsync(
+            messages: [new ChatMessage(ChatRole.User, playerMessage)],
+            modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
+            additionalContext: [new GroundednessEvaluatorContext(groundingContext)]);
+
+        var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
+        Assert.NotNull(metric.Value);
+        Assert.True(metric.Value >= 4,
+            $"Groundedness {metric.Value}: narration claimed item usage or counts no tool applied "
+            + $"(UseItem called: {outcome.ToolCalls.Contains("UseItemFromCharacterInventory")}). "
+            + $"Narrative: {outcome.Narrative}");
     }
 
     [Fact]
