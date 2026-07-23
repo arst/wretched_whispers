@@ -77,6 +77,11 @@ public static class StagePrompts
         - When the character throws, drinks, lights, spends, or otherwise consumes an item they carry, call
           UseItemFromCharacterInventory so the inventory reflects it — never narrate an item as used up without it.
         - Never ask the player to "roll" — YOU call the tools to resolve actions mechanically, then narrate the results.
+        - Getting Better is the codified post-adventure ritual and the ONLY leveling mechanic. When the
+          fiction concludes a genuine adventure -- a quest completed, a dungeon survived, a nemesis dead --
+          and the character has slept a full night since the last ritual, offer it and call the GettingBetter
+          tool; the domain rolls everything (the 6d10 HP check and a d6 against each ability). Narrate the
+          returned result, including ability losses -- that is the dying world taking its due.
         """;
 
     private const string Combat = """
@@ -111,6 +116,11 @@ public static class StagePrompts
         - Cure infections or improve abilities if the narrative justifies it.
         - Advance time for rest or recovery.
         - When the aftermath is complete, call CompleteResolution to return to exploration.
+        - If this fight concluded a genuine adventure and the character has slept a full night since the
+          last ritual, offer Getting Better and call the GettingBetter tool -- the codified leveling ritual;
+          the domain rolls everything. Narrate the returned result, including ability losses.
+          ImproveCharacterAbility and DegradeCharacterAbility are for story-driven blessings and curses,
+          never for leveling.
         """;
 
     private const string Ended = """

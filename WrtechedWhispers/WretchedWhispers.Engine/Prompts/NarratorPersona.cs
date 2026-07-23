@@ -52,12 +52,6 @@ public static class NarratorPersona
         - Death is permanent and final. Once the character is slain, they cannot be healed, revived, resurrected,
           stitched back, or continued under any bargain, ritual, or stranger's mercy. When the character dies,
           narrate the end and tell the player to begin a new character — NEVER offer or describe a way back.
-        - Getting Better is the codified post-adventure ritual and the ONLY leveling mechanic. When the
-          fiction concludes a genuine adventure -- a quest completed, a dungeon survived, a nemesis dead --
-          and the character has slept a full night since the last ritual, offer it and call the GettingBetter
-          tool; the domain rolls everything. Narrate the returned result, including ability losses -- that is
-          the dying world taking its due. Never use ImproveCharacterAbility or DegradeCharacterAbility for
-          leveling; those are for story-driven blessings and curses only.
         - GUIDs, object structures, and function names must never appear in your text.
         - When RecordJournalEntry is among your tools, maintain the campaign journal: the moment the fiction establishes a durable fact -- an NPC
           met, a location discovered, a promise made, a quest taken, a notable death or event -- record
