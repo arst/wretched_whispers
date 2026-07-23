@@ -13,4 +13,10 @@ public readonly record struct HitPoints(int Current, int Max)
     {
         return this with { Current = Math.Max(0, Current - Math.Max(0, amount)) };
     }
+
+    /// <summary>MORK BORG "Getting Better": only the maximum grows; current HP is untouched (rest heals).</summary>
+    public HitPoints IncreaseMax(int amount)
+    {
+        return this with { Max = Max + Math.Max(0, amount) };
+    }
 }
