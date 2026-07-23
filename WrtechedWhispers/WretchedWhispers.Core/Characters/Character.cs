@@ -38,7 +38,8 @@ public sealed class Character
         InjurySet injuries = default,
         bool isInfected = false,
         bool isDizzyFromMagic = false,
-        bool isDead = false)
+        bool isDead = false,
+        bool canGetBetter = false)
     {
         Id = id;
         Name = name;
@@ -57,6 +58,7 @@ public sealed class Character
         IsInfected = isInfected;
         IsDizzyFromMagic = isDizzyFromMagic;
         IsDead = isDead;
+        CanGetBetter = canGetBetter;
     }
 
     private Character(
@@ -99,6 +101,9 @@ public sealed class Character
     [JsonIgnore] public bool IsEncumbered => Inventory.IsEncumbered(Abilities.Strength);
 
     [JsonInclude] public bool IsDead { get; private set; }
+
+    /// <summary>MORK BORG "Getting Better" gate: set by a full night's rest, consumed by the ritual.</summary>
+    [JsonInclude] public bool CanGetBetter { get; private set; }
 
     [JsonInclude] public InjurySet Injuries { get; private set; }
 
@@ -313,10 +318,48 @@ public sealed class Character
         var heal = isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4);
         Hp = Hp.Heal(heal);
 
+        if (isFullNightRest) CanGetBetter = true;
+
         if (!isFullNightRest || Omens.Count != 0) return 0;
         var refreshed = dice.Roll(DiceExpr.D2);
         Omens.Refill(refreshed);
         return refreshed;
+    }
+
+    /// <summary>MORK BORG "Getting Better": roll 6d10 -- meet or beat max HP and it grows by d6
+    /// (current HP untouched). Then a d6 against each ability: meet or beat the score for +1 (cap +6);
+    /// below it, lose 1 only when the difficulty allows ability loss. Requires a full night's rest
+    /// since the last ritual; consumes that rest.</summary>
+    public GettingBetterOutcome GetBetter(Dice dice, bool allowAbilityLoss)
+    {
+        if (!CanGetBetter)
+            throw new InvalidOperationException(
+                "Getting Better requires a full night's rest since the last ritual.");
+
+        var hpRoll = dice.Roll(DiceExpr.D(6, 10));
+        var hpGained = 0;
+        if (hpRoll >= Hp.Max)
+        {
+            hpGained = dice.Roll(DiceExpr.D6);
+            Hp = Hp.IncreaseMax(hpGained);
+        }
+
+        var changes = new List<AbilityChange>();
+        foreach (var kind in new[]
+                 { AbilityKind.Strength, AbilityKind.Agility, AbilityKind.Presence, AbilityKind.Toughness })
+        {
+            var score = Abilities[kind].Modifier;
+            var roll = dice.Roll(DiceExpr.D6);
+            var delta = roll >= score
+                ? score < 6 ? 1 : 0
+                : allowAbilityLoss && score > -3 ? -1 : 0;
+            if (delta > 0) Improve(kind, delta);
+            if (delta < 0) Degrade(kind, delta);
+            changes.Add(new AbilityChange(kind, roll, delta, Abilities[kind].Modifier));
+        }
+
+        CanGetBetter = false;
+        return new GettingBetterOutcome(hpRoll, hpGained, Hp.Max, changes);
     }
 
     public void BuyItem(int price, InventoryItem item)

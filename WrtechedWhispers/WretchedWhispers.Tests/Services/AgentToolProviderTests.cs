@@ -69,17 +69,18 @@ public class AgentToolProviderTests
     }
 
     [Fact]
-    public void Exploration_HasExactly15Functions()
+    public void Exploration_HasExactly16Functions()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
-        Assert.Equal(15, registered.Length);
-        Assert.Equal(15, tools.Count);
+        Assert.Equal(16, registered.Length);
+        Assert.Equal(16, tools.Count);
         Assert.Contains("Campaign.RecordPointOfInterest", registered);
         Assert.Contains("Campaign.SetPartyLocation", registered);
         Assert.Contains("Character.UseItemFromCharacterInventory", registered);
         Assert.Contains("Character.ChallengeCharacter", registered);
+        Assert.Contains("Character.GettingBetter", registered);
         Assert.Contains("Campaign.AdvanceTime", registered);
         Assert.Contains("Campaign.RecordJournalEntry", registered);
         Assert.Contains("Encounter.CreateEncounter", registered);

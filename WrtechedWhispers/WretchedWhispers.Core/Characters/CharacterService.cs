@@ -29,4 +29,14 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
 
         return new ChallengeResult(outcome, damageTaken, character.IsDead, character.Hp.Current);
     }
+
+    public async Task<GettingBetterOutcome> GetBetter(Guid characterId, bool allowAbilityLoss)
+    {
+        var character = await charactersRepository.Get(characterId);
+        if (character is null) throw new ArgumentException($"Character with id {characterId} does not exist.");
+
+        var outcome = character.GetBetter(dice, allowAbilityLoss);
+        await charactersRepository.Save(character);
+        return outcome;
+    }
 }
