@@ -50,8 +50,11 @@ public static class StateUpdateMapper
             characterToughness = character.Abilities.Toughness.Modifier;
             characterWeapon = character.Weapon.Kind.ToString();
             characterArmor = character.Armor.Tier.DisplayName();
+            // One entry per UNIT: the UI groups duplicates back with a xN badge, and the turn-delta
+            // multiset diff needs units so a quantity decrement (3 torches -> 2) surfaces as one
+            // removed entry instead of vanishing (per-item mapping hid all quantity-only changes).
             characterInventory = character.Inventory.InventoryItems
-                .Select(i => i.Description).ToArray();
+                .SelectMany(i => Enumerable.Repeat(i.Description, i.Quantity)).ToArray();
             characterSilver = character.Silver;
             hasLostEye = character.HasLostEye;
             hasStabbedLung = character.HasStabbedLung;
