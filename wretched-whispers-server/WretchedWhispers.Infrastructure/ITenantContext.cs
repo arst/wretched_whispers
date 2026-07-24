@@ -1,7 +1,8 @@
-namespace WretchedWhispers.Core;
+namespace WretchedWhispers.Infrastructure;
 
 /// <summary>
-/// Provides ambient tenant context for the current operation scope.
+/// Provides ambient tenant context for the current operation scope. An infrastructure concern
+/// (persistence tenancy), deliberately kept out of the domain — Core never reads the current user.
 /// Set at the request boundary (endpoint filter) or app startup (console).
 /// </summary>
 public interface ITenantContext

@@ -8,6 +8,7 @@ using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Api.Endpoints;

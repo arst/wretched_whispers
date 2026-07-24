@@ -21,6 +21,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 
