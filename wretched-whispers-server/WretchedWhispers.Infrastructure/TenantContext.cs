@@ -1,5 +1,3 @@
-using WretchedWhispers.Core;
-
 namespace WretchedWhispers.Infrastructure;
 
 public sealed class TenantContext : ITenantContext

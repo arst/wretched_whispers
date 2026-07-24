@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Core;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
 
