@@ -429,3 +429,7 @@ fabric.properties
 # Desktop packaging: built SPA copied into the API + self-contained output
 wretched-whispers-server/WretchedWhispers.Api/wwwroot/
 /dist/
+
+# Local agent-workflow scratch (SDD ledger, Playwright MCP) — never commit
+.superpowers/
+.playwright-mcp/
