@@ -21,6 +21,10 @@ builder.Configuration.AddUserSecrets(typeof(ServiceCollectionExtensions).Assembl
 // Desktop: point SQLite at the writable app-data dir and select the OpenAI provider (key from
 // settings.json). Applied before service registration so AddDbContext / AddGameAgent pick it up.
 builder.Configuration.AddInMemoryCollection(WretchedWhispers.Api.Desktop.DesktopHost.BuildConfig());
+// Container/CLI overrides: OPENAI_API_KEY / OPENAI_MODEL / OPENAI_BASE_URL. Added LAST so env vars
+// beat settings.json (spec precedence: env > settings.json > first-run UI).
+builder.Configuration.AddInMemoryCollection(
+    EnvConfigOverrides.Map(Environment.GetEnvironmentVariable));
 #endif
 
 // CORS: allow Next.js dev server to communicate cross-origin
@@ -115,11 +119,22 @@ app.MapGet("/health", () => Results.Ok("alive"));
 app.MapSessionEndpoints();
 app.MapFallbackToFile("index.html");
 
-var desktopUrl = $"http://127.0.0.1:{GetFreePort()}";
-app.Urls.Add(desktopUrl);
-await app.StartAsync();
-WretchedWhispers.Api.Desktop.DesktopHost.Run(desktopUrl); // blocks until the window closes
-await app.StopAsync();
+if (WretchedWhispers.Api.Desktop.DesktopHost.IsHeadless)
+{
+    // Container/server: no native window. Honour ASPNETCORE_URLS when set; otherwise bind all
+    // interfaces on 8080 (the container's EXPOSEd port). Blocks until the host stops.
+    if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+        app.Urls.Add("http://0.0.0.0:8080");
+    app.Run();
+}
+else
+{
+    var desktopUrl = $"http://127.0.0.1:{GetFreePort()}";
+    app.Urls.Add(desktopUrl);
+    await app.StartAsync();
+    WretchedWhispers.Api.Desktop.DesktopHost.Run(desktopUrl); // blocks until the window closes
+    await app.StopAsync();
+}
 
 static int GetFreePort()
 {

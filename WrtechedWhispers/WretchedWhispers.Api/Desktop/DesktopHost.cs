@@ -11,14 +11,22 @@ namespace WretchedWhispers.Api.Desktop;
 /// </summary>
 public static class DesktopHost
 {
+    /// <summary>True when running headless (container/server): WW_HEADLESS=1 skips the native window.</summary>
+    public static bool IsHeadless =>
+        Environment.GetEnvironmentVariable("WW_HEADLESS") == "1";
+
     public static string DataDir { get; } = CreateDataDir();
     public static string DbPath => Path.Combine(DataDir, "wretched-whispers.db");
     public static string SettingsPath => Path.Combine(DataDir, "settings.json");
 
     private static string CreateDataDir()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WretchedWhispers");
+        // WW_DATA_DIR (container: /data, a mounted volume) beats the per-user OS app-data path.
+        var custom = Environment.GetEnvironmentVariable("WW_DATA_DIR");
+        var dir = string.IsNullOrWhiteSpace(custom)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WretchedWhispers")
+            : custom;
         Directory.CreateDirectory(dir);
         return dir;
     }

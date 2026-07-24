@@ -13,6 +13,29 @@ body brings the apocalypse closer.
 Play with it, or play against it.
 Play if you dare.
 
+# Run with Docker
+
+```bash
+docker run -p 8080:8080 -v ww-data:/data -e OPENAI_API_KEY=sk-... ghcr.io/arst/wretched-whispers
+```
+
+Open http://localhost:8080 and play. Or run with no key and paste it in the browser on first run:
+
+```bash
+docker run -p 8080:8080 -v ww-data:/data ghcr.io/arst/wretched-whispers
+```
+
+| Env var | Meaning | Default |
+|---|---|---|
+| `OPENAI_API_KEY` | Your OpenAI-compatible API key | unset → first-run screen asks |
+| `OPENAI_MODEL` | Chat model | `gpt-4o` |
+| `OPENAI_BASE_URL` | OpenAI-compatible gateway (e.g. OpenRouter) | OpenAI |
+
+When `OPENAI_API_KEY` is set on the container, it always wins over a key saved in the browser — including after a restart.
+
+Game data (SQLite + settings) lives in the `/data` volume. The container serves plain HTTP on
+port 8080 — put Caddy/Traefik/nginx in front if you expose it beyond your machine.
+
 # DISCLAIMER
 
 Wretched Whispers is an independent production by Artem Startsev and is not affiliated with Ockult Örtmästare Games or
