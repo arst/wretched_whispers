@@ -10,8 +10,8 @@ RUN npm run build
 # ---- Stage 2: publish the API in the desktop flavor (framework-dependent) ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS api
 WORKDIR /src
-COPY WrtechedWhispers/ WrtechedWhispers/
-RUN dotnet publish WrtechedWhispers/WretchedWhispers.Api/WretchedWhispers.Api.csproj \
+COPY wretched-whispers-server/ wretched-whispers-server/
+RUN dotnet publish wretched-whispers-server/WretchedWhispers.Api/WretchedWhispers.Api.csproj \
     -c Release -p:DesktopBuild=true -o /app/publish
 COPY --from=web /src/web/out/ /app/publish/wwwroot/
 

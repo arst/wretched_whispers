@@ -10,7 +10,7 @@ A dark fantasy TTRPG game engine (Mork Borg-inspired) with AI-powered game maste
 - Microsoft Semantic Kernel for AI plugins
 - System.Text.Json for serialization
 
-## Project Structure (under `WrtechedWhispers/` - note the typo)
+## Project Structure (under `wretched-whispers-server/`)
 - `WretchedWhispers.Core` - Domain entities, services, value objects
 - `WretchedWhispers.Infrastructure` - SQLite persistence, DI registration
 - `WretchedWhispers.Semantic` - SK plugins (Dice, Character, Encounter, Campaign)
@@ -18,8 +18,8 @@ A dark fantasy TTRPG game engine (Mork Borg-inspired) with AI-powered game maste
 - `WretchedWhispers.Orchestration.Console` / `WretchedWhispers.SingleAgent.Console` - Console apps
 
 ## Key Commands
-- Build: `dotnet build WrtechedWhispers/WrtechedWhispers.sln`
-- Test: `dotnet test WrtechedWhispers/WrtechedWhispers.sln`
+- Build: `dotnet build wretched-whispers-server/WretchedWhispers.sln`
+- Test: `dotnet test wretched-whispers-server/WretchedWhispers.sln`
 
 ## Conventions
 - Domain entities are sealed classes with JsonConstructor

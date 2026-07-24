@@ -16,5 +16,5 @@ graphify-out/
 .github/
 *.md
 logo.png
-WrtechedWhispers/WretchedWhispers.Api/wretched-whispers.db
-WrtechedWhispers/WretchedWhispers.Api/wwwroot/
+wretched-whispers-server/WretchedWhispers.Api/wretched-whispers.db
+wretched-whispers-server/WretchedWhispers.Api/wwwroot/

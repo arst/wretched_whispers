@@ -10,16 +10,16 @@ Set the Azure OpenAI credentials the app uses (see `AgentConfiguration`). The ev
 .NET configuration stack: `appsettings*.json`, user secrets, then environment variables.
 
 ```bash
-dotnet user-secrets set --project WrtechedWhispers/WretchedWhispers.Evals AzureOpenAiSettings:Endpoint "https://<resource>.openai.azure.com/"
-dotnet user-secrets set --project WrtechedWhispers/WretchedWhispers.Evals AzureOpenAiSettings:ApiKey "<key>"
-dotnet user-secrets set --project WrtechedWhispers/WretchedWhispers.Evals AzureOpenAiSettings:ChatModelDeployment "<deployment>"
+dotnet user-secrets set --project wretched-whispers-server/WretchedWhispers.Evals AzureOpenAiSettings:Endpoint "https://<resource>.openai.azure.com/"
+dotnet user-secrets set --project wretched-whispers-server/WretchedWhispers.Evals AzureOpenAiSettings:ApiKey "<key>"
+dotnet user-secrets set --project wretched-whispers-server/WretchedWhispers.Evals AzureOpenAiSettings:ChatModelDeployment "<deployment>"
 
 # or, in CI:
 export AzureOpenAiSettings__Endpoint="https://<resource>.openai.azure.com/"
 export AzureOpenAiSettings__ApiKey="<key>"
 export AzureOpenAiSettings__ChatModelDeployment="<deployment>"
 
-dotnet test WrtechedWhispers/WretchedWhispers.Evals/WretchedWhispers.Evals.csproj
+dotnet test wretched-whispers-server/WretchedWhispers.Evals/WretchedWhispers.Evals.csproj
 ```
 
 Without these set, the evals **skip**. The first run hits Azure and writes a response cache under
@@ -32,7 +32,7 @@ report with the eval console tool:
 
 ```bash
 dotnet tool install --global Microsoft.Extensions.AI.Evaluation.Console
-dotnet aieval report --path WrtechedWhispers/WretchedWhispers.Evals/bin/Debug/net10.0/.eval-results --output eval-report.html
+dotnet aieval report --path wretched-whispers-server/WretchedWhispers.Evals/bin/Debug/net10.0/.eval-results --output eval-report.html
 ```
 
 ## Current evals

@@ -427,5 +427,5 @@ fabric.properties
 
 .idea/
 # Desktop packaging: built SPA copied into the API + self-contained output
-WrtechedWhispers/WretchedWhispers.Api/wwwroot/
+wretched-whispers-server/WretchedWhispers.Api/wwwroot/
 /dist/
