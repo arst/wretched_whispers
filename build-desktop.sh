@@ -8,7 +8,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 WEB="$ROOT/wretched-whispers-web"
-API="$ROOT/WrtechedWhispers/WretchedWhispers.Api"
+API="$ROOT/wretched-whispers-server/WretchedWhispers.Api"
 RID="${1:-$(dotnet --info | awk -F'[:] ' '/RID:/ {print $2; exit}' | tr -d ' ')}"
 
 echo "==> [1/3] Building frontend (static export)"
@@ -21,7 +21,7 @@ mkdir -p "$API/wwwroot"
 cp -r "$WEB/out/." "$API/wwwroot/"
 
 echo "==> [3/3] Publishing self-contained desktop app ($RID)"
-cd "$ROOT/WrtechedWhispers"
+cd "$ROOT/wretched-whispers-server"
 dotnet publish WretchedWhispers.Api/WretchedWhispers.Api.csproj \
   -c Release -r "$RID" --self-contained \
   -p:DesktopBuild=true \
