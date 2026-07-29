@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WretchedWhispers.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using WretchedWhispers.Infrastructure.Persistence;
 namespace WretchedWhispers.Infrastructure.Migrations
 {
     [DbContext(typeof(WretchedWhispersDbContext))]
-    partial class WretchedWhispersDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260729142040_AddChatSessionRecapState")]
+    partial class AddChatSessionRecapState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.18");

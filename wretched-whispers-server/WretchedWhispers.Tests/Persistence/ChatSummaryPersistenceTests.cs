@@ -50,6 +50,39 @@ public sealed class ChatSummaryPersistenceTests : IDisposable
             () => _repo.SaveSummary(Guid.NewGuid(), new ChatSummary("x", 1)));
     }
 
+    [Fact]
+    public async Task MarkOpened_UpdatesOnlyOpeningTimestamp()
+    {
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+        await _repo.SaveSummary(sessionId, new ChatSummary("unchanged", 7));
+        var openedAt = DateTime.UtcNow.AddDays(-1);
+
+        await _repo.MarkOpened(sessionId, openedAt);
+
+        Assert.Equal(openedAt, await _repo.GetLastOpened(sessionId));
+        Assert.Equal(new ChatSummary("unchanged", 7), await _repo.GetSummary(sessionId));
+    }
+
+    [Fact]
+    public async Task RecapCache_IsKeyedToActivity_NotOpening()
+    {
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+        var activity = await _repo.GetSessionLastActivity(sessionId);
+        Assert.NotNull(activity);
+        await _repo.SaveRecap(sessionId, new ChatRecap("cached doom", activity.Value));
+
+        await _repo.MarkOpened(sessionId, DateTime.UtcNow.AddHours(1));
+
+        Assert.Equal(new ChatRecap("cached doom", activity.Value), await _repo.GetRecap(sessionId));
+        Assert.Equal(activity, await _repo.GetSessionLastActivity(sessionId));
+
+        await _repo.SaveMessage(sessionId, new Microsoft.Extensions.AI.ChatMessage(
+            Microsoft.Extensions.AI.ChatRole.User,
+            "I disturb the world"));
+
+        Assert.NotEqual(activity, await _repo.GetSessionLastActivity(sessionId));
+    }
+
     public void Dispose()
     {
         _db.Dispose();

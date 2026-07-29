@@ -59,6 +59,50 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             .MaxAsync(s => (DateTime?)s.StartedAt, ct);
     }
 
+    public async Task<DateTime?> GetSessionLastActivity(Guid sessionId, CancellationToken ct = default)
+    {
+        var lastMessage = await _db.ChatMessages
+            .Where(m => m.SessionId == sessionId)
+            .MaxAsync(m => (DateTime?)m.Timestamp, ct);
+
+        return lastMessage ?? await _db.ChatSessions
+            .Where(s => s.Id == sessionId)
+            .Select(s => (DateTime?)s.StartedAt)
+            .SingleOrDefaultAsync(ct);
+    }
+
+    public Task<DateTime?> GetLastOpened(Guid sessionId, CancellationToken ct = default) =>
+        _db.ChatSessions
+            .Where(s => s.Id == sessionId)
+            .Select(s => (DateTime?)(s.LastOpenedAt ?? s.StartedAt))
+            .SingleOrDefaultAsync(ct);
+
+    public async Task MarkOpened(Guid sessionId, DateTime openedAt, CancellationToken ct = default)
+    {
+        await _db.ChatSessions
+            .Where(s => s.Id == sessionId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(s => s.LastOpenedAt, openedAt),
+                ct);
+    }
+
+    public Task<ChatRecap?> GetRecap(Guid sessionId, CancellationToken ct = default) =>
+        _db.ChatSessions
+            .Where(s => s.Id == sessionId && s.RecapText != null && s.RecapActivityAt != null)
+            .Select(s => new ChatRecap(s.RecapText!, s.RecapActivityAt!.Value))
+            .SingleOrDefaultAsync(ct);
+
+    public async Task SaveRecap(Guid sessionId, ChatRecap recap, CancellationToken ct = default)
+    {
+        await _db.ChatSessions
+            .Where(s => s.Id == sessionId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(s => s.RecapText, recap.Text)
+                    .SetProperty(s => s.RecapActivityAt, recap.ActivityAt),
+                ct);
+    }
+
     public async Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default)
     {
         var orderIndex = await _db.ChatMessages
