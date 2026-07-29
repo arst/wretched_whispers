@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -14,7 +14,8 @@ import JournalDrawer from "@/components/journal/JournalDrawer";
 import MapDrawer from "@/components/map/MapDrawer";
 import EndCard from "@/components/session/EndCard";
 import DeathPanel from "@/components/session/DeathPanel";
-import type { SessionDetailDto } from "@/types/api";
+import RecapModal from "@/components/session/RecapModal";
+import type { SessionDetailDto, SessionResumeDto } from "@/types/api";
 
 // Session id comes from the ?id= query string rather than a dynamic route segment, so the app
 // static-exports cleanly for the desktop build (Next's output:export has no runtime dynamic routes).
@@ -44,6 +45,11 @@ function GameSession({ id }: { id: string }) {
   const [notFound, setNotFound] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
+  const [recapOpen, setRecapOpen] = useState(false);
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recap, setRecap] = useState<string | null>(null);
+  const [recapHour, setRecapHour] = useState(0);
+  const recapDismissed = useRef(false);
 
   const isStreaming = useSessionStore((s) => s.isStreaming);
   const error = useSessionStore((s) => s.error);
@@ -54,6 +60,7 @@ function GameSession({ id }: { id: string }) {
   const miseryCount = useSessionStore((s) => s.miseryCount);
   const worldEnded = useSessionStore((s) => s.worldEnded);
   const currentDay = useSessionStore((s) => s.currentDay);
+  const currentLocationName = useSessionStore((s) => s.currentLocationName);
   const characterData = useSessionStore((s) => s.characterData);
   const failedMessage = useSessionStore((s) => s.failedMessage);
 
@@ -138,6 +145,26 @@ function GameSession({ id }: { id: string }) {
         } else {
           setLoading(false);
         }
+
+        recapDismissed.current = false;
+        setRecapHour(data.currentHour);
+        setRecapOpen(data.recapDue);
+        setRecapLoading(data.recapDue);
+
+        void apiFetch(`/sessions/${id}/resume`, { method: "POST" })
+          .then(async (resumeRes) => {
+            if (!resumeRes.ok) throw new Error("Failed to resume session");
+            const result: SessionResumeDto = await resumeRes.json();
+            if (cancelled || recapDismissed.current) return;
+            setRecap(result.recap);
+            setRecapOpen(result.recap !== null);
+          })
+          .catch(() => {
+            if (!cancelled) setRecapOpen(false);
+          })
+          .finally(() => {
+            if (!cancelled) setRecapLoading(false);
+          });
       } catch (err) {
         if (cancelled) return;
         useSessionStore
@@ -162,6 +189,11 @@ function GameSession({ id }: { id: string }) {
 
   const handleSplashTransition = useCallback(() => {
     setSplashDismissed(true);
+  }, []);
+
+  const closeRecap = useCallback(() => {
+    recapDismissed.current = true;
+    setRecapOpen(false);
   }, []);
 
   const handleSend = useCallback(
@@ -205,6 +237,16 @@ function GameSession({ id }: { id: string }) {
           onTransition={handleSplashTransition}
         />
       )}
+
+      <RecapModal
+        open={recapOpen}
+        loading={recapLoading}
+        text={recap}
+        location={currentLocationName}
+        day={currentDay}
+        hour={recapHour}
+        onClose={closeRecap}
+      />
 
       {/* Error banner — with a Retry when the failed turn can be resent */}
       {error && (

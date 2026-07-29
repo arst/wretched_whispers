@@ -58,6 +58,16 @@ public sealed class ChatHistoryReducer(
         phrasing. Write terse, doom-laden narrative prose.
         """;
 
+    private const string RecapInstructions =
+        """
+        Write a 150-250 word "Previously on..." recap for the returning player of this MORK BORG
+        campaign. Use the transcript for what happened and the final Current Game State message as
+        authoritative when they disagree. Preserve major events, important NPCs and relationships,
+        unresolved promises or threats, and the character's immediate situation. Write two to four
+        short paragraphs of vivid, doom-laden narrative prose. Do not use headings, bullet points,
+        raw statistics, rules language, or address the reader outside the fiction.
+        """;
+
     public async Task<IReadOnlyList<ChatMessage>> ReduceAsync(
         Guid chatSessionId, IReadOnlyList<ChatMessage> history, CancellationToken ct)
     {
@@ -143,6 +153,35 @@ public sealed class ChatHistoryReducer(
         {
             logger.LogWarning(ex, "Epitaph summarization failed for chronicle {ChronicleId}", fallenChronicleId);
             return false;
+        }
+    }
+
+    public async Task<string?> CreateRecapAsync(Guid chatSessionId, string currentState, CancellationToken ct)
+    {
+        try
+        {
+            var history = await chatHistoryRepository.LoadSession(chatSessionId, ct);
+            if (history is null || history.Count == 0)
+                return null;
+
+            var stored = await chatHistoryRepository.GetSummary(chatSessionId, ct);
+            var source = new List<ChatMessage>();
+            if (stored is not null)
+                source.Add(SummaryMessage(stored.Text));
+            source.AddRange(history.Skip(stored?.CoveredCount ?? 0));
+            source.Add(new ChatMessage(ChatRole.System, $"[Current Game State]\n{currentState}"));
+
+            var response = await chatClient.GetResponseAsync(
+                source,
+                new ChatOptions { Instructions = RecapInstructions },
+                ct);
+
+            return string.IsNullOrWhiteSpace(response.Text) ? null : response.Text.Trim();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Recap generation failed for chronicle {ChronicleId}", chatSessionId);
+            return null;
         }
     }
 

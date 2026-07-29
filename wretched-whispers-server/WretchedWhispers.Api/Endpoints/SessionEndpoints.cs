@@ -15,6 +15,8 @@ namespace WretchedWhispers.Api.Endpoints;
 
 public static class SessionEndpoints
 {
+    private static readonly TimeSpan RecapAfter = TimeSpan.FromHours(48);
+
     public static WebApplication MapSessionEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/sessions")
@@ -37,6 +39,7 @@ public static class SessionEndpoints
         group.MapGet("/{sessionId:guid}/messages", GetSessionMessages);
         group.MapGet("/{sessionId:guid}/journal", GetSessionJournal);
         group.MapGet("/{sessionId:guid}/map", GetSessionMap);
+        group.MapPost("/{sessionId:guid}/resume", ResumeSession);
         group.MapPost("/{sessionId:guid}/successor", CreateSuccessor);
         group.MapPost("/{sessionId:guid}/abandon", AbandonSession);
 
@@ -223,6 +226,13 @@ public static class SessionEndpoints
         // Use SessionContextLoader + StateUpdateMapper to derive character/campaign state
         var context = await contextLoader.LoadAsync(sessionId);
         var stateUpdate = StateUpdateMapper.Map(context);
+        var lastOpened = chatSessionId == Guid.Empty
+            ? null
+            : await chatHistoryRepo.GetLastOpened(chatSessionId);
+        var lastActivity = chatSessionId == Guid.Empty
+            ? null
+            : await chatHistoryRepo.GetSessionLastActivity(chatSessionId);
+        var recapDue = totalMessages > 0 && IsRecapDue(lastOpened, lastActivity, DateTime.UtcNow);
 
         return Results.Ok(new SessionDetailDto(
             sessionId,
@@ -237,7 +247,56 @@ public static class SessionEndpoints
             totalMessages,
             page,
             pageSize,
-            stateUpdate));
+            stateUpdate,
+            recapDue));
+    }
+
+    private static async Task<IResult> ResumeSession(
+        Guid sessionId,
+        HttpContext http,
+        ICampaignsRepository campaignsRepo,
+        IChatHistoryRepository chatHistoryRepo,
+        ISessionContextLoader contextLoader,
+        ChatHistoryReducer historyReducer,
+        CancellationToken ct)
+    {
+        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
+
+        var campaign = (await campaignsRepo.GetForUser(userId))
+            .FirstOrDefault(c => c.Id == sessionId);
+        if (campaign is null)
+            return Results.NotFound();
+
+        var chatSessionId = (await chatHistoryRepo.GetSessionsForCampaign(campaign.Id, ct))
+            .FirstOrDefault();
+        if (chatSessionId == Guid.Empty)
+            return Results.Ok(new SessionResumeDto(null));
+
+        var now = DateTime.UtcNow;
+        var lastOpened = await chatHistoryRepo.GetLastOpened(chatSessionId, ct);
+        var lastActivity = await chatHistoryRepo.GetSessionLastActivity(chatSessionId, ct);
+        await chatHistoryRepo.MarkOpened(chatSessionId, now, ct);
+
+        if (!IsRecapDue(lastOpened, lastActivity, now))
+            return Results.Ok(new SessionResumeDto(null));
+
+        var cached = await chatHistoryRepo.GetRecap(chatSessionId, ct);
+        if (cached is not null && cached.ActivityAt == lastActivity)
+            return Results.Ok(new SessionResumeDto(cached.Text));
+
+        var context = await contextLoader.LoadAsync(campaign.Id, ct);
+        var recap = await historyReducer.CreateRecapAsync(chatSessionId, context.FormatSnapshot(), ct);
+        if (recap is not null && lastActivity is not null)
+            await chatHistoryRepo.SaveRecap(chatSessionId, new ChatRecap(recap, lastActivity.Value), ct);
+        return Results.Ok(new SessionResumeDto(recap));
+    }
+
+    private static bool IsRecapDue(DateTime? lastOpened, DateTime? lastActivity, DateTime now)
+    {
+        var lastSeen = new[] { lastOpened, lastActivity }.Max();
+        return lastSeen is not null && now - lastSeen >= RecapAfter;
     }
 
     private static async Task<IResult> GetSessionMap(

@@ -28,6 +28,11 @@ export interface SessionDetailDto {
   page: number;
   pageSize: number;
   state: StateUpdateEvent;
+  recapDue: boolean;
+}
+
+export interface SessionResumeDto {
+  recap: string | null;
 }
 
 export interface ChatMessageDto {

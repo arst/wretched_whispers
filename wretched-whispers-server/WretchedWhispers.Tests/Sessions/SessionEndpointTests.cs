@@ -193,10 +193,58 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal(0, json.GetProperty("currentHour").GetInt32());
         Assert.Equal("character-creation", json.GetProperty("status").GetString());
         Assert.Equal(0, json.GetProperty("totalMessages").GetInt32());
+        Assert.False(json.GetProperty("recapDue").GetBoolean());
 
         var messages = json.GetProperty("messages");
         Assert.Equal(JsonValueKind.Array, messages.ValueKind);
         Assert.Equal(0, messages.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task ResumeSession_RecordsDatabaseOpening_WithoutRecapForNewSession()
+    {
+        var token = await RegisterAndLogin("resume-session@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{campaignId}/resume", token));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("recap").ValueKind);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
+        var chatSession = await db.ChatSessions.SingleAsync(s => s.CampaignId == campaignId);
+        Assert.NotNull(chatSession.LastOpenedAt);
+    }
+
+    [Fact]
+    public async Task ResumeSession_ReusesCachedRecap_WhenOnlyOpeningChanged()
+    {
+        var token = await RegisterAndLogin("resume-cache@test.com");
+        var createResponse = await _client.SendAsync(AuthPost("/sessions", token));
+        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+        var oldActivity = DateTime.UtcNow.AddDays(-3);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
+            var chatSession = await db.ChatSessions.SingleAsync(s => s.CampaignId == campaignId);
+            chatSession.StartedAt = oldActivity;
+            chatSession.LastOpenedAt = oldActivity;
+            chatSession.RecapText = "Cached whispers.";
+            chatSession.RecapActivityAt = oldActivity;
+            await db.SaveChangesAsync();
+        }
+
+        var response = await _client.SendAsync(AuthPost($"/sessions/{campaignId}/resume", token));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Cached whispers.", json.GetProperty("recap").GetString());
     }
 
     [Fact]
