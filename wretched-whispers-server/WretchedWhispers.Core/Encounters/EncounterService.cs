@@ -84,7 +84,8 @@ public class EncounterService(
         string? attackedName = null;
         ChallengeOutcome? fleeAttempt = null;
         var playerFled = false;
-        var fledBefore = encounter.Adversaries.Where(a => a.IsFled).Select(a => a.Name).ToHashSet();
+        // Track by id, not name — two adversaries can share a name, and only one of them fled.
+        var fledBefore = encounter.Adversaries.Where(a => a.IsFled).Select(a => a.Id).ToHashSet();
 
         switch (action)
         {
@@ -124,13 +125,12 @@ public class EncounterService(
                 var defence = character.Defend(adversary.Attack.DamageDie, dice,
                     spendOmenToReduceDamage: omenShieldAvailable);
                 if (defence.OmenDamageReduction > 0) omenShieldAvailable = false;
-                encounter.ProcessPlayerDefenceOutcome(defence, adversary.Id);
                 retaliations.Add(new AdversaryRetaliation(adversary.Name, defence));
             }
         }
 
         var fledThisRound = encounter.Adversaries
-            .Where(a => a.IsFled && !fledBefore.Contains(a.Name))
+            .Where(a => a.IsFled && !fledBefore.Contains(a.Id))
             .Select(a => a.Name)
             .ToList();
 

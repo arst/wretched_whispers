@@ -143,22 +143,6 @@ public class InjurySetTests
         Assert.Equal(DiceExpr.Zero, set.GetAgilityPenaltyDice());
     }
 
-    [Theory]
-    [InlineData(InjuryKind.None)]
-    [InlineData(InjuryKind.LostEye)]
-    [InlineData(InjuryKind.StabbedLung)]
-    [InlineData(InjuryKind.BrokenHand)]
-    [InlineData(InjuryKind.CrushedFoot)]
-    [InlineData(InjuryKind.SeveredArm)]
-    [InlineData(InjuryKind.SmashedFace)]
-    public void GetToughnessPenalty_AlwaysReturnsZero(InjuryKind injury)
-    {
-        // No injury from the broken table penalizes Toughness in Mork Borg
-        var set = new InjurySet().Add(injury);
-
-        Assert.Equal(0, set.GetToughnessPenalty());
-    }
-
     [Fact]
     public void Serialization_RoundTrip_PreservesInjuries()
     {

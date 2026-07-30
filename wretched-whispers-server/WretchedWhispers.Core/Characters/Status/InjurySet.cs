@@ -59,10 +59,4 @@ public readonly record struct InjurySet(InjuryKind Injuries = InjuryKind.None)
     {
         return Has(InjuryKind.LostEye) ? DiceExpr.D4 : DiceExpr.Zero;
     }
-
-    /// <summary>
-    ///     Returns the fixed DR increase for Toughness checks.
-    ///     No injury from the broken table penalizes Toughness in Mork Borg.
-    /// </summary>
-    public int GetToughnessPenalty() => 0;
 }

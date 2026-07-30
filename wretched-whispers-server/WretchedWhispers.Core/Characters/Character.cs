@@ -19,7 +19,7 @@ namespace WretchedWhispers.Core.Characters;
 
 public sealed class Character
 {
-    [JsonIgnore] private List<Scroll> _scrolls;
+    private readonly List<Scroll> _scrolls;
 
     [JsonConstructor]
     private Character(
@@ -32,7 +32,8 @@ public sealed class Character
         Weapon weapon,
         Armor armor,
         Shield? shield,
-        List<Scroll> scrolls,
+        // Param type must equal the property type or STJ refuses to bind the constructor.
+        IReadOnlyList<Scroll> scrolls,
         PowerPool powers,
         HitPoints hp,
         Omens omens,
@@ -55,7 +56,7 @@ public sealed class Character
         Powers = powers;
         Omens = omens;
         Hp = hp;
-        _scrolls = scrolls;
+        _scrolls = scrolls?.ToList() ?? [];
         Inventory = inventory;
         Injuries = injuries;
         IsInfected = isInfected;
@@ -122,7 +123,8 @@ public sealed class Character
     [JsonIgnore] public bool HasSeveredArm => Injuries.Has(InjuryKind.SeveredArm);
     [JsonIgnore] public bool HasSmashedFace => Injuries.Has(InjuryKind.SmashedFace);
 
-    [JsonInclude] public List<Scroll> Scrolls { get => _scrolls; private set => _scrolls = value; }
+    // Read-only projection over the list the constructor binds — mutation goes through aggregate methods.
+    [JsonInclude] public IReadOnlyList<Scroll> Scrolls => _scrolls;
 
     // Aggregate delegate methods for Inventory operations
     public void AddItem(InventoryItem item) => Inventory.AddItem(item);
@@ -160,8 +162,7 @@ public sealed class Character
 
         if (outcome.TargetArmorDegraded) targetArmor.Degrade();
 
-        return new AttackOutcome(outcome.Hit, outcome.Damage, outcome.Critical, outcome.Fumble, outcome.WeaponBroken,
-            outcome.TargetArmorDegraded, outcome.BaseDamageRoll, outcome.DamageReduction);
+        return outcome;
     }
 
     private AttackOutcome ResolveAttack(Armor targetArmor, Dice dice, bool spendOmenForMaxDamage = false)
@@ -201,6 +202,8 @@ public sealed class Character
     {
         var outcome = ResolveDefence(dice);
 
+        // A natural 20 always avoids, so the crit flag only ever rides the avoided path — the free
+        // attack it promises is the narrator's to grant, not a domain-resolved swing.
         if (outcome.IsAvoided)
             return new DefenceOutcome
             {
@@ -210,7 +213,7 @@ public sealed class Character
                 FumbleDoubleDamage = outcome.IsFumble
             };
 
-        var damage = CalculateDamageAfterDefense(attackDie, outcome, dice);
+        var damage = CalculateDamageAfterDefense(attackDie, outcome.IsFumble, dice);
 
         // Silent TrySpend: the model-facing "no omens" guard lives in ResolveRound before any
         // mutation — throwing here would corrupt a half-resolved round.
@@ -222,8 +225,6 @@ public sealed class Character
         }
 
         ReceiveDamage(damage, dice);
-
-        // TODO: Implement armor tier degradation + shield break
 
         return new DefenceOutcome
         {
@@ -253,32 +254,22 @@ public sealed class Character
     }
 
 
-    private int CalculateDamageAfterDefense(DiceExpr attackDie,
-        (bool IsAvoided, bool IsCritFree, bool IsFumble) outcome, Dice dice)
+    private int CalculateDamageAfterDefense(DiceExpr attackDie, bool isFumble, Dice dice)
     {
         var damage = dice.Roll(attackDie);
 
-        if (outcome.IsFumble) damage *= 2; // Fumble doubles the damage
+        if (isFumble) damage *= 2; // Fumble doubles the damage
 
-        if (outcome.IsCritFree)
-        {
-            var freeAttackResults = Defend(attackDie, dice); // Crit grants a free attack
-            damage += freeAttackResults.DamageDealt;
-        }
+        // ponytail: shield is a flat +1 to reduction; the break-to-ignore-one-attack choice needs a
+        // player decision in the round, add it when defence outcomes get consequences.
+        var armorReduction = Armor.Tier.RollDamageReduction(dice) + (Shield is not null ? 1 : 0);
 
-        var armorReduction =
-            Armor.Tier.RollDamageReduction(dice) +
-            (Shield is not null
-                ? 1
-                : 0); // Shield adds +1 to armor reduction or completely blocks one attack and breaks, model as +1 to armor reduction fo now
-
-        damage -= armorReduction;
-        return damage;
+        return Math.Max(0, damage - armorReduction);
     }
 
     private (bool IsAvoided, bool IsCritFree, bool IsFumble) ResolveDefence(Dice dice)
     {
-        var dr = new Dr(new Dr(12).Value + Armor.DefencePenalty);
+        var dr = new Dr(12 + Armor.DefencePenalty);
         var test = Challenge(dr, AbilityKind.Agility, dice, Armor.AgilityPenalty);
         var avoided = test.IsSuccess;
         var critFree = test.Natural == Natural.Twenty;
@@ -295,8 +286,6 @@ public sealed class Character
         var d4 = dice.Roll(DiceExpr.D4);
 
         if (d4 is 1 or 2) return InjuryKind.None;
-
-        if (d4 > 4) return null;
 
         var d6 = dice.Roll(DiceExpr.D6);
 
@@ -478,24 +467,21 @@ public sealed class Character
 
     public void Improve(AbilityKind kind, int delta)
     {
-        Abilities = Abilities.ModifyAbility(kind, delta);
-
-        if (kind != AbilityKind.Strength)
-            return;
-        var newCapacity = 2 * (Abilities.Strength.Modifier + 8);
-        Inventory.MaxCapacity = newCapacity;
+        if (delta <= 0) throw new InvalidOperationException("Improve delta must be positive.");
+        ModifyAbility(kind, delta);
     }
 
     public void Degrade(AbilityKind kind, int delta)
     {
         if (delta >= 0) throw new InvalidOperationException("Degrade delta must be negative.");
+        ModifyAbility(kind, delta);
+    }
 
+    private void ModifyAbility(AbilityKind kind, int delta)
+    {
         Abilities = Abilities.ModifyAbility(kind, delta);
-
-        if (kind != AbilityKind.Strength)
-            return;
-        var newCapacity = 2 * (Abilities.Strength.Modifier + 8);
-        Inventory.MaxCapacity = newCapacity;
+        if (kind == AbilityKind.Strength)
+            Inventory.MaxCapacity = Inventory.CapacityFor(Abilities.Strength);
     }
 
     public static Character Create(Guid id, string name, int maxHp, Abilities.Abilities abilities,
@@ -509,7 +495,6 @@ public sealed class Character
         if (equipment.Gear2 is not null) items.Add(equipment.Gear2);
 
         if (equipment.ClassKit is not null) items.AddRange(equipment.ClassKit);
-        var inventoryCapacity = 2 * (abilities.Strength.Modifier + 8);
 
         return new Character(
             id,
@@ -517,7 +502,7 @@ public sealed class Character
             abilities,
             equipment.Silver,
             equipment.FoodDays,
-            new Inventory(equipment.Container, inventoryCapacity, items),
+            new Inventory(equipment.Container, Inventory.CapacityFor(abilities.Strength), items),
             equipment.Weapon,
             equipment.Armor,
             equipment.Shield,
