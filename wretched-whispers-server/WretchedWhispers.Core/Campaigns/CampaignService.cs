@@ -15,10 +15,15 @@ public class CampaignService(
         await campaignsRepository.SaveCampaign(campaign);
     }
 
+    private async Task<Campaign> GetRequiredCampaign(Guid campaignId)
+    {
+        return await campaignsRepository.Get(campaignId)
+               ?? throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+    }
+
     public async Task<Campaign> ConfigureCampaign(Guid campaignId, string name, string description)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         campaign.Configure(name, description);
         TryAutoStart(campaign);
@@ -31,8 +36,7 @@ public class CampaignService(
         var character = await charactersRepository.Get(characterId);
         if (character is null) throw new ArgumentException($"Character with {characterId} doesn't exist.");
 
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         campaign.JoinGame(character.Id);
         TryAutoStart(campaign);
@@ -50,8 +54,7 @@ public class CampaignService(
 
     public async Task<Campaign> RecordJournalEntry(Guid campaignId, JournalCategory category, string text)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         campaign.RecordJournalEntry(category, text);
         await campaignsRepository.SaveCampaign(campaign);
@@ -60,8 +63,7 @@ public class CampaignService(
 
     public async Task<Campaign> RecordPointOfInterest(Guid campaignId, PoiType type, string name, int x, int y, string? connectedTo)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         campaign.RecordPointOfInterest(type, name, x, y, connectedTo);
         await campaignsRepository.SaveCampaign(campaign);
@@ -70,8 +72,7 @@ public class CampaignService(
 
     public async Task<Campaign> SetPartyLocation(Guid campaignId, string name)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         campaign.SetPartyLocation(name);
         await campaignsRepository.SaveCampaign(campaign);
@@ -80,8 +81,7 @@ public class CampaignService(
 
     public async Task AttachEncounter(Guid campaignId, Guid encounterId)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         campaign.AddEncounter(encounterId);
 
@@ -90,24 +90,21 @@ public class CampaignService(
 
     public async Task EndCampaign(Guid campaignId)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
         campaign.End();
         await campaignsRepository.SaveCampaign(campaign);
     }
 
     public async Task<bool> IsActive(Guid campaignId)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         return campaign.IsActive();
     }
 
     public async Task<AdvanceTimeOutcome> AdvanceTime(Guid campaignId, int hours)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         var outcome = campaign.AdvanceTime(hours, dice);
         await campaignsRepository.SaveCampaign(campaign);
@@ -129,8 +126,7 @@ public class CampaignService(
 
     public async Task<AdvanceTimeOutcome> AdvanceTimeWithRest(Guid campaignId, int hours)
     {
-        var campaign = await campaignsRepository.Get(campaignId);
-        if (campaign is null) throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+        var campaign = await GetRequiredCampaign(campaignId);
 
         var outcome = campaign.AdvanceTime(hours, dice);
         await campaignsRepository.SaveCampaign(campaign);

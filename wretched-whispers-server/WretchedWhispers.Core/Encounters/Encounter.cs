@@ -7,9 +7,12 @@ namespace WretchedWhispers.Core.Encounters;
 
 public sealed class Encounter
 {
+    private readonly List<Adversary> _adversaries;
+
     [JsonConstructor]
     private Encounter(Guid id, EncounterType initialType, EncounterType currentType, string name, string description,
-        List<Adversary> adversaries, bool isStarted = false, bool isEnded = false, bool isResolved = false,
+        // Param type must equal the property type or STJ refuses to bind the constructor.
+        IReadOnlyList<Adversary> adversaries, bool isStarted = false, bool isEnded = false, bool isResolved = false,
         InitialReaction? reaction = null, int? reactionRoll = null)
     {
         Id = id;
@@ -17,7 +20,7 @@ public sealed class Encounter
         CurrentType = currentType;
         Name = name;
         Description = description;
-        Adversaries = adversaries ?? [];
+        _adversaries = adversaries?.ToList() ?? [];
         IsStarted = isStarted;
         IsEnded = isEnded;
         IsResolved = isResolved;
@@ -37,7 +40,8 @@ public sealed class Encounter
     [JsonInclude] public int? ReactionRoll { get; private set; }
     public string Name { get; }
     public string Description { get; }
-    [JsonInclude] public List<Adversary> Adversaries { get; private set; }
+    // Read-only projection over the list the constructor binds — mutation goes through AddAdversary.
+    [JsonInclude] public IReadOnlyList<Adversary> Adversaries => _adversaries;
     [JsonIgnore] public IReadOnlyList<Adversary> LivingAdversaries => Adversaries.Where(a => !a.IsDead).ToList().AsReadOnly();
     [JsonIgnore] public IReadOnlyList<Adversary> DeadAdversaries => Adversaries.Where(a => a.IsDead).ToList().AsReadOnly();
     [JsonInclude] public bool IsStarted { get; private set; }
@@ -95,7 +99,7 @@ public sealed class Encounter
 
     public void AddAdversary(Adversary e)
     {
-        Adversaries.Add(e);
+        _adversaries.Add(e);
     }
 
     public void ProcessPlayerAttackOutcome(AttackOutcome outcome, Guid adversaryId, Dice dice)
@@ -114,10 +118,6 @@ public sealed class Encounter
             return;
 
         adversary.Retreat();
-    }
-
-    public void ProcessPlayerDefenceOutcome(DefenceOutcome defenceOutcome, Guid adversaryId)
-    {
     }
 
     private void Initiate(EncounterType initialType, Dice dice)

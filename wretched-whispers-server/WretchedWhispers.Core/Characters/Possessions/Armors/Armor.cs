@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 
@@ -6,18 +6,13 @@ namespace WretchedWhispers.Core.Characters.Possessions.Armors;
 
 public sealed class Armor
 {
-    public Armor(ArmorTier tier) : this(tier, tier)
-    {
-    }
-
+    // Old blobs carry a stale "originalTier" key from a repair mechanic that never got a caller;
+    // deserialization ignores it.
     [JsonConstructor]
-    private Armor(ArmorTier tier, ArmorTier originalTier)
+    public Armor(ArmorTier tier)
     {
         Tier = tier;
-        OriginalTier = originalTier;
     }
-
-    [JsonInclude] public ArmorTier OriginalTier { get; private set; }
 
     [JsonInclude] public ArmorTier Tier { get; private set; }
 
@@ -35,20 +30,6 @@ public sealed class Armor
             ArmorTier.Medium => ArmorTier.Light,
             ArmorTier.Light => ArmorTier.None,
             ArmorTier.None => Tier,
-            _ => throw new ArgumentOutOfRangeException(nameof(Tier))
-        };
-    }
-
-    public void Repair()
-    {
-        Tier = Tier switch
-        {
-            ArmorTier.Heavy => Tier,
-            ArmorTier.Medium => OriginalTier is ArmorTier.Heavy ? ArmorTier.Heavy : Tier,
-            ArmorTier.Light => OriginalTier is ArmorTier.Medium or ArmorTier.Heavy ? ArmorTier.Medium : Tier,
-            ArmorTier.None => OriginalTier is ArmorTier.Light or ArmorTier.Medium or ArmorTier.Heavy
-                ? OriginalTier
-                : ArmorTier.None,
             _ => throw new ArgumentOutOfRangeException(nameof(Tier))
         };
     }

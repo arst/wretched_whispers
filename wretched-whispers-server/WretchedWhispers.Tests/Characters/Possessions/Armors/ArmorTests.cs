@@ -32,37 +32,6 @@ public class ArmorTests
     }
 
     [Fact]
-    public void Repair_RestoresToOriginalTier()
-    {
-        var armor = new Armor(ArmorTier.Heavy);
-        armor.Degrade(); // Medium
-        armor.Degrade(); // Light
-        armor.Repair();
-        Assert.Equal(ArmorTier.Medium, armor.Tier);
-        armor.Repair();
-        Assert.Equal(ArmorTier.Heavy, armor.Tier);
-    }
-
-    [Fact]
-    public void Repair_DoesNotUpgradePastOriginal()
-    {
-        var armor = new Armor(ArmorTier.Medium);
-        armor.Degrade(); // Light
-        armor.Repair();
-        Assert.Equal(ArmorTier.Medium, armor.Tier);
-        armor.Repair();
-        Assert.Equal(ArmorTier.Medium, armor.Tier); // No further upgrade
-    }
-
-    [Fact]
-    public void Repair_NoArmorEdgeCases()
-    {
-        var armor = new Armor(ArmorTier.None);
-        armor.Repair();
-        Assert.Equal(ArmorTier.None, armor.Tier);
-    }
-
-    [Fact]
     public void Properties_ReflectCurrentTier()
     {
         var armor = new Armor(ArmorTier.Heavy);

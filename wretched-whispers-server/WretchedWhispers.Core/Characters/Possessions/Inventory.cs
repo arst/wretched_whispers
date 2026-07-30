@@ -7,24 +7,34 @@ public sealed class Inventory
 {
     private readonly List<InventoryItem> _inventoryItems;
 
+    // Param type must equal the property type or STJ refuses to bind the constructor.
     [JsonConstructor]
-    public Inventory(string container, int maxCapacity, List<InventoryItem> inventoryItems)
+    public Inventory(string container, int maxCapacity, IReadOnlyList<InventoryItem> inventoryItems)
     {
         Container = container;
         MaxCapacity = maxCapacity;
-        _inventoryItems = inventoryItems ?? [];
+        _inventoryItems = inventoryItems?.ToList() ?? [];
     }
 
     public string Container { get; }
     [JsonInclude] public int MaxCapacity { get; internal set; }
 
-    /// <summary>
-    ///     The items in the inventory. Use AddItem/RemoveItem/ConsumeItem/ReplenishItem to mutate.
-    ///     Typed as List for STJ constructor parameter binding compatibility.
-    /// </summary>
-    public List<InventoryItem> InventoryItems => _inventoryItems;
+    /// <summary>Read-only projection over the list the constructor binds — mutation goes through
+    /// AddItem/RemoveItem/ConsumeItem/ReplenishItem.</summary>
+    public IReadOnlyList<InventoryItem> InventoryItems => _inventoryItems;
 
     [JsonIgnore] public bool IsFull => GetFreeSlots() == 0;
+
+    /// <summary>The one home of the carry rule: Strength+8 slots carried free, twice that as the hard cap.</summary>
+    public static int CapacityFor(AbilityScore strength)
+    {
+        return 2 * FreeCarrySlots(strength);
+    }
+
+    private static int FreeCarrySlots(AbilityScore strength)
+    {
+        return strength.Modifier + 8;
+    }
 
     public void AddItem(InventoryItem item)
     {
@@ -76,6 +86,6 @@ public sealed class Inventory
 
     public bool IsEncumbered(AbilityScore abilitiesStrength)
     {
-        return abilitiesStrength.Modifier + 8 <= CalculateOccupiedSlots();
+        return FreeCarrySlots(abilitiesStrength) <= CalculateOccupiedSlots();
     }
 }
