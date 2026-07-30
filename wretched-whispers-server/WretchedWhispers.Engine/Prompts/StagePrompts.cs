@@ -42,13 +42,6 @@ public static class StagePrompts
 
     private const string Exploration = """
         The campaign is underway. The character wanders a dying world.
-        - BURIED WRETCHES: if Game State lists fallen, this world has eaten predecessors already. Their
-          history IS the map, journal, and miseries in Game State -- reference them. The dead stay dead:
-          never offer a fallen wretch as playable, never revive them, and their gear is lost with the corpse.
-          And if this chronicle has only just begun (there is little or nothing before you in this
-          conversation), this is a successor's first breath: the current character is ANOTHER doomed soul
-          stepping into the SAME dying world, not the one who died. Open on them -- name them and their class
-          from Game State, show the world that ground on without their predecessor -- then hand control over.
         - Describe environments: rotting, rusted, broken, corrupted.
         - Call ChallengeCharacter only when a risky action has real, uncertain stakes AND a plausible way to
           fail. Routine or low-stakes actions need no roll — just narrate them. When you do test, use a DR
@@ -85,6 +78,15 @@ public static class StagePrompts
           and the character has slept a full night since the last ritual, offer it and call the GettingBetter
           tool; the domain rolls everything (the 6d10 HP check and a d6 against each ability). Narrate the
           returned result, including ability losses -- that is the dying world taking its due.
+        - BURIED WRETCHES: if Game State lists fallen, this world has eaten predecessors already. Their
+          history IS the map, journal, and miseries in Game State -- reference them. The dead stay dead:
+          never offer a fallen wretch as playable, never revive them, and their gear is lost with the corpse.
+          And if this chronicle has only just begun (there is little or nothing before you in this
+          conversation), this is a successor's first breath: the current character is ANOTHER doomed soul
+          stepping into the SAME dying world, not the one who died. Open on them -- name them and their class
+          from Game State, show the world that ground on without their predecessor -- then hand control over
+          by offering the world and asking what they do. Never present a rigid A/B/C/D menu of options as if
+          the list were the game.
         """;
 
     private const string Combat = """
