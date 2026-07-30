@@ -1,5 +1,6 @@
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
@@ -12,42 +13,63 @@ namespace WretchedWhispers.Core.Characters.Create;
 
 public class CharacterCreationService(ICharactersRepository charactersRepository, Dice dice)
 {
-    public async Task<Character> Create(string name, Difficulty difficulty)
+    public async Task<Character> Create(string name, Difficulty difficulty,
+        CharacterClass characterClass = CharacterClass.Classless)
     {
         var id = Guid.NewGuid();
-        var abilities = RollAbilities();
-        var equipment = RollStartingEquipment(abilities);
-        var maxHp = RollStartingHealthPoints(abilities) + DifficultyPresets.For(difficulty).StartingHpBonus;
-        var numberOfOmens = dice.Roll(DiceExpr.D2);
+        var settings = ClassPresets.For(characterClass);
+        var abilities = RollAbilities(settings);
+        var equipment = RollStartingEquipment(abilities, characterClass, settings);
+        var maxHp = RollStartingHealthPoints(abilities, settings) + DifficultyPresets.For(difficulty).StartingHpBonus;
+        var numberOfOmens = dice.Roll(settings.OmenDie);
 
-        var character = Character.Create(id, name, maxHp, abilities, equipment, dice, numberOfOmens);
+        var character = Character.Create(id, name, maxHp, abilities, equipment, dice, numberOfOmens, characterClass);
         await charactersRepository.Save(character);
 
         return character;
     }
 
-    private int RollStartingHealthPoints(Abilities.Abilities abilities)
+    /// <summary>Rolls one of the six real classes. The domain owns this die, not the narrator --
+    /// <see cref="CharacterClass.Classless"/> is a deliberate choice and never a roll result.</summary>
+    public CharacterClass RollRandomClass()
     {
-        return Math.Max(1, abilities.Toughness.Modifier + dice.Roll(DiceExpr.D8));
+        var roll = dice.Roll(DiceExpr.D(1, ClassPresets.Rollable.Length));
+        return ClassPresets.Rollable[roll - 1];
     }
 
-    private StartingEquipment RollStartingEquipment(Abilities.Abilities abilities)
+    private int RollStartingHealthPoints(Abilities.Abilities abilities, ClassSettings settings)
+    {
+        return Math.Max(1, abilities.Toughness.Modifier + dice.Roll(settings.HpDie));
+    }
+
+    private StartingEquipment RollStartingEquipment(Abilities.Abilities abilities,
+        CharacterClass characterClass, ClassSettings settings)
     {
         var silver = dice.Roll(DiceExpr.D(2, 6)) * 10; // 2d6 × 10 silver
         var foodDays = dice.Roll(DiceExpr.D4); // d4 days of food
         var container = RollContainer(); // d6: nothing/backpack/sack/wagon/donkey
         var gear1 = RollGearSlot1(abilities);
         var gear2 = RollGearSlot2();
-        var hasScroll = gear1.ScrollSchool is not null || gear2.ScrollSchool is not null;
+        // Class-granted scrolls count toward the "began with a scroll" gate below: a wretch who starts
+        // able to cast starts worse-armed, the same trade the gear tables already make.
+        var hasScroll = gear1.ScrollSchool is not null || gear2.ScrollSchool is not null
+                        || settings.StartingScrollCount > 0;
         var hasShield = gear1.IsShield || gear2.IsShield;
 
-        var weapon = RollWeapon(hasScroll);
+        // A natural attack replaces the rolled weapon rather than sitting alongside it -- see ClassSettings.
+        var weapon = settings.NaturalWeapon is { } natural
+            ? Weapon.Create(natural)
+            : RollWeapon(hasScroll);
         var armor = RollArmor(hasScroll);
         var scrolls = new List<Scroll>();
 
         if (gear1.ScrollSchool is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear1.ScrollSchool.Value, "random"));
 
         if (gear2.ScrollSchool is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear2.ScrollSchool.Value, "random"));
+
+        if (settings.StartingScrollSchool is { } classSchool)
+            for (var i = 0; i < settings.StartingScrollCount; i++)
+                scrolls.Add(new Scroll(Guid.NewGuid(), classSchool, "random"));
 
         return new StartingEquipment(
             silver,
@@ -62,8 +84,66 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
             weapon,
             armor,
             hasShield ? new Shield() : null,
-            scrolls
+            scrolls,
+            RollClassKit(characterClass)
         );
+    }
+
+    /// <summary>Class gear on top of the two rolled slots. Lives here rather than in
+    /// <see cref="ClassSettings"/> because these are dice tables, and the dice tables live together.
+    /// Consumes NO dice for classes without a kit, which keeps classless creation roll-for-roll identical
+    /// to what it was before classes existed.</summary>
+    private List<InventoryItem>? RollClassKit(CharacterClass characterClass)
+    {
+        switch (characterClass)
+        {
+            case CharacterClass.GutterbornScum:
+            {
+                var kit = new List<InventoryItem>();
+                var count = dice.Roll(DiceExpr.D4);
+                for (var i = 0; i < count; i++)
+                    kit.Add(new InventoryItem(Guid.NewGuid(), RollTrinket(), false, false));
+                return kit;
+            }
+            case CharacterClass.OccultHerbmaster:
+            {
+                var kit = new List<InventoryItem> { new(Guid.NewGuid(), "herb pouch & pestle", false, false) };
+                var count = dice.Roll(DiceExpr.D4);
+                for (var i = 0; i < count; i++)
+                    kit.Add(new InventoryItem(Guid.NewGuid(), RollHerb(), false, true));
+                return kit;
+            }
+            default:
+                return null;
+        }
+    }
+
+    private string RollTrinket()
+    {
+        return dice.Roll(DiceExpr.D8) switch
+        {
+            1 => "a child's tooth on a string",
+            2 => "a key to a door that burned down",
+            3 => "half a portrait of someone hated",
+            4 => "a coin of a kingdom that never existed",
+            5 => "a dried finger, not yours",
+            6 => "a bell with the clapper cut out",
+            7 => "a folded note you cannot read",
+            _ => "a shard of black mirror"
+        };
+    }
+
+    private string RollHerb()
+    {
+        return dice.Roll(DiceExpr.D6) switch
+        {
+            1 => "gravebloom (numbs pain, blurs the eyes)",
+            2 => "iron-root (steadies the hands for an hour)",
+            3 => "weeping fungus (purges poison, and everything else)",
+            4 => "ash-nettle (wakes the senseless, badly)",
+            5 => "corpse-lily (a sleep hard to wake from)",
+            _ => "black sedge (stops bleeding, scars foully)"
+        };
     }
 
     private string RollContainer()
@@ -158,26 +238,34 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         return new Armor(tier);
     }
 
-    private Abilities.Abilities RollAbilities()
+    private Abilities.Abilities RollAbilities(ClassSettings settings)
     {
+        // Roll order is Agility, Presence, Strength, Toughness -- matching the Abilities constructor.
         return new Abilities.Abilities(
-            RollToAbilityScoreMap(Roll()),
-            RollToAbilityScoreMap(Roll()),
-            RollToAbilityScoreMap(Roll()),
-            RollToAbilityScoreMap(Roll())
+            RollToAbilityScoreMap(Roll(), settings.AgilityBonus),
+            RollToAbilityScoreMap(Roll(), settings.PresenceBonus),
+            RollToAbilityScoreMap(Roll(), settings.StrengthBonus),
+            RollToAbilityScoreMap(Roll(), settings.ToughnessBonus)
         );
 
-        AbilityScore RollToAbilityScoreMap(int sum)
+        AbilityScore RollToAbilityScoreMap(int sum, int classBonus)
+        {
+            // Clamp BEFORE constructing: AbilityScore throws outside -3..+6, and a rolled -3 plus a
+            // negative class bonus (Skinwalker Presence -2) is reachable.
+            return new AbilityScore(Math.Clamp(BaseModifier(sum) + classBonus, -3, 6));
+        }
+
+        int BaseModifier(int sum)
         {
             return sum switch
             {
-                <= 4 => new AbilityScore(-3),
-                <= 6 => new AbilityScore(-2),
-                <= 8 => new AbilityScore(-1),
-                <= 12 => new AbilityScore(0),
-                <= 14 => new AbilityScore(+1),
-                <= 16 => new AbilityScore(+2),
-                _ => new AbilityScore(+3)
+                <= 4 => -3,
+                <= 6 => -2,
+                <= 8 => -1,
+                <= 12 => 0,
+                <= 14 => +1,
+                <= 16 => +2,
+                _ => +3
             };
         }
 
