@@ -1,11 +1,20 @@
+import type { ReactNode } from "react";
 import type { CharacterClass } from "@/types/api";
 
 // Hand-drawn woodcut glyphs, one per class, monochrome via currentColor so the caller owns the
 // colour and the selected/unselected states cost nothing. Deliberately not an icon dependency:
 // nothing off the shelf has a "cursed skinwalker", and eight paths are smaller than a package.
-// A null class is "let the dice decide" and gets the d20.
-function Glyph({ characterClass }: { characterClass: CharacterClass | null }) {
+// A null class is "let the dice decide" and gets the d20; anything unrecognised gets nothing.
+function glyphFor(characterClass: CharacterClass | null): ReactNode {
   switch (characterClass) {
+    // Only the picker passes null, and only ever for "let the dice decide".
+    case null:
+      return (
+        <>
+          <path d="M12 2 L21 7 V17 L12 22 L3 17 V7 Z" />
+          <path d="M12 6.5 L17.2 15.5 H6.8 Z" />
+        </>
+      );
     // A maw with two fangs in it. Filled fangs, because outlined ones read as a "W" at 24px.
     case "FangedDeserter":
       return (
@@ -69,14 +78,8 @@ function Glyph({ characterClass }: { characterClass: CharacterClass | null }) {
           <path d="M12 13 L10.7 15.5 H13.3 Z" />
         </>
       );
-    // The d20 the dice decide with.
     default:
-      return (
-        <>
-          <path d="M12 2 L21 7 V17 L12 22 L3 17 V7 Z" />
-          <path d="M12 6.5 L17.2 15.5 H6.8 Z" />
-        </>
-      );
+      return null;
   }
 }
 
@@ -84,9 +87,21 @@ export default function ClassGlyph({
   characterClass,
   className,
 }: {
-  characterClass: CharacterClass | null;
+  /**
+   * A CharacterClass, or the display name the API sends for one ("Cursed Skinwalker") — that is
+   * just the enum name with spaces, so stripping them lands back on the key. Unknown values
+   * render nothing rather than a wrong glyph.
+   */
+  characterClass: CharacterClass | string | null;
   className?: string;
 }) {
+  const key = (
+    characterClass === null ? null : characterClass.replace(/\s/g, "")
+  ) as CharacterClass | null;
+  const glyph = glyphFor(key);
+
+  if (!glyph) return null;
+
   return (
     <svg
       viewBox="0 0 24 24"
@@ -97,7 +112,7 @@ export default function ClassGlyph({
       strokeLinejoin="miter"
       className={className}
     >
-      <Glyph characterClass={characterClass} />
+      {glyph}
     </svg>
   );
 }

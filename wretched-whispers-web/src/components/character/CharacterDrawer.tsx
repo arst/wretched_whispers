@@ -8,6 +8,7 @@ import EquipmentSlot from "./EquipmentSlot";
 import InventoryList from "./InventoryList";
 import InjuryBadges from "./InjuryBadges";
 import StatusIndicators from "./StatusIndicators";
+import ClassGlyph from "@/components/session/ClassGlyph";
 
 export default function CharacterDrawer() {
   const characterData = useSessionStore((s) => s.characterData);
@@ -116,7 +117,8 @@ export default function CharacterDrawer() {
               {characterData.name}
             </h2>
             {characterData.class && (
-              <p className="font-body text-xs uppercase tracking-wide text-doom-ash">
+              <p className="flex items-center gap-1.5 font-body text-xs uppercase tracking-wide text-doom-ash">
+                <ClassGlyph characterClass={characterData.class} className="w-4 h-4 shrink-0" />
                 {characterData.class}
               </p>
             )}

@@ -70,6 +70,22 @@ public class ClassPresetsTests
         Assert.InRange(settings.ToughnessBonus, -3, 3);
     }
 
+    /// <summary>The web sends nothing but the DisplayName to the character sheet, and picks the class
+    /// glyph by stripping its spaces back to the enum name. Renaming a DisplayName to anything else
+    /// silently drops the glyph, so pin the relationship here where the rename would happen.</summary>
+    [Theory]
+    [MemberData(nameof(AllClasses))]
+    public void DisplayName_IsTheEnumNameWithSpaces(CharacterClass characterClass)
+    {
+        // Classless is exempt: the API omits the class entirely for it, so its "Classless Scum"
+        // display name never reaches the client and never has to resolve to a glyph.
+        if (characterClass == CharacterClass.Classless) return;
+
+        var displayName = ClassPresets.For(characterClass).DisplayName;
+
+        Assert.Equal(characterClass.ToString(), displayName.Replace(" ", ""));
+    }
+
     [Fact]
     public void Rollable_IsEveryClassExceptClassless()
     {
