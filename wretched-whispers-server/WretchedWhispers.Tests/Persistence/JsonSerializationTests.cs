@@ -35,28 +35,28 @@ public class JsonSerializationTests : TestBase
         Assert.Equal(CharacterClass.CursedSkinwalker, deserialized.Class);
     }
 
-    /// <summary>Characters saved before classes existed have no "class" or "powerDie" keys at all. They must
-    /// still load, as classless wretches on the original d4 power die -- there is no migration to fix them up,
-    /// the Characters table is a single JSON blob.
+    /// <summary>Two shapes of old blob have to keep loading, and there is no migration to fix either up --
+    /// the Characters table is a single JSON column. Characters saved before classes existed have no
+    /// "class" key and must land as classless; characters saved while the power die was briefly a class
+    /// knob carry a "powerDie" the model no longer has, which must be ignored rather than throw.
     /// <para>
-    /// The legacy shape is produced by deleting those keys rather than pasting a frozen blob, so this keeps
-    /// testing absent-key handling as the rest of the character schema moves.
+    /// Both shapes are produced by editing the current one rather than pasting a frozen blob, so this keeps
+    /// testing key handling as the rest of the character schema moves.
     /// </para></summary>
     [Fact]
-    public void Character_WithoutClassKeys_DeserializesAsClasslessOnAD4()
+    public void Character_WithLegacyKeys_LoadsAsClasslessAndIgnoresTheStalePowerDie()
     {
         SetupDiceRolls(3);
         var json = JsonSerializer.Serialize(ClassedCharacter(CharacterClass.EsotericHermit), _options);
 
         var node = JsonNode.Parse(json)!.AsObject();
         Assert.True(node.Remove("class"), "expected a 'class' key to remove");
-        Assert.True(node["powers"]!.AsObject().Remove("powerDie"), "expected a 'powerDie' key to remove");
+        node["powers"]!.AsObject()["powerDie"] = JsonNode.Parse("""{"count":1,"sides":6}""");
 
         var deserialized = JsonSerializer.Deserialize<Character>(node.ToJsonString(), _options)!;
 
         Assert.Equal(CharacterClass.Classless, deserialized.Class);
-        Assert.Null(deserialized.Powers.PowerDie);
-        // Still usable: the null die falls back to d4, so a new dawn does not crash.
+        // Still usable: a new dawn rolls the only power die there is.
         deserialized.Powers.ResetForNewDay(deserialized.Abilities, Dice);
         Assert.True(deserialized.Powers.MaxUses >= 1);
     }
