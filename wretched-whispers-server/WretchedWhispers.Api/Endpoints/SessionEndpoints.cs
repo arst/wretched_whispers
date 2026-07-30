@@ -8,6 +8,7 @@ using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 
@@ -142,6 +143,7 @@ public static class SessionEndpoints
         foreach (var campaign in campaigns)
         {
             string? characterName = null;
+            string? characterClass = null;
             int? currentHp = null;
             int? maxHp = null;
 
@@ -153,6 +155,9 @@ public static class SessionEndpoints
                 if (character is not null)
                 {
                     characterName = character.Name;
+                    characterClass = character.Class == CharacterClass.Classless
+                        ? null
+                        : ClassPresets.For(character.Class).DisplayName;
                     currentHp = character.Hp.Current;
                     maxHp = character.Hp.Max;
                 }
@@ -171,7 +176,8 @@ public static class SessionEndpoints
                 maxHp,
                 status,
                 campaign.Difficulty,
-                lastPlayed));
+                lastPlayed,
+                characterClass));
         }
 
         return Results.Ok(previews.OrderByDescending(p => p.LastPlayed ?? DateTime.MinValue));

@@ -57,7 +57,11 @@ export default function SessionCard({ session }: SessionCardProps) {
             {session.campaignName}
           </h3>
           {session.characterName && (
-            <p className="text-doom-bone text-sm mt-0.5">{session.characterName}</p>
+            <p className="text-doom-bone text-sm mt-0.5">
+              {session.characterClass
+                ? `${session.characterName}, the ${session.characterClass}`
+                : session.characterName}
+            </p>
           )}
         </div>
         <span

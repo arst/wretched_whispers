@@ -110,10 +110,17 @@ export default function CharacterDrawer() {
         }`}
       >
         {/* Header row */}
-        <div className="px-8 pt-8 pb-0 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-doom-yellow">
-            {characterData.name}
-          </h2>
+        <div className="px-8 pt-8 pb-0 flex items-start justify-between">
+          <div>
+            <h2 className="font-display text-lg font-bold text-doom-yellow">
+              {characterData.name}
+            </h2>
+            {characterData.class && (
+              <p className="font-body text-xs uppercase tracking-wide text-doom-ash">
+                {characterData.class}
+              </p>
+            )}
+          </div>
           <button
             onClick={toggleDrawer}
             aria-label="Close character sheet"

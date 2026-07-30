@@ -51,7 +51,10 @@ public record StateUpdate(
     string? CurrentLocationName,
     int? CharacterOmens,
     string[]? CharacterScrolls,
-    string[] MiseryPsalms) : GameTurnEvent("state_update");
+    string[] MiseryPsalms,
+    // Trailing and optional so the existing positional call sites keep compiling. Null for a classless
+    // wretch, which is what the UI uses to show no class line at all.
+    string? CharacterClass = null) : GameTurnEvent("state_update");
 
 /// <summary>
 /// The authoritative account of what THIS turn changed — a deterministic diff of the domain state

@@ -7,6 +7,7 @@ export interface SessionPreviewDto {
   campaignName: string;
   description: string;
   characterName: string | null;
+  characterClass: string | null;
   currentHp: number | null;
   maxHp: number | null;
   status: "character-creation" | "in-progress" | "ended" | "fallen";
@@ -94,6 +95,8 @@ export interface StateUpdateEvent {
   currentHour: number;
   characterId?: string;
   characterName?: string;
+  // Absent for a classless wretch — the backend omits it rather than sending "Classless Scum".
+  characterClass?: string | null;
   characterHp?: number;
   characterMaxHp?: number;
   characterStrength?: number;
@@ -132,6 +135,7 @@ export interface StateUpdateEvent {
 
 export interface CharacterData {
   name: string;
+  class: string | null;
   currentHp: number;
   maxHp: number;
   abilities: {

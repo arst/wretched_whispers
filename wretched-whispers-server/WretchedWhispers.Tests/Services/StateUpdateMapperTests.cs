@@ -3,6 +3,7 @@ using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
@@ -90,7 +91,27 @@ public class StateUpdateMapperTests
             result.CharacterInventory);
     }
 
-    private static Character CreateCharacter()
+    [Fact]
+    public void Map_WithAClassedCharacter_SendsTheClassDisplayName()
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        context.Character = CreateCharacter(CharacterClass.OccultHerbmaster);
+
+        Assert.Equal("Occult Herbmaster", StateUpdateMapper.Map(context).CharacterClass);
+    }
+
+    /// <summary>Classless is the absence of a class, not a class named "Classless Scum" -- the UI keys off
+    /// null to render no class line at all.</summary>
+    [Fact]
+    public void Map_WithAClasslessCharacter_SendsNoClass()
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        context.Character = CreateCharacter();
+
+        Assert.Null(StateUpdateMapper.Map(context).CharacterClass);
+    }
+
+    private static Character CreateCharacter(CharacterClass characterClass = CharacterClass.Classless)
     {
         var abilities = new Abilities(
             agility: new AbilityScore(0),
@@ -108,6 +129,7 @@ public class StateUpdateMapperTests
             Shield: null,
             Scrolls: []);
 
-        return Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, new Dice(new SeededRandomService(1)));
+        return Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment,
+            new Dice(new SeededRandomService(1)), 0, characterClass);
     }
 }
