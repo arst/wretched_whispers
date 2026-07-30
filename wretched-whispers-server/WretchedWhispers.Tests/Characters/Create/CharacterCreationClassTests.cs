@@ -34,21 +34,38 @@ public class CharacterCreationClassTests : TestBase
         Assert.Equal(CharacterClass.HereticalPriest, character.Class);
     }
 
+    /// <summary>Bonuses land on the 3d6 roll, not on the modifier it maps to. Rolling 15 puts the class
+    /// either side of a boundary: Strength +2 crosses into +3, the two -1s drop to +1, and an untouched
+    /// ability stays at +2. Adding to the modifier instead would read +4/+1/+1/+2 here.</summary>
     [Fact]
-    public async Task FangedDeserter_AppliesAbilityBonusesAndFangs()
+    public async Task FangedDeserter_AppliesAbilityBonusesToTheRollAndFightsWithFangs()
     {
-        // Every d6 rolls 6, so each 3d6 is 18 -> a base modifier of +3 before class bonuses.
-        SetupDiceRoll(6, 5);
+        SetupDiceRoll(6, 4); // every d6 rolls 5, so each 3d6 is 15 -> a base modifier of +2
 
         var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.FangedDeserter);
 
-        Assert.Equal(3 + 2, character.Abilities.Strength.Modifier);
-        Assert.Equal(3 - 1, character.Abilities.Presence.Modifier);
-        Assert.Equal(3, character.Abilities.Agility.Modifier);
-        Assert.Equal(3, character.Abilities.Toughness.Modifier);
+        Assert.Equal(+3, character.Abilities.Strength.Modifier); // 15 + 2 = 17
+        Assert.Equal(+1, character.Abilities.Presence.Modifier); // 15 - 1 = 14
+        Assert.Equal(+1, character.Abilities.Agility.Modifier); // 15 - 1 = 14
+        Assert.Equal(+2, character.Abilities.Toughness.Modifier); // untouched
         // The natural attack replaces the rolled weapon outright.
         Assert.Equal(WeaponKind.Fangs, character.Weapon.Kind);
-        Assert.Equal(DiceExpr.D4, character.Weapon.DamageDie);
+        Assert.Equal(DiceExpr.D6, character.Weapon.DamageDie);
+    }
+
+    /// <summary>Illiterate: the deserter rolls the same gear tables, but a scroll is paper to them, so it
+    /// lands in the pack instead of the spell list -- and costs them none of the armour a caster pays.</summary>
+    [Fact]
+    public async Task FangedDeserter_CannotReadTheScrollItRolls()
+    {
+        SetupDiceRoll(12, 4); // both gear slots roll 5 -> an unclean scroll, and perfume
+        SetupDiceRoll(4, 3); // armour d4 rolls 4 -> Heavy, if nothing caps it
+
+        var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.FangedDeserter);
+
+        Assert.Empty(character.Scrolls);
+        Assert.Contains(character.Inventory.InventoryItems, i => i.Description == "random unclean scroll");
+        Assert.Equal(ArmorTier.Heavy, character.Armor.Tier);
     }
 
     [Fact]
@@ -63,16 +80,16 @@ public class CharacterCreationClassTests : TestBase
         Assert.Equal(3 + 10, character.Hp.Max);
     }
 
-    /// <summary>The crash case. A rolled -3 plus the Skinwalker's -2 Presence is -5, which AbilityScore
-    /// rejects outright -- creation must clamp instead of throwing.</summary>
+    /// <summary>The old crash case, now unreachable by construction. A -2 on a rolled 3 is a roll of 1,
+    /// which the modifier table floors at -3 -- so no clamp is needed to keep AbilityScore's -3..+6.</summary>
     [Fact]
-    public async Task CursedSkinwalker_ClampsAbilityPenaltyInsteadOfThrowing()
+    public async Task CursedSkinwalker_PenaltyOnTheRollCannotEscapeTheModifierFloor()
     {
         // No d6 setup: every d6 rolls 1, so each 3d6 is 3 -> a base modifier of -3.
         var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.CursedSkinwalker);
 
         Assert.Equal(-3, character.Abilities.Presence.Modifier);
-        Assert.Equal(-3 + 1, character.Abilities.Strength.Modifier);
+        Assert.Equal(-3, character.Abilities.Strength.Modifier);
         Assert.Equal(WeaponKind.Claws, character.Weapon.Kind);
         Assert.Equal(DiceExpr.D6, character.Weapon.DamageDie);
     }
@@ -85,40 +102,78 @@ public class CharacterCreationClassTests : TestBase
         Assert.True(character.Hp.Max >= 1);
     }
 
+    /// <summary>One scroll, and the school is rolled rather than fixed -- the hermit read whatever was in
+    /// the hole with them.</summary>
     [Fact]
-    public async Task EsotericHermit_StartsWithTwoUncleanScrollsAndAD6PowerDie()
+    public async Task EsotericHermit_StartsWithOneScrollOfARolledSchool()
     {
+        // All gear dice roll 1 (rope, life elixir), so neither gear slot contributes a scroll of its own.
+        var sacred = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.EsotericHermit);
+
+        Assert.Single(sacred.Scrolls);
+        Assert.Equal(ScrollSchool.Sacred, sacred.Scrolls[0].School); // every d2 rolls 1
+
+        SetupDiceRoll(2, 1); // every d2 rolls 2
+        var unclean = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.EsotericHermit);
+
+        Assert.Equal(ScrollSchool.Unclean, unclean.Scrolls[0].School);
+    }
+
+    /// <summary>The hermit is the worst-armed class in the game: a d4 weapon table stops at the knife.</summary>
+    [Fact]
+    public async Task EsotericHermit_RollsWeaponsOnAD4()
+    {
+        SetupDiceRoll(4, 3); // every d4 rolls 4
+        SetupDiceRoll(10, 9); // a d10 would reach the zweihander, if the class could roll one
+
         var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.EsotericHermit);
 
-        // All gear dice roll 1 (rope, life elixir), so neither gear slot contributes a scroll.
-        Assert.Equal(2, character.Scrolls.Count);
-        Assert.All(character.Scrolls, s => Assert.Equal(ScrollSchool.Unclean, s.School));
-        Assert.Equal(DiceExpr.D6, character.Powers.PowerDie);
+        Assert.Equal(WeaponKind.Knife, character.Weapon.Kind);
     }
 
+    /// <summary>No free scroll for the priest -- their edge is omens, silver and a relic we do not model.</summary>
     [Fact]
-    public async Task HereticalPriest_StartsWithOneSacredScroll()
+    public async Task HereticalPriest_HasNoStartingScrollButFourOmens()
     {
+        SetupDiceRoll(4, 3); // the omen d4 rolls 4
+
         var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.HereticalPriest);
 
-        Assert.Single(character.Scrolls);
-        Assert.Equal(ScrollSchool.Sacred, character.Scrolls[0].School);
+        Assert.Empty(character.Scrolls);
+        Assert.Equal(4, character.Omens.Count);
     }
 
-    /// <summary>Starting able to cast costs armour, whether the scroll came from the gear table or the class.</summary>
+    /// <summary>Silver is a class number too: the priest passes a plate around, the hermit does not.</summary>
     [Fact]
-    public async Task ClassGrantedScrolls_LimitTheArmourRoll()
+    public async Task StartingSilver_FollowsTheClassDice()
     {
-        // Every d4 rolls 4. Armour is a d4 normally but a d2 for a wretch who begins with a scroll, so a
-        // classless character reaches Heavy while the Hermit is capped at Light.
-        SetupDiceRoll(4, 3);
-        SetupDiceRoll(2, 1);
+        SetupDiceRoll(6, 5); // every d6 rolls 6
 
-        var classless = await NewService().Create("Hero", Difficulty.Grim);
+        var priest = await NewService().Create("Priest", Difficulty.Grim, CharacterClass.HereticalPriest);
         var hermit = await NewService().Create("Hermit", Difficulty.Grim, CharacterClass.EsotericHermit);
 
-        Assert.Equal(ArmorTier.Heavy, classless.Armor.Tier);
-        Assert.Equal(ArmorTier.Light, hermit.Armor.Tier);
+        Assert.Equal(180, priest.Silver); // 3d6 x 10
+        Assert.Equal(60, hermit.Silver); // 1d6 x 10
+    }
+
+    /// <summary>Starting able to cast costs armour, and the cap bites a class the tables would otherwise
+    /// let wear plate.</summary>
+    [Fact]
+    public async Task ARolledScroll_CapsTheArmourOfAClassAllowedHeavy()
+    {
+        SetupDiceRoll(4, 3); // every d4 rolls 4 -> Heavy
+        SetupDiceRoll(2, 1); // every d2 rolls 2 -> Light
+        SetupDiceRoll(12, 0); // both gear slots roll 1 -> no scroll
+
+        var uncapped = await NewService().Create("Priest", Difficulty.Grim, CharacterClass.HereticalPriest);
+
+        SetupDiceRoll(12, 4); // gear slot 1 rolls 5 -> a random unclean scroll
+        var capped = await NewService().Create("Priest", Difficulty.Grim, CharacterClass.HereticalPriest);
+
+        Assert.Empty(uncapped.Scrolls);
+        Assert.Equal(ArmorTier.Heavy, uncapped.Armor.Tier);
+        Assert.Single(capped.Scrolls);
+        Assert.Equal(ArmorTier.Light, capped.Armor.Tier);
     }
 
     [Fact]

@@ -1,10 +1,16 @@
-using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters.Classes;
 
 /// <summary>Maps each class to its settings. The single source of the class numbers.
+/// <para>
+/// Every number below was checked against the published class stat blocks. What is NOT modelled, and is
+/// therefore the narrator's problem: the d6 signature item each class picks at creation, the Gutterborn's
+/// specialty, the Herbmaster's decoction list, the Skinwalker's beast form, and the Priest's licence to
+/// use Powers in medium armour (<see cref="Possessions.Scrolls.ScrollRestrictionPolicy"/> takes no
+/// character, so an exemption would ripple through the whole cast path).
+/// </para>
 /// <para>
 /// Narrator notes are original prose, not rulebook text -- same posture as the Misery psalms in
 /// <see cref="Campaigns.World.CalendarOfNechrubel"/>. They describe only what the domain does NOT
@@ -26,26 +32,33 @@ public static class ClassPresets
 
     public static ClassSettings For(CharacterClass characterClass) => characterClass switch
     {
-        // Reproduces the pre-class numbers exactly: no bonuses, Toughness+d8 HP, d2 omens, Presence+d4
-        // powers, the rolled weapon, no kit. An empty note tells PromptComposer to emit no class section,
-        // which keeps prompts for already-saved characters byte-identical.
+        // Reproduces the pre-class numbers exactly: no bonuses, Toughness+d8 HP, d2 omens, d10 weapon,
+        // d4 armour, 2d6x10 silver, the rolled weapon, no kit. An empty note tells PromptComposer to emit
+        // no class section, which keeps prompts for already-saved characters byte-identical.
         CharacterClass.Classless => new ClassSettings(
             DisplayName: "Classless Scum",
             StrengthBonus: 0, AgilityBonus: 0, PresenceBonus: 0, ToughnessBonus: 0,
             HpDie: DiceExpr.D8,
             OmenDie: DiceExpr.D2,
-            PowerDie: DiceExpr.D4,
+            WeaponDie: DiceExpr.D10,
+            ArmorDie: DiceExpr.D4,
+            SilverDice: DiceExpr.D(2, 6),
+            CanUseScrolls: true,
             NaturalWeapon: null,
             StartingScrollSchool: null,
             StartingScrollCount: 0,
             NarratorNote: ""),
 
+        // Illiterate by the book: any scroll they roll is paper to them.
         CharacterClass.FangedDeserter => new ClassSettings(
             DisplayName: "Fanged Deserter",
-            StrengthBonus: +2, AgilityBonus: 0, PresenceBonus: -1, ToughnessBonus: 0,
+            StrengthBonus: +2, AgilityBonus: -1, PresenceBonus: -1, ToughnessBonus: 0,
             HpDie: DiceExpr.D10,
             OmenDie: DiceExpr.D2,
-            PowerDie: DiceExpr.D4,
+            WeaponDie: DiceExpr.D10,
+            ArmorDie: DiceExpr.D4,
+            SilverDice: DiceExpr.D(2, 6),
+            CanUseScrolls: false,
             NaturalWeapon: WeaponKind.Fangs,
             StartingScrollSchool: null,
             StartingScrollCount: 0,
@@ -56,14 +69,18 @@ public static class ClassPresets
                 - Beasts and children give them a wide berth; guards and press-gangs give them a hard look.
                 - Old campaigners recognise the walk. Some of them are still owed something.
                 - They know soldiering: camps, sieges, how a line breaks, which officers are worth robbing.
+                - They cannot read. Scrolls, letters and signage are shapes to them; they never cast.
                 """),
 
         CharacterClass.GutterbornScum => new ClassSettings(
             DisplayName: "Gutterborn Scum",
-            StrengthBonus: 0, AgilityBonus: +1, PresenceBonus: -1, ToughnessBonus: 0,
-            HpDie: DiceExpr.D8,
-            OmenDie: DiceExpr.D4,
-            PowerDie: DiceExpr.D4,
+            StrengthBonus: -2, AgilityBonus: 0, PresenceBonus: 0, ToughnessBonus: 0,
+            HpDie: DiceExpr.D6,
+            OmenDie: DiceExpr.D2,
+            WeaponDie: DiceExpr.D6,
+            ArmorDie: DiceExpr.D2,
+            SilverDice: DiceExpr.D6,
+            CanUseScrolls: true,
             NaturalWeapon: null,
             StartingScrollSchool: null,
             StartingScrollCount: 0,
@@ -73,21 +90,26 @@ public static class ClassPresets
                 - They know the underside of any settlement: which roof connects, which gutter drains where,
                   who fences stolen goods and who informs.
                 - Nobody remembers their face. Servants, beggars and dogs talk to them freely.
+                - Slipping notice is their whole trade -- in muck, crowds or clutter, judge attempts to
+                  spot them harshly, and let them go unremarked where anyone else would be challenged.
                 - They hoard worthless things because once, one of them was not worthless.
                 """),
 
         CharacterClass.EsotericHermit => new ClassSettings(
             DisplayName: "Esoteric Hermit",
-            StrengthBonus: -1, AgilityBonus: 0, PresenceBonus: +2, ToughnessBonus: 0,
-            HpDie: DiceExpr.D6,
-            OmenDie: DiceExpr.D2,
-            PowerDie: DiceExpr.D6,
+            StrengthBonus: -2, AgilityBonus: 0, PresenceBonus: +2, ToughnessBonus: 0,
+            HpDie: DiceExpr.D4,
+            OmenDie: DiceExpr.D4,
+            WeaponDie: DiceExpr.D4,
+            ArmorDie: DiceExpr.D2,
+            SilverDice: DiceExpr.D6,
+            CanUseScrolls: true,
             NaturalWeapon: null,
-            StartingScrollSchool: ScrollSchool.Unclean,
-            StartingScrollCount: 2,
+            StartingScrollSchool: null,
+            StartingScrollCount: 1,
             NarratorNote: """
                 An ESOTERIC HERMIT: years alone in a hole in the waste, reading what should have stayed
-                buried. The reading took: the power comes easier to them than to anyone sane.
+                buried. The reading took, and left the body behind: they break easily and carry nothing heavy.
                 - They recognise occult marks, ruined shrines, and the names of things better left unnamed.
                 - Company is an ordeal. Crowds, courtesies and small talk visibly cost them.
                 - They speak of the world's end as scheduled rather than feared.
@@ -95,10 +117,13 @@ public static class ClassPresets
 
         CharacterClass.OccultHerbmaster => new ClassSettings(
             DisplayName: "Occult Herbmaster",
-            StrengthBonus: 0, AgilityBonus: 0, PresenceBonus: 0, ToughnessBonus: +1,
-            HpDie: DiceExpr.D8,
+            StrengthBonus: -2, AgilityBonus: 0, PresenceBonus: 0, ToughnessBonus: +2,
+            HpDie: DiceExpr.D6,
             OmenDie: DiceExpr.D2,
-            PowerDie: DiceExpr.D4,
+            WeaponDie: DiceExpr.D6,
+            ArmorDie: DiceExpr.D2,
+            SilverDice: DiceExpr.D(2, 6),
+            CanUseScrolls: true,
             NaturalWeapon: null,
             StartingScrollSchool: null,
             StartingScrollCount: 0,
@@ -113,13 +138,17 @@ public static class ClassPresets
 
         CharacterClass.HereticalPriest => new ClassSettings(
             DisplayName: "Heretical Priest",
-            StrengthBonus: 0, AgilityBonus: 0, PresenceBonus: +1, ToughnessBonus: 0,
+            StrengthBonus: -2, AgilityBonus: 0, PresenceBonus: +2, ToughnessBonus: 0,
             HpDie: DiceExpr.D8,
-            OmenDie: DiceExpr.D2,
-            PowerDie: DiceExpr.D4,
+            OmenDie: DiceExpr.D4,
+            WeaponDie: DiceExpr.D8,
+            ArmorDie: DiceExpr.D4,
+            SilverDice: DiceExpr.D(3, 6),
+            CanUseScrolls: true,
             NaturalWeapon: null,
-            StartingScrollSchool: ScrollSchool.Sacred,
-            StartingScrollCount: 1,
+            // No free scroll: the priest's edge is omens, silver and a signature relic, not a starting spell.
+            StartingScrollSchool: null,
+            StartingScrollCount: 0,
             NarratorNote: """
                 A HERETICAL PRIEST: ordained, then cast out for preaching the wrong end of the world. Still
                 wears the vestments. Still believes -- just not what the church would like.
@@ -128,12 +157,18 @@ public static class ClassPresets
                 - They will argue theology with anything, including things that are eating them.
                 """),
 
+        // The claws are a stand-in, not a rule: by the book the Skinwalker rolls an ordinary weapon and
+        // grows the beast's when it shifts. Without a shift mechanic they would have no class weapon at
+        // all, so they wear the wolf's d6 permanently.
         CharacterClass.CursedSkinwalker => new ClassSettings(
             DisplayName: "Cursed Skinwalker",
-            StrengthBonus: +1, AgilityBonus: 0, PresenceBonus: -2, ToughnessBonus: 0,
-            HpDie: DiceExpr.D10,
+            StrengthBonus: +1, AgilityBonus: 0, PresenceBonus: -2, ToughnessBonus: +1,
+            HpDie: DiceExpr.D8,
             OmenDie: DiceExpr.D2,
-            PowerDie: DiceExpr.D4,
+            WeaponDie: DiceExpr.D6,
+            ArmorDie: DiceExpr.D2,
+            SilverDice: DiceExpr.D(2, 6),
+            CanUseScrolls: true,
             NaturalWeapon: WeaponKind.Claws,
             StartingScrollSchool: null,
             StartingScrollCount: 0,

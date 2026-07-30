@@ -11,9 +11,9 @@ import ClassGlyph from "@/components/session/ClassGlyph";
 // ClassPresets, which are written for the model.
 // A null key is "let the dice decide": the request omits the class and the domain rolls it.
 const CLASSES: { key: CharacterClass | null; label: string; blurb: string }[] = [
-  { key: "FangedDeserter", label: "Fanged Deserter", blurb: "Strong, tusked, and running from a war nobody won. Fights with its teeth." },
-  { key: "GutterbornScum", label: "Gutterborn Scum", blurb: "Raised in the runoff. Quick, overlooked, and owed a favour by fortune." },
-  { key: "EsotericHermit", label: "Esoteric Hermit", blurb: "Frail, and far too well read. The power comes easier than it should." },
+  { key: "FangedDeserter", label: "Fanged Deserter", blurb: "Strong, tusked, and running from a war nobody won. Fights with its teeth, and cannot read a word." },
+  { key: "GutterbornScum", label: "Gutterborn Scum", blurb: "Raised in the runoff. Weak, overlooked, and impossible to keep an eye on." },
+  { key: "EsotericHermit", label: "Esoteric Hermit", blurb: "Frail, far too well read, and starts with a scroll it should not have." },
   { key: "OccultHerbmaster", label: "Occult Herbmaster", blurb: "A poisoner with manners. Reads rot and root like scripture." },
   { key: "HereticalPriest", label: "Heretical Priest", blurb: "Ordained, then cast out for preaching the wrong end of the world." },
   { key: "CursedSkinwalker", label: "Cursed Skinwalker", blurb: "Wears a beast's hide that never came off. Something under it is awake." },

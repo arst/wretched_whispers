@@ -45,40 +45,43 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
     private StartingEquipment RollStartingEquipment(Abilities.Abilities abilities,
         CharacterClass characterClass, ClassSettings settings)
     {
-        var silver = dice.Roll(DiceExpr.D(2, 6)) * 10; // 2d6 × 10 silver
+        var silver = dice.Roll(settings.SilverDice) * 10;
         var foodDays = dice.Roll(DiceExpr.D4); // d4 days of food
         var container = RollContainer(); // d6: nothing/backpack/sack/wagon/donkey
         var gear1 = RollGearSlot1(abilities);
         var gear2 = RollGearSlot2();
+        // An illiterate class rolls the same tables, but a scroll is just paper: it stays in the pack as
+        // an ordinary item, grants no Power, and costs them none of the armour a real caster pays.
+        var gear1Scroll = settings.CanUseScrolls ? gear1.ScrollSchool : null;
+        var gear2Scroll = settings.CanUseScrolls ? gear2.ScrollSchool : null;
         // Class-granted scrolls count toward the "began with a scroll" gate below: a wretch who starts
         // able to cast starts worse-armed, the same trade the gear tables already make.
-        var hasScroll = gear1.ScrollSchool is not null || gear2.ScrollSchool is not null
+        var hasScroll = gear1Scroll is not null || gear2Scroll is not null
                         || settings.StartingScrollCount > 0;
         var hasShield = gear1.IsShield || gear2.IsShield;
 
         // A natural attack replaces the rolled weapon rather than sitting alongside it -- see ClassSettings.
         var weapon = settings.NaturalWeapon is { } natural
             ? Weapon.Create(natural)
-            : RollWeapon(hasScroll);
-        var armor = RollArmor(hasScroll);
+            : RollWeapon(CapForScroll(settings.WeaponDie, DiceExpr.D6, hasScroll));
+        var armor = RollArmor(CapForScroll(settings.ArmorDie, DiceExpr.D2, hasScroll));
         var scrolls = new List<Scroll>();
 
-        if (gear1.ScrollSchool is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear1.ScrollSchool.Value, "random"));
+        if (gear1Scroll is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear1Scroll.Value, "random"));
 
-        if (gear2.ScrollSchool is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear2.ScrollSchool.Value, "random"));
+        if (gear2Scroll is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear2Scroll.Value, "random"));
 
-        if (settings.StartingScrollSchool is { } classSchool)
-            for (var i = 0; i < settings.StartingScrollCount; i++)
-                scrolls.Add(new Scroll(Guid.NewGuid(), classSchool, "random"));
+        for (var i = 0; i < settings.StartingScrollCount; i++)
+            scrolls.Add(new Scroll(Guid.NewGuid(), settings.StartingScrollSchool ?? RollScrollSchool(), "random"));
 
         return new StartingEquipment(
             silver,
             foodDays,
             container,
-            gear1.ScrollSchool is null && !gear1.IsShield
+            gear1Scroll is null && !gear1.IsShield
                 ? new InventoryItem(Guid.NewGuid(), gear1.GearDescription, false, true, gear1.Quantity)
                 : null,
-            gear2.ScrollSchool is null && !gear2.IsShield
+            gear2Scroll is null && !gear2.IsShield
                 ? new InventoryItem(Guid.NewGuid(), gear2.GearDescription, false, true, gear2.Quantity)
                 : null,
             weapon,
@@ -203,10 +206,23 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private Weapon RollWeapon(bool hasScroll)
+    /// <summary>Beginning able to cast costs gear: the weapon table is capped at d6 and armour at d2,
+    /// whatever the class would otherwise roll. A class already at or below the cap keeps its own die.</summary>
+    private static DiceExpr CapForScroll(DiceExpr classDie, DiceExpr cap, bool hasScroll)
     {
-        // Weapons d10 (d6 if you begin with a scroll)
-        var d = hasScroll ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D10);
+        return hasScroll && classDie.Sides > cap.Sides ? cap : classDie;
+    }
+
+    private ScrollSchool RollScrollSchool()
+    {
+        return dice.Roll(DiceExpr.D2) == 1 ? ScrollSchool.Sacred : ScrollSchool.Unclean;
+    }
+
+    private Weapon RollWeapon(DiceExpr weaponDie)
+    {
+        // The table is ordered worst-first, so a smaller die is a worse kit: d10 for a classless scum or
+        // a deserter, down to d4 for a hermit who can barely lift anything.
+        var d = dice.Roll(weaponDie);
         return Weapon.Create(d switch
         {
             1 => WeaponKind.Femur,
@@ -223,10 +239,9 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         });
     }
 
-    private Armor RollArmor(bool hasScroll)
+    private Armor RollArmor(DiceExpr armorDie)
     {
-        // Armor d4 (d2 if you begin with a scroll)
-        var d = hasScroll ? dice.Roll(DiceExpr.D2) : dice.Roll(DiceExpr.D4);
+        var d = dice.Roll(armorDie);
         ArmorTier tier = d switch
         {
             1 => ArmorTier.None,
@@ -250,9 +265,10 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
 
         AbilityScore RollToAbilityScoreMap(int sum, int classBonus)
         {
-            // Clamp BEFORE constructing: AbilityScore throws outside -3..+6, and a rolled -3 plus a
-            // negative class bonus (Skinwalker Presence -2) is reachable.
-            return new AbilityScore(Math.Clamp(BaseModifier(sum) + classBonus, -3, 6));
+            // The bonus goes on the ROLL, not on the mapped modifier -- that is what "Strength +2" means,
+            // and it is a far smaller edge than it looks: +2 on 3d6 shifts the modifier by one step at
+            // most. It also makes the result unclampable, since the mapping never leaves -3..+3.
+            return new AbilityScore(BaseModifier(sum + classBonus));
         }
 
         int BaseModifier(int sum)

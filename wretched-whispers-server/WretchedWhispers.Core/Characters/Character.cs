@@ -522,7 +522,7 @@ public sealed class Character
             equipment.Armor,
             equipment.Shield,
             equipment.Scrolls,
-            PowerPool.Create(abilities, dice, ClassPresets.For(characterClass).PowerDie),
+            PowerPool.Create(abilities, dice),
             maxHp,
             maxHp,
             startingOmensCount,
