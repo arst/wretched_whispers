@@ -180,4 +180,52 @@ public sealed class ChatHistoryReducerTests
         Assert.False(seeded);
         _repo.Verify(r => r.SaveSummary(It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task CreateRecap_UsesSummaryUncoveredMessagesAndCurrentState()
+    {
+        _repo.Setup(r => r.LoadSession(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Messages(3));
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatSummary("earlier doom", 1));
+        IEnumerable<ChatMessage>? sent = null;
+        ChatOptions? sentOptions = null;
+        _chatClient
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .Callback<IEnumerable<ChatMessage>, ChatOptions?, CancellationToken>((messages, options, _) =>
+            {
+                sent = messages;
+                sentOptions = options;
+            })
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "  Doom remembered.  ")));
+
+        var recap = await CreateReducer().CreateRecapAsync(
+            _sessionId,
+            "Party location: Galgenbeck",
+            CancellationToken.None);
+
+        Assert.Equal("Doom remembered.", recap);
+        var source = Assert.IsAssignableFrom<IEnumerable<ChatMessage>>(sent).ToList();
+        Assert.Equal(4, source.Count);
+        Assert.Contains("earlier doom", source[0].Text);
+        Assert.Equal("msg 1", source[1].Text);
+        Assert.Contains("Galgenbeck", source[^1].Text);
+        Assert.Contains("Previously on", sentOptions?.Instructions);
+    }
+
+    [Fact]
+    public async Task CreateRecap_ModelFailure_ReturnsNull()
+    {
+        _repo.Setup(r => r.LoadSession(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Messages(1));
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChatSummary?)null);
+        _chatClient
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("model unavailable"));
+
+        Assert.Null(await CreateReducer().CreateRecapAsync(_sessionId, "state", CancellationToken.None));
+    }
 }

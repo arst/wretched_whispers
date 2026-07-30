@@ -16,5 +16,8 @@ public record SessionDetailDto(
     int TotalMessages,
     int Page,
     int PageSize,
-    StateUpdate State
+    StateUpdate State,
+    bool RecapDue
 );
+
+public record SessionResumeDto(string? Recap);
