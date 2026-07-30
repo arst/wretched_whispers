@@ -9,6 +9,7 @@ using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
@@ -134,6 +135,31 @@ public sealed class EvalHost : IAsyncDisposable
         campaign.AddEncounter(encounter.Id);
         campaign.Start();
         await campaignsRepo.SaveCampaign(campaign, TestUserId);
+
+        return host;
+    }
+
+    /// <summary>
+    /// The state a brand-new session is in the moment the create-session form has been submitted: the
+    /// character is rolled and joined, the campaign is NOT yet configured, so <c>DeriveStage</c> gives
+    /// <see cref="SessionStage.CampaignSetup"/> and the next turn is the opening narration. Mirrors
+    /// <c>SessionEndpoints.CreateSession</c>, and rolls through the real CharacterCreationService so the
+    /// class actually shapes the wretch.
+    /// </summary>
+    public static async Task<EvalHost> CreateOpeningAsync(
+        IChatClient chatClient, string characterName, CharacterClass characterClass)
+    {
+        var host = await CreateAsync(chatClient);
+
+        await using var scope = host._provider.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        SetTenantUser(sp);
+
+        var creation = sp.GetRequiredService<CharacterCreationService>();
+        var campaignService = sp.GetRequiredService<CampaignService>();
+
+        var character = await creation.Create(characterName, Difficulty.Grim, characterClass);
+        await campaignService.JoinCampaign(host.SessionId, character.Id);
 
         return host;
     }

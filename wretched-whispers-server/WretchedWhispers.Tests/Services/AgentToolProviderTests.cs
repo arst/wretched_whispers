@@ -46,15 +46,13 @@ public class AgentToolProviderTests
     }
 
     [Fact]
-    public void CharacterCreation_ExposesCreateCharacterAndCampaignSetupTools()
+    public void CharacterCreation_ExposesNoTools()
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
 
-        Assert.Equal(2, registered.Length);
-        Assert.Equal(2, tools.Count);
-        Assert.Contains("Character.CreateCharacter", registered);
-        Assert.Contains("Campaign.ConfigureCampaign", registered);
+        Assert.Empty(registered);
+        Assert.Empty(tools);
     }
 
     [Fact]

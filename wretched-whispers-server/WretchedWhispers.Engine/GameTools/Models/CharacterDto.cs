@@ -14,13 +14,6 @@ public class CharacterDto
     [Description("The character's name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Only populated by CreateCharacter, where the class is news -- especially when the domain
-    /// rolled it. Every other tool leaves it unset so its result stays byte-identical to before classes
-    /// existed; the narrator reads the class off Game State on later turns.</summary>
-    [JsonPropertyName("Class")]
-    [Description("The character's class, e.g. 'Fanged Deserter'. 'Classless Scum' means no class.")]
-    public string? Class { get; set; }
-
     // Abilities
     [JsonPropertyName("Agility")]
     [Description("Character's agility ability score, affects speed and dexterity")]

@@ -17,15 +17,13 @@ public class GameToolCatalogTests
             .OrderBy(x => x)
             .ToArray();
 
+    /// <summary>Characters are made by the create-session and successor forms, never by the narrator, so a
+    /// session cannot start without one and this stage is an unreachable fallback. It gets no tools at all:
+    /// there is nothing it should be able to do, least of all conjure a character.</summary>
     [Fact]
-    public void CharacterCreation_ExposesCreateCharacterAndCampaignSetupTools()
+    public void CharacterCreation_ExposesNoTools()
     {
-        // The opening stage runs the whole intro in one turn (create character + configure the
-        // campaign), so it also exposes the campaign-setup tool. The campaign auto-starts once
-        // configured and joined -- there is no separate start tool for the model to call.
-        Assert.Equal(
-            new[] { "Campaign.ConfigureCampaign", "Character.CreateCharacter" },
-            Flatten(SessionStage.CharacterCreation));
+        Assert.Empty(Flatten(SessionStage.CharacterCreation));
     }
 
     [Fact]

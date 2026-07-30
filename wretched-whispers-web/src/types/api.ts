@@ -2,6 +2,16 @@
 
 export type Difficulty = "StoryMode" | "Grim" | "Doomed" | "Hardcore";
 
+// Mirrors the backend CharacterClass enum, which string-serializes with its member names.
+export type CharacterClass =
+  | "Classless"
+  | "FangedDeserter"
+  | "GutterbornScum"
+  | "EsotericHermit"
+  | "OccultHerbmaster"
+  | "HereticalPriest"
+  | "CursedSkinwalker";
+
 export interface SessionPreviewDto {
   sessionId: string;
   campaignName: string;

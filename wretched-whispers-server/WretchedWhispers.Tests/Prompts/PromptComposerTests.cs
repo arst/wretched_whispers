@@ -60,15 +60,19 @@ public class PromptComposerTests : TestBase
         Assert.Contains("Game State", result);
     }
 
+    /// <summary>A characterless session should be impossible -- the forms roll the wretch before the first
+    /// turn. If one somehow occurs, the narrator must refuse rather than invent a character to cover it.</summary>
     [Fact]
-    public void Compose_for_CharacterCreation_mentions_character_creation_tools()
+    public void Compose_for_CharacterCreation_refusesInsteadOfInventingACharacter()
     {
         var context = new SessionContext { SessionId = Guid.NewGuid() };
         // No character = CharacterCreation stage
 
         var result = _composer.Compose(context);
 
-        Assert.Contains("CreateCharacter", result);
+        Assert.Contains("Do not invent one", result);
+        Assert.Contains("Call no tools", result);
+        Assert.DoesNotContain("CreateCharacter", result);
     }
 
     [Fact]
@@ -277,17 +281,30 @@ public class PromptComposerTests : TestBase
             ContextForCharacterClass(CharacterClass.Classless).FormatSnapshot());
     }
 
-    /// <summary>The creation script must actually name every class it offers, or the narrator invents its own.</summary>
-    [Theory]
-    [InlineData("Fanged Deserter")]
-    [InlineData("Gutterborn Scum")]
-    [InlineData("Esoteric Hermit")]
-    [InlineData("Occult Herbmaster")]
-    [InlineData("Heretical Priest")]
-    [InlineData("Cursed Skinwalker")]
-    public void CharacterCreation_prompt_offers_every_class(string displayName)
+    /// <summary>The opening turn must not re-ask for what the form already collected, or the player is
+    /// interrogated for a name and class they have already chosen.</summary>
+    [Fact]
+    public void CampaignSetup_prompt_forbids_asking_for_name_or_class()
     {
-        Assert.Contains(displayName, StagePrompts.For(SessionStage.CharacterCreation));
+        var prompt = StagePrompts.For(SessionStage.CampaignSetup);
+
+        Assert.Contains("never ask for a name", prompt);
+        Assert.Contains("they have already chosen both", prompt);
+        // It must still be told to use them, or the opening ignores the player's choices.
+        Assert.Contains("their class from Game State", prompt);
+    }
+
+    /// <summary>This guardrail used to live only in the creation prompt, so it vanished the moment play
+    /// began. A successor's first turn now derives as Exploration, so it has to hold there.</summary>
+    [Fact]
+    public void Exploration_prompt_keeps_the_dead_buried()
+    {
+        var prompt = StagePrompts.For(SessionStage.Exploration);
+
+        Assert.Contains("The dead stay dead", prompt);
+        Assert.Contains("never revive them", prompt);
+        // And it must recognise a successor's opening turn, which is where the framing is needed.
+        Assert.Contains("successor's first breath", prompt);
     }
 
     private SessionContext ContextForCharacterClass(CharacterClass characterClass)

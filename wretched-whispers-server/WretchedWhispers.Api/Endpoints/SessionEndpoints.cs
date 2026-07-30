@@ -9,6 +9,7 @@ using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
+using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 
@@ -16,6 +17,8 @@ namespace WretchedWhispers.Api.Endpoints;
 
 public static class SessionEndpoints
 {
+    private const int MaxCharacterNameLength = 64;
+
     public static WebApplication MapSessionEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/sessions")
@@ -108,23 +111,57 @@ public static class SessionEndpoints
         HttpContext http,
         ICampaignsRepository campaignsRepo,
         IChatHistoryRepository chatHistoryRepo,
+        CharacterCreationService characterCreationService,
+        CampaignService campaignService,
         CreateSessionRequest? request = null)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Results.Unauthorized();
 
-        var campaign = Campaign.Create(
-            request?.Difficulty ?? Difficulty.Grim,
-            "New Campaign",
-            "A new journey into doom");
+        if (!TryNormalizeCharacterName(request?.CharacterName, out var characterName, out var nameError))
+            return Results.BadRequest(new { error = nameError });
+
+        var difficulty = request?.Difficulty ?? Difficulty.Grim;
+
+        // The player chose name and class; the domain rolls everything else. A null class means they asked
+        // the dice to decide, and the die stays in the domain.
+        var characterClass = request?.CharacterClass ?? characterCreationService.RollRandomClass();
+
+        // Character first: if campaign creation then fails, the orphan character row is harmless, whereas a
+        // campaign with no character is a session the player cannot open. Same reasoning as CreateSuccessor.
+        var character = await characterCreationService.Create(characterName, difficulty, characterClass);
+
+        var campaign = Campaign.Create(difficulty, "New Campaign", "A new journey into doom");
 
         await campaignsRepo.SaveCampaign(campaign, userId);
+        await campaignService.JoinCampaign(campaign.Id, character.Id);
         await chatHistoryRepo.CreateSession(campaign.Id);
 
         return Results.Created(
             $"/sessions/{campaign.Id}",
             new CreateSessionResponse(campaign.Id, campaign.Id));
+    }
+
+    /// <summary>Validates the one free-text field the player controls. It reaches both the database and the
+    /// narrator's prompt, so it is bounded here at the trust boundary rather than downstream.</summary>
+    private static bool TryNormalizeCharacterName(string? raw, out string name, out string error)
+    {
+        name = raw?.Trim() ?? "";
+        if (name.Length == 0)
+        {
+            error = "A wretch needs a name.";
+            return false;
+        }
+
+        if (name.Length > MaxCharacterNameLength)
+        {
+            error = $"That name is too long; keep it under {MaxCharacterNameLength} characters.";
+            return false;
+        }
+
+        error = "";
+        return true;
     }
 
     private static async Task<IResult> ListSessions(
@@ -301,11 +338,17 @@ public static class SessionEndpoints
         ICharactersRepository charactersRepo,
         IChatHistoryRepository chatHistoryRepo,
         ChatHistoryReducer chatHistoryReducer,
-        SessionConcurrencyGuard guard)
+        CharacterCreationService characterCreationService,
+        CampaignService campaignService,
+        SessionConcurrencyGuard guard,
+        CreateSuccessorRequest? request = null)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Results.Unauthorized();
+
+        if (!TryNormalizeCharacterName(request?.CharacterName, out var successorName, out var nameError))
+            return Results.BadRequest(new { error = nameError });
 
         // Verify campaign exists and belongs to user
         var userCampaigns = await campaignsRepo.GetForUser(userId);
@@ -340,10 +383,17 @@ public static class SessionEndpoints
             campaign.BuryCharacter(character.Id, character.Name);
             await campaignsRepo.SaveCampaign(campaign, userId);
 
+            // The successor is rolled here rather than by the narrator, so the campaign is never left in a
+            // characterless state. Difficulty is the campaign's own — a death does not renegotiate it.
+            var successorClass = request?.CharacterClass ?? characterCreationService.RollRandomClass();
+            var successor = await characterCreationService.Create(
+                successorName, campaign.Difficulty, successorClass);
+            await campaignService.JoinCampaign(campaign.Id, successor.Id);
+
             if (fallenChronicleId != Guid.Empty)
                 await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, http.RequestAborted);
 
-            return Results.Ok(new { status = "character-creation" });
+            return Results.Ok(new { status = "in-progress" });
         }
         finally
         {
