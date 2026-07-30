@@ -5,6 +5,7 @@ using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
@@ -59,15 +60,19 @@ public class PromptComposerTests : TestBase
         Assert.Contains("Game State", result);
     }
 
+    /// <summary>A characterless session should be impossible -- the forms roll the wretch before the first
+    /// turn. If one somehow occurs, the narrator must refuse rather than invent a character to cover it.</summary>
     [Fact]
-    public void Compose_for_CharacterCreation_mentions_character_creation_tools()
+    public void Compose_for_CharacterCreation_refusesInsteadOfInventingACharacter()
     {
         var context = new SessionContext { SessionId = Guid.NewGuid() };
         // No character = CharacterCreation stage
 
         var result = _composer.Compose(context);
 
-        Assert.Contains("CreateCharacter", result);
+        Assert.Contains("Do not invent one", result);
+        Assert.Contains("Call no tools", result);
+        Assert.DoesNotContain("CreateCharacter", result);
     }
 
     [Fact]
@@ -225,6 +230,107 @@ public class PromptComposerTests : TestBase
         campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
         return campaign;
+    }
+
+    [Fact]
+    public void Compose_includes_the_class_narrator_note_for_a_classed_character()
+    {
+        var context = ContextForCharacterClass(CharacterClass.CursedSkinwalker);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("## Class", result);
+        Assert.Contains(ClassPresets.For(CharacterClass.CursedSkinwalker).NarratorNote, result);
+    }
+
+    /// <summary>Class flavour is the one part of the prompt with no domain state behind it, so it carries an
+    /// explicit reminder that it grants nothing on its own.</summary>
+    [Fact]
+    public void Compose_class_section_forbids_the_class_from_granting_anything()
+    {
+        var result = _composer.Compose(ContextForCharacterClass(CharacterClass.OccultHerbmaster));
+
+        Assert.Contains("never arithmetic", result);
+        Assert.Contains("NEVER grants an item", result);
+    }
+
+    /// <summary>Classless wretches -- every character created before classes existed -- must produce the same
+    /// prompt they always did.</summary>
+    [Fact]
+    public void Compose_omits_the_class_section_for_a_classless_character()
+    {
+        var result = _composer.Compose(ContextForCharacterClass(CharacterClass.Classless));
+
+        Assert.DoesNotContain("## Class", result);
+    }
+
+    [Fact]
+    public void Compose_omits_the_class_section_when_no_character_exists()
+    {
+        var result = _composer.Compose(new SessionContext { SessionId = Guid.NewGuid() });
+
+        Assert.DoesNotContain("## Class", result);
+    }
+
+    [Fact]
+    public void Snapshot_names_the_class_only_when_there_is_one()
+    {
+        Assert.Contains("Class: Cursed Skinwalker",
+            ContextForCharacterClass(CharacterClass.CursedSkinwalker).FormatSnapshot());
+        Assert.DoesNotContain("Class:",
+            ContextForCharacterClass(CharacterClass.Classless).FormatSnapshot());
+    }
+
+    /// <summary>The opening turn must not re-ask for what the form already collected, or the player is
+    /// interrogated for a name and class they have already chosen.</summary>
+    [Fact]
+    public void CampaignSetup_prompt_forbids_asking_for_name_or_class()
+    {
+        var prompt = StagePrompts.For(SessionStage.CampaignSetup);
+
+        Assert.Contains("never ask for a name", prompt);
+        Assert.Contains("they have already chosen both", prompt);
+        // It must still be told to use them, or the opening ignores the player's choices.
+        Assert.Contains("their class from Game State", prompt);
+    }
+
+    /// <summary>This guardrail used to live only in the creation prompt, so it vanished the moment play
+    /// began. A successor's first turn now derives as Exploration, so it has to hold there.</summary>
+    [Fact]
+    public void Exploration_prompt_keeps_the_dead_buried()
+    {
+        var prompt = StagePrompts.For(SessionStage.Exploration);
+
+        Assert.Contains("The dead stay dead", prompt);
+        Assert.Contains("never revive them", prompt);
+        // And it must recognise a successor's opening turn, which is where the framing is needed.
+        Assert.Contains("successor's first breath", prompt);
+    }
+
+    private SessionContext ContextForCharacterClass(CharacterClass characterClass)
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
+        var character = CreateClassedCharacter(characterClass);
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        context.SetCharacterId(character.Id);
+        context.Character = character;
+        context.SetCampaignId(campaign.Id);
+        context.Campaign = campaign;
+        return context;
+    }
+
+    private Character CreateClassedCharacter(CharacterClass characterClass)
+    {
+        SetupDiceRolls(3);
+        return Character.Create(
+            Guid.NewGuid(), "Tuck", 2,
+            new Abilities(new AbilityScore(0), new AbilityScore(0), new AbilityScore(1), new AbilityScore(0)),
+            new StartingEquipment(120, 3, "Sack", null, null,
+                Weapon.Create(WeaponKind.Staff), new Armor(ArmorTier.Medium), null, []),
+            Dice, 0, characterClass);
     }
 
     private static Campaign CreateEndedCampaign()

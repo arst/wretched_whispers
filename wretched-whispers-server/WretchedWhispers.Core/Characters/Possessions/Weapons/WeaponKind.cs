@@ -12,5 +12,9 @@ public enum WeaponKind
     Bow,
     Flail,
     Crossbow,
-    Zweihander
+    Zweihander,
+
+    // Natural attacks granted by a class instead of a rolled weapon. Never on a starting-gear table.
+    Fangs,
+    Claws
 }

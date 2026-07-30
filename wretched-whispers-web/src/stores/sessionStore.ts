@@ -179,6 +179,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     if (update.characterName && update.characterHp != null) {
       newState.characterData = {
         name: update.characterName,
+        class: update.characterClass ?? null,
         currentHp: update.characterHp,
         maxHp: update.characterMaxHp!,
         abilities: {

@@ -5,6 +5,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
@@ -16,41 +17,20 @@ namespace WretchedWhispers.Engine.GameTools;
 /// <see cref="SessionContext"/> (the model never sees GUIDs), validates model-supplied arguments via
 /// <see cref="ToolGuard"/>, then calls the domain directly and maps the result to a DTO.
 /// </summary>
-[Description("Interact with the player character: create, challenge, manage inventory, improve or degrade abilities, handle infection, buy items, and cast scrolls.")]
+[Description("Interact with the player character: challenge, manage inventory, improve or degrade abilities, handle infection, buy items, and cast scrolls.")]
 public sealed class CharacterTools(
     ICharactersRepository charactersRepository,
-    CharacterCreationService characterCreationService,
     CharacterService characterService,
     Dice dice,
-    SessionContext sessionContext,
-    CampaignService campaignService)
+    SessionContext sessionContext)
 {
     private Guid RequireCharacterId() =>
         sessionContext.CharacterId
-        ?? throw new InvalidOperationException("No character exists yet -- call CreateCharacter first.");
+        ?? throw new InvalidOperationException("No character exists for this session.");
 
-    [Description("Create a new character with starting stats and gear")]
-    [GameTool(SessionStage.CharacterCreation)]
-    public async Task<CharacterDto> CreateCharacter(
-        [Description("Character name")] string name)
-    {
-        if (sessionContext.CharacterId is not null)
-            throw new InvalidOperationException(
-                "A character already exists for this session. You cannot create another one.");
-
-        var difficulty = sessionContext.Campaign?.Difficulty ?? Difficulty.Grim;
-        var character = await characterCreationService.Create(name, difficulty);
-        await charactersRepository.Save(character);
-        sessionContext.SetCharacterId(character.Id);
-
-        // Link the character to the session's campaign (single-player) via the domain service. The
-        // campaign only auto-starts once it has ALSO been configured (CampaignService.TryAutoStart),
-        // so joining alone does not silently advance the stage machine.
-        if (sessionContext.CampaignId is { } campaignId)
-            await campaignService.JoinCampaign(campaignId, character.Id);
-
-        return CreateCharacterDto(character);
-    }
+    // There is deliberately no CreateCharacter tool. Name and class are player decisions collected by the
+    // create-session and successor forms, and everything else is rolled by CharacterCreationService, so a
+    // character always exists before the narrator's first turn. See SessionEndpoints.CreateSession.
 
     [Description("Challenge the character with an ability test against a difficulty rating. On failure, the chosen consequence is applied automatically as rolled damage.")]
     [GameTool(SessionStage.Exploration)]

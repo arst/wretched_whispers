@@ -14,4 +14,7 @@ public readonly record struct StartingEquipment(
     Weapon Weapon,
     Armor Armor,
     Shield? Shield,
-    List<Scroll> Scrolls);
+    List<Scroll> Scrolls,
+    // Class kit, on top of the two rolled gear slots. Trailing and optional so the 20-odd existing
+    // call sites in tests and evals keep compiling unchanged.
+    List<InventoryItem>? ClassKit = null);

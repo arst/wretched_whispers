@@ -1,4 +1,5 @@
 using WretchedWhispers.Engine.Models;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 
 namespace WretchedWhispers.Engine.Services;
@@ -14,6 +15,7 @@ public static class StateUpdateMapper
         int? characterMaxHp = null;
         Guid? characterId = null;
         string? characterName = null;
+        string? characterClass = null;
         int? characterStrength = null;
         int? characterAgility = null;
         int? characterPresence = null;
@@ -44,6 +46,10 @@ public static class StateUpdateMapper
             characterHp = character.Hp.Current;
             characterMaxHp = character.Hp.Max;
             characterName = character.Name;
+            // Null for classless wretches, so the UI shows a class line only when there is one.
+            characterClass = character.Class == CharacterClass.Classless
+                ? null
+                : ClassPresets.For(character.Class).DisplayName;
             characterStrength = character.Abilities.Strength.Modifier;
             characterAgility = character.Abilities.Agility.Modifier;
             characterPresence = character.Abilities.Presence.Modifier;
@@ -84,6 +90,7 @@ public static class StateUpdateMapper
             CurrentHour: campaign?.CurrentHour ?? 0,
             CharacterId: characterId,
             CharacterName: characterName,
+            CharacterClass: characterClass,
             CharacterHp: characterHp,
             CharacterMaxHp: characterMaxHp,
             CharacterStrength: characterStrength,

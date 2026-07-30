@@ -69,7 +69,7 @@ public class AgentExecutorIntegrationTests
     {
         var (provider, _) = CreateToolProvider();
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
+        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
         var client = new ScriptedChatClient(
             ChatResponses.Text("The world rots. A name, wretch?"));
@@ -89,11 +89,16 @@ public class AgentExecutorIntegrationTests
     {
         var (provider, _) = CreateToolProvider();
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
+        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
-        // First call: model requests CreateCharacter. Second call: model narrates the result.
+        // First call: model requests CreateEncounter. Second call: model narrates the result.
         var client = new ScriptedChatClient(
-            ChatResponses.ToolCall("call_1", "CreateCharacter", new() { ["name"] = "Grim" }),
+            ChatResponses.ToolCall("call_1", "CreateEncounter", new()
+            {
+                ["name"] = "Grim",
+                ["description"] = "Something moves in the muck",
+                ["initialEncounterType"] = "Hostile"
+            }),
             ChatResponses.Text("Grim claws free of the muck, doomed already."));
 
         var executor = CreateExecutor(client);
@@ -102,11 +107,11 @@ public class AgentExecutorIntegrationTests
         await foreach (var evt in executor.ExecuteAsync(tools, ctx, Guid.NewGuid(), "Grim", CancellationToken.None))
             events.Add(evt);
 
-        // The tool actually ran: the wrapper set the character id on the session context.
-        Assert.NotNull(ctx.CharacterId);
+        // The tool actually ran: the wrapper set the encounter id on the session context.
+        Assert.NotNull(ctx.ActiveEncounterId);
 
-        // A ToolResult for CreateCharacter surfaced.
-        Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateCharacter");
+        // A ToolResult for CreateEncounter surfaced.
+        Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateEncounter");
 
         // The follow-up narration streamed out.
         var narrative = string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text));
@@ -118,13 +123,18 @@ public class AgentExecutorIntegrationTests
     {
         var (provider, _) = CreateToolProvider();
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
+        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
         // The model fabricates an outcome BEFORE calling the tool, then narrates after.
         var client = new ScriptedChatClient(
             ChatResponses.TextThenToolCall(
-                "FABRICATED: you have already triumphed!", "call_1", "CreateCharacter",
-                new() { ["name"] = "Grim" }),
+                "FABRICATED: you have already triumphed!", "call_1", "CreateEncounter",
+                new()
+                {
+                    ["name"] = "Grim",
+                    ["description"] = "Something moves in the muck",
+                    ["initialEncounterType"] = "Hostile"
+                }),
             ChatResponses.Text("Grim claws free of the muck, doomed already."));
 
         var executor = CreateExecutor(client);
@@ -139,7 +149,7 @@ public class AgentExecutorIntegrationTests
         Assert.DoesNotContain("FABRICATED", narrative);
         Assert.Contains("Grim claws free", narrative);
         // The tool still ran.
-        Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateCharacter");
+        Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateEncounter");
     }
 
     [Fact]
@@ -147,7 +157,7 @@ public class AgentExecutorIntegrationTests
     {
         var (provider, _) = CreateToolProvider();
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
+        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
 
         var client = new ThrowingChatClient(new HttpRequestException("transient upstream failure"));
         var executor = CreateExecutor(client);

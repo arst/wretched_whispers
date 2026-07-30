@@ -136,8 +136,10 @@ function GameSession({ id }: { id: string }) {
           store.setStateUpdate(data.state);
         }
 
-        // New character-creation session with no messages: show splash and trigger narrator
-        if (data.status === "character-creation" && data.messages.length === 0) {
+        // An empty chronicle needs its opening narration. This covers both a brand-new session and a
+        // successor's fresh chronicle — the character already exists in both cases, so the emptiness of
+        // the chronicle is the signal, not the session status.
+        if (data.messages.length === 0 && data.status !== "ended") {
           setShowSplash(true);
           setLoading(false);
           // Kick off the narrator's opening message (silent = no player bubble)

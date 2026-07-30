@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { SessionPreviewDto } from "@/types/api";
+import ClassGlyph from "@/components/session/ClassGlyph";
 
 interface SessionCardProps {
   session: SessionPreviewDto;
@@ -57,7 +58,17 @@ export default function SessionCard({ session }: SessionCardProps) {
             {session.campaignName}
           </h3>
           {session.characterName && (
-            <p className="text-doom-bone text-sm mt-0.5">{session.characterName}</p>
+            <p className="flex items-center gap-1.5 text-doom-bone text-sm mt-0.5">
+              {session.characterClass && (
+                <ClassGlyph
+                  characterClass={session.characterClass}
+                  className="w-4 h-4 shrink-0 text-doom-ash"
+                />
+              )}
+              {session.characterClass
+                ? `${session.characterName}, the ${session.characterClass}`
+                : session.characterName}
+            </p>
           )}
         </div>
         <span

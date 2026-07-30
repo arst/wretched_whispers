@@ -3,6 +3,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Combat;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions;
@@ -39,10 +40,12 @@ public sealed class Character
         bool isInfected = false,
         bool isDizzyFromMagic = false,
         bool isDead = false,
-        bool canGetBetter = false)
+        bool canGetBetter = false,
+        CharacterClass @class = CharacterClass.Classless)
     {
         Id = id;
         Name = name;
+        Class = @class;
         Abilities = abilities;
         Silver = silver;
         FoodDays = foodDays;
@@ -75,14 +78,19 @@ public sealed class Character
         PowerPool powers,
         int currentHp,
         int maxHp,
-        int omenCount = 0)
+        int omenCount = 0,
+        CharacterClass @class = CharacterClass.Classless)
         : this(id, name, abilities, silver, foodDays, inventory, weapon, armor, shield,
-            scrolls, powers, new HitPoints(currentHp, maxHp), new Omens(omenCount))
+            scrolls, powers, new HitPoints(currentHp, maxHp), new Omens(omenCount), @class: @class)
     {
     }
 
     [JsonInclude] public Guid Id { get; private set; }
     [JsonInclude] public string Name { get; private set; }
+
+    /// <summary>What kind of wretch this is. Immutable after creation. Defaults to
+    /// <see cref="CharacterClass.Classless"/>, which is also what pre-class saved blobs deserialize to.</summary>
+    [JsonInclude] public CharacterClass Class { get; private set; }
     [JsonInclude] public Abilities.Abilities Abilities { get; private set; }
     [JsonInclude] public int Silver { get; private set; }
     public int FoodDays { get; }
@@ -491,13 +499,16 @@ public sealed class Character
     }
 
     public static Character Create(Guid id, string name, int maxHp, Abilities.Abilities abilities,
-        StartingEquipment equipment, Dice dice, int startingOmensCount = 0)
+        StartingEquipment equipment, Dice dice, int startingOmensCount = 0,
+        CharacterClass characterClass = CharacterClass.Classless)
     {
         var items = new List<InventoryItem>();
 
         if (equipment.Gear1 is not null) items.Add(equipment.Gear1);
 
         if (equipment.Gear2 is not null) items.Add(equipment.Gear2);
+
+        if (equipment.ClassKit is not null) items.AddRange(equipment.ClassKit);
         var inventoryCapacity = 2 * (abilities.Strength.Modifier + 8);
 
         return new Character(
@@ -511,9 +522,10 @@ public sealed class Character
             equipment.Armor,
             equipment.Shield,
             equipment.Scrolls,
-            PowerPool.Create(abilities, dice),
+            PowerPool.Create(abilities, dice, ClassPresets.For(characterClass).PowerDie),
             maxHp,
             maxHp,
-            startingOmensCount);
+            startingOmensCount,
+            characterClass);
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Evals.Evaluators;
 using WretchedWhispers.Evals.Harness;
 using Xunit;
@@ -8,11 +9,10 @@ namespace WretchedWhispers.Evals;
 
 public class CampaignCreationEvals
 {
-    private static readonly string[] CreateCampaignTools =
-        ["CreateCharacter", "ConfigureCampaign"];
-
+    /// <summary>The opening turn now receives a finished wretch. It must configure the campaign and narrate
+    /// that character -- naming the class the player picked and the numbers the domain rolled.</summary>
     [Fact]
-    public async Task Turn1_Begin_CallsNoTools()
+    public async Task Opening_ConfiguresCampaignAndNarratesTheRolledWretch()
     {
         var chatClient = EvalSupport.TryCreateAzureChatClient();
         if (chatClient is null)
@@ -22,24 +22,30 @@ public class CampaignCreationEvals
         }
 
         var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
-        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("CampaignCreation-Turn1-Begin");
+        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Opening-NarratesRolledWretch");
 
         var chatConfiguration = run.ChatConfiguration
             ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
-        await using var host = await EvalHost.CreateAsync(chatConfiguration.ChatClient);
+        await using var host = await EvalHost.CreateOpeningAsync(
+            chatConfiguration.ChatClient, "Halvard", CharacterClass.FangedDeserter);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
 
         EvaluationResult result = await run.EvaluateAsync(
             messages: [],
             modelResponse: outcome.Response,
-            additionalContext: [new ExpectedToolCallOrderContext([])]);
+            additionalContext: [new ExpectedToolCallOrderContext(["ConfigureCampaign"])]);
 
         var metric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
-        Assert.True(metric.Value, $"Expected no tools on 'begin'; got [{string.Join(", ", outcome.ToolCalls)}]");
+        Assert.True(metric.Value,
+            $"Expected [ConfigureCampaign]; got [{string.Join(", ", outcome.ToolCalls)}]");
+        Assert.Contains("Halvard", outcome.Narrative, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("deserter", outcome.Narrative, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>The regression this whole flow exists to prevent: the player already chose a name and a
+    /// class on the form, so the opening must not interrogate them for either.</summary>
     [Fact]
-    public async Task Turn2_Name_CreatesCampaignInOrder()
+    public async Task Opening_DoesNotAskForNameOrClass()
     {
         var chatClient = EvalSupport.TryCreateAzureChatClient();
         if (chatClient is null)
@@ -49,24 +55,28 @@ public class CampaignCreationEvals
         }
 
         var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
-        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("CampaignCreation-Turn2-Name");
+        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Opening-DoesNotReAsk");
 
         var chatConfiguration = run.ChatConfiguration
             ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
-        await using var host = await EvalHost.CreateAsync(chatConfiguration.ChatClient);
+        await using var host = await EvalHost.CreateOpeningAsync(
+            chatConfiguration.ChatClient, "Ysolde", CharacterClass.OccultHerbmaster);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
 
-        // Turn 1 first so the model has asked for a name and history is consistent.
-        await host.CreateTurnRunner().RunTurnAsync("begin");
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("Grim");
+        Assert.False(
+            AsksForIdentity(outcome.Narrative),
+            $"The opening re-asked for a name or class the player already chose. Narrative: {outcome.Narrative}");
+    }
 
-        EvaluationResult result = await run.EvaluateAsync(
-            messages: [],
-            modelResponse: outcome.Response,
-            additionalContext: [new ExpectedToolCallOrderContext(CreateCampaignTools)]);
-
-        var metric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
-        Assert.True(metric.Value,
-            $"Expected [{string.Join(", ", CreateCampaignTools)}]; got [{string.Join(", ", outcome.ToolCalls)}]");
+    private static bool AsksForIdentity(string narrative)
+    {
+        var text = narrative.ToLowerInvariant();
+        string[] probes =
+        [
+            "what name", "your name?", "name is carved", "what are you?",
+            "choose your class", "which class", "pick one of the following classes"
+        ];
+        return probes.Any(p => text.Contains(p, StringComparison.Ordinal));
     }
 
     [Fact]

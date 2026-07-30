@@ -11,5 +11,7 @@ public record SessionPreviewDto(
     int? MaxHp,
     string Status,
     Difficulty Difficulty,
-    DateTime? LastPlayed
+    DateTime? LastPlayed,
+    // Trailing and optional to keep existing positional call sites compiling. Null for classless wretches.
+    string? CharacterClass = null
 );

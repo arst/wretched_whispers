@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import type { SessionPreviewDto, CreateSessionResponse, Difficulty } from "@/types/api";
+import type { SessionPreviewDto, CreateSessionResponse } from "@/types/api";
 import SessionCard from "@/components/session/SessionCard";
 import Button from "@/components/ui/Button";
-import DifficultyPicker from "@/components/session/DifficultyPicker";
+import WretchForm, { type WretchChoices } from "@/components/session/WretchForm";
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<SessionPreviewDto[]>([]);
@@ -47,7 +47,7 @@ export default function SessionsPage() {
     loadSessions();
   }, [loadSessions]);
 
-  async function handleCreateSession(difficulty: Difficulty) {
+  async function handleCreateSession({ characterName, characterClass, difficulty }: WretchChoices) {
     setCreating(true);
     setError("");
 
@@ -55,10 +55,16 @@ export default function SessionsPage() {
       const res = await apiFetch("/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ difficulty }),
+        // characterClass is omitted when null — that is how the domain is asked to roll one.
+        body: JSON.stringify({
+          characterName,
+          difficulty,
+          ...(characterClass ? { characterClass } : {}),
+        }),
       });
       if (!res.ok) {
-        throw new Error(`Failed to create session (${res.status})`);
+        const detail = await res.json().catch(() => null);
+        throw new Error(detail?.error ?? `Failed to create session (${res.status})`);
       }
       const data: CreateSessionResponse = await res.json();
       router.push(`/sessions/play?id=${data.sessionId}`);
@@ -111,7 +117,11 @@ export default function SessionsPage() {
       )}
 
       {pickerOpen && (
-        <DifficultyPicker
+        <WretchForm
+          title="FORGE A WRETCH"
+          intro="The world is already dying. Say who walks into it."
+          withDifficulty
+          confirmLabel="Begin"
           onConfirm={handleCreateSession}
           onCancel={() => setPickerOpen(false)}
           busy={creating}

@@ -2,11 +2,22 @@
 
 export type Difficulty = "StoryMode" | "Grim" | "Doomed" | "Hardcore";
 
+// Mirrors the backend CharacterClass enum, which string-serializes with its member names.
+export type CharacterClass =
+  | "Classless"
+  | "FangedDeserter"
+  | "GutterbornScum"
+  | "EsotericHermit"
+  | "OccultHerbmaster"
+  | "HereticalPriest"
+  | "CursedSkinwalker";
+
 export interface SessionPreviewDto {
   sessionId: string;
   campaignName: string;
   description: string;
   characterName: string | null;
+  characterClass: string | null;
   currentHp: number | null;
   maxHp: number | null;
   status: "character-creation" | "in-progress" | "ended" | "fallen";
@@ -99,6 +110,8 @@ export interface StateUpdateEvent {
   currentHour: number;
   characterId?: string;
   characterName?: string;
+  // Absent for a classless wretch — the backend omits it rather than sending "Classless Scum".
+  characterClass?: string | null;
   characterHp?: number;
   characterMaxHp?: number;
   characterStrength?: number;
@@ -137,6 +150,7 @@ export interface StateUpdateEvent {
 
 export interface CharacterData {
   name: string;
+  class: string | null;
   currentHp: number;
   maxHp: number;
   abilities: {

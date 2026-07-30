@@ -1,9 +1,11 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
@@ -20,6 +22,51 @@ namespace WretchedWhispers.Tests.Persistence;
 public class JsonSerializationTests : TestBase
 {
     private readonly JsonSerializerOptions _options = AggregateJsonOptions.Create();
+
+    [Fact]
+    public void Character_RoundTrips_Class()
+    {
+        SetupDiceRolls(3);
+        var character = ClassedCharacter(CharacterClass.CursedSkinwalker);
+
+        var json = JsonSerializer.Serialize(character, _options);
+        var deserialized = JsonSerializer.Deserialize<Character>(json, _options)!;
+
+        Assert.Equal(CharacterClass.CursedSkinwalker, deserialized.Class);
+    }
+
+    /// <summary>Characters saved before classes existed have no "class" or "powerDie" keys at all. They must
+    /// still load, as classless wretches on the original d4 power die -- there is no migration to fix them up,
+    /// the Characters table is a single JSON blob.
+    /// <para>
+    /// The legacy shape is produced by deleting those keys rather than pasting a frozen blob, so this keeps
+    /// testing absent-key handling as the rest of the character schema moves.
+    /// </para></summary>
+    [Fact]
+    public void Character_WithoutClassKeys_DeserializesAsClasslessOnAD4()
+    {
+        SetupDiceRolls(3);
+        var json = JsonSerializer.Serialize(ClassedCharacter(CharacterClass.EsotericHermit), _options);
+
+        var node = JsonNode.Parse(json)!.AsObject();
+        Assert.True(node.Remove("class"), "expected a 'class' key to remove");
+        Assert.True(node["powers"]!.AsObject().Remove("powerDie"), "expected a 'powerDie' key to remove");
+
+        var deserialized = JsonSerializer.Deserialize<Character>(node.ToJsonString(), _options)!;
+
+        Assert.Equal(CharacterClass.Classless, deserialized.Class);
+        Assert.Null(deserialized.Powers.PowerDie);
+        // Still usable: the null die falls back to d4, so a new dawn does not crash.
+        deserialized.Powers.ResetForNewDay(deserialized.Abilities, Dice);
+        Assert.True(deserialized.Powers.MaxUses >= 1);
+    }
+
+    private Character ClassedCharacter(CharacterClass characterClass) => Character.Create(
+        Guid.NewGuid(), "TestHero", 10,
+        new Abilities(new AbilityScore(1), new AbilityScore(2), new AbilityScore(0), new AbilityScore(-1)),
+        new StartingEquipment(50, 3, "Sack", null, null,
+            Weapon.Create(WeaponKind.Sword), new Armor(ArmorTier.Light), null, []),
+        Dice, 0, characterClass);
 
     [Fact]
     public void Character_RoundTrips_BasicProperties()

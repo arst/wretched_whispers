@@ -1,6 +1,7 @@
 using System.Text;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Encounters;
 
@@ -86,6 +87,10 @@ public sealed class SessionContext
         if (Character is not null)
         {
             sb.AppendLine($"Character: {Character.Name}");
+            // Omitted for classless wretches, so snapshots for characters created before classes existed
+            // stay byte-identical.
+            if (Character.Class != CharacterClass.Classless)
+                sb.AppendLine($"  Class: {ClassPresets.For(Character.Class).DisplayName}");
             sb.AppendLine($"  HP: {Character.Hp.Current}/{Character.Hp.Max}");
             sb.AppendLine($"  Strength: {Character.Abilities.Strength.Modifier}, Agility: {Character.Abilities.Agility.Modifier}");
             sb.AppendLine($"  Presence: {Character.Abilities.Presence.Modifier}, Toughness: {Character.Abilities.Toughness.Modifier}");

@@ -52,9 +52,8 @@ public sealed class AgentToolProvider(
         {
             [typeof(CharacterTools)] = new CharacterTools(
                 charactersRepo,
-                serviceProvider.GetRequiredService<CharacterCreationService>(),
                 serviceProvider.GetRequiredService<CharacterService>(),
-                dice, sessionContext, campaignService),
+                dice, sessionContext),
             [typeof(CampaignTools)] = new CampaignTools(
                 campaignService, sessionContext),
             [typeof(EncounterTools)] = new EncounterTools(

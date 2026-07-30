@@ -37,9 +37,8 @@ public class GameToolsTests
 
     private CharacterTools CharacterTools(Dice? dice = null) => new(
         _charactersRepo.Object,
-        new CharacterCreationService(_charactersRepo.Object, dice ?? _zeroDice),
         new CharacterService(_charactersRepo.Object, dice ?? _zeroDice),
-        dice ?? _zeroDice, _context, MakeCampaignService(dice));
+        dice ?? _zeroDice, _context);
 
     private CampaignTools CampaignTools() => new(
         MakeCampaignService(), _context);
@@ -49,43 +48,9 @@ public class GameToolsTests
         _encountersRepo.Object, MakeCampaignService(dice), _context);
 
     // -- CharacterTools --
-
-    [Fact]
-    public async Task CreateCharacter_SetsCharacterId_JoinsButDoesNotStartCampaign()
-    {
-        var campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
-        _context.SetCampaignId(campaign.Id);
-        _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
-
-        // The linking step (CampaignService.JoinCampaign) re-loads the freshly created character by id,
-        // so the repo must return whatever CreateCharacter just saved.
-        Character? created = null;
-        _charactersRepo.Setup(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()))
-            .Callback<Character, CancellationToken>((c, _) => created = c)
-            .Returns(Task.CompletedTask);
-        _charactersRepo.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => created);
-
-        var result = await CharacterTools().CreateCharacter("Gruk");
-
-        Assert.NotEqual(Guid.Empty, result.Id);
-        Assert.Equal(result.Id, _context.CharacterId);
-        Assert.Contains(result.Id, campaign.Players);
-        _campaignsRepo.Verify(r => r.SaveCampaign(campaign), Times.Once);
-
-        // Stage/state integrity: creating a character links it to the campaign but must NOT start it.
-        Assert.False(campaign.IsActive());
-    }
-
-    [Fact]
-    public async Task CreateCharacter_Throws_WhenCharacterAlreadyExists()
-    {
-        _context.SetCharacterId(Guid.NewGuid());
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CharacterTools().CreateCharacter("Gruk"));
-        Assert.Contains("already exists", ex.Message);
-    }
+    // Character creation is deliberately absent from this layer: name and class are collected by the
+    // create-session / successor forms and the wretch is rolled in the endpoint, so the narrator has no
+    // CreateCharacter tool to call. See SessionEndpointTests for that path.
 
     [Fact]
     public async Task ChallengeCharacter_AutoFillsCharacterIdFromSession()
@@ -106,7 +71,7 @@ public class GameToolsTests
     {
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => CharacterTools().ChallengeCharacter(12, AbilityKind.Strength));
-        Assert.Contains("CreateCharacter", ex.Message);
+        Assert.Contains("No character exists", ex.Message);
     }
 
     [Fact]

@@ -66,6 +66,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         // Create a session first
         var createRequest = new HttpRequestMessage(HttpMethod.Post, "/sessions");
         createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        createRequest.Content = JsonContent.Create(new { characterName = "Test Wretch" });
         var createResponse = await _client.SendAsync(createRequest);
         var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
         var sessionId = createJson.GetProperty("sessionId").GetString()!;
@@ -106,6 +107,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         var tokenA = await RegisterAndLogin("stream-owner-a@test.com");
         var createRequest = new HttpRequestMessage(HttpMethod.Post, "/sessions");
         createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+        createRequest.Content = JsonContent.Create(new { characterName = "Test Wretch" });
         var createResponse = await _client.SendAsync(createRequest);
         var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
         var sessionId = createJson.GetProperty("sessionId").GetString()!;

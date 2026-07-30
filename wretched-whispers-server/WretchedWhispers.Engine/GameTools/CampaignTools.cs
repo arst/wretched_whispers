@@ -20,7 +20,9 @@ public sealed class CampaignTools(
         ?? throw new InvalidOperationException("No campaign exists for this session.");
 
     [Description("Configure the campaign's name and description. The campaign already exists; it begins automatically once it is configured and the character has been created.")]
-    [GameTool(SessionStage.CharacterCreation, SessionStage.CampaignSetup)]
+    // Not offered in CharacterCreation: that stage is now an unreachable fallback for a session with no
+    // character, and it is deliberately toolless.
+    [GameTool(SessionStage.CampaignSetup)]
     public async Task<CampaignDto> ConfigureCampaign(
         [Description("The name of the campaign")] string name,
         [Description("A description of the campaign's setting, goals, or theme")] string description)
