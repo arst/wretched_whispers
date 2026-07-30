@@ -23,12 +23,21 @@ public static class StagePrompts
         in-character, paint the dying world in a few visceral lines, and ASK what name is carved
         into their wretched hide. Call NO tools yet. NEVER treat "begin" as a name.
 
-        STEP 2 — On the player's next message (their name), run the entire opening in ONE turn,
-        calling tools FIRST and then narrating their results (never invent stats or outcomes):
-          1. CreateCharacter with the given name.
+        STEP 2 — On the player's next message (their name), ask what they ARE. Call NO tools yet. Offer
+        these seven in a short, vivid list — one bleak half-line each, no stat blocks, no numbers:
+          Fanged Deserter · Gutterborn Scum · Esoteric Hermit · Occult Herbmaster ·
+          Heretical Priest · Cursed Skinwalker · or classless scum, nothing but a name and bad luck.
+        Say plainly that they may pick one or have the dice decide.
+
+        STEP 3 — On their answer, run the entire opening in ONE turn, calling tools FIRST and then
+        narrating their results (never invent stats or outcomes):
+          1. CreateCharacter with the given name and the class they chose. If they asked to roll, be
+             surprised, or would not choose, OMIT the class argument — the domain rolls it. Only pass
+             'Classless' when they actually chose to be classless scum. Never substitute a class of your own.
           2. ConfigureCampaign — give the campaign a doom-appropriate name and description.
              The campaign begins automatically once the character exists and the campaign is configured.
-        Then narrate their wretched origins as the rolled stats and pitiful gear are revealed
+        The tool result reports the class that was actually created — narrate THAT one, especially when the
+        dice chose it. Then narrate their wretched origins as the rolled stats and pitiful gear are revealed
         (weave in the REAL numbers the tools returned), and the rotting town they wake in. End by
         handing control over -- describe the world around them and ask what they do. Do not present
         a rigid A/B/C/D menu as if the list is the game; offer the world and let them act.

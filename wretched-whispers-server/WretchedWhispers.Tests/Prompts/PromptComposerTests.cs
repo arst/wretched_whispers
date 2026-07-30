@@ -5,6 +5,7 @@ using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
@@ -225,6 +226,94 @@ public class PromptComposerTests : TestBase
         campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
         return campaign;
+    }
+
+    [Fact]
+    public void Compose_includes_the_class_narrator_note_for_a_classed_character()
+    {
+        var context = ContextForCharacterClass(CharacterClass.CursedSkinwalker);
+
+        var result = _composer.Compose(context);
+
+        Assert.Contains("## Class", result);
+        Assert.Contains(ClassPresets.For(CharacterClass.CursedSkinwalker).NarratorNote, result);
+    }
+
+    /// <summary>Class flavour is the one part of the prompt with no domain state behind it, so it carries an
+    /// explicit reminder that it grants nothing on its own.</summary>
+    [Fact]
+    public void Compose_class_section_forbids_the_class_from_granting_anything()
+    {
+        var result = _composer.Compose(ContextForCharacterClass(CharacterClass.OccultHerbmaster));
+
+        Assert.Contains("never arithmetic", result);
+        Assert.Contains("NEVER grants an item", result);
+    }
+
+    /// <summary>Classless wretches -- every character created before classes existed -- must produce the same
+    /// prompt they always did.</summary>
+    [Fact]
+    public void Compose_omits_the_class_section_for_a_classless_character()
+    {
+        var result = _composer.Compose(ContextForCharacterClass(CharacterClass.Classless));
+
+        Assert.DoesNotContain("## Class", result);
+    }
+
+    [Fact]
+    public void Compose_omits_the_class_section_when_no_character_exists()
+    {
+        var result = _composer.Compose(new SessionContext { SessionId = Guid.NewGuid() });
+
+        Assert.DoesNotContain("## Class", result);
+    }
+
+    [Fact]
+    public void Snapshot_names_the_class_only_when_there_is_one()
+    {
+        Assert.Contains("Class: Cursed Skinwalker",
+            ContextForCharacterClass(CharacterClass.CursedSkinwalker).FormatSnapshot());
+        Assert.DoesNotContain("Class:",
+            ContextForCharacterClass(CharacterClass.Classless).FormatSnapshot());
+    }
+
+    /// <summary>The creation script must actually name every class it offers, or the narrator invents its own.</summary>
+    [Theory]
+    [InlineData("Fanged Deserter")]
+    [InlineData("Gutterborn Scum")]
+    [InlineData("Esoteric Hermit")]
+    [InlineData("Occult Herbmaster")]
+    [InlineData("Heretical Priest")]
+    [InlineData("Cursed Skinwalker")]
+    public void CharacterCreation_prompt_offers_every_class(string displayName)
+    {
+        Assert.Contains(displayName, StagePrompts.For(SessionStage.CharacterCreation));
+    }
+
+    private SessionContext ContextForCharacterClass(CharacterClass characterClass)
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
+        var character = CreateClassedCharacter(characterClass);
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        context.SetCharacterId(character.Id);
+        context.Character = character;
+        context.SetCampaignId(campaign.Id);
+        context.Campaign = campaign;
+        return context;
+    }
+
+    private Character CreateClassedCharacter(CharacterClass characterClass)
+    {
+        SetupDiceRolls(3);
+        return Character.Create(
+            Guid.NewGuid(), "Tuck", 2,
+            new Abilities(new AbilityScore(0), new AbilityScore(0), new AbilityScore(1), new AbilityScore(0)),
+            new StartingEquipment(120, 3, "Sack", null, null,
+                Weapon.Create(WeaponKind.Staff), new Armor(ArmorTier.Medium), null, []),
+            Dice, 0, characterClass);
     }
 
     private static Campaign CreateEndedCampaign()

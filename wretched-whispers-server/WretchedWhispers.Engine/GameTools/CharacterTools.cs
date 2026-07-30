@@ -5,6 +5,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
@@ -32,14 +33,22 @@ public sealed class CharacterTools(
     [Description("Create a new character with starting stats and gear")]
     [GameTool(SessionStage.CharacterCreation)]
     public async Task<CharacterDto> CreateCharacter(
-        [Description("Character name")] string name)
+        [Description("Character name")] string name,
+        [Description(
+            "The class the player chose: 'FangedDeserter', 'GutterbornScum', 'EsotericHermit', " +
+            "'OccultHerbmaster', 'HereticalPriest', 'CursedSkinwalker', or 'Classless' for a class-less " +
+            "wretch. OMIT this entirely if the player asked to roll or be surprised -- the domain then " +
+            "rolls one. Never guess a class the player did not ask for.")]
+        CharacterClass? characterClass = null)
     {
         if (sessionContext.CharacterId is not null)
             throw new InvalidOperationException(
                 "A character already exists for this session. You cannot create another one.");
 
         var difficulty = sessionContext.Campaign?.Difficulty ?? Difficulty.Grim;
-        var character = await characterCreationService.Create(name, difficulty);
+        // Omitted means the player wanted a roll, and the die is the domain's to throw.
+        var chosenClass = characterClass ?? characterCreationService.RollRandomClass();
+        var character = await characterCreationService.Create(name, difficulty, chosenClass);
         await charactersRepository.Save(character);
         sessionContext.SetCharacterId(character.Id);
 
@@ -49,7 +58,7 @@ public sealed class CharacterTools(
         if (sessionContext.CampaignId is { } campaignId)
             await campaignService.JoinCampaign(campaignId, character.Id);
 
-        return CreateCharacterDto(character);
+        return CreateCharacterDto(character, includeClass: true);
     }
 
     [Description("Challenge the character with an ability test against a difficulty rating. On failure, the chosen consequence is applied automatically as rolled damage.")]
@@ -217,10 +226,11 @@ public sealed class CharacterTools(
         _ => throw new ArgumentOutOfRangeException(nameof(armorTier), armorTier, null)
     };
 
-    private static CharacterDto CreateCharacterDto(Character character) => new()
+    private static CharacterDto CreateCharacterDto(Character character, bool includeClass = false) => new()
     {
         Id = character.Id,
         Name = character.Name,
+        Class = includeClass ? ClassPresets.For(character.Class).DisplayName : null,
         Silver = character.Silver,
         FoodDays = character.FoodDays,
         CurrentHp = character.Hp.Current,
