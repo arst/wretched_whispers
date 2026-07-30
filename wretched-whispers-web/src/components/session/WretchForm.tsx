@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { CharacterClass, Difficulty } from "@/types/api";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import ClassGlyph from "@/components/session/ClassGlyph";
 
 // Player-facing copy. Mirrors the backend CharacterClass enum the same way LEVELS below mirrors
 // Difficulty — the blurbs are for the player, and are deliberately not the narrator notes in
@@ -30,11 +31,13 @@ const LEVELS: { key: Difficulty; label: string; blurb: string }[] = [
 function OptionButton({
   label,
   blurb,
+  icon,
   selected,
   onClick,
 }: {
   label: string;
   blurb: string;
+  icon?: ReactNode;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -43,14 +46,27 @@ function OptionButton({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`text-left p-2.5 border transition-colors cursor-pointer ${
+      className={`flex items-start gap-2.5 text-left p-2.5 border transition-colors cursor-pointer ${
         selected
           ? "border-doom-yellow bg-doom-yellow/10"
           : "border-doom-card hover:border-doom-yellow/30"
       }`}
     >
-      <div className="font-display text-doom-bone text-sm uppercase tracking-wider">{label}</div>
-      <div className="text-doom-ash text-xs mt-1 leading-snug">{blurb}</div>
+      {icon && (
+        <span
+          className={`shrink-0 mt-0.5 transition-colors ${
+            selected ? "text-doom-yellow" : "text-doom-ash"
+          }`}
+        >
+          {icon}
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="block font-display text-doom-bone text-sm uppercase tracking-wider">
+          {label}
+        </span>
+        <span className="block text-doom-ash text-xs mt-1 leading-snug">{blurb}</span>
+      </span>
     </button>
   );
 }
@@ -141,6 +157,7 @@ export default function WretchForm({
                   key={String(cls.key)}
                   label={cls.label}
                   blurb={cls.blurb}
+                  icon={<ClassGlyph characterClass={cls.key} className="w-6 h-6" />}
                   selected={characterClass === cls.key}
                   onClick={() => setCharacterClass(cls.key)}
                 />
