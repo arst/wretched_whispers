@@ -72,8 +72,10 @@ public sealed class ReloadableOpenAIChatClient : IChatClient
         {
             if (_inner is null || current != _built)
             {
-                _inner?.Dispose();
-
+                // The old client is deliberately NOT disposed: a turn started before a settings
+                // update may still be streaming on it, and disposing under an in-flight request
+                // would fault that turn. Rebuilds are rare (a settings save), so letting the old
+                // client be collected is the safe trade.
                 var clientOptions = new OpenAIClientOptions
                 {
                     NetworkTimeout = _timeout,
@@ -102,7 +104,9 @@ public sealed class ReloadableOpenAIChatClient : IChatClient
         => Inner().GetStreamingResponseAsync(messages, options, cancellationToken);
 
     public object? GetService(Type serviceType, object? serviceKey = null)
-        => _inner?.GetService(serviceType, serviceKey);
+    {
+        lock (_gate) return _inner?.GetService(serviceType, serviceKey);
+    }
 
     public void Dispose()
     {

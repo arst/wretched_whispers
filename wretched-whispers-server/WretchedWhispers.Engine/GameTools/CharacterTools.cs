@@ -166,10 +166,18 @@ public sealed class CharacterTools(
     [Description("Cast a scroll spell that the character possesses")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat)]
     public async Task<CastOutcomeDto> CastScroll(
-        [Description("Id of the scroll to cast")] Guid scrollId)
+        [Description("Description of the scroll to cast, exactly as shown in Game State")] string scrollDescription)
     {
         var character = await RequireCharacter();
-        var outcome = character.Cast(scrollId, dice);
+        // The model never sees scroll GUIDs, so resolve by the description it can read off Game State.
+        // On no match, hand back the known scrolls so the model can retry with the exact string.
+        var scroll = character.Scrolls.FirstOrDefault(
+            s => string.Equals(s.Description, scrollDescription, StringComparison.OrdinalIgnoreCase));
+        if (scroll is null)
+            throw new InvalidOperationException(
+                $"No scroll matching '{scrollDescription}' is known. Known scrolls: " +
+                $"{string.Join("; ", character.Scrolls.Select(s => s.Description))}.");
+        var outcome = character.Cast(scroll.Id, dice);
         await charactersRepository.Save(character);
 
         return new CastOutcomeDto
@@ -215,7 +223,7 @@ public sealed class CharacterTools(
         IsShieldBroken = character.Shield?.IsBroken ?? false,
         OmenCount = character.Omens.Count,
         PowersMax = character.Powers.MaxUses,
-        PowersUsed = character.Powers.UsesRemaining,
+        PowersRemaining = character.Powers.UsesRemaining,
         IsInfected = character.IsInfected,
         IsDizzyFromMagic = character.IsDizzyFromMagic,
         IsEncumbered = character.IsEncumbered,

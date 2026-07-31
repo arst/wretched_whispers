@@ -66,7 +66,7 @@ public static class SessionEndpoints
                 return Results.NotFound();
 
             // 409 check BEFORE any response writes
-            if (!await guard.TryAcquire(sessionId))
+            if (!guard.TryAcquire(sessionId))
                 return Results.Conflict(new { error = "GM response already in progress" });
 
             return Results.ServerSentEvents(
@@ -414,7 +414,7 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        if (!await guard.TryAcquire(sessionId))
+        if (!guard.TryAcquire(sessionId))
             return Results.Conflict(new { error = "GM response already in progress" });
 
         try
@@ -475,7 +475,7 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        if (!await guard.TryAcquire(sessionId))
+        if (!guard.TryAcquire(sessionId))
             return Results.Conflict(new { error = "GM response already in progress" });
 
         try

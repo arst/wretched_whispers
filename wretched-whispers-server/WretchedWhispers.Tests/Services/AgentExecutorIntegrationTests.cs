@@ -42,7 +42,6 @@ public class AgentExecutorIntegrationTests
 
     private static (AgentToolProvider Provider, ICharactersRepository CharsRepo) CreateToolProvider()
     {
-        var services = new ServiceCollection();
         var charsRepo = new Mock<ICharactersRepository>();
         // CreateCharacter saves then the wrapper reads back via the returned DTO; Save is a no-op mock.
         charsRepo.Setup(r => r.Save(It.IsAny<Character>())).Returns(Task.CompletedTask);
@@ -50,18 +49,15 @@ public class AgentExecutorIntegrationTests
         var encsRepo = new Mock<IEncountersRepository>().Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
 
-        // AgentToolProvider constructs the *Tools classes from these Core services.
-        services.AddSingleton(charsRepo.Object);
-        services.AddSingleton(campsRepo);
-        services.AddSingleton(encsRepo);
-        services.AddSingleton(dice);
-        services.AddSingleton(new CharacterCreationService(charsRepo.Object, dice));
-        services.AddSingleton(new CharacterService(charsRepo.Object, dice));
-        services.AddSingleton(new CampaignService(campsRepo, charsRepo.Object, dice));
-        services.AddSingleton(new EncounterService(dice, charsRepo.Object, encsRepo));
-
-        var sp = services.BuildServiceProvider();
-        return (new AgentToolProvider(sp, NullLogger<AgentToolProvider>.Instance), charsRepo.Object);
+        var provider = new AgentToolProvider(
+            charsRepo.Object,
+            encsRepo,
+            new CharacterService(charsRepo.Object, dice),
+            new CampaignService(campsRepo, charsRepo.Object, dice),
+            new EncounterService(dice, charsRepo.Object, encsRepo),
+            dice,
+            NullLogger<AgentToolProvider>.Instance);
+        return (provider, charsRepo.Object);
     }
 
     [Fact]

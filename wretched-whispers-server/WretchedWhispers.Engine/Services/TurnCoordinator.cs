@@ -126,9 +126,6 @@ public sealed class TurnCoordinator(
             // One atomic unit of work for the turn. Disposal rolls back if we don't commit.
             await using var uow = await unitOfWork.BeginAsync(ct);
 
-            await chatHistoryRepository.SaveMessage(
-                chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct);
-
             var narrativeChunks = new List<NarrativeChunk>();
             var toolResults = new List<ToolResult>();
             AgentTrace? agentTrace = null;
@@ -155,6 +152,11 @@ public sealed class TurnCoordinator(
             foreach (var chunk in narrativeChunks)
                 fullResponse.Append(chunk.Text);
 
+            // Saved AFTER the agent run: the executor reloads history from this same DbContext and
+            // appends the player message itself, so persisting it first would double it in the
+            // conversation the model sees.
+            await chatHistoryRepository.SaveMessage(
+                chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct);
             await chatHistoryRepository.SaveMessage(
                 chatSessionId,
                 new ChatMessage(ChatRole.Assistant, fullResponse.ToString()) { AuthorName = "Game_Master" },
@@ -200,10 +202,12 @@ public sealed class TurnCoordinator(
                 "Turn complete — Session={SessionId}, Stage={Stage}, NarrativeChunks={ChunkCount}, ToolResults={ToolCount}",
                 sessionId, stage, narrativeChunks.Count, toolResults.Count);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // uow disposal rolled back.
-            writer.TryWrite(new TurnError("Request was cancelled"));
+            // uow disposal rolled back. No TurnError: the reader shares this token, so nothing
+            // written here would ever be surfaced. An OCE thrown WITHOUT our token cancelled
+            // (e.g. a dependency's internal timeout) falls through to the generic handler instead
+            // of masquerading as user cancellation.
         }
         catch (DbUpdateConcurrencyException ex)
         {

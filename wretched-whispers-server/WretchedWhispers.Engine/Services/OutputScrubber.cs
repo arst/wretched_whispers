@@ -10,11 +10,10 @@ namespace WretchedWhispers.Engine.Services;
 public static partial class OutputScrubber
 {
     [GeneratedRegex(
-        @"\(?\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b\)?",
-        RegexOptions.Compiled)]
+        @"\(?\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b\)?")]
     private static partial Regex GuidPattern();
 
-    [GeneratedRegex(@"[ \t]{2,}", RegexOptions.Compiled)]
+    [GeneratedRegex(@"[ \t]{2,}")]
     private static partial Regex RepeatedSpaces();
 
     /// <summary>Returns the text with any GUIDs removed; out param reports whether anything changed.</summary>

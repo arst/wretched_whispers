@@ -72,9 +72,9 @@ public class CharacterDto
     [Description("Number of omens the character has accumulated")]
     public int OmenCount { get; set; }
 
-    [JsonPropertyName("PowersUsed")]
-    [Description("Number of powers/spells used today")]
-    public int PowersUsed { get; set; }
+    [JsonPropertyName("PowersRemaining")]
+    [Description("Number of power/spell uses remaining today")]
+    public int PowersRemaining { get; set; }
 
     [JsonPropertyName("PowersMax")]
     [Description("Maximum number of powers/spells per day")]

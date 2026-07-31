@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WretchedWhispers.Engine.GameTools;
 using WretchedWhispers.Core.Campaigns;
@@ -20,7 +19,12 @@ namespace WretchedWhispers.Engine.Services;
 /// prompts reference.
 /// </summary>
 public sealed class AgentToolProvider(
-    IServiceProvider serviceProvider,
+    ICharactersRepository charactersRepository,
+    IEncountersRepository encountersRepository,
+    CharacterService characterService,
+    CampaignService campaignService,
+    EncounterService encounterService,
+    Dice dice,
     ILogger<AgentToolProvider> logger) : IAgentToolProvider
 {
     /// <summary>Shared trace source for the whole game-turn pipeline.</summary>
@@ -39,11 +43,6 @@ public sealed class AgentToolProvider(
             return ([], []);
         }
 
-        var encountersRepo = serviceProvider.GetRequiredService<IEncountersRepository>();
-        var charactersRepo = serviceProvider.GetRequiredService<ICharactersRepository>();
-        var campaignService = serviceProvider.GetRequiredService<CampaignService>();
-        var dice = serviceProvider.GetRequiredService<Dice>();
-
         // Per-turn tool instances, keyed by type so a catalog descriptor binds to the right one. They
         // are built here (not DI-registered) because each needs the turn's SessionContext. The set of
         // types must match GameToolCatalog.ToolTypes. Cross-aggregate linking (character/encounter ->
@@ -51,14 +50,11 @@ public sealed class AgentToolProvider(
         var instances = new Dictionary<Type, object>
         {
             [typeof(CharacterTools)] = new CharacterTools(
-                charactersRepo,
-                serviceProvider.GetRequiredService<CharacterService>(),
-                dice, sessionContext),
+                charactersRepository, characterService, dice, sessionContext),
             [typeof(CampaignTools)] = new CampaignTools(
                 campaignService, sessionContext),
             [typeof(EncounterTools)] = new EncounterTools(
-                serviceProvider.GetRequiredService<EncounterService>(),
-                encountersRepo, campaignService, sessionContext),
+                encounterService, encountersRepository, campaignService, sessionContext),
             [typeof(DiceTools)] = new DiceTools(dice)
         };
 
