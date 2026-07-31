@@ -203,79 +203,79 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
 public class SessionConcurrencyGuardTests
 {
     [Fact]
-    public async Task TryAcquire_ReturnsTrue_OnFirstCall()
+    public void TryAcquire_ReturnsTrue_OnFirstCall()
     {
         var guard = new SessionConcurrencyGuard();
         var sessionId = Guid.NewGuid();
 
-        var result = await guard.TryAcquire(sessionId);
+        var result = guard.TryAcquire(sessionId);
 
         Assert.True(result);
     }
 
     [Fact]
-    public async Task TryAcquire_ReturnsFalse_OnSecondCallSameSession()
+    public void TryAcquire_ReturnsFalse_OnSecondCallSameSession()
     {
         var guard = new SessionConcurrencyGuard();
         var sessionId = Guid.NewGuid();
 
-        await guard.TryAcquire(sessionId);
-        var result = await guard.TryAcquire(sessionId);
+        guard.TryAcquire(sessionId);
+        var result = guard.TryAcquire(sessionId);
 
         Assert.False(result);
     }
 
     [Fact]
-    public async Task TryAcquire_ReturnsTrue_AfterRelease()
+    public void TryAcquire_ReturnsTrue_AfterRelease()
     {
         var guard = new SessionConcurrencyGuard();
         var sessionId = Guid.NewGuid();
 
-        await guard.TryAcquire(sessionId);
+        guard.TryAcquire(sessionId);
         guard.Release(sessionId);
-        var result = await guard.TryAcquire(sessionId);
+        var result = guard.TryAcquire(sessionId);
 
         Assert.True(result);
     }
 
     [Fact]
-    public async Task TryAcquire_DifferentSessions_DoNotInterfere()
+    public void TryAcquire_DifferentSessions_DoNotInterfere()
     {
         var guard = new SessionConcurrencyGuard();
         var sessionA = Guid.NewGuid();
         var sessionB = Guid.NewGuid();
 
-        var resultA = await guard.TryAcquire(sessionA);
-        var resultB = await guard.TryAcquire(sessionB);
+        var resultA = guard.TryAcquire(sessionA);
+        var resultB = guard.TryAcquire(sessionB);
 
         Assert.True(resultA);
         Assert.True(resultB);
     }
 
     [Fact]
-    public async Task TryAcquire_SameSession_BlockedWhileOtherHoldsLock()
+    public void TryAcquire_SameSession_BlockedWhileOtherHoldsLock()
     {
         var guard = new SessionConcurrencyGuard();
         var sessionId = Guid.NewGuid();
 
         // First acquire succeeds
-        var first = await guard.TryAcquire(sessionId);
+        var first = guard.TryAcquire(sessionId);
         Assert.True(first);
 
         // Second acquire on same session fails
-        var second = await guard.TryAcquire(sessionId);
+        var second = guard.TryAcquire(sessionId);
         Assert.False(second);
 
         // Third session is independent
         var otherId = Guid.NewGuid();
-        var third = await guard.TryAcquire(otherId);
+        var third = guard.TryAcquire(otherId);
         Assert.True(third);
 
         // Release first session
         guard.Release(sessionId);
 
         // Now first session can be acquired again
-        var fourth = await guard.TryAcquire(sessionId);
+        var fourth = guard.TryAcquire(sessionId);
         Assert.True(fourth);
     }
 }

@@ -19,9 +19,6 @@ public static class AgentConfiguration
         // Singleton concurrency guard for per-session 409 Conflict
         services.AddSingleton<SessionConcurrencyGuard>();
 
-        // Bind AzureOpenAI settings — section name matches Settings.AzureOpenAiSettings class name
-        services.Configure<AzureOpenAiSettings>(configuration.GetSection("AzureOpenAiSettings"));
-
         var timeoutSeconds = configuration.GetValue("GameSession:ResponseTimeoutSeconds", 180);
         var maxRetryAttempts = configuration.GetValue("GameSession:MaxRetryAttempts", 2);
         var timeout = TimeSpan.FromSeconds(timeoutSeconds);
@@ -47,6 +44,19 @@ public static class AgentConfiguration
         }
         else
         {
+            // Bind AzureOpenAI settings — section name matches the AzureOpenAiSettings class name.
+            // Validated on first use (NOT ValidateOnStart: the checked-in appsettings ships empty
+            // values, and a keyless `dotnet run` must still boot). A misconfigured endpoint now
+            // fails the first turn with these messages instead of a raw UriFormatException.
+            services.AddOptions<AzureOpenAiSettings>()
+                .Bind(configuration.GetSection("AzureOpenAiSettings"))
+                .Validate(s => Uri.TryCreate(s.Endpoint, UriKind.Absolute, out _),
+                    "AzureOpenAiSettings:Endpoint must be an absolute URL")
+                .Validate(s => !string.IsNullOrWhiteSpace(s.ApiKey),
+                    "AzureOpenAiSettings:ApiKey is required")
+                .Validate(s => !string.IsNullOrWhiteSpace(s.ChatModelDeployment),
+                    "AzureOpenAiSettings:ChatModelDeployment is required");
+
             // Hosted: Azure OpenAI chat client (Microsoft.Extensions.AI). ChatClientAgent enables
             // automatic function invocation over this client.
             services.AddSingleton<IChatClient>(sp =>

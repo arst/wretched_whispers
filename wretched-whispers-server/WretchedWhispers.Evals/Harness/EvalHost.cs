@@ -231,7 +231,14 @@ public sealed class EvalHost : IAsyncDisposable
             sp.GetRequiredService<IEncountersRepository>(),
             NullLogger<SessionContextLoader>.Instance);
 
-        var toolProvider = new AgentToolProvider(sp, NullLogger<AgentToolProvider>.Instance);
+        var toolProvider = new AgentToolProvider(
+            sp.GetRequiredService<ICharactersRepository>(),
+            sp.GetRequiredService<IEncountersRepository>(),
+            sp.GetRequiredService<CharacterService>(),
+            sp.GetRequiredService<CampaignService>(),
+            sp.GetRequiredService<EncounterService>(),
+            sp.GetRequiredService<Dice>(),
+            NullLogger<AgentToolProvider>.Instance);
 
         var chatRepo = sp.GetRequiredService<IChatHistoryRepository>();
         var executor = new AgentExecutor(

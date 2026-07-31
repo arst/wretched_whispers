@@ -23,26 +23,19 @@ public class AgentToolProviderTests
 
     public AgentToolProviderTests()
     {
-        var services = new ServiceCollection();
-
         var charsRepo = new Mock<ICharactersRepository>().Object;
         var campsRepo = new Mock<ICampaignsRepository>().Object;
         var encsRepo = new Mock<IEncountersRepository>().Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
 
-        // AgentToolProvider constructs the *Tools classes from these Core services.
-        services.AddSingleton(charsRepo);
-        services.AddSingleton(campsRepo);
-        services.AddSingleton(encsRepo);
-        services.AddSingleton(dice);
-        services.AddSingleton(new CharacterCreationService(charsRepo, dice));
-        services.AddSingleton(new CharacterService(charsRepo, dice));
-        services.AddSingleton(new CampaignService(campsRepo, charsRepo, dice));
-        services.AddSingleton(new EncounterService(dice, charsRepo, encsRepo));
-
-        var sp = services.BuildServiceProvider();
-
-        _provider = new AgentToolProvider(sp, NullLogger<AgentToolProvider>.Instance);
+        _provider = new AgentToolProvider(
+            charsRepo,
+            encsRepo,
+            new CharacterService(charsRepo, dice),
+            new CampaignService(campsRepo, charsRepo, dice),
+            new EncounterService(dice, charsRepo, encsRepo),
+            dice,
+            NullLogger<AgentToolProvider>.Instance);
     }
 
     [Fact]

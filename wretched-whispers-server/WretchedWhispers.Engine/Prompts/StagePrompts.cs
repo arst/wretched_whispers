@@ -128,6 +128,9 @@ public static class StagePrompts
           never for leveling.
         """;
 
+    // Unreachable in normal play: TurnCoordinator refuses Ended turns before any prompt is composed
+    // (running the narrator on an ended session is how fabricated revivals happened). Kept as a
+    // safety net should a caller ever compose a prompt for an ended session directly.
     private const string Ended = """
         The session has ended -- either through character death or the 7th Misery destroying the world.
         Deliver a final narration: a eulogy for the fallen, a description of the world's last moments,
