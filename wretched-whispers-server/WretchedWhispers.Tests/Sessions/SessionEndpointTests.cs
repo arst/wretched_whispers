@@ -378,7 +378,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             var sp = scope.ServiceProvider;
             var db = sp.GetRequiredService<WretchedWhispersDbContext>();
             var entity = await db.Campaigns.FindAsync(campaignId);
-            sp.GetRequiredService<ITenantContext>().SetUserId(entity!.UserId);
+            sp.GetRequiredService<IUserContext>().SetUserId(entity!.UserId);
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var campaign = await campaignsRepo.Get(campaignId);
             campaign!.RecordJournalEntry(JournalCategory.Npc, "Met the grave-priest Ulmt");
@@ -416,7 +416,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             var sp = scope.ServiceProvider;
             var db = sp.GetRequiredService<WretchedWhispersDbContext>();
             var entity = await db.Campaigns.FindAsync(campaignId);
-            sp.GetRequiredService<ITenantContext>().SetUserId(entity!.UserId);
+            sp.GetRequiredService<IUserContext>().SetUserId(entity!.UserId);
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var campaign = await campaignsRepo.Get(campaignId);
             campaign!.RecordPointOfInterest(PoiType.Town, "Galgenbeck", 48, 30);
@@ -605,7 +605,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             var db = sp.GetRequiredService<WretchedWhispersDbContext>();
             var entity = await db.Campaigns.FindAsync(campaignId)
                 ?? throw new InvalidOperationException("seed campaign missing");
-            sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+            sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var campaign = await campaignsRepo.Get(campaignId)
                 ?? throw new InvalidOperationException("campaign missing");
@@ -636,7 +636,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             var db = sp.GetRequiredService<WretchedWhispersDbContext>();
             var entity = await db.Campaigns.FindAsync(campaignId)
                 ?? throw new InvalidOperationException("seed campaign missing");
-            sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+            sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var campaign = await campaignsRepo.Get(campaignId)
                 ?? throw new InvalidOperationException("campaign missing");
@@ -665,7 +665,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             var db = sp.GetRequiredService<WretchedWhispersDbContext>();
             var entity = await db.Campaigns.FindAsync(campaignId)
                 ?? throw new InvalidOperationException("seed campaign missing");
-            sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+            sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var campaign = await campaignsRepo.Get(campaignId)
                 ?? throw new InvalidOperationException("campaign missing");
@@ -685,22 +685,22 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     [Fact]
-    public async Task CampaignsRepository_ParameterlessSaveCampaign_PreservesTenantUserId_ThroughScopedDI()
+    public async Task CampaignsRepository_ParameterlessSaveCampaign_PreservesUserId_ThroughScopedDI()
     {
         // Arrange: Create a DI scope from the real application (same as the turn pipeline)
         using var scope = _factory.Services.CreateScope();
         var sp = scope.ServiceProvider;
 
-        // Set tenant context (same as endpoint filter does from JWT claims)
-        var tenantContext = sp.GetRequiredService<ITenantContext>();
-        tenantContext.SetUserId("e2e-test-user");
+        // Set user context (same as the endpoint filter does from JWT claims)
+        var userContext = sp.GetRequiredService<IUserContext>();
+        userContext.SetUserId("e2e-test-user");
 
         // Resolve the repository from the SAME scope. The game tools save via the parameterless
-        // SaveCampaign overload, which must stamp the entity with the scoped tenant's UserId.
+        // SaveCampaign overload, which must stamp the entity with the scoped user context's UserId.
         var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
 
         // Act
-        var campaign = Campaign.Create(Difficulty.Grim, "E2E Tenant Test", "Verifying tenant propagation");
+        var campaign = Campaign.Create(Difficulty.Grim, "E2E UserContext Test", "Verifying user propagation");
         await campaignsRepo.SaveCampaign(campaign);
 
         // Assert: Check the database entity has the correct UserId
@@ -722,7 +722,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
 
         // Act: Simulate what happens during an agent turn --
-        // resolve services from a scoped DI container with tenant context set
+        // resolve services from a scoped DI container with user context set
         using var scope = _factory.Services.CreateScope();
         var sp = scope.ServiceProvider;
 
@@ -732,9 +732,9 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var originalUserId = entityBefore!.UserId;
         Assert.False(string.IsNullOrEmpty(originalUserId), "UserId should be set from session creation");
 
-        // Set tenant to same userId as the original creator, then call parameterless save
-        var tenantContext = sp.GetRequiredService<ITenantContext>();
-        tenantContext.SetUserId(originalUserId);
+        // Set user context to same userId as the original creator, then call parameterless save
+        var userContext = sp.GetRequiredService<IUserContext>();
+        userContext.SetUserId(originalUserId);
         var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
         var campaign = await campaignsRepo.Get(campaignId);
         Assert.NotNull(campaign);
@@ -773,7 +773,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     // Seeds a character into the given campaign via the same scoped-DI path the game tools use
-    // (tenant context set from the persisted entity, then repositories resolved from that scope).
+    // (user context set from the persisted entity, then repositories resolved from that scope).
     // When `dead` is true, the character is driven to death the same way StageDerivationTests does:
     // maxHp 1 + a blanket-1 dice mock so Defend's damage roll and the resulting broken-d4 roll both
     // guarantee IsDead == true.
@@ -786,7 +786,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var db = sp.GetRequiredService<WretchedWhispersDbContext>();
         var entity = await db.Campaigns.FindAsync(campaignId)
             ?? throw new InvalidOperationException("seed campaign missing");
-        sp.GetRequiredService<ITenantContext>().SetUserId(entity.UserId);
+        sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
 
         var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
         var charactersRepo = sp.GetRequiredService<ICharactersRepository>();

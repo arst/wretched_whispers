@@ -25,8 +25,8 @@ public static class SessionEndpoints
     {
         var group = app.MapGroup("/sessions")
             .RequireAuthorization()
-            // The single auth→tenant bridge for every session endpoint: RequireAuthorization
-            // guarantees an authenticated principal, this filter guarantees the tenant scope.
+            // The single auth→user-context bridge for every session endpoint: RequireAuthorization
+            // guarantees an authenticated principal, this filter guarantees the ambient user scope.
             // Handlers assume both — no per-handler identity checks.
             .AddEndpointFilter(async (context, next) =>
             {
@@ -35,23 +35,47 @@ public static class SessionEndpoints
                 if (string.IsNullOrEmpty(userId))
                     return Results.Unauthorized();
 
-                http.RequestServices.GetRequiredService<ITenantContext>().SetUserId(userId);
+                http.RequestServices.GetRequiredService<IUserContext>().SetUserId(userId);
                 return await next(context);
             });
 
-        group.MapPost("/", CreateSession);
+        // Mutating POSTs are transactional via WithUnitOfWork. GETs read only — a transaction would
+        // add round-trips for nothing. /actions is the exception: its handler returns the SSE stream
+        // immediately and the turn's writes run inside TurnCoordinator's own transaction, which a
+        // request-spanning one would collide with.
+        group.MapPost("/", CreateSession).WithUnitOfWork();
         group.MapGet("/", ListSessions);
         group.MapGet("/{sessionId:guid}", GetSessionDetail);
         group.MapGet("/{sessionId:guid}/messages", GetSessionMessages);
         group.MapGet("/{sessionId:guid}/journal", GetSessionJournal);
         group.MapGet("/{sessionId:guid}/map", GetSessionMap);
-        group.MapPost("/{sessionId:guid}/resume", ResumeSession);
-        group.MapPost("/{sessionId:guid}/successor", CreateSuccessor);
-        group.MapPost("/{sessionId:guid}/abandon", AbandonSession);
+        group.MapPost("/{sessionId:guid}/resume", ResumeSession).WithUnitOfWork();
+        group.MapPost("/{sessionId:guid}/successor", CreateSuccessor).WithUnitOfWork();
+        group.MapPost("/{sessionId:guid}/abandon", AbandonSession).WithUnitOfWork();
         group.MapPost("/{sessionId:guid}/actions", PostAction);
 
         return app;
     }
+
+    /// <summary>
+    /// Wraps the endpoint in one unit-of-work: begin before the handler, commit only on a 2xx
+    /// result, roll back (via disposal) on everything else — early returns and exceptions alike.
+    /// Also satisfies <see cref="ISessionLock"/>'s open-transaction requirement, so handlers can
+    /// acquire the session lock without owning transaction plumbing.
+    /// </summary>
+    private static RouteHandlerBuilder WithUnitOfWork(this RouteHandlerBuilder builder) =>
+        builder.AddEndpointFilter(async (context, next) =>
+        {
+            var http = context.HttpContext;
+            await using var uow = await http.RequestServices.GetRequiredService<IUnitOfWork>()
+                .BeginAsync(http.RequestAborted);
+
+            var result = await next(context);
+
+            if (result is IStatusCodeHttpResult { StatusCode: >= 200 and < 300 })
+                await uow.CommitAsync(http.RequestAborted);
+            return result;
+        });
 
     private static async Task<IResult> PostAction(
         Guid sessionId,
@@ -86,7 +110,6 @@ public static class SessionEndpoints
         IChatHistoryRepository chatHistoryRepo,
         CharacterCreationService characterCreationService,
         CampaignService campaignService,
-        IUnitOfWork unitOfWork,
         CancellationToken ct,
         CreateSessionRequest? request = null)
     {
@@ -99,18 +122,14 @@ public static class SessionEndpoints
         // the dice to decide, and the die stays in the domain.
         var characterClass = request?.CharacterClass ?? characterCreationService.RollRandomClass();
 
-        // One transaction for the whole birth: a campaign without a character (or vice versa) is a
-        // session the player cannot open, so all four writes commit or none do.
-        await using var uow = await unitOfWork.BeginAsync(ct);
-
+        // WithUnitOfWork makes this atomic: a campaign without a character (or vice versa) is a
+        // session the player cannot open, so all the writes commit or none do.
         var character = await characterCreationService.Create(characterName, difficulty, characterClass);
         var campaign = Campaign.Create(difficulty, "New Campaign", "A new journey into doom");
 
         await campaignsRepo.SaveCampaign(campaign);
         await campaignService.JoinCampaign(campaign.Id, character.Id);
         await chatHistoryRepo.CreateSession(campaign.Id, ct);
-
-        await uow.CommitAsync(ct);
 
         return Results.Created(
             $"/sessions/{campaign.Id}",
@@ -321,7 +340,6 @@ public static class SessionEndpoints
         ChatHistoryReducer chatHistoryReducer,
         CharacterCreationService characterCreationService,
         CampaignService campaignService,
-        IUnitOfWork unitOfWork,
         ISessionLock sessionLock,
         CancellationToken ct,
         CreateSuccessorRequest? request = null)
@@ -333,8 +351,6 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        // One transaction for the whole succession; uow disposal rolls back every early return.
-        await using var uow = await unitOfWork.BeginAsync(ct);
         await using var lease = await sessionLock.TryAcquireAsync(sessionId, ct);
         if (lease is null)
             return Results.Conflict(new { error = "GM response already in progress" });
@@ -368,14 +384,12 @@ public static class SessionEndpoints
         if (fallenChronicleId != Guid.Empty)
             await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, ct);
 
-        await uow.CommitAsync(ct);
         return Results.Ok(new { status = "in-progress" });
     }
 
     private static async Task<IResult> AbandonSession(
         Guid sessionId,
         ICampaignsRepository campaignsRepo,
-        IUnitOfWork unitOfWork,
         ISessionLock sessionLock,
         CancellationToken ct)
     {
@@ -383,7 +397,6 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        await using var uow = await unitOfWork.BeginAsync(ct);
         await using var lease = await sessionLock.TryAcquireAsync(sessionId, ct);
         if (lease is null)
             return Results.Conflict(new { error = "GM response already in progress" });
@@ -393,7 +406,6 @@ public static class SessionEndpoints
 
         campaign.End();
         await campaignsRepo.SaveCampaign(campaign);
-        await uow.CommitAsync(ct);
         return Results.Ok(new { status = "ended" });
     }
 

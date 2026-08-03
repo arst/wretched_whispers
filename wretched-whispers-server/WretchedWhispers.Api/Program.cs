@@ -87,7 +87,7 @@ builder.Services.AddDomainServices();
 
 #if DESKTOP
 // Desktop single-user auth: authenticate every request as the fixed local user (no login screen).
-// The existing per-user data scoping keeps working with "local" as the tenant.
+// The existing per-user data scoping keeps working with "local" as the user.
 builder.Services.AddAuthentication(LocalAuthHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, LocalAuthHandler>(LocalAuthHandler.SchemeName, null);
 #else

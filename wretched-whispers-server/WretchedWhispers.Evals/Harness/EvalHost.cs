@@ -72,13 +72,13 @@ public sealed class EvalHost : IAsyncDisposable
         await using (var scope = provider.CreateAsyncScope())
         {
             var sp = scope.ServiceProvider;
-            SetTenantUser(sp);
+            SetEvalUser(sp);
 
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var chatRepo = sp.GetRequiredService<IChatHistoryRepository>();
 
             var campaign = Campaign.Create(Difficulty.Grim, "Eval Campaign", "A doomed eval run");
-            await campaignsRepo.SaveCampaign(campaign, TestUserId);
+            await campaignsRepo.SaveCampaign(campaign);
             chatSessionId = await chatRepo.CreateSession(campaign.Id);
 
             sessionId = campaign.Id;
@@ -93,7 +93,7 @@ public sealed class EvalHost : IAsyncDisposable
 
         await using var scope = host._provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        SetTenantUser(sp);
+        SetEvalUser(sp);
 
         var dice = sp.GetRequiredService<Dice>();
         var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
@@ -134,7 +134,7 @@ public sealed class EvalHost : IAsyncDisposable
         campaign.JoinGame(character.Id);
         campaign.AddEncounter(encounter.Id);
         campaign.Start();
-        await campaignsRepo.SaveCampaign(campaign, TestUserId);
+        await campaignsRepo.SaveCampaign(campaign);
 
         return host;
     }
@@ -153,7 +153,7 @@ public sealed class EvalHost : IAsyncDisposable
 
         await using var scope = host._provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        SetTenantUser(sp);
+        SetEvalUser(sp);
 
         var creation = sp.GetRequiredService<CharacterCreationService>();
         var campaignService = sp.GetRequiredService<CampaignService>();
@@ -177,7 +177,7 @@ public sealed class EvalHost : IAsyncDisposable
 
         await using var scope = host._provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        SetTenantUser(sp);
+        SetEvalUser(sp);
 
         var dice = sp.GetRequiredService<Dice>();
         var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
@@ -209,7 +209,7 @@ public sealed class EvalHost : IAsyncDisposable
 
         campaign.JoinGame(character.Id);
         campaign.Start();
-        await campaignsRepo.SaveCampaign(campaign, TestUserId);
+        await campaignsRepo.SaveCampaign(campaign);
 
         return host;
     }
@@ -223,7 +223,7 @@ public sealed class EvalHost : IAsyncDisposable
     {
         var scope = _provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        SetTenantUser(sp);
+        SetEvalUser(sp);
 
         var contextLoader = new SessionContextLoader(
             sp.GetRequiredService<ICampaignsRepository>(),
@@ -264,6 +264,6 @@ public sealed class EvalHost : IAsyncDisposable
         _connection.Dispose();
     }
 
-    private static void SetTenantUser(IServiceProvider sp) =>
-        ((TenantContext)sp.GetRequiredService<ITenantContext>()).SetUserId(TestUserId);
+    private static void SetEvalUser(IServiceProvider sp) =>
+        ((UserContext)sp.GetRequiredService<IUserContext>()).SetUserId(TestUserId);
 }
