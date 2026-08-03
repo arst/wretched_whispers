@@ -71,7 +71,16 @@ public static class AgentConfiguration
             });
         }
 
-        // Orchestration services
+        return services.AddGameAgentOrchestration();
+    }
+
+    /// <summary>
+    /// The orchestration pipeline minus the <see cref="IChatClient"/>. Split out so the eval harness
+    /// can register its own client (scripted or caching-wrapped) and still resolve the exact pipeline
+    /// the product ships — hand-copied wiring there would silently drift from this list.
+    /// </summary>
+    public static IServiceCollection AddGameAgentOrchestration(this IServiceCollection services)
+    {
         services.AddScoped<TurnCoordinator>();
         services.AddScoped<ISessionContextLoader, SessionContextLoader>();
         services.AddScoped<IAgentToolProvider, AgentToolProvider>();

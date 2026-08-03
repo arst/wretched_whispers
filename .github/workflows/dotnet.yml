@@ -21,4 +21,6 @@ jobs:
       - name: Build
         run: dotnet build wretched-whispers-server/WretchedWhispers.sln --no-restore --configuration Release
       - name: Test
-        run: dotnet test wretched-whispers-server/WretchedWhispers.Tests/WretchedWhispers.Tests.csproj --no-build --configuration Release --logger "trx"
+        # Whole solution: includes the Evals project's deterministic tests (harness + evaluators);
+        # live LLM evals skip cleanly when no Azure OpenAI credentials are configured.
+        run: dotnet test wretched-whispers-server/WretchedWhispers.sln --no-build --configuration Release --logger "trx"

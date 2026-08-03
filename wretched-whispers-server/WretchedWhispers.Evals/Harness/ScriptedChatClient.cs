@@ -11,10 +11,12 @@ public sealed class ScriptedChatClient(params ChatResponse[] responses) : IChatC
     public Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
-        var response = _responses.Count > 0
-            ? _responses.Dequeue()
-            : new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Empty));
-        return Task.FromResult(response);
+        // Fail loudly on an exhausted script: silently returning an empty response would read as
+        // "the agent chose to say nothing" and mask a mis-scripted test.
+        if (_responses.Count == 0)
+            throw new InvalidOperationException(
+                "ScriptedChatClient queue is empty — the harness made more model calls than the script provided.");
+        return Task.FromResult(_responses.Dequeue());
     }
 
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(

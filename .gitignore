@@ -433,3 +433,4 @@ wretched-whispers-server/WretchedWhispers.Api/wwwroot/
 # Local agent-workflow scratch (SDD ledger, Playwright MCP) — never commit
 .superpowers/
 .playwright-mcp/
+.eval-results/
