@@ -16,7 +16,20 @@ public interface ICampaignsRepository
     Task SaveCampaign(Campaign newCampaign);
 
     /// <summary>
-    /// Returns all campaigns belonging to the specified user.
+    /// Loads a campaign only if it belongs to the ambient tenant, as a single-row query.
+    /// Null covers both "does not exist" and "owned by someone else" — callers surface 404
+    /// for both to avoid leaking which sessions exist.
+    /// </summary>
+    Task<Campaign?> GetOwned(Guid campaignId, CancellationToken ct);
+
+    /// <summary>
+    /// Returns all campaigns belonging to the ambient tenant.
+    /// </summary>
+    Task<List<Campaign>> GetForUser(CancellationToken ct);
+
+    /// <summary>
+    /// Returns all campaigns belonging to the specified user. Use for tests and data seeding
+    /// where no ambient tenant scope is available.
     /// </summary>
     Task<List<Campaign>> GetForUser(string userId);
 
