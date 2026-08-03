@@ -18,12 +18,16 @@ namespace WretchedWhispers.Api.Endpoints;
 public static class SessionEndpoints
 {
     private const int MaxCharacterNameLength = 64;
+    private const int MaxPageSize = 200;
     private static readonly TimeSpan RecapAfter = TimeSpan.FromHours(48);
 
     public static WebApplication MapSessionEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/sessions")
             .RequireAuthorization()
+            // The single auth→tenant bridge for every session endpoint: RequireAuthorization
+            // guarantees an authenticated principal, this filter guarantees the tenant scope.
+            // Handlers assume both — no per-handler identity checks.
             .AddEndpointFilter(async (context, next) =>
             {
                 var http = context.HttpContext;
@@ -31,8 +35,7 @@ public static class SessionEndpoints
                 if (string.IsNullOrEmpty(userId))
                     return Results.Unauthorized();
 
-                var tenantContext = http.RequestServices.GetRequiredService<ITenantContext>();
-                tenantContext.SetUserId(userId);
+                http.RequestServices.GetRequiredService<ITenantContext>().SetUserId(userId);
                 return await next(context);
             });
 
@@ -45,58 +48,48 @@ public static class SessionEndpoints
         group.MapPost("/{sessionId:guid}/resume", ResumeSession);
         group.MapPost("/{sessionId:guid}/successor", CreateSuccessor);
         group.MapPost("/{sessionId:guid}/abandon", AbandonSession);
-
-        group.MapPost("/{sessionId:guid}/actions", async (
-            Guid sessionId,
-            PlayerActionRequest request,
-            TurnCoordinator turnCoordinator,
-            ICampaignsRepository campaignsRepo,
-            HttpContext http,
-            CancellationToken ct) =>
-        {
-            var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-                return Results.Unauthorized();
-
-            // Ownership check: returns 404 (not 403) to avoid information leakage, matching GetSessionDetail pattern
-            var userCampaigns = await campaignsRepo.GetForUser(userId);
-            if (!userCampaigns.Any(c => c.Id == sessionId))
-                return Results.NotFound();
-
-            // Busy sessions surface as an early TurnError event: the session lock is acquired inside
-            // the turn's transaction (TurnCoordinator), which is where the cross-instance Postgres
-            // advisory lock can live — before any LLM call, so a lost race costs nothing.
-            return Results.ServerSentEvents(
-                MapToSseItems(turnCoordinator.ExecuteTurnAsync(sessionId, request.Message, ct)));
-        });
+        group.MapPost("/{sessionId:guid}/actions", PostAction);
 
         return app;
+    }
+
+    private static async Task<IResult> PostAction(
+        Guid sessionId,
+        PlayerActionRequest request,
+        TurnCoordinator turnCoordinator,
+        ICampaignsRepository campaignsRepo,
+        CancellationToken ct)
+    {
+        if (await campaignsRepo.GetOwned(sessionId, ct) is null)
+            return Results.NotFound();
+
+        // Busy sessions surface as an early TurnError event: the session lock is acquired inside
+        // the turn's transaction (TurnCoordinator), which is where the cross-instance Postgres
+        // advisory lock can live — before any LLM call, so a lost race costs nothing.
+        return Results.ServerSentEvents(
+            MapToSseItems(turnCoordinator.ExecuteTurnAsync(sessionId, request.Message, ct)));
     }
 
     private static async IAsyncEnumerable<SseItem<string>> MapToSseItems(
         IAsyncEnumerable<GameTurnEvent> events,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         await foreach (var evt in events.WithCancellation(ct))
         {
-            var json = JsonSerializer.Serialize<object>(evt, jsonOptions);
+            var json = JsonSerializer.Serialize<object>(evt, JsonSerializerOptions.Web);
             yield return new SseItem<string>(json, evt.EventType);
         }
     }
 
     private static async Task<IResult> CreateSession(
-        HttpContext http,
         ICampaignsRepository campaignsRepo,
         IChatHistoryRepository chatHistoryRepo,
         CharacterCreationService characterCreationService,
         CampaignService campaignService,
+        IUnitOfWork unitOfWork,
+        CancellationToken ct,
         CreateSessionRequest? request = null)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
         if (!TryNormalizeCharacterName(request?.CharacterName, out var characterName, out var nameError))
             return Results.BadRequest(new { error = nameError });
 
@@ -106,15 +99,18 @@ public static class SessionEndpoints
         // the dice to decide, and the die stays in the domain.
         var characterClass = request?.CharacterClass ?? characterCreationService.RollRandomClass();
 
-        // Character first: if campaign creation then fails, the orphan character row is harmless, whereas a
-        // campaign with no character is a session the player cannot open. Same reasoning as CreateSuccessor.
-        var character = await characterCreationService.Create(characterName, difficulty, characterClass);
+        // One transaction for the whole birth: a campaign without a character (or vice versa) is a
+        // session the player cannot open, so all four writes commit or none do.
+        await using var uow = await unitOfWork.BeginAsync(ct);
 
+        var character = await characterCreationService.Create(characterName, difficulty, characterClass);
         var campaign = Campaign.Create(difficulty, "New Campaign", "A new journey into doom");
 
-        await campaignsRepo.SaveCampaign(campaign, userId);
+        await campaignsRepo.SaveCampaign(campaign);
         await campaignService.JoinCampaign(campaign.Id, character.Id);
-        await chatHistoryRepo.CreateSession(campaign.Id);
+        await chatHistoryRepo.CreateSession(campaign.Id, ct);
+
+        await uow.CommitAsync(ct);
 
         return Results.Created(
             $"/sessions/{campaign.Id}",
@@ -143,16 +139,12 @@ public static class SessionEndpoints
     }
 
     private static async Task<IResult> ListSessions(
-        HttpContext http,
         ICampaignsRepository campaignsRepo,
         ICharactersRepository charactersRepo,
-        IChatHistoryRepository chatHistoryRepo)
+        IChatHistoryRepository chatHistoryRepo,
+        CancellationToken ct)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
-        var campaigns = await campaignsRepo.GetForUser(userId);
+        var campaigns = await campaignsRepo.GetForUser(ct);
         var previews = new List<SessionPreviewDto>();
 
         foreach (var campaign in campaigns)
@@ -180,7 +172,7 @@ public static class SessionEndpoints
 
             var status = DeriveStatus(campaign, character, firstPlayerId);
 
-            var lastPlayed = await chatHistoryRepo.GetLastActivity(campaign.Id);
+            var lastPlayed = await chatHistoryRepo.GetLastActivity(campaign.Id, ct);
 
             previews.Add(new SessionPreviewDto(
                 campaign.Id,
@@ -200,56 +192,30 @@ public static class SessionEndpoints
 
     private static async Task<IResult> GetSessionDetail(
         Guid sessionId,
-        HttpContext http,
         ICampaignsRepository campaignsRepo,
         ISessionContextLoader contextLoader,
         IChatHistoryRepository chatHistoryRepo,
+        CancellationToken ct,
         int page = 1,
         int pageSize = 50)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
-        // Verify campaign exists and belongs to user
-        var userCampaigns = await campaignsRepo.GetForUser(userId);
-        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        var campaign = await campaignsRepo.GetOwned(sessionId, ct);
         if (campaign is null)
             return Results.NotFound();
 
-        var sessions = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
-        var chatSessionId = sessions.FirstOrDefault();
-
-        var messages = new List<ChatMessageDto>();
-        var totalMessages = 0;
-
-        if (chatSessionId != Guid.Empty)
-        {
-            var chatHistory = await chatHistoryRepo.LoadSession(chatSessionId);
-            if (chatHistory is not null)
-            {
-                totalMessages = chatHistory.Count;
-                var offset = (page - 1) * pageSize;
-                messages = chatHistory
-                    .Skip(offset)
-                    .Take(pageSize)
-                    .Select(m => new ChatMessageDto(
-                        m.Role.Value,
-                        m.Text,
-                        m.AuthorName))
-                    .ToList();
-            }
-        }
+        (page, pageSize) = ClampPaging(page, pageSize);
+        var (messages, totalMessages, chatSessionId) =
+            await LoadMessagePage(chatHistoryRepo, campaign.Id, page, pageSize, ct);
 
         // Use SessionContextLoader + StateUpdateMapper to derive character/campaign state
-        var context = await contextLoader.LoadAsync(sessionId);
+        var context = await contextLoader.LoadAsync(sessionId, ct);
         var stateUpdate = StateUpdateMapper.Map(context);
         var lastOpened = chatSessionId == Guid.Empty
             ? null
-            : await chatHistoryRepo.GetLastOpened(chatSessionId);
+            : await chatHistoryRepo.GetLastOpened(chatSessionId, ct);
         var lastActivity = chatSessionId == Guid.Empty
             ? null
-            : await chatHistoryRepo.GetSessionLastActivity(chatSessionId);
+            : await chatHistoryRepo.GetSessionLastActivity(chatSessionId, ct);
         var recapDue = totalMessages > 0 && IsRecapDue(lastOpened, lastActivity, DateTime.UtcNow);
 
         return Results.Ok(new SessionDetailDto(
@@ -271,19 +237,13 @@ public static class SessionEndpoints
 
     private static async Task<IResult> ResumeSession(
         Guid sessionId,
-        HttpContext http,
         ICampaignsRepository campaignsRepo,
         IChatHistoryRepository chatHistoryRepo,
         ISessionContextLoader contextLoader,
         ChatHistoryReducer historyReducer,
         CancellationToken ct)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
-        var campaign = (await campaignsRepo.GetForUser(userId))
-            .FirstOrDefault(c => c.Id == sessionId);
+        var campaign = await campaignsRepo.GetOwned(sessionId, ct);
         if (campaign is null)
             return Results.NotFound();
 
@@ -319,16 +279,10 @@ public static class SessionEndpoints
 
     private static async Task<IResult> GetSessionMap(
         Guid sessionId,
-        HttpContext http,
-        ICampaignsRepository campaignsRepo)
+        ICampaignsRepository campaignsRepo,
+        CancellationToken ct)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
-        // Verify campaign exists and belongs to user
-        var userCampaigns = await campaignsRepo.GetForUser(userId);
-        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        var campaign = await campaignsRepo.GetOwned(sessionId, ct);
         if (campaign is null)
             return Results.NotFound();
 
@@ -341,16 +295,10 @@ public static class SessionEndpoints
 
     private static async Task<IResult> GetSessionJournal(
         Guid sessionId,
-        HttpContext http,
-        ICampaignsRepository campaignsRepo)
+        ICampaignsRepository campaignsRepo,
+        CancellationToken ct)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
-        // Verify campaign exists and belongs to user
-        var userCampaigns = await campaignsRepo.GetForUser(userId);
-        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        var campaign = await campaignsRepo.GetOwned(sessionId, ct);
         if (campaign is null)
             return Results.NotFound();
 
@@ -367,7 +315,6 @@ public static class SessionEndpoints
 
     private static async Task<IResult> CreateSuccessor(
         Guid sessionId,
-        HttpContext http,
         ICampaignsRepository campaignsRepo,
         ICharactersRepository charactersRepo,
         IChatHistoryRepository chatHistoryRepo,
@@ -376,24 +323,19 @@ public static class SessionEndpoints
         CampaignService campaignService,
         IUnitOfWork unitOfWork,
         ISessionLock sessionLock,
+        CancellationToken ct,
         CreateSuccessorRequest? request = null)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
         if (!TryNormalizeCharacterName(request?.CharacterName, out var successorName, out var nameError))
             return Results.BadRequest(new { error = nameError });
 
-        // Verify campaign exists and belongs to user
-        var userCampaigns = await campaignsRepo.GetForUser(userId);
-        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        var campaign = await campaignsRepo.GetOwned(sessionId, ct);
         if (campaign is null)
             return Results.NotFound();
 
         // One transaction for the whole succession; uow disposal rolls back every early return.
-        await using var uow = await unitOfWork.BeginAsync(http.RequestAborted);
-        await using var lease = await sessionLock.TryAcquireAsync(sessionId, http.RequestAborted);
+        await using var uow = await unitOfWork.BeginAsync(ct);
+        await using var lease = await sessionLock.TryAcquireAsync(sessionId, ct);
         if (lease is null)
             return Results.Conflict(new { error = "GM response already in progress" });
 
@@ -408,13 +350,13 @@ public static class SessionEndpoints
         if (character is null || !character.IsDead)
             return Results.Conflict(new { error = "The wretch still breathes." });
 
-        var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
+        var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id, ct);
         var fallenChronicleId = chronicles.FirstOrDefault();
 
-        var newChronicleId = await chatHistoryRepo.CreateSession(campaign.Id);
+        var newChronicleId = await chatHistoryRepo.CreateSession(campaign.Id, ct);
 
         campaign.BuryCharacter(character.Id, character.Name);
-        await campaignsRepo.SaveCampaign(campaign, userId);
+        await campaignsRepo.SaveCampaign(campaign);
 
         // The successor is rolled here rather than by the narrator, so the campaign is never left in a
         // characterless state. Difficulty is the campaign's own — a death does not renegotiate it.
@@ -424,31 +366,25 @@ public static class SessionEndpoints
         await campaignService.JoinCampaign(campaign.Id, successor.Id);
 
         if (fallenChronicleId != Guid.Empty)
-            await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, http.RequestAborted);
+            await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, ct);
 
-        await uow.CommitAsync(http.RequestAborted);
+        await uow.CommitAsync(ct);
         return Results.Ok(new { status = "in-progress" });
     }
 
     private static async Task<IResult> AbandonSession(
         Guid sessionId,
-        HttpContext http,
         ICampaignsRepository campaignsRepo,
         IUnitOfWork unitOfWork,
-        ISessionLock sessionLock)
+        ISessionLock sessionLock,
+        CancellationToken ct)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
-        // Verify campaign exists and belongs to user
-        var userCampaigns = await campaignsRepo.GetForUser(userId);
-        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        var campaign = await campaignsRepo.GetOwned(sessionId, ct);
         if (campaign is null)
             return Results.NotFound();
 
-        await using var uow = await unitOfWork.BeginAsync(http.RequestAborted);
-        await using var lease = await sessionLock.TryAcquireAsync(sessionId, http.RequestAborted);
+        await using var uow = await unitOfWork.BeginAsync(ct);
+        await using var lease = await sessionLock.TryAcquireAsync(sessionId, ct);
         if (lease is null)
             return Results.Conflict(new { error = "GM response already in progress" });
 
@@ -456,52 +392,26 @@ public static class SessionEndpoints
             return Results.Conflict(new { error = "This campaign has already ended." });
 
         campaign.End();
-        await campaignsRepo.SaveCampaign(campaign, userId);
-        await uow.CommitAsync(http.RequestAborted);
+        await campaignsRepo.SaveCampaign(campaign);
+        await uow.CommitAsync(ct);
         return Results.Ok(new { status = "ended" });
     }
 
     private static async Task<IResult> GetSessionMessages(
         Guid sessionId,
-        HttpContext http,
         ICampaignsRepository campaignsRepo,
         IChatHistoryRepository chatHistoryRepo,
+        CancellationToken ct,
         int page = 1,
         int pageSize = 50)
     {
-        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Results.Unauthorized();
-
-        // Verify campaign exists and belongs to user
-        var userCampaigns = await campaignsRepo.GetForUser(userId);
-        var campaign = userCampaigns.FirstOrDefault(c => c.Id == sessionId);
+        var campaign = await campaignsRepo.GetOwned(sessionId, ct);
         if (campaign is null)
             return Results.NotFound();
 
-        var sessions = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
-        var chatSessionId = sessions.FirstOrDefault();
-
-        var messages = new List<ChatMessageDto>();
-        var totalMessages = 0;
-
-        if (chatSessionId != Guid.Empty)
-        {
-            var chatHistory = await chatHistoryRepo.LoadSession(chatSessionId);
-            if (chatHistory is not null)
-            {
-                totalMessages = chatHistory.Count;
-                var offset = (page - 1) * pageSize;
-                messages = chatHistory
-                    .Skip(offset)
-                    .Take(pageSize)
-                    .Select(m => new ChatMessageDto(
-                        m.Role.Value,
-                        m.Text,
-                        m.AuthorName))
-                    .ToList();
-            }
-        }
+        (page, pageSize) = ClampPaging(page, pageSize);
+        var (messages, totalMessages, _) =
+            await LoadMessagePage(chatHistoryRepo, campaign.Id, page, pageSize, ct);
 
         return Results.Ok(new
         {
@@ -510,6 +420,32 @@ public static class SessionEndpoints
             page,
             pageSize
         });
+    }
+
+    private static (int Page, int PageSize) ClampPaging(int page, int pageSize) =>
+        (Math.Max(page, 1), Math.Clamp(pageSize, 1, MaxPageSize));
+
+    /// <summary>Pages the campaign's first chronicle.</summary>
+    // ponytail: LoadSession pulls the whole history and pages in memory; push paging into the
+    // repository query if chronicles outgrow this.
+    private static async Task<(List<ChatMessageDto> Messages, int Total, Guid ChatSessionId)> LoadMessagePage(
+        IChatHistoryRepository chatHistoryRepo, Guid campaignId, int page, int pageSize, CancellationToken ct)
+    {
+        var chatSessionId = (await chatHistoryRepo.GetSessionsForCampaign(campaignId, ct)).FirstOrDefault();
+        if (chatSessionId == Guid.Empty)
+            return ([], 0, chatSessionId);
+
+        var chatHistory = await chatHistoryRepo.LoadSession(chatSessionId, ct);
+        if (chatHistory is null)
+            return ([], 0, chatSessionId);
+
+        var messages = chatHistory
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(m => new ChatMessageDto(m.Role.Value, m.Text, m.AuthorName))
+            .ToList();
+
+        return (messages, chatHistory.Count, chatSessionId);
     }
 
     // Same terminal truth as the live turn's state_update (StateUpdateMapper): status is a function of

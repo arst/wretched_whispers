@@ -28,12 +28,14 @@ builder.Configuration.AddInMemoryCollection(
     EnvConfigOverrides.Map(Environment.GetEnvironmentVariable));
 #endif
 
-// CORS: allow Next.js dev server to communicate cross-origin
+// CORS: the web client's origin — Next.js dev server by default, overridable for hosted
+// deployments via Cors:WebOrigin (env: Cors__WebOrigin).
+var webOrigin = builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000";
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(webOrigin)
               .AllowAnyHeader()
               .AllowAnyMethod();
     });

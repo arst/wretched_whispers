@@ -24,6 +24,17 @@ public class SqliteCampaignsRepository(
         await SaveCampaign(newCampaign, tenantContext.UserId);
     }
 
+    public async Task<Campaign?> GetOwned(Guid campaignId, CancellationToken ct)
+    {
+        var entity = await db.Campaigns
+            .FirstOrDefaultAsync(c => c.Id == campaignId && c.UserId == tenantContext.UserId, ct);
+        if (entity is null) return null;
+
+        return JsonSerializer.Deserialize<Campaign>(entity.Data, jsonOptions);
+    }
+
+    public Task<List<Campaign>> GetForUser(CancellationToken ct) => GetForUser(tenantContext.UserId);
+
     public async Task<List<Campaign>> GetForUser(string userId)
     {
         var entities = await db.Campaigns
