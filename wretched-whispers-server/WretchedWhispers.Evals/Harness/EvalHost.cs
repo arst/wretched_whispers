@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
+using WretchedWhispers.Engine.Configuration;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core;
@@ -23,9 +23,11 @@ using WretchedWhispers.Infrastructure.Persistence;
 namespace WretchedWhispers.Evals.Harness;
 
 /// <summary>
-/// Builds production wiring (real Core services + tools) over an in-memory SQLite database for an eval
-/// run, seeded with an empty campaign + chat session so turns start in the CharacterCreation stage. The
-/// supplied chat client is the one the agent will call.
+/// Builds production wiring (real Core services + the shipped agent pipeline via
+/// <see cref="AgentConfiguration.AddGameAgentOrchestration"/>) over an in-memory SQLite database for
+/// an eval run, seeded with an empty campaign + chat session so turns start in the CharacterCreation
+/// stage. The supplied chat client is registered as THE <see cref="IChatClient"/> — the same slot the
+/// product fills with Azure/OpenAI.
 /// </summary>
 public sealed class EvalHost : IAsyncDisposable
 {
@@ -33,17 +35,15 @@ public sealed class EvalHost : IAsyncDisposable
 
     private readonly SqliteConnection _connection;
     private readonly ServiceProvider _provider;
-    private readonly IChatClient _chatClient;
     private readonly List<EvalTurnRunner> _runners = new();
 
     public Guid SessionId { get; }
     public Guid ChatSessionId { get; }
 
-    private EvalHost(SqliteConnection connection, ServiceProvider provider, IChatClient chatClient, Guid sessionId, Guid chatSessionId)
+    private EvalHost(SqliteConnection connection, ServiceProvider provider, Guid sessionId, Guid chatSessionId)
     {
         _connection = connection;
         _provider = provider;
-        _chatClient = chatClient;
         SessionId = sessionId;
         ChatSessionId = chatSessionId;
     }
@@ -54,8 +54,11 @@ public sealed class EvalHost : IAsyncDisposable
         connection.Open();
 
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddDbContext<WretchedWhispersDbContext>(o => o.UseSqlite(connection));
         services.AddDomainServices();
+        services.AddGameAgentOrchestration();
+        services.AddSingleton(chatClient);
 
         var provider = services.BuildServiceProvider();
 
@@ -84,7 +87,7 @@ public sealed class EvalHost : IAsyncDisposable
             sessionId = campaign.Id;
         }
 
-        return new EvalHost(connection, provider, chatClient, sessionId, chatSessionId);
+        return new EvalHost(connection, provider, sessionId, chatSessionId);
     }
 
     public static async Task<EvalHost> CreateCombatAsync(IChatClient chatClient)
@@ -103,22 +106,7 @@ public sealed class EvalHost : IAsyncDisposable
         var campaign = await campaignsRepo.Get(host.SessionId)
             ?? throw new InvalidOperationException("Seed campaign was not found.");
 
-        var abilities = new Abilities(
-            agility: new AbilityScore(0),
-            presence: new AbilityScore(0),
-            strength: new AbilityScore(0),
-            toughness: new AbilityScore(0));
-        var equipment = new StartingEquipment(
-            Silver: 120,
-            FoodDays: 3,
-            Container: "satchel",
-            Gear1: null,
-            Gear2: null,
-            Weapon: Weapon.Create(WeaponKind.Staff),
-            Armor: new Armor(ArmorTier.Medium),
-            Shield: null,
-            Scrolls: []);
-        var character = Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
+        var character = SeedTuck(dice, scrolls: []);
         await charactersRepo.Save(character);
 
         var encounter = Encounter.Create("Chapel Duel", "A priest blocks the road.", EncounterType.Hostile, dice);
@@ -186,6 +174,24 @@ public sealed class EvalHost : IAsyncDisposable
         var campaign = await campaignsRepo.Get(host.SessionId)
             ?? throw new InvalidOperationException("Seed campaign was not found.");
 
+        // One scroll in the pack so casting is actually available — the CastScroll eval needs a real
+        // scroll to cast, and the GM correctly refuses to cast one the character does not possess.
+        var character = SeedTuck(
+            dice, scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
+        foreach (var item in extraGear ?? []) character.AddItem(item);
+        await charactersRepo.Save(character);
+
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        await campaignsRepo.SaveCampaign(campaign);
+
+        return host;
+    }
+
+    /// <summary>The shared "Tuck" seed for combat/exploration scenarios. Keep the values stable —
+    /// they feed the model prompt, and changing them invalidates every scenario's cached responses.</summary>
+    private static Character SeedTuck(Dice dice, List<Scroll> scrolls)
+    {
         var abilities = new Abilities(
             agility: new AbilityScore(0),
             presence: new AbilityScore(0),
@@ -200,18 +206,8 @@ public sealed class EvalHost : IAsyncDisposable
             Weapon: Weapon.Create(WeaponKind.Staff),
             Armor: new Armor(ArmorTier.Medium),
             Shield: null,
-            // One scroll in the pack so casting is actually available — the CastScroll eval needs a real
-            // scroll to cast, and the GM correctly refuses to cast one the character does not possess.
-            Scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
-        var character = Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
-        foreach (var item in extraGear ?? []) character.AddItem(item);
-        await charactersRepo.Save(character);
-
-        campaign.JoinGame(character.Id);
-        campaign.Start();
-        await campaignsRepo.SaveCampaign(campaign);
-
-        return host;
+            Scrolls: scrolls);
+        return Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
     }
 
     /// <summary>
@@ -225,30 +221,14 @@ public sealed class EvalHost : IAsyncDisposable
         var sp = scope.ServiceProvider;
         SetEvalUser(sp);
 
-        var contextLoader = new SessionContextLoader(
-            sp.GetRequiredService<ICampaignsRepository>(),
-            sp.GetRequiredService<ICharactersRepository>(),
-            sp.GetRequiredService<IEncountersRepository>(),
-            NullLogger<SessionContextLoader>.Instance);
-
-        var toolProvider = new AgentToolProvider(
-            sp.GetRequiredService<ICharactersRepository>(),
-            sp.GetRequiredService<IEncountersRepository>(),
-            sp.GetRequiredService<CharacterService>(),
-            sp.GetRequiredService<CampaignService>(),
-            sp.GetRequiredService<EncounterService>(),
-            sp.GetRequiredService<Dice>(),
-            NullLogger<AgentToolProvider>.Instance);
-
-        var chatRepo = sp.GetRequiredService<IChatHistoryRepository>();
-        var executor = new AgentExecutor(
-            _chatClient,
-            chatRepo,
-            new ChatHistoryReducer(_chatClient, chatRepo, NullLogger<ChatHistoryReducer>.Instance),
-            new PromptComposer(),
-            NullLogger<AgentExecutor>.Instance);
-
-        var runner = new EvalTurnRunner(scope, contextLoader, toolProvider, executor, chatRepo, SessionId, ChatSessionId);
+        var runner = new EvalTurnRunner(
+            scope,
+            sp.GetRequiredService<ISessionContextLoader>(),
+            sp.GetRequiredService<IAgentToolProvider>(),
+            sp.GetRequiredService<IAgentExecutor>(),
+            sp.GetRequiredService<IChatHistoryRepository>(),
+            SessionId,
+            ChatSessionId);
         _runners.Add(runner);
         return runner;
     }

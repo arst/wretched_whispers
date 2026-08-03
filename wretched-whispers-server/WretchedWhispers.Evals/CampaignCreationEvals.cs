@@ -1,5 +1,4 @@
 using Microsoft.Extensions.AI.Evaluation;
-using Microsoft.Extensions.AI.Evaluation.Reporting;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Evals.Evaluators;
 using WretchedWhispers.Evals.Harness;
@@ -9,28 +8,20 @@ namespace WretchedWhispers.Evals;
 
 public class CampaignCreationEvals
 {
+    private const string Suite = "campaign-creation";
+
     /// <summary>The opening turn now receives a finished wretch. It must configure the campaign and narrate
     /// that character -- naming the class the player picked and the numbers the domain rolled.</summary>
     [Fact]
     public async Task Opening_ConfiguresCampaignAndNarratesTheRolledWretch()
     {
-        var chatClient = EvalSupport.TryCreateAzureChatClient();
-        if (chatClient is null)
-        {
-            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
-            return;
-        }
-
-        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
-        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Opening-NarratesRolledWretch");
-
-        var chatConfiguration = run.ChatConfiguration
-            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Opening-NarratesRolledWretch", [new ToolCallOrderEvaluator()]);
         await using var host = await EvalHost.CreateOpeningAsync(
-            chatConfiguration.ChatClient, "Halvard", CharacterClass.FangedDeserter);
+            scenario.ChatClient, "Halvard", CharacterClass.FangedDeserter);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
 
-        EvaluationResult result = await run.EvaluateAsync(
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [],
             modelResponse: outcome.Response,
             additionalContext: [new ExpectedToolCallOrderContext(["ConfigureCampaign"])]);
@@ -47,106 +38,21 @@ public class CampaignCreationEvals
     [Fact]
     public async Task Opening_DoesNotAskForNameOrClass()
     {
-        var chatClient = EvalSupport.TryCreateAzureChatClient();
-        if (chatClient is null)
-        {
-            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
-            return;
-        }
-
-        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
-        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Opening-DoesNotReAsk");
-
-        var chatConfiguration = run.ChatConfiguration
-            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Opening-DoesNotReAsk", [new NarrativeCheckEvaluator()]);
         await using var host = await EvalHost.CreateOpeningAsync(
-            chatConfiguration.ChatClient, "Ysolde", CharacterClass.OccultHerbmaster);
+            scenario.ChatClient, "Ysolde", CharacterClass.OccultHerbmaster);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
 
-        Assert.False(
-            AsksForIdentity(outcome.Narrative),
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [],
+            modelResponse: outcome.Response,
+            additionalContext: [new NarrativeCheckContext(
+                "The player already chose their character's name and class before this scene. The "
+                + "narration must NOT ask the player to provide, choose, or confirm a name or a class.")]);
+
+        var metric = result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName);
+        Assert.True(metric.Value,
             $"The opening re-asked for a name or class the player already chose. Narrative: {outcome.Narrative}");
-    }
-
-    private static bool AsksForIdentity(string narrative)
-    {
-        var text = narrative.ToLowerInvariant();
-        string[] probes =
-        [
-            "what name", "your name?", "name is carved", "what are you?",
-            "choose your class", "which class", "pick one of the following classes"
-        ];
-        return probes.Any(p => text.Contains(p, StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task Combat_InventoryQuestion_AnswersWithoutTakingTurn()
-    {
-        var chatClient = EvalSupport.TryCreateAzureChatClient();
-        if (chatClient is null)
-        {
-            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
-            return;
-        }
-
-        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
-        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Combat-InventoryQuestion-NoTurn");
-
-        var chatConfiguration = run.ChatConfiguration
-            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
-        await using var host = await EvalHost.CreateCombatAsync(chatConfiguration.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("What do I have in my inventory and equipment?");
-
-        EvaluationResult result = await run.EvaluateAsync(
-            messages: [],
-            modelResponse: outcome.Response,
-            additionalContext: [new ExpectedToolCallOrderContext([])]);
-
-        var metric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
-        Assert.True(metric.Value, $"Expected no combat tools for an inventory question; got [{string.Join(", ", outcome.ToolCalls)}]");
-        Assert.Contains("staff", outcome.Narrative, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task Combat_MissingItemUse_DoesNotInventItemOrTakeTurn()
-    {
-        var chatClient = EvalSupport.TryCreateAzureChatClient();
-        if (chatClient is null)
-        {
-            Assert.Skip("Azure OpenAI credentials not configured; skipping live eval.");
-            return;
-        }
-
-        var reporting = EvalSupport.CreateReportingConfiguration(chatClient, [new ToolCallOrderEvaluator()], "campaign-creation");
-        await using ScenarioRun run = await reporting.CreateScenarioRunAsync("Combat-MissingItemUse-NoTurn");
-
-        var chatConfiguration = run.ChatConfiguration
-            ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");
-        await using var host = await EvalHost.CreateCombatAsync(chatConfiguration.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("I light my lantern and throw it at the priest.");
-
-        EvaluationResult result = await run.EvaluateAsync(
-            messages: [],
-            modelResponse: outcome.Response,
-            additionalContext: [new ExpectedToolCallOrderContext([])]);
-
-        var metric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
-        Assert.True(metric.Value, $"Expected no combat tools for a missing lantern; got [{string.Join(", ", outcome.ToolCalls)}]");
-        Assert.True(
-            MentionsMissingItem(outcome.Narrative, "lantern"),
-            $"Expected the GM to say the lantern is unavailable. Narrative: {outcome.Narrative}");
-    }
-
-    private static bool MentionsMissingItem(string narrative, string item)
-    {
-        var text = narrative.ToLowerInvariant();
-        return text.Contains(item, StringComparison.Ordinal)
-               && (text.Contains("do not have", StringComparison.Ordinal)
-                   || text.Contains("don't have", StringComparison.Ordinal)
-                   || text.Contains("not have", StringComparison.Ordinal)
-                   || text.Contains("no lantern", StringComparison.Ordinal)
-                   || text.Contains("not in", StringComparison.Ordinal)
-                   || text.Contains("absent", StringComparison.Ordinal)
-                   || text.Contains("missing", StringComparison.Ordinal));
     }
 }
