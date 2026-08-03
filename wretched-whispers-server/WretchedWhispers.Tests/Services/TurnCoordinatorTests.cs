@@ -22,6 +22,7 @@ public class TurnCoordinatorTests
     private readonly Mock<IChatHistoryRepository> _chatHistoryRepo = new();
     private readonly Mock<ITurnTraceRepository> _turnTraceRepo = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<ISessionLock> _sessionLock = new();
 
     public TurnCoordinatorTests()
     {
@@ -32,6 +33,11 @@ public class TurnCoordinatorTests
         _unitOfWork
             .Setup(u => u.BeginAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(scope.Object);
+
+        // Lock is free by default; the busy-session test overrides this with null.
+        _sessionLock
+            .Setup(l => l.TryAcquireAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Mock.Of<IAsyncDisposable>());
     }
 
     private TurnCoordinator CreateCoordinator() =>
@@ -42,6 +48,7 @@ public class TurnCoordinatorTests
             _chatHistoryRepo.Object,
             _turnTraceRepo.Object,
             _unitOfWork.Object,
+            _sessionLock.Object,
             NullLogger<TurnCoordinator>.Instance);
 
     private SessionContext MakeExplorationContext()
@@ -114,6 +121,40 @@ public class TurnCoordinatorTests
         }
 
         await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task BusySession_EmitsTurnError_WithoutRunningAgent()
+    {
+        SetupChatSession();
+
+        var context = MakeExplorationContext();
+        _contextLoader
+            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(context);
+
+        SetupToolsForExploration();
+
+        // Another turn holds the session lock.
+        _sessionLock
+            .Setup(l => l.TryAcquireAsync(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IAsyncDisposable?)null);
+
+        var coordinator = CreateCoordinator();
+
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "I explore", CancellationToken.None))
+            events.Add(evt);
+
+        var error = Assert.Single(events.OfType<TurnError>());
+        Assert.Contains("already responding", error.Message);
+        // The busy path costs nothing: the agent (and its LLM call) never runs.
+        _agentExecutor.Verify(a => a.ExecuteAsync(
+            It.IsAny<IReadOnlyList<AIFunction>>(),
+            It.IsAny<SessionContext>(),
+            It.IsAny<Guid>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

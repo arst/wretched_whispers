@@ -10,7 +10,8 @@ namespace WretchedWhispers.Api.Endpoints;
 /// </summary>
 public static class SettingsEndpoints
 {
-    public static WebApplication MapDesktopSettings(this WebApplication app, string settingsFilePath)
+    public static WebApplication MapDesktopSettings(
+        this WebApplication app, string settingsFilePath, bool readOnly = false)
     {
         app.MapGet("/settings", (DesktopLlmOptions opt) =>
         {
@@ -20,6 +21,14 @@ public static class SettingsEndpoints
 
         app.MapPost("/settings", async (DesktopSettingsRequest req, DesktopLlmOptions opt, CancellationToken ct) =>
         {
+            // Multi-instance (postgres) mode: a save would configure one random instance and write
+            // its local settings.json — silently lost on redeploy. Env vars are the one shared path.
+            if (readOnly)
+                return Results.Conflict(new
+                {
+                    error = "LLM settings are managed via environment variables (OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL) in multi-instance mode."
+                });
+
             // A blank key on re-save means "keep the current key" — so the user can reopen settings to
             // change only the model or base URL without re-pasting (and re-exposing) their key.
             var current = opt.Snapshot();

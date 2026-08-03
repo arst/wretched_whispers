@@ -50,12 +50,10 @@ public static class SessionEndpoints
             Guid sessionId,
             PlayerActionRequest request,
             TurnCoordinator turnCoordinator,
-            SessionConcurrencyGuard guard,
             ICampaignsRepository campaignsRepo,
             HttpContext http,
             CancellationToken ct) =>
         {
-            // Verify ownership before acquiring concurrency lock
             var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
                 return Results.Unauthorized();
@@ -65,16 +63,11 @@ public static class SessionEndpoints
             if (!userCampaigns.Any(c => c.Id == sessionId))
                 return Results.NotFound();
 
-            // 409 check BEFORE any response writes
-            if (!guard.TryAcquire(sessionId))
-                return Results.Conflict(new { error = "GM response already in progress" });
-
+            // Busy sessions surface as an early TurnError event: the session lock is acquired inside
+            // the turn's transaction (TurnCoordinator), which is where the cross-instance Postgres
+            // advisory lock can live — before any LLM call, so a lost race costs nothing.
             return Results.ServerSentEvents(
-                MapToSseItems(
-                    WithGuardRelease(
-                        turnCoordinator.ExecuteTurnAsync(sessionId, request.Message, ct),
-                        guard,
-                        sessionId)));
+                MapToSseItems(turnCoordinator.ExecuteTurnAsync(sessionId, request.Message, ct)));
         });
 
         return app;
@@ -89,23 +82,6 @@ public static class SessionEndpoints
         {
             var json = JsonSerializer.Serialize<object>(evt, jsonOptions);
             yield return new SseItem<string>(json, evt.EventType);
-        }
-    }
-
-    private static async IAsyncEnumerable<GameTurnEvent> WithGuardRelease(
-        IAsyncEnumerable<GameTurnEvent> events,
-        SessionConcurrencyGuard guard,
-        Guid sessionId,
-        [EnumeratorCancellation] CancellationToken ct = default)
-    {
-        try
-        {
-            await foreach (var evt in events.WithCancellation(ct))
-                yield return evt;
-        }
-        finally
-        {
-            guard.Release(sessionId);
         }
     }
 
@@ -398,7 +374,8 @@ public static class SessionEndpoints
         ChatHistoryReducer chatHistoryReducer,
         CharacterCreationService characterCreationService,
         CampaignService campaignService,
-        SessionConcurrencyGuard guard,
+        IUnitOfWork unitOfWork,
+        ISessionLock sessionLock,
         CreateSuccessorRequest? request = null)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -414,56 +391,51 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        if (!guard.TryAcquire(sessionId))
+        // One transaction for the whole succession; uow disposal rolls back every early return.
+        await using var uow = await unitOfWork.BeginAsync(http.RequestAborted);
+        await using var lease = await sessionLock.TryAcquireAsync(sessionId, http.RequestAborted);
+        if (lease is null)
             return Results.Conflict(new { error = "GM response already in progress" });
 
-        try
-        {
-            if (campaign.WorldEnded || campaign.IsEnded)
-                return Results.Conflict(new { error = "This world has ended. Nothing walks it now." });
+        if (campaign.WorldEnded || campaign.IsEnded)
+            return Results.Conflict(new { error = "This world has ended. Nothing walks it now." });
 
-            var firstPlayerId = campaign.Players.FirstOrDefault();
-            if (firstPlayerId == Guid.Empty)
-                return Results.Conflict(new { error = "No character to bury." });
+        var firstPlayerId = campaign.Players.FirstOrDefault();
+        if (firstPlayerId == Guid.Empty)
+            return Results.Conflict(new { error = "No character to bury." });
 
-            var character = await charactersRepo.Get(firstPlayerId);
-            if (character is null || !character.IsDead)
-                return Results.Conflict(new { error = "The wretch still breathes." });
+        var character = await charactersRepo.Get(firstPlayerId);
+        if (character is null || !character.IsDead)
+            return Results.Conflict(new { error = "The wretch still breathes." });
 
-            var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
-            var fallenChronicleId = chronicles.FirstOrDefault();
+        var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaign.Id);
+        var fallenChronicleId = chronicles.FirstOrDefault();
 
-            // Create the new chronicle first: if burial/save then fails, the campaign stays
-            // unburied (retryable) and the orphan chronicle is just an empty, harmless row —
-            // never a dead wretch stuck resuming inside their own chronicle. No compensation.
-            var newChronicleId = await chatHistoryRepo.CreateSession(campaign.Id);
+        var newChronicleId = await chatHistoryRepo.CreateSession(campaign.Id);
 
-            campaign.BuryCharacter(character.Id, character.Name);
-            await campaignsRepo.SaveCampaign(campaign, userId);
+        campaign.BuryCharacter(character.Id, character.Name);
+        await campaignsRepo.SaveCampaign(campaign, userId);
 
-            // The successor is rolled here rather than by the narrator, so the campaign is never left in a
-            // characterless state. Difficulty is the campaign's own — a death does not renegotiate it.
-            var successorClass = request?.CharacterClass ?? characterCreationService.RollRandomClass();
-            var successor = await characterCreationService.Create(
-                successorName, campaign.Difficulty, successorClass);
-            await campaignService.JoinCampaign(campaign.Id, successor.Id);
+        // The successor is rolled here rather than by the narrator, so the campaign is never left in a
+        // characterless state. Difficulty is the campaign's own — a death does not renegotiate it.
+        var successorClass = request?.CharacterClass ?? characterCreationService.RollRandomClass();
+        var successor = await characterCreationService.Create(
+            successorName, campaign.Difficulty, successorClass);
+        await campaignService.JoinCampaign(campaign.Id, successor.Id);
 
-            if (fallenChronicleId != Guid.Empty)
-                await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, http.RequestAborted);
+        if (fallenChronicleId != Guid.Empty)
+            await chatHistoryReducer.SeedEpitaphAsync(fallenChronicleId, newChronicleId, http.RequestAborted);
 
-            return Results.Ok(new { status = "in-progress" });
-        }
-        finally
-        {
-            guard.Release(sessionId);
-        }
+        await uow.CommitAsync(http.RequestAborted);
+        return Results.Ok(new { status = "in-progress" });
     }
 
     private static async Task<IResult> AbandonSession(
         Guid sessionId,
         HttpContext http,
         ICampaignsRepository campaignsRepo,
-        SessionConcurrencyGuard guard)
+        IUnitOfWork unitOfWork,
+        ISessionLock sessionLock)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -475,22 +447,18 @@ public static class SessionEndpoints
         if (campaign is null)
             return Results.NotFound();
 
-        if (!guard.TryAcquire(sessionId))
+        await using var uow = await unitOfWork.BeginAsync(http.RequestAborted);
+        await using var lease = await sessionLock.TryAcquireAsync(sessionId, http.RequestAborted);
+        if (lease is null)
             return Results.Conflict(new { error = "GM response already in progress" });
 
-        try
-        {
-            if (!campaign.IsActive())
-                return Results.Conflict(new { error = "This campaign has already ended." });
+        if (!campaign.IsActive())
+            return Results.Conflict(new { error = "This campaign has already ended." });
 
-            campaign.End();
-            await campaignsRepo.SaveCampaign(campaign, userId);
-            return Results.Ok(new { status = "ended" });
-        }
-        finally
-        {
-            guard.Release(sessionId);
-        }
+        campaign.End();
+        await campaignsRepo.SaveCampaign(campaign, userId);
+        await uow.CommitAsync(http.RequestAborted);
+        return Results.Ok(new { status = "ended" });
     }
 
     private static async Task<IResult> GetSessionMessages(

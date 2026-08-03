@@ -200,82 +200,65 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
     }
 }
 
-public class SessionConcurrencyGuardTests
+public class InMemorySessionLockTests
 {
+    private readonly InMemorySessionLock _lock = new();
+
     [Fact]
-    public void TryAcquire_ReturnsTrue_OnFirstCall()
+    public async Task TryAcquire_ReturnsLease_OnFirstCall()
     {
-        var guard = new SessionConcurrencyGuard();
-        var sessionId = Guid.NewGuid();
+        var lease = await _lock.TryAcquireAsync(Guid.NewGuid(), CancellationToken.None);
 
-        var result = guard.TryAcquire(sessionId);
-
-        Assert.True(result);
+        Assert.NotNull(lease);
     }
 
     [Fact]
-    public void TryAcquire_ReturnsFalse_OnSecondCallSameSession()
+    public async Task TryAcquire_ReturnsNull_OnSecondCallSameSession()
     {
-        var guard = new SessionConcurrencyGuard();
         var sessionId = Guid.NewGuid();
 
-        guard.TryAcquire(sessionId);
-        var result = guard.TryAcquire(sessionId);
+        await _lock.TryAcquireAsync(sessionId, CancellationToken.None);
+        var second = await _lock.TryAcquireAsync(sessionId, CancellationToken.None);
 
-        Assert.False(result);
+        Assert.Null(second);
     }
 
     [Fact]
-    public void TryAcquire_ReturnsTrue_AfterRelease()
+    public async Task TryAcquire_ReturnsLease_AfterLeaseDisposed()
     {
-        var guard = new SessionConcurrencyGuard();
         var sessionId = Guid.NewGuid();
 
-        guard.TryAcquire(sessionId);
-        guard.Release(sessionId);
-        var result = guard.TryAcquire(sessionId);
+        var first = await _lock.TryAcquireAsync(sessionId, CancellationToken.None);
+        await first!.DisposeAsync();
+        var second = await _lock.TryAcquireAsync(sessionId, CancellationToken.None);
 
-        Assert.True(result);
+        Assert.NotNull(second);
     }
 
     [Fact]
-    public void TryAcquire_DifferentSessions_DoNotInterfere()
+    public async Task TryAcquire_DifferentSessions_DoNotInterfere()
     {
-        var guard = new SessionConcurrencyGuard();
-        var sessionA = Guid.NewGuid();
-        var sessionB = Guid.NewGuid();
+        var leaseA = await _lock.TryAcquireAsync(Guid.NewGuid(), CancellationToken.None);
+        var leaseB = await _lock.TryAcquireAsync(Guid.NewGuid(), CancellationToken.None);
 
-        var resultA = guard.TryAcquire(sessionA);
-        var resultB = guard.TryAcquire(sessionB);
-
-        Assert.True(resultA);
-        Assert.True(resultB);
+        Assert.NotNull(leaseA);
+        Assert.NotNull(leaseB);
     }
 
     [Fact]
-    public void TryAcquire_SameSession_BlockedWhileOtherHoldsLock()
+    public async Task TryAcquire_SameSession_BlockedWhileLeaseHeld()
     {
-        var guard = new SessionConcurrencyGuard();
         var sessionId = Guid.NewGuid();
 
-        // First acquire succeeds
-        var first = guard.TryAcquire(sessionId);
-        Assert.True(first);
+        var first = await _lock.TryAcquireAsync(sessionId, CancellationToken.None);
+        Assert.NotNull(first);
 
-        // Second acquire on same session fails
-        var second = guard.TryAcquire(sessionId);
-        Assert.False(second);
+        Assert.Null(await _lock.TryAcquireAsync(sessionId, CancellationToken.None));
 
-        // Third session is independent
-        var otherId = Guid.NewGuid();
-        var third = guard.TryAcquire(otherId);
-        Assert.True(third);
+        // Another session is independent
+        Assert.NotNull(await _lock.TryAcquireAsync(Guid.NewGuid(), CancellationToken.None));
 
-        // Release first session
-        guard.Release(sessionId);
-
-        // Now first session can be acquired again
-        var fourth = guard.TryAcquire(sessionId);
-        Assert.True(fourth);
+        await first!.DisposeAsync();
+        Assert.NotNull(await _lock.TryAcquireAsync(sessionId, CancellationToken.None));
     }
 }

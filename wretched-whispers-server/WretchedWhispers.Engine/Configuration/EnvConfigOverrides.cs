@@ -13,6 +13,8 @@ public static class EnvConfigOverrides
         ("OPENAI_API_KEY", "Llm:ApiKey"),
         ("OPENAI_MODEL", "Llm:Model"),
         ("OPENAI_BASE_URL", "Llm:BaseUrl"),
+        // Postgres mode: beats DesktopHost.BuildConfig's SQLite path (this layer is applied last).
+        ("WW_DB_CONNECTION", "ConnectionStrings:Default"),
     ];
 
     public static Dictionary<string, string?> Map(Func<string, string?> getEnv)
