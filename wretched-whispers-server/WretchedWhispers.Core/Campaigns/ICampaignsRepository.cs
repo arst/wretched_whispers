@@ -1,41 +1,31 @@
 namespace WretchedWhispers.Core.Campaigns;
 
+/// <summary>
+/// All ownership comes from the ambient <c>IUserContext</c> of the current scope — set by the
+/// request's endpoint filter (or explicitly in tests/evals). The domain never passes user ids.
+/// </summary>
 public interface ICampaignsRepository
 {
     /// <summary>
-    /// Loads a campaign by its unique identifier.
+    /// Loads a campaign by its unique identifier, regardless of owner.
     /// Returns null if no campaign exists with the specified ID.
     /// </summary>
     Task<Campaign?> Get(Guid campaignId);
 
     /// <summary>
-    /// Saves the campaign, assigning tenant ownership from the ambient request/operation scope.
-    /// (The domain does not know the current user; the infrastructure implementation supplies it.)
-    /// For explicit userId control (tests, seeding), use <see cref="SaveCampaign(Campaign, string)"/>.
+    /// Saves the campaign, stamping ownership from the ambient user context.
     /// </summary>
-    Task SaveCampaign(Campaign newCampaign);
+    Task SaveCampaign(Campaign campaign);
 
     /// <summary>
-    /// Loads a campaign only if it belongs to the ambient tenant, as a single-row query.
+    /// Loads a campaign only if it belongs to the ambient user, as a single-row query.
     /// Null covers both "does not exist" and "owned by someone else" — callers surface 404
     /// for both to avoid leaking which sessions exist.
     /// </summary>
     Task<Campaign?> GetOwned(Guid campaignId, CancellationToken ct);
 
     /// <summary>
-    /// Returns all campaigns belonging to the ambient tenant.
+    /// Returns all campaigns belonging to the ambient user.
     /// </summary>
     Task<List<Campaign>> GetForUser(CancellationToken ct);
-
-    /// <summary>
-    /// Returns all campaigns belonging to the specified user. Use for tests and data seeding
-    /// where no ambient tenant scope is available.
-    /// </summary>
-    Task<List<Campaign>> GetForUser(string userId);
-
-    /// <summary>
-    /// Saves the campaign with an explicitly provided userId. Use for tests and data seeding
-    /// where no ambient tenant scope is available.
-    /// </summary>
-    Task SaveCampaign(Campaign campaign, string userId);
 }

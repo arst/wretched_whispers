@@ -8,7 +8,7 @@ namespace WretchedWhispers.Engine.Services;
 
 /// <summary>
 /// Offline dump of every turn trace to a single JSON file for error analysis / eval failure-mode
-/// discovery. Cross-tenant by design (all sessions). Invoked from Program.cs:
+/// discovery. Cross-user by design (all sessions). Invoked from Program.cs:
 /// <c>dotnet run --project WretchedWhispers.Api -- export-traces [outDir]</c>.
 /// </summary>
 public static class TraceExporter

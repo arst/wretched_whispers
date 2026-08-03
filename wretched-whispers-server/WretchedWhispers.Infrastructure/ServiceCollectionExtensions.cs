@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IRandomService, SeededRandomService>();
         services.AddSingleton<Dice>();
-        services.AddScoped<ITenantContext, TenantContext>();
+        services.AddScoped<IUserContext, UserContext>();
 
         services.AddScoped<ICharactersRepository, SqliteCharactersRepository>();
         services.AddScoped<ICampaignsRepository, SqliteCampaignsRepository>();

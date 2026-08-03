@@ -29,7 +29,7 @@ public class SqliteTestBase : IDisposable
 
     public WretchedWhispersDbContext Db { get; }
     public JsonSerializerOptions JsonOptions { get; }
-    public ITenantContext TenantContext { get; } = new StubTenantContext();
+    public IUserContext UserContext { get; } = new StubUserContext();
 
     /// <summary>
     /// A second <see cref="WretchedWhispersDbContext"/> over the same in-memory database (shared
@@ -51,7 +51,7 @@ public class SqliteTestBase : IDisposable
         _connection.Dispose();
     }
 
-    private sealed class StubTenantContext : ITenantContext
+    private sealed class StubUserContext : IUserContext
     {
         public string UserId { get; private set; } = "test-user";
         public void SetUserId(string userId) => UserId = userId;

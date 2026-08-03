@@ -9,7 +9,7 @@ namespace WretchedWhispers.Infrastructure.Persistence.Repositories;
 public class SqliteCampaignsRepository(
     WretchedWhispersDbContext db,
     JsonSerializerOptions jsonOptions,
-    ITenantContext tenantContext) : ICampaignsRepository
+    IUserContext userContext) : ICampaignsRepository
 {
     public async Task<Campaign?> Get(Guid campaignId)
     {
@@ -19,35 +19,29 @@ public class SqliteCampaignsRepository(
         return JsonSerializer.Deserialize<Campaign>(entity.Data, jsonOptions);
     }
 
-    public async Task SaveCampaign(Campaign newCampaign)
-    {
-        await SaveCampaign(newCampaign, tenantContext.UserId);
-    }
-
     public async Task<Campaign?> GetOwned(Guid campaignId, CancellationToken ct)
     {
         var entity = await db.Campaigns
-            .FirstOrDefaultAsync(c => c.Id == campaignId && c.UserId == tenantContext.UserId, ct);
+            .FirstOrDefaultAsync(c => c.Id == campaignId && c.UserId == userContext.UserId, ct);
         if (entity is null) return null;
 
         return JsonSerializer.Deserialize<Campaign>(entity.Data, jsonOptions);
     }
 
-    public Task<List<Campaign>> GetForUser(CancellationToken ct) => GetForUser(tenantContext.UserId);
-
-    public async Task<List<Campaign>> GetForUser(string userId)
+    public async Task<List<Campaign>> GetForUser(CancellationToken ct)
     {
         var entities = await db.Campaigns
-            .Where(c => c.UserId == userId)
-            .ToListAsync();
+            .Where(c => c.UserId == userContext.UserId)
+            .ToListAsync(ct);
 
         return entities
             .Select(e => JsonSerializer.Deserialize<Campaign>(e.Data, jsonOptions)!)
             .ToList();
     }
 
-    public async Task SaveCampaign(Campaign campaign, string userId)
+    public async Task SaveCampaign(Campaign campaign)
     {
+        var userId = userContext.UserId;
         var json = JsonSerializer.Serialize(campaign, jsonOptions);
         var entity = await db.Campaigns.FindAsync(campaign.Id);
 
