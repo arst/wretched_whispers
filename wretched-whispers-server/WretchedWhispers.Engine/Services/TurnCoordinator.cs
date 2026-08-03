@@ -24,6 +24,7 @@ public sealed class TurnCoordinator(
     IChatHistoryRepository chatHistoryRepository,
     ITurnTraceRepository turnTraceRepository,
     IUnitOfWork unitOfWork,
+    ISessionLock sessionLock,
     ILogger<TurnCoordinator> logger)
 {
     private static readonly JsonSerializerOptions TraceJson =
@@ -125,6 +126,15 @@ public sealed class TurnCoordinator(
         {
             // One atomic unit of work for the turn. Disposal rolls back if we don't commit.
             await using var uow = await unitOfWork.BeginAsync(ct);
+
+            // One in-flight turn per session, across instances — acquired inside the transaction
+            // (the Postgres lock rides it) and before any LLM call, so a busy session costs nothing.
+            await using var lease = await sessionLock.TryAcquireAsync(sessionId, ct);
+            if (lease is null)
+            {
+                writer.TryWrite(new TurnError("The narrator is already responding to another action. Please wait."));
+                return; // uow disposal rolls back the empty transaction
+            }
 
             var narrativeChunks = new List<NarrativeChunk>();
             var toolResults = new List<ToolResult>();

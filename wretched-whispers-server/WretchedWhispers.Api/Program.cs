@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Api.Auth;
@@ -38,16 +39,46 @@ builder.Services.AddCors(options =>
     });
 });
 
-// EF Core + SQLite (Scoped lifetime for web API)
-builder.Services.AddDbContext<WretchedWhispersDbContext>(options =>
+// EF Core: SQLite by default (zero-config local file), Postgres when WW_DB_PROVIDER=postgres —
+// the shared-database mode that lets multiple stateless instances serve the same players.
+var usePostgres = string.Equals(
+    builder.Configuration["WW_DB_PROVIDER"], "postgres", StringComparison.OrdinalIgnoreCase);
+var connectionString = builder.Configuration.GetConnectionString("Default");
+
+void ConfigureDb(DbContextOptionsBuilder options)
 {
-    options.UseSqlite(builder.Configuration.GetConnectionString("Default"));
+    if (usePostgres) options.UseNpgsql(connectionString);
+    else options.UseSqlite(connectionString);
     // Dev only: turn EF's generic "An error occurred using a transaction" [20205] into the actual
     // failing SQL, parameter values, and the entity/property that faulted. Sensitive data may include
     // player input, so keep it out of production.
     if (builder.Environment.IsDevelopment())
         options.EnableDetailedErrors().EnableSensitiveDataLogging();
-});
+}
+
+if (usePostgres)
+{
+    // Fail fast if the SQLite default leaked through (WW_DB_CONNECTION / ConnectionStrings__Default unset).
+    if (connectionString is null || connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException(
+            "WW_DB_PROVIDER=postgres requires a PostgreSQL connection string via WW_DB_CONNECTION or ConnectionStrings__Default.");
+    // PostgresWwDbContext IS the WretchedWhispersDbContext service — it carries the Postgres
+    // migration set; repositories, Identity stores, and MigrateAsync stay provider-unaware.
+    builder.Services.AddDbContext<WretchedWhispersDbContext, PostgresWwDbContext>(ConfigureDb);
+    // Advisory xact lock on the turn's transaction: released by Postgres itself on commit,
+    // rollback, or connection death — a crashed instance can never leave a session locked.
+    builder.Services.AddScoped<ISessionLock, PostgresSessionLock>();
+}
+else
+{
+    builder.Services.AddDbContext<WretchedWhispersDbContext>(ConfigureDb);
+    // SQLite = single instance by definition; a process-local set is the whole story.
+    builder.Services.AddSingleton<ISessionLock, InMemorySessionLock>();
+}
+
+// Identity bearer/refresh tokens must survive restarts and be readable by every instance sharing
+// the database. Harmless on desktop (LocalAuthHandler never issues tokens).
+builder.Services.AddDataProtection().PersistKeysToDbContext<WretchedWhispersDbContext>();
 
 // Repositories, domain services, dice, JSON options (Scoped)
 builder.Services.AddDomainServices();
@@ -114,7 +145,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapDesktopSettings(WretchedWhispers.Api.Desktop.DesktopHost.SettingsPath);
+app.MapDesktopSettings(WretchedWhispers.Api.Desktop.DesktopHost.SettingsPath, readOnly: usePostgres);
 app.MapGet("/health", () => Results.Ok("alive"));
 app.MapSessionEndpoints();
 app.MapFallbackToFile("index.html");

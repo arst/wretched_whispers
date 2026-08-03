@@ -16,9 +16,6 @@ public static class AgentConfiguration
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Singleton concurrency guard for per-session 409 Conflict
-        services.AddSingleton<SessionConcurrencyGuard>();
-
         var timeoutSeconds = configuration.GetValue("GameSession:ResponseTimeoutSeconds", 180);
         var maxRetryAttempts = configuration.GetValue("GameSession:MaxRetryAttempts", 2);
         var timeout = TimeSpan.FromSeconds(timeoutSeconds);

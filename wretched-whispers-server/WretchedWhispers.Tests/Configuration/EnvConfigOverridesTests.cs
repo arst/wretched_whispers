@@ -22,6 +22,15 @@ public sealed class EnvConfigOverridesTests
     }
 
     [Fact]
+    public void Map_TranslatesDbConnectionToConnectionString()
+    {
+        var result = EnvConfigOverrides.Map(n => Env(n,
+            ("WW_DB_CONNECTION", "Host=pg;Database=ww;Username=ww;Password=x")));
+
+        Assert.Equal("Host=pg;Database=ww;Username=ww;Password=x", result["ConnectionStrings:Default"]);
+    }
+
+    [Fact]
     public void Map_UnsetOrBlankEnv_MapsNothing()
     {
         Assert.Empty(EnvConfigOverrides.Map(_ => null));
