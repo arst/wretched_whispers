@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Tests.Sessions;
 using Xunit;
@@ -119,6 +120,14 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
             });
 
             builder.UseEnvironment("Development");
+        }
+
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            var host = base.CreateHost(builder);
+            using var scope = host.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>().Database.Migrate();
+            return host;
         }
 
         protected override void Dispose(bool disposing)

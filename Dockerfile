@@ -13,7 +13,9 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS api
 ARG DEPLOYMENT_PROFILE=StandaloneContainer
 WORKDIR /src
 COPY wretched-whispers-server/ wretched-whispers-server/
-RUN dotnet publish wretched-whispers-server/WretchedWhispers.Api/WretchedWhispers.Api.csproj \
+RUN dotnet publish wretched-whispers-server/WretchedWhispers.Migrations/WretchedWhispers.Migrations.csproj \
+    -c Release -o /app/publish \
+    && dotnet publish wretched-whispers-server/WretchedWhispers.Api/WretchedWhispers.Api.csproj \
     -c Release -p:DeploymentProfile=$DEPLOYMENT_PROFILE -o /app/publish
 COPY --from=web /src/web/.next-export/ /app/publish/wwwroot/
 
@@ -28,5 +30,5 @@ COPY --from=api /app/publish/ ./
 ENV WW_DATA_DIR=/data
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s \
-    CMD curl -fsS http://localhost:8080/health || exit 1
+    CMD curl -fsS http://localhost:8080/health/live || exit 1
 ENTRYPOINT ["dotnet", "WretchedWhispers.Api.dll"]

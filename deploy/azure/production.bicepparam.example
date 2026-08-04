@@ -1,0 +1,19 @@
+using './main.bicep'
+
+param environmentName = 'ww-production'
+param location = 'westeurope'
+param image = 'replace.azurecr.io/wretched-whispers:COMMIT_SHA'
+param deployWorkloads = false
+param deployApplication = false
+param deploymentPrincipalObjectId = '<github-oidc-service-principal-object-id>'
+param postgresAdministratorLogin = 'wwadmin'
+param postgresAdministratorPassword = '<store-outside-git>'
+param postgresSkuName = 'Standard_B1ms'
+param postgresSkuTier = 'Burstable'
+param postgresStorageGb = 32
+param minReplicas = 1
+param maxReplicas = 1
+param azureOpenAiEndpoint = 'https://replace.openai.azure.com/'
+param azureOpenAiDeployment = 'replace-deployment'
+param customDomainName = ''
+param customDomainCertificateId = ''
