@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 
@@ -93,7 +95,10 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
 
     public class StreamingWebAppFactory : WebApplicationFactory<Program>
     {
-        private SqliteConnection? _connection;
+        private readonly string _connectionString =
+            $"DataSource=ww-stream-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+
+        private SqliteConnection? _keepAlive;
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -107,11 +112,14 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
                 foreach (var descriptor in descriptors)
                     services.Remove(descriptor);
 
-                _connection = new SqliteConnection("DataSource=:memory:");
-                _connection.Open();
+                _keepAlive = new SqliteConnection(_connectionString);
+                _keepAlive.Open();
 
                 services.AddDbContext<WretchedWhispersDbContext>(options =>
-                    options.UseSqlite(_connection));
+                    options.UseSqlite(_connectionString));
+
+                services.RemoveAll<IChatClient>();
+                services.AddSingleton<IChatClient>(new SessionEndpointTests.NoOpChatClient());
             });
 
             builder.UseEnvironment("Development");
@@ -120,8 +128,8 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            _connection?.Close();
-            _connection?.Dispose();
+            _keepAlive?.Close();
+            _keepAlive?.Dispose();
         }
     }
 }

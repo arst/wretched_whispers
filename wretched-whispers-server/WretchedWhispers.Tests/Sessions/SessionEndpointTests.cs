@@ -680,7 +680,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     // enough of IChatClient for DI to construct ChatHistoryReducer; never expected to be called
     // for real by these tests (seeded chronicles have no messages, so SeedEpitaphAsync bails out
     // before reaching the model).
-    private sealed class NoOpChatClient : IChatClient
+    internal sealed class NoOpChatClient : IChatClient
     {
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
