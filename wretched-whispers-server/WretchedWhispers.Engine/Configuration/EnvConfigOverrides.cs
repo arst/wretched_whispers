@@ -2,7 +2,7 @@ namespace WretchedWhispers.Engine.Configuration;
 
 /// <summary>
 /// Maps friendly container env vars (OPENAI_API_KEY, ...) to the Llm:* configuration keys the
-/// OpenAI provider reads. Lives outside the DESKTOP compile gate so it is unit-testable; the
+/// OpenAI provider reads. Shared by both standalone profiles so it is unit-testable; the
 /// desktop/headless Program applies it as the LAST configuration layer so env vars beat the
 /// settings.json values seeded by DesktopHost.BuildConfig (spec: env > settings.json > first-run UI).
 /// </summary>

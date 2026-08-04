@@ -15,6 +15,9 @@ Play if you dare.
 
 # Run with Docker
 
+The default image is the single-user `StandaloneContainer` profile. It has no login and stores its
+SQLite database and settings in `/data`.
+
 ```bash
 docker run -p 8080:8080 -v ww-data:/data -e OPENAI_API_KEY=sk-... ghcr.io/arst/wretched-whispers
 ```
@@ -35,6 +38,18 @@ When `OPENAI_API_KEY` is set on the container, it always wins over a key saved i
 
 Game data (SQLite + settings) lives in the `/data` volume. The container serves plain HTTP on
 port 8080 — put Caddy/Traefik/nginx in front if you expose it beyond your machine.
+
+# Deployment profiles
+
+| Profile | Build | Runtime |
+|---|---|---|
+| `Server` | `docker build --build-arg DEPLOYMENT_PROFILE=Server -t wretched-whispers:server .` | Identity, PostgreSQL-ready API, bundled UI; no writable volume required |
+| `StandaloneContainer` | `docker build -t wretched-whispers:standalone .` | Local user, settings UI, SQLite in `/data` |
+| `Desktop` | `./build-desktop.sh [rid]` | Local user, settings UI, SQLite in OS app-data, Photino window |
+
+For local web development, leave `NEXT_PUBLIC_DEPLOYMENT_PROFILE` unset and run Next separately.
+All release profiles set it and bundle the static export into the ASP.NET app. Application endpoints
+live under `/api`; health probes remain at `/health`.
 
 # DISCLAIMER
 

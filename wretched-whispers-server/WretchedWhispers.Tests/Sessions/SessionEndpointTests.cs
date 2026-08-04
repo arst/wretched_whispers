@@ -36,7 +36,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public SessionEndpointTests(SessionWebAppFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
     }
 
     [Fact]
@@ -58,7 +58,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task CreateSession_WithoutAuth_Returns401()
     {
-        var response = await _client.PostAsync("/sessions", null);
+        var response = await _client.PostAsJsonAsync(
+            "/api/sessions", new { characterName = "Unauthenticated Wretch" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -78,11 +79,11 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         object? body = difficulty is null ? null : new { characterName = DefaultWretchName, difficulty };
         var (sessionId, _) = await CreateSessionAsync(token, body);
 
-        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
         var listRaw = await listResponse.Content.ReadAsStringAsync();
         Assert.Contains($"\"difficulty\":\"{expected}\"", listRaw);
 
-        var detailResponse = await _client.SendAsync(AuthGet($"/sessions/{sessionId}", token));
+        var detailResponse = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}", token));
         var detailJson = await detailResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(expected, detailJson.GetProperty("difficulty").GetString());
     }
@@ -94,7 +95,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         await CreateSessionAsync(token, new { characterName = "Halvard", characterClass = "FangedDeserter" });
 
-        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Halvard", json[0].GetProperty("characterName").GetString());
         Assert.Equal("Fanged Deserter", json[0].GetProperty("characterClass").GetString());
@@ -109,7 +110,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         await CreateSessionAsync(token);
 
-        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         var rolled = json[0].GetProperty("characterClass").GetString();
 
@@ -123,7 +124,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         await CreateSessionAsync(token, new { characterName = "Nobody", characterClass = "Classless" });
 
-        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         // Classless is the absence of a class on the wire, so the card shows no class line.
         Assert.Equal(JsonValueKind.Null, json[0].GetProperty("characterClass").ValueKind);
@@ -160,7 +161,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         await CreateSessionAsync(token);
 
-        var listRequest = AuthGet("/sessions", token);
+        var listRequest = AuthGet("/api/sessions", token);
         var response = await _client.SendAsync(listRequest);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -183,7 +184,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         // User B lists sessions - should see empty
         var tokenB = await RegisterAndLogin("user-b-isolation@test.com");
-        var listRequest = AuthGet("/sessions", tokenB);
+        var listRequest = AuthGet("/api/sessions", tokenB);
         var response = await _client.SendAsync(listRequest);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -197,7 +198,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var token = await RegisterAndLogin("detail-session@test.com");
         var (sessionId, _) = await CreateSessionAsync(token);
 
-        var detailRequest = AuthGet($"/sessions/{sessionId}", token);
+        var detailRequest = AuthGet($"/api/sessions/{sessionId}", token);
         var response = await _client.SendAsync(detailRequest);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -216,7 +217,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var token = await RegisterAndLogin("resume-session@test.com");
         var (_, campaignId) = await CreateSessionAsync(token);
 
-        var response = await _client.SendAsync(AuthPost($"/sessions/{campaignId}/resume", token));
+        var response = await _client.SendAsync(AuthPost($"/api/sessions/{campaignId}/resume", token));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -246,7 +247,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             await db.SaveChangesAsync();
         }
 
-        var response = await _client.SendAsync(AuthPost($"/sessions/{campaignId}/resume", token));
+        var response = await _client.SendAsync(AuthPost($"/api/sessions/{campaignId}/resume", token));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -262,7 +263,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         // User B tries to get User A's session
         var tokenB = await RegisterAndLogin("user-b-detail@test.com");
-        var detailRequest = AuthGet($"/sessions/{sessionId}", tokenB);
+        var detailRequest = AuthGet($"/api/sessions/{sessionId}", tokenB);
         var response = await _client.SendAsync(detailRequest);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -285,7 +286,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         }
 
         var firstResponse = await _client.SendAsync(
-            AuthGet($"/sessions/{sessionId}/messages?page=1&pageSize=10", token));
+            AuthGet($"/api/sessions/{sessionId}/messages?page=1&pageSize=10", token));
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
         var firstPage = await firstResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(15, firstPage.GetProperty("totalMessages").GetInt32());
@@ -295,7 +296,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal("turn 0", firstPage.GetProperty("messages")[0].GetProperty("content").GetString());
 
         var secondPage = await (await _client.SendAsync(
-            AuthGet($"/sessions/{sessionId}/messages?page=2&pageSize=10", token))).Content.ReadFromJsonAsync<JsonElement>();
+            AuthGet($"/api/sessions/{sessionId}/messages?page=2&pageSize=10", token))).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(5, secondPage.GetProperty("messages").GetArrayLength());
         Assert.Equal("turn 10", secondPage.GetProperty("messages")[0].GetProperty("content").GetString());
     }
@@ -310,7 +311,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         await WithOwnedCampaign(campaignId, campaign =>
             campaign.RecordJournalEntry(JournalCategory.Npc, "Met the grave-priest Ulmt"));
 
-        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", token));
+        var response = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}/journal", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var entries = json.GetProperty("entries");
@@ -335,7 +336,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             campaign.SetPartyLocation("Galgenbeck");
         });
 
-        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/map", token));
+        var response = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}/map", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Galgenbeck", json.GetProperty("currentLocationName").GetString());
@@ -356,7 +357,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         await SeedCharacterInCampaign(campaignId, dead: false);
 
-        var response = await _client.SendAsync(AuthCreateSuccessor($"/sessions/{sessionId}/successor", token));
+        var response = await _client.SendAsync(AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", token));
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
@@ -367,7 +368,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var (sessionId, _) = await CreateSessionAsync(tokenA);
 
         var tokenB = await RegisterAndLogin("successor-other@test.com");
-        var response = await _client.SendAsync(AuthCreateSuccessor($"/sessions/{sessionId}/successor", tokenB));
+        var response = await _client.SendAsync(AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", tokenB));
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -383,11 +384,11 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         await SeedCharacterInCampaign(campaignId, dead: true);
 
         var response = await _client.SendAsync(AuthCreateSuccessor(
-            $"/sessions/{sessionId}/successor", token,
+            $"/api/sessions/{sessionId}/successor", token,
             new { characterName = "Second Wretch", characterClass = "OccultHerbmaster" }));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
+        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Second Wretch", json[0].GetProperty("characterName").GetString());
         Assert.Equal("Occult Herbmaster", json[0].GetProperty("characterClass").GetString());
@@ -401,7 +402,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         var (sessionId, _) = await CreateSessionAsync(token);
 
         var response = await _client.SendAsync(AuthCreateSuccessor(
-            $"/sessions/{sessionId}/successor", token, new { characterName = "" }));
+            $"/api/sessions/{sessionId}/successor", token, new { characterName = "" }));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -424,7 +425,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             originalChronicleId = chronicles.First();
         }
 
-        var response = await _client.SendAsync(AuthCreateSuccessor($"/sessions/{sessionId}/successor", token));
+        var response = await _client.SendAsync(AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("in-progress", body.GetProperty("status").GetString());
@@ -456,7 +457,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         await SeedCharacterInCampaign(campaignId, dead: false);
 
-        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/abandon", token));
+        var response = await _client.SendAsync(AuthPost($"/api/sessions/{sessionId}/abandon", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("ended", body.GetProperty("status").GetString());
@@ -480,8 +481,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         await WithOwnedCampaign(campaignId, campaign => campaign.End());
 
         var request = action == "successor"
-            ? AuthCreateSuccessor($"/sessions/{sessionId}/successor", token)
-            : AuthPost($"/sessions/{sessionId}/abandon", token);
+            ? AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", token)
+            : AuthPost($"/api/sessions/{sessionId}/abandon", token);
         var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -500,7 +501,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             campaign.BuryCharacter(characterId, "Ulmt the Wretched");
         });
 
-        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", token));
+        var response = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}/journal", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var fallen = json.GetProperty("fallen");
@@ -601,7 +602,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     /// "a session" goes through here rather than posting an empty body.</summary>
     private static HttpRequestMessage AuthCreateSession(string token, object? body = null)
     {
-        var request = AuthPost("/sessions", token);
+        var request = AuthPost("/api/sessions", token);
         request.Content = JsonContent.Create(body ?? new { characterName = DefaultWretchName });
         return request;
     }

@@ -1,12 +1,34 @@
 name: Docker Publish
 
 on:
+  pull_request:
+    branches: [main]
   push:
     tags: ["v*"]
   workflow_dispatch:
 
 jobs:
+  verify:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container profiles
+        run: |
+          docker build --build-arg DEPLOYMENT_PROFILE=Server -t wretched-whispers:server .
+          docker build --build-arg DEPLOYMENT_PROFILE=StandaloneContainer -t wretched-whispers:standalone .
+      - name: Smoke Server image
+        run: |
+          docker run -d --name wretched-whispers-server -p 8080:8080 wretched-whispers:server
+          for attempt in {1..30}; do curl -fsS http://localhost:8080/health && break; sleep 1; done
+          curl -fsS http://localhost:8080/
+          curl -fsSL http://localhost:8080/sessions
+          curl -fsS -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{"email":"smoke@example.com","password":"password"}'
+          token=$(curl -fsS -X POST 'http://localhost:8080/api/auth/login?useCookies=false' -H 'Content-Type: application/json' -d '{"email":"smoke@example.com","password":"password"}' | jq -r .accessToken)
+          curl -fsS http://localhost:8080/api/sessions -H "Authorization: Bearer $token"
+
   publish:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read

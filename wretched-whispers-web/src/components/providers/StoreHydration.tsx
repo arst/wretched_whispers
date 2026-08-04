@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { verifyToken } from "@/lib/auth";
 
 /**
- * Resolves the hosted Identity cookie before guarded pages render. Desktop
+ * Resolves the hosted Identity cookie before guarded pages render. Standalone builds
  * starts authenticated through its fixed local-user backend.
  */
 export default function StoreHydration() {

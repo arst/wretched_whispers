@@ -13,18 +13,18 @@ RID="${1:-$(dotnet --info | awk -F'[:] ' '/RID:/ {print $2; exit}' | tr -d ' ')}
 
 echo "==> [1/3] Building frontend (static export)"
 cd "$WEB"
-NEXT_EXPORT=1 NEXT_PUBLIC_DESKTOP=1 NEXT_PUBLIC_API_URL="" npm run build
+NEXT_PUBLIC_DEPLOYMENT_PROFILE=Desktop NEXT_PUBLIC_API_URL="" npm run build
 
 echo "==> [2/3] Copying static UI into wwwroot"
 rm -rf "$API/wwwroot"
 mkdir -p "$API/wwwroot"
-cp -r "$WEB/out/." "$API/wwwroot/"
+cp -r "$WEB/.next-export/." "$API/wwwroot/"
 
 echo "==> [3/3] Publishing self-contained desktop app ($RID)"
 cd "$ROOT/wretched-whispers-server"
 dotnet publish WretchedWhispers.Api/WretchedWhispers.Api.csproj \
   -c Release -r "$RID" --self-contained \
-  -p:DesktopBuild=true \
+  -p:DeploymentProfile=Desktop \
   -p:PublishSingleFile=true \
   -p:IncludeNativeLibrariesForSelfExtract=true \
   -o "$ROOT/dist/$RID"

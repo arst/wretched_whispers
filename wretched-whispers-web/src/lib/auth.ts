@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/stores/authStore";
 import { apiFetch, resetCsrfToken } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /**
  * Log in with email and password. Updates the auth store on success.
@@ -11,7 +11,7 @@ export async function login(
   email: string,
   password: string
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/auth/login?useCookies=true`, {
+  const response = await fetch(`${API_URL}/api/auth/login?useCookies=true`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -38,7 +38,7 @@ export async function register(
   email: string,
   password: string
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/auth/register`, {
+  const response = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -57,7 +57,7 @@ export async function register(
  */
 export async function verifyToken(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/auth/me`, {
+    const response = await fetch(`${API_URL}/api/auth/me`, {
       credentials: "include",
     });
     return response.ok;

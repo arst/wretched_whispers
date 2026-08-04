@@ -15,18 +15,28 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>WretchedWhispers.Console-dev</UserSecretsId>
+    <DeploymentProfile Condition="'$(DeploymentProfile)'==''">Server</DeploymentProfile>
   </PropertyGroup>
 
-  <!-- Desktop build: -p:DesktopBuild=true switches on the Photino native shell + the
-       #if DESKTOP runtime branch. Off (the default) → hosted web build, never ships Photino. -->
-  <PropertyGroup Condition="'$(DesktopBuild)'=='true'">
-    <DefineConstants>$(DefineConstants);DESKTOP</DefineConstants>
+  <PropertyGroup Condition="'$(DeploymentProfile)'=='Server'">
+    <DefineConstants>$(DefineConstants);DEPLOYMENT_SERVER</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(DeploymentProfile)'=='StandaloneContainer'">
+    <DefineConstants>$(DefineConstants);DEPLOYMENT_STANDALONE_CONTAINER</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(DeploymentProfile)'=='Desktop'">
+    <DefineConstants>$(DefineConstants);DEPLOYMENT_DESKTOP</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="Desktop\**" Condition="'$(DesktopBuild)'!='true'" />
+    <Compile Remove="Desktop\**" Condition="'$(DeploymentProfile)'!='Desktop'" />
   </ItemGroup>
-  <ItemGroup Condition="'$(DesktopBuild)'=='true'">
+  <ItemGroup Condition="'$(DeploymentProfile)'=='Desktop'">
     <PackageReference Include="Photino.NET" Version="4.0.16" />
   </ItemGroup>
+
+  <Target Name="ValidateDeploymentProfile" BeforeTargets="BeforeBuild"
+          Condition="'$(DeploymentProfile)'!='Server' and '$(DeploymentProfile)'!='StandaloneContainer' and '$(DeploymentProfile)'!='Desktop'">
+    <Error Text="Invalid DeploymentProfile '$(DeploymentProfile)'. Expected Server, StandaloneContainer, or Desktop." />
+  </Target>
 
 </Project>
