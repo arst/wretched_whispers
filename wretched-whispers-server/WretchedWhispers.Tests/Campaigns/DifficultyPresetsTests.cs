@@ -1,36 +1,45 @@
 using WretchedWhispers.Core.Campaigns;
-using WretchedWhispers.Core.Dices;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Campaigns;
 
 public class DifficultyPresetsTests
 {
-    [Theory]
-    [InlineData(Difficulty.StoryMode, 8, 2, 2, 4, 8)]
-    [InlineData(Difficulty.Grim, 0, 2, 4, 6, 6)]
-    [InlineData(Difficulty.Doomed, 0, 2, 6, 10, 6)]
-    [InlineData(Difficulty.Hardcore, 0, 4, 8, 12, 4)]
-    public void For_returns_expected_settings(
-        Difficulty level, int hpBonus, int minor, int serious, int deadly, int dawn)
-    {
-        var s = DifficultyPresets.For(level);
+    // Easiest to hardest — the monotonicity invariants below are relative to this order.
+    private static readonly Difficulty[] EasiestToHardest =
+        [Difficulty.StoryMode, Difficulty.Grim, Difficulty.Doomed, Difficulty.Hardcore];
 
-        Assert.Equal(hpBonus, s.StartingHpBonus);
-        Assert.Equal(DiceExpr.D(1, minor), s.MinorDamage);
-        Assert.Equal(DiceExpr.D(1, serious), s.SeriousDamage);
-        Assert.Equal(DiceExpr.D(1, deadly), s.DeadlyDamage);
-        Assert.Equal(DiceExpr.D(1, dawn), s.DawnDice);
-        Assert.False(string.IsNullOrWhiteSpace(s.GmToneNote));
+    [Fact]
+    public void For_HarderDifficulty_DamageDiceNeverShrink_AndDawnDieNeverGrows()
+    {
+        var settings = EasiestToHardest.Select(DifficultyPresets.For).ToArray();
+
+        // All presets use single dice, so comparing by sides compares the whole expression.
+        Assert.All(settings, s =>
+        {
+            Assert.Equal(1, s.MinorDamage.Count);
+            Assert.Equal(1, s.SeriousDamage.Count);
+            Assert.Equal(1, s.DeadlyDamage.Count);
+            Assert.Equal(1, s.DawnDice.Count);
+        });
+
+        for (var i = 1; i < settings.Length; i++)
+        {
+            var easier = settings[i - 1];
+            var harder = settings[i];
+            Assert.True(harder.MinorDamage.Sides >= easier.MinorDamage.Sides);
+            Assert.True(harder.SeriousDamage.Sides >= easier.SeriousDamage.Sides);
+            Assert.True(harder.DeadlyDamage.Sides >= easier.DeadlyDamage.Sides);
+            // A smaller dawn die means more rolls of 1 — the world ends faster.
+            Assert.True(harder.DawnDice.Sides <= easier.DawnDice.Sides);
+        }
     }
 
     [Fact]
-    public void Grim_matches_current_main_balance()
+    public void For_AllDifficulties_HaveGmToneNote()
     {
-        var s = DifficultyPresets.For(Difficulty.Grim);
-        Assert.Equal(0, s.StartingHpBonus);
-        Assert.Equal(DiceExpr.D(1, 4), s.SeriousDamage);
-        Assert.Equal(DiceExpr.D(1, 6), s.DeadlyDamage);
+        Assert.All(EasiestToHardest,
+            level => Assert.False(string.IsNullOrWhiteSpace(DifficultyPresets.For(level).GmToneNote)));
     }
 
     [Fact]

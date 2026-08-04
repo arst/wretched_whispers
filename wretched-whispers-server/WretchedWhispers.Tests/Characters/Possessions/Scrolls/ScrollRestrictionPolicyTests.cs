@@ -8,31 +8,23 @@ namespace WretchedWhispers.Tests.Characters.Possessions.Scrolls;
 
 public class ScrollRestrictionPolicyTests
 {
-    [Fact]
-    public void CanUseScrolls_OnlyAllowsIfWeaponIsNotTwoHandedAndArmorIsNoOrLight()
+    [Theory]
+    // One-handed weapon: armor decides -- only None or Light allows casting.
+    [InlineData(WeaponKind.Knife, ArmorTier.None, true)]
+    [InlineData(WeaponKind.Knife, ArmorTier.Light, true)]
+    [InlineData(WeaponKind.Knife, ArmorTier.Medium, false)]
+    [InlineData(WeaponKind.Knife, ArmorTier.Heavy, false)]
+    // Two-handed weapon: never, regardless of armor.
+    [InlineData(WeaponKind.Zweihander, ArmorTier.None, false)]
+    [InlineData(WeaponKind.Zweihander, ArmorTier.Light, false)]
+    [InlineData(WeaponKind.Zweihander, ArmorTier.Medium, false)]
+    [InlineData(WeaponKind.Zweihander, ArmorTier.Heavy, false)]
+    public void CanUseScrolls_RequiresFreeHandAndLightOrNoArmor(
+        WeaponKind weaponKind, ArmorTier armorTier, bool expected)
     {
-        var weapon = Weapon.Create(WeaponKind.Knife);
-        var armorNo = new Armor(ArmorTier.None);
-        var armorLight = new Armor(ArmorTier.Light);
-        var armorMedium = new Armor(ArmorTier.Medium);
-        var armorHeavy = new Armor(ArmorTier.Heavy);
+        var weapon = Weapon.Create(weaponKind);
+        var armor = new Armor(armorTier);
 
-        Assert.True(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorNo));
-        Assert.True(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorLight));
-        Assert.False(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorMedium));
-        Assert.False(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorHeavy));
-    }
-
-    [Fact]
-    public void CanUseScrolls_DoesNotAllowIfWeaponIsTwoHandedRegardlessOfArmor()
-    {
-        var weapon = Weapon.Create(WeaponKind.Zweihander);
-        var armorNo = new Armor(ArmorTier.None);
-        var armorLight = new Armor(ArmorTier.Light);
-        var armorHeavy = new Armor(ArmorTier.Heavy);
-
-        Assert.False(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorNo));
-        Assert.False(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorLight));
-        Assert.False(ScrollRestrictionPolicy.CanUseScrolls(weapon, armorHeavy));
+        Assert.Equal(expected, ScrollRestrictionPolicy.CanUseScrolls(weapon, armor));
     }
 }

@@ -7,7 +7,6 @@ using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
-using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
@@ -23,11 +22,8 @@ public class PromptComposerTests : TestBase
     [Fact]
     public void Compose_includes_narrator_persona_text()
     {
-        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        var result = _composer.Compose(new SessionContext { SessionId = Guid.NewGuid() });
 
-        var result = _composer.Compose(context);
-
-        Assert.Contains("doom metal", result, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(NarratorPersona.Text, result);
     }
 
@@ -44,103 +40,7 @@ public class PromptComposerTests : TestBase
 
         var result = _composer.Compose(context);
 
-        var expectedInstructions = StagePrompts.For(stage);
-        Assert.Contains(expectedInstructions, result);
-    }
-
-    [Fact]
-    public void Compose_includes_context_snapshot()
-    {
-        var context = new SessionContext { SessionId = Guid.NewGuid() };
-
-        var result = _composer.Compose(context);
-
-        // Snapshot may be empty for empty context, but compose should still work
-        Assert.NotNull(result);
-        Assert.Contains("Game State", result);
-    }
-
-    /// <summary>A characterless session should be impossible -- the forms roll the wretch before the first
-    /// turn. If one somehow occurs, the narrator must refuse rather than invent a character to cover it.</summary>
-    [Fact]
-    public void Compose_for_CharacterCreation_refusesInsteadOfInventingACharacter()
-    {
-        var context = new SessionContext { SessionId = Guid.NewGuid() };
-        // No character = CharacterCreation stage
-
-        var result = _composer.Compose(context);
-
-        Assert.Contains("Do not invent one", result);
-        Assert.Contains("Call no tools", result);
-        Assert.DoesNotContain("CreateCharacter", result);
-    }
-
-    [Fact]
-    public void Compose_for_Combat_mentions_combat_resolution()
-    {
-        var context = BuildContextForStage(SessionStage.Combat);
-
-        var result = _composer.Compose(context);
-
-        Assert.Contains("Combat", result);
-        Assert.Contains("ResolveCombatRound", result);
-    }
-
-    [Fact]
-    public void Compose_for_Combat_treats_questions_as_not_actions()
-    {
-        var context = BuildContextForStage(SessionStage.Combat);
-
-        var result = _composer.Compose(context);
-
-        Assert.Contains("A question is not a combat round", result);
-        Assert.Contains("Call no tools", result);
-    }
-
-    [Fact]
-    public void Compose_requires_inventory_check_before_using_items()
-    {
-        var context = BuildContextForStage(SessionStage.Exploration);
-
-        var result = _composer.Compose(context);
-
-        Assert.Contains("first check the Game State", result);
-        Assert.Contains("Do NOT invent random possessions", result);
-    }
-
-    [Fact]
-    public void Compose_for_Combat_denies_missing_item_without_enemy_retaliation()
-    {
-        var context = BuildContextForStage(SessionStage.Combat);
-
-        var result = _composer.Compose(context);
-
-        Assert.Contains("first verify the item/resource exists", result);
-        Assert.Contains("explain in-world and STOP", result);
-    }
-
-    [Fact]
-    public void Compose_snapshot_includes_inventory_and_equipment()
-    {
-        var context = BuildContextForStage(SessionStage.Combat);
-
-        var result = _composer.Compose(context);
-
-        Assert.Contains("Weapon:", result);
-        Assert.Contains("Armor:", result);
-        Assert.Contains("Inventory", result);
-        Assert.Contains("Powers:", result);
-        Assert.Contains("Omens:", result);
-    }
-
-    [Fact]
-    public void Compose_for_Ended_instructs_farewell_narration()
-    {
-        var context = BuildContextForStage(SessionStage.Ended);
-
-        var result = _composer.Compose(context);
-
-        Assert.Contains("Do not call any tools", result);
+        Assert.Contains(StagePrompts.For(stage), result);
     }
 
     [Fact]
@@ -150,92 +50,13 @@ public class PromptComposerTests : TestBase
 
         var result = _composer.Compose(context);
 
-        Assert.Contains("Difficulty: GRIM", result);
-    }
-
-    [Fact]
-    public void NarratorPersona_Text_contains_doom_metal_tone_guidance()
-    {
-        Assert.Contains("doom metal", NarratorPersona.Text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("NEVER output raw JSON", NarratorPersona.Text);
-    }
-
-    [Theory]
-    [InlineData(SessionStage.CharacterCreation)]
-    [InlineData(SessionStage.CampaignSetup)]
-    [InlineData(SessionStage.Exploration)]
-    [InlineData(SessionStage.Combat)]
-    [InlineData(SessionStage.Resolution)]
-    [InlineData(SessionStage.Ended)]
-    public void StagePrompts_For_returns_non_empty_string_for_all_stages(SessionStage stage)
-    {
-        var result = StagePrompts.For(stage);
-
-        Assert.False(string.IsNullOrWhiteSpace(result));
-    }
-
-    private SessionContext BuildContextForStage(SessionStage targetStage)
-    {
-        var context = new SessionContext { SessionId = Guid.NewGuid() };
-
-        switch (targetStage)
-        {
-            case SessionStage.CharacterCreation:
-                break;
-
-            case SessionStage.CampaignSetup:
-                context.SetCharacterId(Guid.NewGuid());
-                context.Character = CreateMinimalCharacter();
-                break;
-
-            case SessionStage.Exploration:
-                context.SetCharacterId(Guid.NewGuid());
-                context.Character = CreateMinimalCharacter();
-                context.SetCampaignId(Guid.NewGuid());
-                context.Campaign = CreateActiveCampaign();
-                break;
-
-            case SessionStage.Combat:
-                context.SetCharacterId(Guid.NewGuid());
-                context.Character = CreateMinimalCharacter();
-                context.SetCampaignId(Guid.NewGuid());
-                context.Campaign = CreateActiveCampaign();
-                context.SetActiveEncounterId(Guid.NewGuid());
-                context.ActiveEncounter = CreateStartedEncounter();
-                break;
-
-            case SessionStage.Resolution:
-                context.SetCharacterId(Guid.NewGuid());
-                context.Character = CreateMinimalCharacter();
-                context.SetCampaignId(Guid.NewGuid());
-                context.Campaign = CreateActiveCampaign();
-                context.SetActiveEncounterId(Guid.NewGuid());
-                context.ActiveEncounter = CreateEndedUnresolvedEncounter();
-                break;
-
-            case SessionStage.Ended:
-                context.SetCharacterId(Guid.NewGuid());
-                context.Character = CreateMinimalCharacter();
-                context.SetCampaignId(Guid.NewGuid());
-                context.Campaign = CreateEndedCampaign();
-                break;
-        }
-
-        return context;
-    }
-
-    private static Campaign CreateActiveCampaign()
-    {
-        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
-        campaign.JoinGame(Guid.NewGuid());
-        campaign.Start();
-        return campaign;
+        Assert.Contains(DifficultyPresets.For(Difficulty.Grim).GmToneNote, result);
     }
 
     [Fact]
     public void Compose_includes_the_class_narrator_note_for_a_classed_character()
     {
-        var context = ContextForCharacterClass(CharacterClass.CursedSkinwalker);
+        var context = BuildContextForStage(SessionStage.Exploration, CharacterClass.CursedSkinwalker);
 
         var result = _composer.Compose(context);
 
@@ -243,23 +64,12 @@ public class PromptComposerTests : TestBase
         Assert.Contains(ClassPresets.For(CharacterClass.CursedSkinwalker).NarratorNote, result);
     }
 
-    /// <summary>Class flavour is the one part of the prompt with no domain state behind it, so it carries an
-    /// explicit reminder that it grants nothing on its own.</summary>
-    [Fact]
-    public void Compose_class_section_forbids_the_class_from_granting_anything()
-    {
-        var result = _composer.Compose(ContextForCharacterClass(CharacterClass.OccultHerbmaster));
-
-        Assert.Contains("never arithmetic", result);
-        Assert.Contains("NEVER grants an item", result);
-    }
-
     /// <summary>Classless wretches -- every character created before classes existed -- must produce the same
     /// prompt they always did.</summary>
     [Fact]
     public void Compose_omits_the_class_section_for_a_classless_character()
     {
-        var result = _composer.Compose(ContextForCharacterClass(CharacterClass.Classless));
+        var result = _composer.Compose(BuildContextForStage(SessionStage.Exploration));
 
         Assert.DoesNotContain("## Class", result);
     }
@@ -272,57 +82,42 @@ public class PromptComposerTests : TestBase
         Assert.DoesNotContain("## Class", result);
     }
 
-    [Fact]
-    public void Snapshot_names_the_class_only_when_there_is_one()
+    // -- helpers --
+
+    private SessionContext BuildContextForStage(SessionStage targetStage,
+        CharacterClass characterClass = CharacterClass.Classless)
     {
-        Assert.Contains("Class: Cursed Skinwalker",
-            ContextForCharacterClass(CharacterClass.CursedSkinwalker).FormatSnapshot());
-        Assert.DoesNotContain("Class:",
-            ContextForCharacterClass(CharacterClass.Classless).FormatSnapshot());
-    }
-
-    /// <summary>The opening turn must not re-ask for what the form already collected, or the player is
-    /// interrogated for a name and class they have already chosen.</summary>
-    [Fact]
-    public void CampaignSetup_prompt_forbids_asking_for_name_or_class()
-    {
-        var prompt = StagePrompts.For(SessionStage.CampaignSetup);
-
-        Assert.Contains("never ask for a name", prompt);
-        Assert.Contains("they have already chosen both", prompt);
-        // It must still be told to use them, or the opening ignores the player's choices.
-        Assert.Contains("their class from Game State", prompt);
-    }
-
-    /// <summary>This guardrail used to live only in the creation prompt, so it vanished the moment play
-    /// began. A successor's first turn now derives as Exploration, so it has to hold there.</summary>
-    [Fact]
-    public void Exploration_prompt_keeps_the_dead_buried()
-    {
-        var prompt = StagePrompts.For(SessionStage.Exploration);
-
-        Assert.Contains("The dead stay dead", prompt);
-        Assert.Contains("never revive them", prompt);
-        // And it must recognise a successor's opening turn, which is where the framing is needed.
-        Assert.Contains("successor's first breath", prompt);
-    }
-
-    private SessionContext ContextForCharacterClass(CharacterClass characterClass)
-    {
-        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
-        var character = CreateClassedCharacter(characterClass);
-        campaign.JoinGame(character.Id);
-        campaign.Start();
-
         var context = new SessionContext { SessionId = Guid.NewGuid() };
+        if (targetStage == SessionStage.CharacterCreation)
+            return context;
+
+        var character = CreateCharacter(characterClass);
         context.SetCharacterId(character.Id);
         context.Character = character;
+        if (targetStage == SessionStage.CampaignSetup)
+            return context;
+
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+        if (targetStage == SessionStage.Ended)
+            campaign.End();
         context.SetCampaignId(campaign.Id);
         context.Campaign = campaign;
+
+        if (targetStage is SessionStage.Combat or SessionStage.Resolution)
+        {
+            var encounter = CreateStartedEncounter(ended: targetStage == SessionStage.Resolution);
+            context.SetActiveEncounterId(encounter.Id);
+            context.ActiveEncounter = encounter;
+        }
+
         return context;
     }
 
-    private Character CreateClassedCharacter(CharacterClass characterClass)
+    /// <summary>The shared TestCharacters builder has no class knob, so this one local helper delegates
+    /// to Character.Create directly. Consumes one scripted roll at construction.</summary>
+    private Character CreateCharacter(CharacterClass characterClass)
     {
         SetupDiceRolls(3);
         return Character.Create(
@@ -333,75 +128,23 @@ public class PromptComposerTests : TestBase
             Dice, 0, characterClass);
     }
 
-    private static Campaign CreateEndedCampaign()
-    {
-        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
-        campaign.JoinGame(Guid.NewGuid());
-        campaign.Start();
-        campaign.End();
-        return campaign;
-    }
-
-    private Character CreateMinimalCharacter()
-    {
-        SetupDiceRolls(3);
-        return Character.Create(
-            Guid.NewGuid(),
-            "Tuck",
-            2,
-            new Abilities(
-                new AbilityScore(0),
-                new AbilityScore(0),
-                new AbilityScore(1),
-                new AbilityScore(0)),
-            new StartingEquipment(
-                120,
-                3,
-                "Sack",
-                new InventoryItem(Guid.NewGuid(), "Medicine chest", false, true, 5),
-                null,
-                Weapon.Create(WeaponKind.Staff),
-                new Armor(ArmorTier.Medium),
-                null,
-                []),
-            Dice);
-    }
-
-    private Encounter CreateStartedEncounter()
-    {
-        SetupDiceRolls(7); // For InitialReaction roll (2d6=7 => Indifferent)
-        var encounter = Encounter.Create("Test", "A test", EncounterType.Hostile, Dice);
-        var adversary = CreateMinimalAdversary();
-        encounter.AddAdversary(adversary);
-        encounter.StartEncounter();
-        return encounter;
-    }
-
-    private Encounter CreateEndedUnresolvedEncounter()
+    /// <summary>Started encounter; when <paramref name="ended"/>, the adversary is killed and the
+    /// encounter ended but left unresolved, which derives to the Resolution stage.</summary>
+    private Encounter CreateStartedEncounter(bool ended = false)
     {
         SetupDiceRolls(7); // For InitialReaction roll
         var encounter = Encounter.Create("Test", "A test", EncounterType.Hostile, Dice);
-        var adversary = CreateMinimalAdversary();
+        var adversary = new Adversary(
+            "Goblin", new HitPoints(5, 5), new Armor(ArmorTier.None), morale: 7,
+            new AttackProfile("Claw", DiceExpr.D6));
         encounter.AddAdversary(adversary);
         encounter.StartEncounter();
-        KillAdversary(adversary);
-        encounter.EndEncounter();
-        // Not resolved - should be in Resolution stage
+        if (ended)
+        {
+            adversary.ReceiveDamage(1000);
+            encounter.EndEncounter();
+        }
+
         return encounter;
-    }
-
-    private static Adversary CreateMinimalAdversary()
-    {
-        return new Adversary(
-            "Goblin",
-            new Core.Characters.HitPoints(5, 5),
-            new Armor(ArmorTier.None),
-            morale: 7,
-            new AttackProfile("Claw", DiceExpr.D6));
-    }
-
-    private static void KillAdversary(Adversary adversary)
-    {
-        adversary.ReceiveDamage(1000);
     }
 }

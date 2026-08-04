@@ -1,23 +1,17 @@
 using Microsoft.Extensions.AI;
+using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Repositories;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Persistence;
 
-public class ChatHistoryRoundTripTests : IDisposable
+public sealed class SqliteChatHistoryRepositoryTests : SqliteTestBase
 {
-    private readonly SqliteTestBase _db;
     private readonly SqliteChatHistoryRepository _repo;
 
-    public ChatHistoryRoundTripTests()
+    public SqliteChatHistoryRepositoryTests()
     {
-        _db = new SqliteTestBase();
-        _repo = new SqliteChatHistoryRepository(_db.Db);
-    }
-
-    public void Dispose()
-    {
-        _db.Dispose();
+        _repo = new SqliteChatHistoryRepository(Db);
     }
 
     [Fact]
@@ -40,31 +34,12 @@ public class ChatHistoryRoundTripTests : IDisposable
         Assert.Null(await _repo.GetLastActivity(campaignId));
 
         var sessionId = await _repo.CreateSession(campaignId);
-        var afterCreate = await _repo.GetLastActivity(campaignId);
-        Assert.NotNull(afterCreate);
+        Assert.NotNull(await _repo.GetLastActivity(campaignId));
 
         await _repo.SaveMessage(sessionId, new ChatMessage(ChatRole.User, "hello"));
         var afterMessage = await _repo.GetLastActivity(campaignId);
-        Assert.NotNull(afterMessage);
-        Assert.True(afterMessage >= afterCreate);
-    }
-
-    [Fact]
-    public async Task SaveMessage_LoadSession_RoundTripsSimpleUserTextMessage()
-    {
-        var campaignId = Guid.NewGuid();
-        var sessionId = await _repo.CreateSession(campaignId);
-
-        var original = new ChatMessage(ChatRole.User, "Hello, Game Master!");
-
-        await _repo.SaveMessage(sessionId, original);
-        var loaded = await _repo.LoadSession(sessionId);
-
-        Assert.NotNull(loaded);
-        Assert.Single(loaded);
-        var msg = loaded[0];
-        Assert.Equal(ChatRole.User, msg.Role);
-        Assert.Equal("Hello, Game Master!", msg.Text);
+        var messageTimestamp = Db.ChatMessages.Single(m => m.SessionId == sessionId).Timestamp;
+        Assert.Equal(messageTimestamp, afterMessage);
     }
 
     [Fact]
@@ -170,12 +145,68 @@ public class ChatHistoryRoundTripTests : IDisposable
         var newer = await _repo.CreateSession(campaignId);
 
         // Make ordering unambiguous regardless of clock resolution.
-        var olderEntity = _db.Db.ChatSessions.Single(s => s.Id == older);
+        var olderEntity = Db.ChatSessions.Single(s => s.Id == older);
         olderEntity.StartedAt = DateTime.UtcNow.AddMinutes(-10);
-        await _db.Db.SaveChangesAsync();
+        await Db.SaveChangesAsync();
 
         var sessions = await _repo.GetSessionsForCampaign(campaignId);
 
         Assert.Equal(new[] { newer, older }, sessions);
+    }
+
+    [Fact]
+    public async Task GetSummary_NoSummarySaved_ReturnsNull()
+    {
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+        Assert.Null(await _repo.GetSummary(sessionId));
+    }
+
+    [Fact]
+    public async Task SaveSummary_ThenGet_RoundTrips()
+    {
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+        await _repo.SaveSummary(sessionId, new ChatSummary("the tale so far", 42));
+
+        var summary = await _repo.GetSummary(sessionId);
+
+        Assert.NotNull(summary);
+        Assert.Equal("the tale so far", summary.Text);
+        Assert.Equal(42, summary.CoveredCount);
+    }
+
+    [Fact]
+    public async Task SaveSummary_UnknownSession_Throws()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _repo.SaveSummary(Guid.NewGuid(), new ChatSummary("x", 1)));
+    }
+
+    [Fact]
+    public async Task MarkOpened_UpdatesOpeningTimestamp()
+    {
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+        var openedAt = DateTime.UtcNow.AddDays(-1);
+
+        await _repo.MarkOpened(sessionId, openedAt);
+
+        Assert.Equal(openedAt, await _repo.GetLastOpened(sessionId));
+    }
+
+    [Fact]
+    public async Task RecapCache_IsKeyedToActivity_NotOpening()
+    {
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+        var activity = await _repo.GetSessionLastActivity(sessionId);
+        Assert.NotNull(activity);
+        await _repo.SaveRecap(sessionId, new ChatRecap("cached doom", activity.Value));
+
+        await _repo.MarkOpened(sessionId, DateTime.UtcNow.AddHours(1));
+
+        Assert.Equal(new ChatRecap("cached doom", activity.Value), await _repo.GetRecap(sessionId));
+        Assert.Equal(activity, await _repo.GetSessionLastActivity(sessionId));
+
+        await _repo.SaveMessage(sessionId, new ChatMessage(ChatRole.User, "I disturb the world"));
+
+        Assert.NotEqual(activity, await _repo.GetSessionLastActivity(sessionId));
     }
 }

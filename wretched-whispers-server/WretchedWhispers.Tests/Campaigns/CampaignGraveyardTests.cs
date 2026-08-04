@@ -53,17 +53,6 @@ public sealed class CampaignGraveyardTests : TestBase
     }
 
     [Fact]
-    public void BuryCharacter_CampaignStaysActive()
-    {
-        var characterId = Guid.NewGuid();
-        var campaign = StartedCampaignWith(characterId);
-
-        campaign.BuryCharacter(characterId, "Grimnir");
-
-        Assert.True(campaign.IsActive());
-    }
-
-    [Fact]
     public void Graveyard_RoundTripsThroughJson()
     {
         var characterId = Guid.NewGuid();

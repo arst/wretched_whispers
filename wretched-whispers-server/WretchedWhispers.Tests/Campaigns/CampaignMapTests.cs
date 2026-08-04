@@ -1,12 +1,11 @@
 using System.Text.Json;
 using Xunit;
 using WretchedWhispers.Core.Campaigns;
-using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
 
 namespace WretchedWhispers.Tests.Campaigns;
 
-public sealed class CampaignMapTests : TestBase
+public sealed class CampaignMapTests
 {
     private readonly JsonSerializerOptions _options = AggregateJsonOptions.Create();
 

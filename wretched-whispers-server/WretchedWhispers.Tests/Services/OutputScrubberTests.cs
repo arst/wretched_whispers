@@ -51,7 +51,8 @@ public class OutputScrubberTests
         var result = OutputScrubber.RedactGuids(text, out var redacted);
 
         Assert.True(redacted);
-        Assert.DoesNotContain("-", result); // both GUIDs (and their hyphens) gone
+        Assert.DoesNotMatch(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", result);
         Assert.Contains("crawl from the dark.", result);
     }
 }

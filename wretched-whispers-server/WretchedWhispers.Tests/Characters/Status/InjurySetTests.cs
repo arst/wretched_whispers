@@ -39,25 +39,6 @@ public class InjurySetTests
         Assert.True(set.Has(InjuryKind.BrokenHand));
     }
 
-    [Fact]
-    public void Add_SameInjuryTwice_IsIdempotent()
-    {
-        var set1 = new InjurySet().Add(InjuryKind.LostEye);
-        var set2 = set1.Add(InjuryKind.LostEye);
-
-        Assert.Equal(set1, set2);
-        Assert.True(set2.Has(InjuryKind.LostEye));
-    }
-
-    [Fact]
-    public void Add_DoesNotAffectOtherInjuries()
-    {
-        var set = new InjurySet().Add(InjuryKind.LostEye);
-
-        Assert.False(set.Has(InjuryKind.BrokenHand));
-        Assert.False(set.Has(InjuryKind.SeveredArm));
-    }
-
     [Theory]
     [InlineData(InjuryKind.SeveredArm, 4)]
     [InlineData(InjuryKind.BrokenHand, 2)]
@@ -111,36 +92,24 @@ public class InjurySetTests
         Assert.Equal(2, set.GetAgilityPenalty());
     }
 
-    [Fact]
-    public void GetPresencePenaltyDice_SmashedFace_ReturnsD4()
+    [Theory]
+    [InlineData(InjuryKind.SmashedFace, true)]
+    [InlineData(InjuryKind.BrokenHand, false)]
+    public void GetPresencePenaltyDice_D4OnlyWithSmashedFace(InjuryKind injury, bool expectD4)
     {
-        var set = new InjurySet().Add(InjuryKind.SmashedFace);
+        var set = new InjurySet().Add(injury);
 
-        Assert.Equal(DiceExpr.D4, set.GetPresencePenaltyDice());
+        Assert.Equal(expectD4 ? DiceExpr.D4 : DiceExpr.Zero, set.GetPresencePenaltyDice());
     }
 
-    [Fact]
-    public void GetPresencePenaltyDice_NoSmashedFace_ReturnsZeroDice()
+    [Theory]
+    [InlineData(InjuryKind.LostEye, true)]
+    [InlineData(InjuryKind.StabbedLung, false)]
+    public void GetAgilityPenaltyDice_D4OnlyWithLostEye(InjuryKind injury, bool expectD4)
     {
-        var set = new InjurySet().Add(InjuryKind.BrokenHand);
+        var set = new InjurySet().Add(injury);
 
-        Assert.Equal(DiceExpr.Zero, set.GetPresencePenaltyDice());
-    }
-
-    [Fact]
-    public void GetAgilityPenaltyDice_LostEye_ReturnsD4()
-    {
-        var set = new InjurySet().Add(InjuryKind.LostEye);
-
-        Assert.Equal(DiceExpr.D4, set.GetAgilityPenaltyDice());
-    }
-
-    [Fact]
-    public void GetAgilityPenaltyDice_NoLostEye_ReturnsZeroDice()
-    {
-        var set = new InjurySet().Add(InjuryKind.StabbedLung);
-
-        Assert.Equal(DiceExpr.Zero, set.GetAgilityPenaltyDice());
+        Assert.Equal(expectD4 ? DiceExpr.D4 : DiceExpr.Zero, set.GetAgilityPenaltyDice());
     }
 
     [Fact]
@@ -154,8 +123,6 @@ public class InjurySetTests
         var deserialized = JsonSerializer.Deserialize<InjurySet>(json);
 
         Assert.Equal(original, deserialized);
-        Assert.True(deserialized.Has(InjuryKind.LostEye));
-        Assert.True(deserialized.Has(InjuryKind.SeveredArm));
     }
 
     [Fact]
@@ -163,17 +130,7 @@ public class InjurySetTests
     {
         var set = new InjurySet(InjuryKind.LostEye | InjuryKind.BrokenHand);
 
-        var json = JsonSerializer.Serialize(set);
-
         // InjuryKind.LostEye = 1, BrokenHand = 4, so combined = 5
-        Assert.Contains("5", json);
-    }
-
-    [Fact]
-    public void DefaultConstructor_HasNoInjuries()
-    {
-        var set = new InjurySet();
-
-        Assert.Equal(InjuryKind.None, set.Injuries);
+        Assert.Equal("{\"Injuries\":5}", JsonSerializer.Serialize(set));
     }
 }

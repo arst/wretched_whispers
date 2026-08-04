@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Tests.Sessions;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Auth;
@@ -24,81 +25,9 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
     }
 
     [Fact]
-    public async Task Register_WithValidCredentials_Returns200()
-    {
-        var response = await _client.PostAsJsonAsync("/auth/register", new
-        {
-            email = "register@test.com",
-            password = "darkdoom42"
-        });
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Login_WithValidCredentials_ReturnsAccessTokenAndRefreshToken()
-    {
-        // Register first
-        await _client.PostAsJsonAsync("/auth/register", new
-        {
-            email = "login@test.com",
-            password = "darkdoom42"
-        });
-
-        // Login
-        var response = await _client.PostAsJsonAsync("/auth/login?useCookies=false", new
-        {
-            email = "login@test.com",
-            password = "darkdoom42"
-        });
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(json.TryGetProperty("accessToken", out var accessToken));
-        Assert.True(json.TryGetProperty("refreshToken", out var refreshToken));
-        Assert.False(string.IsNullOrEmpty(accessToken.GetString()));
-        Assert.False(string.IsNullOrEmpty(refreshToken.GetString()));
-    }
-
-    [Fact]
-    public async Task Login_WithWrongPassword_Returns401()
-    {
-        // Register first
-        await _client.PostAsJsonAsync("/auth/register", new
-        {
-            email = "wrongpwd@test.com",
-            password = "darkdoom42"
-        });
-
-        // Login with wrong password
-        var response = await _client.PostAsJsonAsync("/auth/login?useCookies=false", new
-        {
-            email = "wrongpwd@test.com",
-            password = "wrongpassword"
-        });
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task AuthMe_WithValidBearerToken_ReturnsUserId()
     {
-        // Register + Login
-        await _client.PostAsJsonAsync("/auth/register", new
-        {
-            email = "authme@test.com",
-            password = "darkdoom42"
-        });
-
-        var loginResponse = await _client.PostAsJsonAsync("/auth/login?useCookies=false", new
-        {
-            email = "authme@test.com",
-            password = "darkdoom42"
-        });
-
-        var loginJson = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var accessToken = loginJson.GetProperty("accessToken").GetString()!;
+        var accessToken = await AuthFlow.RegisterAndLogin(_client, "authme@test.com");
 
         // Call /auth/me with bearer token
         var request = new HttpRequestMessage(HttpMethod.Get, "/auth/me");

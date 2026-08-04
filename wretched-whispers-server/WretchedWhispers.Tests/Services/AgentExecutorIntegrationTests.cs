@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using WretchedWhispers.Engine.Models;
@@ -40,32 +39,35 @@ public class AgentExecutorIntegrationTests
             NullLogger<AgentExecutor>.Instance);
     }
 
-    private static (AgentToolProvider Provider, ICharactersRepository CharsRepo) CreateToolProvider()
+    private static AgentToolProvider CreateToolProvider()
     {
-        var charsRepo = new Mock<ICharactersRepository>();
-        // CreateCharacter saves then the wrapper reads back via the returned DTO; Save is a no-op mock.
-        charsRepo.Setup(r => r.Save(It.IsAny<Character>())).Returns(Task.CompletedTask);
+        var charsRepo = new Mock<ICharactersRepository>().Object;
         var campsRepo = new Mock<ICampaignsRepository>().Object;
         var encsRepo = new Mock<IEncountersRepository>().Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
 
-        var provider = new AgentToolProvider(
-            charsRepo.Object,
+        return new AgentToolProvider(
+            charsRepo,
             encsRepo,
-            new CharacterService(charsRepo.Object, dice),
-            new CampaignService(campsRepo, charsRepo.Object, dice),
-            new EncounterService(dice, charsRepo.Object, encsRepo),
+            new CharacterService(charsRepo, dice),
+            new CampaignService(campsRepo, charsRepo, dice),
+            new EncounterService(dice, charsRepo, encsRepo),
             dice,
             NullLogger<AgentToolProvider>.Instance);
-        return (provider, charsRepo.Object);
+    }
+
+    /// <summary>The shared arrange: a fresh session context and the Exploration-stage tool set.</summary>
+    private static (IReadOnlyList<AIFunction> Tools, SessionContext Ctx) ExplorationToolsAndContext()
+    {
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var (tools, _) = CreateToolProvider().GetToolsForStage(ctx, SessionStage.Exploration);
+        return (tools, ctx);
     }
 
     [Fact]
     public async Task PlainNarrative_IsStreamedAsNarrativeChunks()
     {
-        var (provider, _) = CreateToolProvider();
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
+        var (tools, ctx) = ExplorationToolsAndContext();
 
         var client = new ScriptedChatClient(
             ChatResponses.Text("The world rots. A name, wretch?"));
@@ -83,9 +85,7 @@ public class AgentExecutorIntegrationTests
     [Fact]
     public async Task ModelToolCall_IsAutoInvoked_MutatesStateAndEmitsToolResult()
     {
-        var (provider, _) = CreateToolProvider();
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
+        var (tools, ctx) = ExplorationToolsAndContext();
 
         // First call: model requests CreateEncounter. Second call: model narrates the result.
         var client = new ScriptedChatClient(
@@ -117,9 +117,7 @@ public class AgentExecutorIntegrationTests
     [Fact]
     public async Task PreToolFabrication_IsSuppressed_PostToolNarrationSurvives()
     {
-        var (provider, _) = CreateToolProvider();
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
+        var (tools, ctx) = ExplorationToolsAndContext();
 
         // The model fabricates an outcome BEFORE calling the tool, then narrates after.
         var client = new ScriptedChatClient(
@@ -149,11 +147,34 @@ public class AgentExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task GuidSplitAcrossStreamedChunks_IsStillScrubbed()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+
+        // The GUID arrives split across two streamed updates, so no single chunk matches the GUID
+        // pattern — only the buffered, joined narrative does. This pins the executor's buffering:
+        // scrubbing per-chunk would let the leaked id through.
+        var client = new ChunkedTextChatClient(
+            "The sludge rat 7504b8e9-3c59-",
+            "47b6-b38b-96c0bb5f30bd lunges at you.");
+        var executor = CreateExecutor(client);
+
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in executor.ExecuteAsync(tools, ctx, Guid.NewGuid(), "hello", CancellationToken.None))
+            events.Add(evt);
+
+        var narrative = string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text));
+        Assert.DoesNotMatch(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", narrative);
+        Assert.DoesNotContain("7504b8e9", narrative);
+        Assert.Contains("The sludge rat", narrative);
+        Assert.Contains("lunges at you.", narrative);
+    }
+
+    [Fact]
     public async Task TransientFailure_IsNotRetried_ByTheExecutor()
     {
-        var (provider, _) = CreateToolProvider();
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = provider.GetToolsForStage(ctx, SessionStage.Exploration);
+        var (tools, ctx) = ExplorationToolsAndContext();
 
         var client = new ThrowingChatClient(new HttpRequestException("transient upstream failure"));
         var executor = CreateExecutor(client);
@@ -214,6 +235,28 @@ public class AgentExecutorIntegrationTests
             var response = await GetResponseAsync(messages, options, cancellationToken);
             foreach (var message in response.Messages)
                 yield return new ChatResponseUpdate(message.Role, message.Contents);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+    }
+
+    /// <summary>Streams one assistant message as several raw text updates — a chunk boundary can fall
+    /// mid-GUID, which <see cref="ScriptedChatClient"/> (one update per message) cannot express.</summary>
+    private sealed class ChunkedTextChatClient(params string[] chunks) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Concat(chunks))));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var chunk in chunks)
+                yield return new ChatResponseUpdate(ChatRole.Assistant, chunk);
+            await Task.CompletedTask;
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;

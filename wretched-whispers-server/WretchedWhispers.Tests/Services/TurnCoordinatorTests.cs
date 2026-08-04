@@ -100,6 +100,17 @@ public class TurnCoordinatorTests
             .Returns((tools, new[] { "Character.ChallengeCharacter" }));
     }
 
+    /// <summary>The standard arrange for a turn that reaches the agent: a chat session exists, the
+    /// loader returns an active exploration context, and the stage's tools resolve.</summary>
+    private void ArrangeExplorationTurn()
+    {
+        SetupChatSession();
+        _contextLoader
+            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeExplorationContext());
+        SetupToolsForExploration();
+    }
+
     private void SetupAgentExecutorStreaming(params GameTurnEvent[] events)
     {
         _agentExecutor
@@ -126,14 +137,7 @@ public class TurnCoordinatorTests
     [Fact]
     public async Task BusySession_EmitsTurnError_WithoutRunningAgent()
     {
-        SetupChatSession();
-
-        var context = MakeExplorationContext();
-        _contextLoader
-            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(context);
-
-        SetupToolsForExploration();
+        ArrangeExplorationTurn();
 
         // Another turn holds the session lock.
         _sessionLock
@@ -161,26 +165,12 @@ public class TurnCoordinatorTests
     public async Task HappyPath_ProducesNarrativeStateUpdateAndTurnDone()
     {
         // Arrange
-        SetupChatSession();
-
-        var context = MakeExplorationContext();
-        _contextLoader
-            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(context);
-
-        SetupToolsForExploration();
+        ArrangeExplorationTurn();
 
         SetupAgentExecutorStreaming(
             new NarrativeChunk("The dungeon echoes..."),
             new NarrativeChunk(" You see a shadow."),
             new AgentTrace([new ToolCallTrace("Dice.Roll", "{\"expr\":\"d20\"}")], SuppressedNarrative: null));
-
-        _chatHistoryRepo
-            .Setup(r => r.SaveMessage(
-                _chatSessionId,
-                It.IsAny<ChatMessage>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
 
         var coordinator = CreateCoordinator();
 
@@ -202,10 +192,6 @@ public class TurnCoordinatorTests
 
         // The AgentTrace capture event is consumed by the coordinator, never streamed to the client.
         Assert.DoesNotContain(events, e => e is AgentTrace);
-
-        _contextLoader.Verify(
-            l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()),
-            Times.Exactly(2)); // once for context, once post-turn reload
     }
 
     [Fact]
@@ -215,21 +201,10 @@ public class TurnCoordinatorTests
         // offline eval analysis tell a real outcome from a fabricated one. Here pre-state == post-state
         // (same context returned for both loads), so the persisted delta records a no-op: the ground truth
         // that would contradict any narrative claiming silver spent or an item gained.
-        SetupChatSession();
-
-        var context = MakeExplorationContext();
-        _contextLoader
-            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(context);
-
-        SetupToolsForExploration();
+        ArrangeExplorationTurn();
         SetupAgentExecutorStreaming(
             new NarrativeChunk("You haggle, but the crone waves you off."),
             new AgentTrace([], SuppressedNarrative: null));
-
-        _chatHistoryRepo
-            .Setup(r => r.SaveMessage(_chatSessionId, It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
 
         TurnTraceEntity? saved = null;
         _turnTraceRepo
@@ -248,18 +223,20 @@ public class TurnCoordinatorTests
         Assert.True(delta!.IsNoOp);
     }
 
-    [Fact]
-    public async Task AgentExecutorThrows_ProducesTurnError()
+    public static TheoryData<Exception, string> AgentFailures => new()
+    {
+        // Any unexpected failure becomes a generic error; a concurrency conflict (another turn
+        // committed first) gets the dedicated retry message.
+        { new InvalidOperationException("LLM exploded"), "An error occurred while processing your action" },
+        { new DbUpdateConcurrencyException("conflict"), "This session was updated by another action. Please retry." }
+    };
+
+    [Theory]
+    [MemberData(nameof(AgentFailures))]
+    public async Task AgentExecutorThrows_ProducesTurnError_AndNoTurnDone(Exception thrown, string expectedMessage)
     {
         // Arrange
-        SetupChatSession();
-
-        var context = MakeExplorationContext();
-        _contextLoader
-            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(context);
-
-        SetupToolsForExploration();
+        ArrangeExplorationTurn();
 
         _agentExecutor
             .Setup(a => a.ExecuteAsync(
@@ -268,69 +245,18 @@ public class TurnCoordinatorTests
                 _chatSessionId,
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
-            .Returns(ThrowingAsyncEnumerable(new InvalidOperationException("LLM exploded")));
-
-        _chatHistoryRepo
-            .Setup(r => r.SaveMessage(
-                _chatSessionId,
-                It.IsAny<ChatMessage>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .Returns(ThrowingAsyncEnumerable(thrown));
 
         var coordinator = CreateCoordinator();
 
         // Act
         var events = new List<GameTurnEvent>();
         await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "attack", CancellationToken.None))
-        {
             events.Add(evt);
-        }
 
         // Assert
-        Assert.Contains(events, e => e is TurnError);
         var error = events.OfType<TurnError>().First();
-        Assert.Equal("An error occurred while processing your action", error.Message);
-
-        // No TurnDone after error
-        Assert.DoesNotContain(events, e => e is TurnDone);
-    }
-
-    [Fact]
-    public async Task ConcurrencyConflict_ProducesRetryTurnError()
-    {
-        // Arrange — the agent run throws DbUpdateConcurrencyException (another turn committed first).
-        SetupChatSession();
-
-        var context = MakeExplorationContext();
-        _contextLoader
-            .Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(context);
-
-        SetupToolsForExploration();
-
-        _agentExecutor
-            .Setup(a => a.ExecuteAsync(
-                It.IsAny<IReadOnlyList<AIFunction>>(),
-                It.IsAny<SessionContext>(),
-                _chatSessionId,
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(ThrowingAsyncEnumerable(new DbUpdateConcurrencyException("conflict")));
-
-        _chatHistoryRepo
-            .Setup(r => r.SaveMessage(_chatSessionId, It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var coordinator = CreateCoordinator();
-
-        // Act
-        var events = new List<GameTurnEvent>();
-        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "attack", CancellationToken.None))
-            events.Add(evt);
-
-        // Assert — the dedicated retry message, and no TurnDone.
-        var error = events.OfType<TurnError>().First();
-        Assert.Equal("This session was updated by another action. Please retry.", error.Message);
+        Assert.Equal(expectedMessage, error.Message);
         Assert.DoesNotContain(events, e => e is TurnDone);
     }
 

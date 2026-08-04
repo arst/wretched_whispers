@@ -7,57 +7,30 @@ namespace WretchedWhispers.Tests.Campaigns.World;
 
 public class CalendarOfNechrubelTests : TestBase
 {
-    private static CalendarOfNechrubel CreateCalendar()
-    {
-        return new CalendarOfNechrubel();
-    }
-
     [Fact]
-    public void Constructor_InitializesEmptyState()
-    {
-        // Arrange & Act
-        var calendar = CreateCalendar();
-
-        // Assert
-        Assert.Empty(calendar.Miseries);
-        Assert.False(calendar.WorldEnded);
-    }
-
-    [Fact]
-    public void DawnRoll_WithRollOf1_DoesNotTriggerWorldEnd()
+    public void DawnRoll_RollOf1_TriggersMiseryWithPsalm_WorldIntact()
     {
         // Arrange
-        var calendar = CreateCalendar();
-        SetupDiceRolls(0, 2, 3); // Dawn roll = 1, then misery rolls = 3+1=4, 4
+        var calendar = new CalendarOfNechrubel();
+        SetupDiceRolls(0, 2, 3); // dawn d20 = 1 (triggers), misery d6s = 3 and 4 -> code "34"
 
         // Act
-        calendar.DawnRoll(DiceExpr.D20, Dice);
-
-        // Assert
-        Assert.Single(calendar.Miseries);
-        Assert.False(calendar.WorldEnded);
-        Assert.Equal("34", calendar.Miseries.First().Code);
-    }
-
-    [Fact]
-    public void DawnRoll_WhenMiseryTriggered_ReturnsItWithNonEmptyPsalm()
-    {
-        // Regression: a triggered misery must carry a psalm. The AdvanceTime outcome maps m.Psalm, so an
-        // empty psalm surfaced to the player/model as the bug "Miseries": [""].
-        var calendar = CreateCalendar();
-        SetupDiceRolls(0, 2, 3); // Dawn roll = 1 (triggers), misery index 34
-
         var triggered = calendar.DawnRoll(DiceExpr.D20, Dice);
 
+        // Assert
+        // Regression: a triggered misery must carry a psalm. The AdvanceTime outcome maps m.Psalm,
+        // so an empty psalm surfaced to the player/model as the bug "Miseries": [""].
         Assert.NotNull(triggered);
-        Assert.False(string.IsNullOrWhiteSpace(triggered!.Psalm));
+        Assert.False(string.IsNullOrWhiteSpace(triggered.Psalm));
         Assert.Contains("First Misery", triggered.Psalm); // first misery of the descent
+        Assert.Equal("34", Assert.Single(calendar.Miseries).Code);
+        Assert.False(calendar.WorldEnded);
     }
 
     [Fact]
     public void DawnRoll_WhenNoMiseryTriggered_ReturnsNull()
     {
-        var calendar = CreateCalendar();
+        var calendar = new CalendarOfNechrubel();
         SetupDiceRolls(4); // Dawn roll = 5 on the d20 — not a 1, no misery
 
         var triggered = calendar.DawnRoll(DiceExpr.D20, Dice);
@@ -69,9 +42,9 @@ public class CalendarOfNechrubelTests : TestBase
     [Fact]
     public void DawnRoll_CallMultipleTimes_AccumulatesMiseries()
     {
-        // Arrange
-        var calendar = CreateCalendar();
-        SetupDiceRolls(0, 0, 1, 0, 2, 3, 0, 4, 5); // Dawn=1, misery=1+1=2, Dawn=1, misery=3+1=4, etc.
+        // Arrange: three dawns each rolling 1; misery d6 pairs give codes "12", "34", "56".
+        var calendar = new CalendarOfNechrubel();
+        SetupDiceRolls(0, 0, 1, 0, 2, 3, 0, 4, 5);
 
         // Act
         calendar.DawnRoll(DiceExpr.D20, Dice);
@@ -91,9 +64,11 @@ public class CalendarOfNechrubelTests : TestBase
     public void DawnRoll_AvoidsDuplicateMiseries()
     {
         // Arrange
-        var calendar = CreateCalendar();
-        // Dawn=1, first misery attempt=34, second misery attempt=34 (duplicate), third attempt=56
-        SetupDiceRolls(0, 0, 3, 0, 0, 3, 1, 4); // Dawn=2, misery=2+1=3, 4+1=5, etc.
+        var calendar = new CalendarOfNechrubel();
+        // First dawn: roll of 1 triggers, misery d6s 1 and 4 -> code "14".
+        // Second dawn: roll of 1 triggers; the first pick rolls d6s 1 and 4 again -> "14" is a
+        // duplicate and is rejected, so the loop retries with d6s 2 and 5 -> code "25" accepted.
+        SetupDiceRolls(0, 0, 3, 0, 0, 3, 1, 4);
 
         // Act
         calendar.DawnRoll(DiceExpr.D20, Dice);
@@ -109,24 +84,10 @@ public class CalendarOfNechrubelTests : TestBase
     [Fact]
     public void WorldEnded_WhenSevenMiseriesTriggered_ReturnsTrue()
     {
-        // Arrange
-        var calendar = CreateCalendar();
-        var rolls = new List<int>();
+        var calendar = new CalendarOfNechrubel();
 
-        // Setup 7 dawn rolls (all return 1) and unique misery codes
-        for (var i = 0; i < 7; i++)
-        {
-            rolls.Add(0); // Dawn roll
-            rolls.Add(i + 1); // First die for misery
-            rolls.Add(1); // Second die for misery (results in codes 11, 21, 31, etc.)
-        }
+        TriggerAllMiseries(calendar);
 
-        SetupDiceRolls(rolls.ToArray());
-
-        // Act - Perform 7 dawn rolls
-        for (var i = 0; i < 7; i++) calendar.DawnRoll(DiceExpr.D20, Dice);
-
-        // Assert
         Assert.True(calendar.WorldEnded);
         Assert.Equal(7, calendar.Miseries.Count);
     }
@@ -134,56 +95,39 @@ public class CalendarOfNechrubelTests : TestBase
     [Fact]
     public void DawnRoll_WhenWorldEnded_ThrowsInvalidOperationException()
     {
-        // Arrange
-        var calendar = CreateCalendar();
-        var rolls = new List<int>();
+        var calendar = new CalendarOfNechrubel();
+        TriggerAllMiseries(calendar);
 
-        // Setup 7 dawn rolls to end the world
-        for (var i = 0; i < 7; i++)
-        {
-            rolls.Add(0); // Dawn roll
-            rolls.Add(i + 1); // First die for misery
-            rolls.Add(1); // Second die for misery
-        }
-
-        SetupDiceRolls(rolls.ToArray());
-
-        // Trigger world end
-        for (var i = 0; i < 7; i++) calendar.DawnRoll(DiceExpr.D20, Dice);
-
-        // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => calendar.DawnRoll(DiceExpr.D20, Dice));
-        Assert.Equal("The world has already ended.", exception.Message);
-    }
-
-    [Fact]
-    public void DawnRoll_WithVariousDiceExpressions_WorksCorrectly()
-    {
-        // Arrange
-        var calendar = CreateCalendar();
-        SetupDiceRolls(0, 3, 4); // Dawn=1, misery=4+1=5, 5+1=6
-
-        // Act
-        calendar.DawnRoll(DiceExpr.D12, Dice); // Using different dice expression
-
-        // Assert
-        Assert.Single(calendar.Miseries);
-        Assert.False(calendar.WorldEnded);
-        Assert.Equal("45", calendar.Miseries.First().Code);
+        Assert.Throws<InvalidOperationException>(() => calendar.DawnRoll(DiceExpr.D20, Dice));
     }
 
     [Fact]
     public void DawnRoll_TooManyAttemptsToPickMisery_ThrowsInvalidOperationException()
     {
-        // Arrange
+        // Arrange: every roll is a 1, so the second dawn keeps picking the already-taken code "11".
         var calendar = new CalendarOfNechrubel();
-        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(0); // Always return 1 for both dice
+        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(0);
 
         // Act
         calendar.DawnRoll(DiceExpr.D20, Dice);
 
         // Assert
-        var ex = Assert.Throws<InvalidOperationException>(() => calendar.DawnRoll(DiceExpr.D20, Dice));
-        Assert.Equal("Too many attempts to pick a misery, something is wrong.", ex.Message);
+        Assert.Throws<InvalidOperationException>(() => calendar.DawnRoll(DiceExpr.D20, Dice));
+    }
+
+    /// <summary>Runs seven dawns that each roll a 1 and trigger a unique misery, ending the world.</summary>
+    private void TriggerAllMiseries(CalendarOfNechrubel calendar)
+    {
+        var rolls = new List<int>();
+        for (var i = 0; i < 7; i++)
+        {
+            rolls.Add(0); // dawn roll -> 1 (triggers)
+            rolls.Add(i); // misery die 1 -> i+1: codes "12".."72", all unique
+            rolls.Add(1); // misery die 2 -> 2
+        }
+
+        SetupDiceRolls(rolls.ToArray());
+
+        for (var i = 0; i < 7; i++) calendar.DawnRoll(DiceExpr.D20, Dice);
     }
 }

@@ -4,47 +4,43 @@ using WretchedWhispers.Core.Dices;
 namespace WretchedWhispers.Tests;
 
 /// <summary>
-///     Base class for all unit tests that provides proper Dice initialization with a mocked random service.
+///     Base class for unit tests that provides a Dice instance backed by a mocked random service.
+///     NOTE: <see cref="IRandomService.GenerateRandomRoll"/> is 0-based — a queued value of 3 on a d6
+///     surfaces as a roll of 4.
 /// </summary>
-public abstract class TestBase : IDisposable
+public abstract class TestBase
 {
     protected TestBase()
     {
-        // Create a mock random service for predictable test results
         MockRandomService = new Mock<IRandomService>();
-
-        // Initialize a Dice instance with our mock
         Dice = new Dice(MockRandomService.Object);
     }
 
     protected Mock<IRandomService> MockRandomService { get; }
     protected Dice Dice { get; }
 
-    public virtual void Dispose()
-    {
-        // Clean up any test-specific setup
-        MockRandomService.Reset();
-    }
-
     /// <summary>
-    ///     Sets up the mock random service to return predictable dice roll results.
+    ///     Queues 0-based roll values returned in sequence. Throws once the queue is exhausted —
+    ///     falling back to real randomness would make the test silently nondeterministic.
     /// </summary>
-    /// <param name="rolls">Array of roll results to return in sequence</param>
     protected void SetupDiceRolls(params int[] rolls)
     {
         var queue = new Queue<int>(rolls);
         MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>()))
-            .Returns((int sides) => queue.Count > 0 ? queue.Dequeue() : Random.Shared.Next(1, sides));
+            .Returns((int sides) => queue.Count > 0
+                ? queue.Dequeue()
+                : throw new InvalidOperationException(
+                    $"Dice script exhausted: production rolled more than the {rolls.Length} scripted value(s). "
+                    + "Add the missing rolls to SetupDiceRolls."));
     }
 
     /// <summary>
-    ///     Sets up the mock random service to return a specific result for dice of a particular size.
+    ///     Returns a fixed 0-based value for every roll of a die with <paramref name="diceSides"/> sides
+    ///     (so a <paramref name="zeroBasedValue"/> of 0 is a roll of 1).
     /// </summary>
-    /// <param name="diceSides">The number of sides on the die</param>
-    /// <param name="result">The result to return (0-based, so result 0 = roll of 1)</param>
-    protected void SetupDiceRoll(int diceSides, int result)
+    protected void SetupDiceRoll(int diceSides, int zeroBasedValue)
     {
         MockRandomService.Setup(x => x.GenerateRandomRoll(diceSides))
-            .Returns(result);
+            .Returns(zeroBasedValue);
     }
 }
