@@ -34,7 +34,9 @@ public sealed class ChatHistoryReducerTests
         var result = await CreateReducer().ReduceAsync(_sessionId, Messages(10), CancellationToken.None);
 
         Assert.Equal(10, result.Count);
-        _chatClient.VerifyNoOtherCalls();
+        _chatClient.Verify(c => c.GetResponseAsync(
+            It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -50,7 +52,9 @@ public sealed class ChatHistoryReducerTests
         Assert.Equal(ChatRole.System, result[0].Role);
         Assert.Contains("earlier doom", result[0].Text);
         Assert.Equal("msg 50", result[1].Text);
-        _chatClient.VerifyNoOtherCalls();
+        _chatClient.Verify(c => c.GetResponseAsync(
+            It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -159,7 +163,9 @@ public sealed class ChatHistoryReducerTests
         var seeded = await CreateReducer().SeedEpitaphAsync(fallenId, Guid.NewGuid(), CancellationToken.None);
 
         Assert.False(seeded);
-        _chatClient.VerifyNoOtherCalls();
+        _chatClient.Verify(c => c.GetResponseAsync(
+            It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

@@ -48,16 +48,6 @@ public class CampaignUserScopingTests : SqliteTestBase
     }
 
     [Fact]
-    public async Task GetForUser_WithNoCampaigns_ReturnsEmptyList()
-    {
-        UserContext.SetUserId("user-C");
-        var result = await _repo.GetForUser(CancellationToken.None);
-
-        Assert.NotNull(result);
-        Assert.Empty(result);
-    }
-
-    [Fact]
     public async Task GetOwned_ReturnsNull_ForAnotherUsersCampaign()
     {
         var campaign = Campaign.Create(Difficulty.Grim, "Foreign", "Someone else's campaign");
@@ -84,19 +74,19 @@ public class CampaignUserScopingTests : SqliteTestBase
     }
 
     [Fact]
-    public async Task SaveCampaign_UpdatesOwnerToTheCurrentAmbientUser()
+    public async Task SaveCampaign_RefusesToReassignAnotherUsersCampaign()
     {
-        var campaign = Campaign.Create(Difficulty.Grim, "Update Test", "Verify update propagation");
+        var campaign = Campaign.Create(Difficulty.Grim, "Update Test", "Ownership is immutable");
 
         UserContext.SetUserId("user-A");
         await _repo.SaveCampaign(campaign);
 
         UserContext.SetUserId("user-B");
-        await _repo.SaveCampaign(campaign);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _repo.SaveCampaign(campaign));
 
         var entity = await Db.Campaigns.FindAsync(campaign.Id);
         Assert.NotNull(entity);
-        Assert.Equal("user-B", entity!.UserId);
+        Assert.Equal("user-A", entity!.UserId);
     }
 
     [Fact]

@@ -17,7 +17,8 @@ namespace WretchedWhispers.Tests;
 public static class TestCharacters
 {
     public static Character Create(Dice dice, int agility = 0, int presence = 0, int strength = 0,
-        int toughness = 0, int startingOmens = 0, int maxHp = 20)
+        int toughness = 0, int startingOmens = 0, int maxHp = 20,
+        ArmorTier armorTier = ArmorTier.None, WeaponKind weaponKind = WeaponKind.Sword)
     {
         var abilities = new Abilities(
             agility: new AbilityScore(agility),
@@ -27,8 +28,8 @@ public static class TestCharacters
         var equipment = new StartingEquipment(
             Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
             Gear1: null, Gear2: null,
-            Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(ArmorTier.None),
+            Weapon: Weapon.Create(weaponKind),
+            Armor: new Armor(armorTier),
             Shield: null, Scrolls: []);
         return Character.Create(Guid.NewGuid(), "TestHero", maxHp, abilities, equipment, dice, startingOmens);
     }

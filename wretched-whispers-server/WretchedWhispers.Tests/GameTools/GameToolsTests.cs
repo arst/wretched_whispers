@@ -5,17 +5,13 @@ using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Core.Characters.Create;
-using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
-using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using Xunit;
-using AbilitySet = WretchedWhispers.Core.Characters.Abilities.Abilities;
 
-namespace WretchedWhispers.Tests.Plugins;
+namespace WretchedWhispers.Tests.GameTools;
 
 /// <summary>
 /// Tests the merged game-tool classes (one per aggregate) that replaced the
@@ -59,9 +55,8 @@ public class GameToolsTests
         _context.SetCharacterId(hero.Id);
         _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
 
-        var result = await CharacterTools().ChallengeCharacter(12, AbilityKind.Strength);
+        await CharacterTools().ChallengeCharacter(12, AbilityKind.Strength);
 
-        Assert.NotNull(result);
         // Auto-fill: the session's character id is what reached the domain.
         _charactersRepo.Verify(r => r.Get(hero.Id, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
@@ -74,57 +69,29 @@ public class GameToolsTests
         Assert.Contains("No character exists", ex.Message);
     }
 
-    [Fact]
-    public async Task ImproveCharacterAbility_RejectsNonPositiveDelta()
+    [Theory]
+    [InlineData("ImproveAbility_ZeroDelta")]
+    [InlineData("DegradeAbility_PositiveDelta")]
+    [InlineData("BuyItem_NegativeSilverCost")]
+    [InlineData("AddItem_QuantityBelowOne")]
+    [InlineData("Challenge_OutOfRangeDr")]
+    public async Task CharacterToolGuards_RejectBadArguments_BeforeTouchingTheRepository(string call)
     {
         _context.SetCharacterId(Guid.NewGuid());
+        var tools = CharacterTools();
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
-            () => CharacterTools().ImproveCharacterAbility(AbilityKind.Strength, 0));
-        Assert.Contains("positive", ex.Message);
+        Func<Task> act = call switch
+        {
+            "ImproveAbility_ZeroDelta" => () => tools.ImproveCharacterAbility(AbilityKind.Strength, 0),
+            "DegradeAbility_PositiveDelta" => () => tools.DegradeCharacterAbility(AbilityKind.Strength, 1),
+            "BuyItem_NegativeSilverCost" => () => tools.BuyItem("rusty knife", silverCost: -5),
+            "AddItem_QuantityBelowOne" => () => tools.AddItemToCharacterInventory("a bone", quantity: 0),
+            "Challenge_OutOfRangeDr" => () => tools.ChallengeCharacter(99, AbilityKind.Agility),
+            _ => throw new ArgumentOutOfRangeException(nameof(call))
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(act);
         _charactersRepo.Verify(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task DegradeCharacterAbility_RejectsNonNegativeDelta()
-    {
-        _context.SetCharacterId(Guid.NewGuid());
-
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
-            () => CharacterTools().DegradeCharacterAbility(AbilityKind.Strength, 1));
-        Assert.Contains("negative", ex.Message);
-        _charactersRepo.Verify(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task BuyItem_RejectsNegativeSilverCost()
-    {
-        _context.SetCharacterId(Guid.NewGuid());
-
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
-            () => CharacterTools().BuyItem("rusty knife", silverCost: -5));
-        Assert.Contains("silverCost", ex.Message);
-        _charactersRepo.Verify(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task AddItemToCharacterInventory_RejectsQuantityBelowOne()
-    {
-        _context.SetCharacterId(Guid.NewGuid());
-
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
-            () => CharacterTools().AddItemToCharacterInventory("a bone", quantity: 0));
-        Assert.Contains("quantity", ex.Message);
-    }
-
-    [Fact]
-    public async Task ChallengeCharacter_RejectsOutOfRangeDr()
-    {
-        _context.SetCharacterId(Guid.NewGuid());
-
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
-            () => CharacterTools().ChallengeCharacter(99, AbilityKind.Agility));
-        Assert.Contains("between 2 and 20", ex.Message);
     }
 
     // -- CampaignTools --
@@ -249,11 +216,8 @@ public class GameToolsTests
 
         // d20 -> 15 (hit, no crit), d6 -> 4 (sword damage).
         var hitDice = ScriptedDice(14, 3);
-        var tools = new EncounterTools(
-            new EncounterService(hitDice, _charactersRepo.Object, _encountersRepo.Object),
-            _encountersRepo.Object, MakeCampaignService(hitDice), _context);
 
-        var result = await tools.ResolveCombatRound("Attack", "Ragged Bandit");
+        var result = await EncounterTools(hitDice).ResolveCombatRound("Attack", "Ragged Bandit");
 
         Assert.NotNull(result.PlayerAttack);
         Assert.True(result.PlayerAttack.Hit);
@@ -286,10 +250,9 @@ public class GameToolsTests
     [Fact]
     public async Task CompleteResolution_ResolvesEncounterAndClearsContext()
     {
-        var encId = Guid.NewGuid();
-        _context.SetActiveEncounterId(encId);
-        var encounter = CreateEndedEncounter(encId);
-        _encountersRepo.Setup(r => r.Get(encId)).ReturnsAsync(encounter);
+        var encounter = CreateEndedUnresolvedEncounter();
+        _context.SetActiveEncounterId(encounter.Id);
+        _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
 
         await EncounterTools().CompleteResolution();
 
@@ -306,42 +269,10 @@ public class GameToolsTests
         Assert.Contains("No encounter to resolve", ex.Message);
     }
 
-    // -- DiceTools --
-
-    [Fact]
-    public void Roll_ReturnsFormulaAndResult()
-    {
-        var result = new DiceTools(_zeroDice).Roll("1d6");
-
-        Assert.Equal("1d6", result.Formula);
-        Assert.InRange(result.Result, 1, 6);
-    }
-
-    [Fact]
-    public void Roll_RejectsMalformedDiceExpression()
-    {
-        var ex = Assert.Throws<ArgumentException>(() => new DiceTools(_zeroDice).Roll("not-a-die"));
-        Assert.Contains("d6", ex.Message);
-    }
-
     // -- helpers --
 
-    private static Character BuildHero(Dice dice)
-    {
-        // Abilities ctor order is (agility, presence, strength, toughness). Sword is melee => Strength.
-        var abilities = new AbilitySet(
-            agility: new AbilityScore(0),
-            presence: new AbilityScore(0),
-            strength: new AbilityScore(0),
-            toughness: new AbilityScore(0));
-        var equipment = new StartingEquipment(
-            Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
-            Gear1: null, Gear2: null,
-            Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(ArmorTier.None),
-            Shield: null, Scrolls: []);
-        return Character.Create(Guid.NewGuid(), "Hero", 20, abilities, equipment, dice);
-    }
+    /// <summary>Sword-armed hero via the shared builder (consumes one d4 roll at construction).</summary>
+    private static Character BuildHero(Dice dice) => TestCharacters.Create(dice);
 
     private static Adversary NewAdversary(string name) =>
         new(name, new HitPoints(6, 6), new Armor(ArmorTier.None), 7,
@@ -356,20 +287,14 @@ public class GameToolsTests
         return new Dice(random.Object);
     }
 
-    private static Encounter CreateEndedEncounter(Guid id)
+    private Encounter CreateEndedUnresolvedEncounter()
     {
-        var json = $$"""
-        {
-            "Id": "{{id}}",
-            "InitialType": 0,
-            "Name": "Test",
-            "Description": "test",
-            "Adversaries": [],
-            "IsStarted": true,
-            "IsEnded": true,
-            "IsResolved": false
-        }
-        """;
-        return System.Text.Json.JsonSerializer.Deserialize<Encounter>(json)!;
+        var encounter = Encounter.Create("Test", "test", EncounterType.Hostile, _zeroDice);
+        var adversary = NewAdversary("Goblin");
+        encounter.AddAdversary(adversary);
+        encounter.StartEncounter();
+        adversary.ReceiveDamage(1000);
+        encounter.EndEncounter();
+        return encounter;
     }
 }

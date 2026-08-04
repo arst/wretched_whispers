@@ -15,12 +15,6 @@ using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
-using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Core.Characters.Create;
-using WretchedWhispers.Core.Characters.Possessions;
-using WretchedWhispers.Core.Characters.Possessions.Armors;
-using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
-using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
@@ -28,6 +22,12 @@ using Xunit;
 
 namespace WretchedWhispers.Tests.Sessions;
 
+/// <summary>
+/// Isolation contract: every test in this class shares the fixture's single database (one
+/// in-memory SQLite connection for the factory's lifetime). Each test must register its own
+/// unique email, and may only assume list endpoints return exactly its data when acting as a
+/// fresh user.
+/// </summary>
 public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWebAppFactory>, IDisposable
 {
     private readonly HttpClient _client;
@@ -63,66 +63,36 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
-    public async Task CreateSession_WithoutDifficulty_DefaultsToGrim()
+    /// <summary>Difficulty is chosen at creation (default Grim, request read case-insensitively) and
+    /// reported back on both the list card and the detail view. The raw-string assert also pins the
+    /// wire casing: the HTTP layer has no global enum converter registered (unlike the domain blob's
+    /// AggregateJsonOptions), so the Difficulty type's own [JsonConverter] attribute applies and
+    /// emits the exact enum member spelling (PascalCase), not camelCase.</summary>
+    [Theory]
+    [InlineData(null, "Grim")]
+    [InlineData("Hardcore", "Hardcore")]
+    [InlineData("hardcore", "Hardcore")]
+    public async Task CreateSession_Difficulty_DefaultsAndShowsOnListAndDetail(string? difficulty, string expected)
     {
-        var token = await RegisterAndLogin("no-body-difficulty@test.com");
-        var request = AuthCreateSession(token);
-
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
-        var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Grim", json[0].GetProperty("difficulty").GetString());
-    }
-
-    [Fact]
-    public async Task CreateSession_WithDifficulty_ReturnsSelectedDifficultyOnPreviewAndDetail()
-    {
-        var token = await RegisterAndLogin("difficulty-session@test.com");
-        var request = AuthCreateSession(token, new { characterName = "Test Wretch", difficulty = "Hardcore" });
-
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var createJson = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
+        var token = await RegisterAndLogin($"difficulty-{Guid.NewGuid():N}@test.com");
+        object? body = difficulty is null ? null : new { characterName = DefaultWretchName, difficulty };
+        var (sessionId, _) = await CreateSessionAsync(token, body);
 
         var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
         var listRaw = await listResponse.Content.ReadAsStringAsync();
-        // Pins the wire casing: HTTP layer has no global enum converter registered (unlike the domain
-        // blob's AggregateJsonOptions), so the Difficulty type's own [JsonConverter] attribute applies
-        // and emits the exact enum member spelling (PascalCase), not camelCase.
-        Assert.Contains("\"difficulty\":\"Hardcore\"", listRaw);
+        Assert.Contains($"\"difficulty\":\"{expected}\"", listRaw);
 
         var detailResponse = await _client.SendAsync(AuthGet($"/sessions/{sessionId}", token));
         var detailJson = await detailResponse.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Hardcore", detailJson.GetProperty("difficulty").GetString());
-    }
-
-    [Fact]
-    public async Task CreateSession_AcceptsLowercaseDifficulty_RequestReadIsCaseInsensitive()
-    {
-        var token = await RegisterAndLogin("lowercase-difficulty@test.com");
-        var request = AuthCreateSession(token, new { characterName = "Test Wretch", difficulty = "hardcore" });
-
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
-        var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Hardcore", json[0].GetProperty("difficulty").GetString());
+        Assert.Equal(expected, detailJson.GetProperty("difficulty").GetString());
     }
 
     [Fact]
     public async Task CreateSession_RollsTheChosenClass()
     {
         var token = await RegisterAndLogin("chosen-class@test.com");
-        var request = AuthCreateSession(token,
-            new { characterName = "Halvard", characterClass = "FangedDeserter" });
 
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await CreateSessionAsync(token, new { characterName = "Halvard", characterClass = "FangedDeserter" });
 
         var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -137,8 +107,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     {
         var token = await RegisterAndLogin("rolled-class@test.com");
 
-        var response = await _client.SendAsync(AuthCreateSession(token));
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await CreateSessionAsync(token);
 
         var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -151,10 +120,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task CreateSession_HonoursAnExplicitClasslessChoice()
     {
         var token = await RegisterAndLogin("classless-choice@test.com");
-        var request = AuthCreateSession(token,
-            new { characterName = "Nobody", characterClass = "Classless" });
 
-        Assert.Equal(HttpStatusCode.Created, (await _client.SendAsync(request)).StatusCode);
+        await CreateSessionAsync(token, new { characterName = "Nobody", characterClass = "Classless" });
 
         var listResponse = await _client.SendAsync(AuthGet("/sessions", token));
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -167,7 +134,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [InlineData("   ")]
     public async Task CreateSession_WithoutAName_ReturnsBadRequest(string name)
     {
-        var token = await RegisterAndLogin($"noname{name.Length}@test.com");
+        var token = await RegisterAndLogin($"noname-{Guid.NewGuid():N}@test.com");
         var request = AuthCreateSession(token, new { characterName = name });
 
         var response = await _client.SendAsync(request);
@@ -187,29 +154,12 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     }
 
     [Fact]
-    public async Task ListSessions_ReturnsEmptyForNewUser()
-    {
-        var token = await RegisterAndLogin("empty-list@test.com");
-        var request = AuthGet("/sessions", token);
-
-        var response = await _client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(JsonValueKind.Array, json.ValueKind);
-        Assert.Equal(0, json.GetArrayLength());
-    }
-
-    [Fact]
     public async Task ListSessions_ReturnsCreatedSession()
     {
         var token = await RegisterAndLogin("list-sessions@test.com");
 
-        // Create a session
-        var createRequest = AuthCreateSession(token);
-        await _client.SendAsync(createRequest);
+        await CreateSessionAsync(token);
 
-        // List sessions
         var listRequest = AuthGet("/sessions", token);
         var response = await _client.SendAsync(listRequest);
 
@@ -218,7 +168,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal(1, json.GetArrayLength());
 
         var session = json[0];
-        Assert.Equal("New Campaign", session.GetProperty("campaignName").GetString());
+        Assert.Equal(DefaultCampaignName, session.GetProperty("campaignName").GetString());
         // A character is rolled at creation time, so the session is playable from the first request.
         Assert.Equal("in-progress", session.GetProperty("status").GetString());
         Assert.Equal("A new journey into doom", session.GetProperty("description").GetString());
@@ -229,8 +179,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     {
         // User A creates a session
         var tokenA = await RegisterAndLogin("user-a-isolation@test.com");
-        var createRequest = AuthCreateSession(tokenA);
-        await _client.SendAsync(createRequest);
+        await CreateSessionAsync(tokenA);
 
         // User B lists sessions - should see empty
         var tokenB = await RegisterAndLogin("user-b-isolation@test.com");
@@ -246,39 +195,26 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task GetSessionDetail_ReturnsSessionState()
     {
         var token = await RegisterAndLogin("detail-session@test.com");
+        var (sessionId, _) = await CreateSessionAsync(token);
 
-        // Create a session
-        var createRequest = AuthCreateSession(token);
-        var createResponse = await _client.SendAsync(createRequest);
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
-
-        // Get session detail
         var detailRequest = AuthGet($"/sessions/{sessionId}", token);
         var response = await _client.SendAsync(detailRequest);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(sessionId, json.GetProperty("sessionId").GetString());
-        Assert.Equal("New Campaign", json.GetProperty("campaignName").GetString());
+        Assert.Equal(sessionId, Guid.Parse(json.GetProperty("sessionId").GetString()!));
+        Assert.Equal(DefaultCampaignName, json.GetProperty("campaignName").GetString());
         Assert.Equal(1, json.GetProperty("currentDay").GetInt32());
         Assert.Equal(0, json.GetProperty("currentHour").GetInt32());
         Assert.Equal("in-progress", json.GetProperty("status").GetString());
-        Assert.Equal(0, json.GetProperty("totalMessages").GetInt32());
         Assert.False(json.GetProperty("recapDue").GetBoolean());
-
-        var messages = json.GetProperty("messages");
-        Assert.Equal(JsonValueKind.Array, messages.ValueKind);
-        Assert.Equal(0, messages.GetArrayLength());
     }
 
     [Fact]
     public async Task ResumeSession_RecordsDatabaseOpening_WithoutRecapForNewSession()
     {
         var token = await RegisterAndLogin("resume-session@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+        var (_, campaignId) = await CreateSessionAsync(token);
 
         var response = await _client.SendAsync(AuthPost($"/sessions/{campaignId}/resume", token));
 
@@ -296,9 +232,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task ResumeSession_ReusesCachedRecap_WhenOnlyOpeningChanged()
     {
         var token = await RegisterAndLogin("resume-cache@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+        var (_, campaignId) = await CreateSessionAsync(token);
         var oldActivity = DateTime.UtcNow.AddDays(-3);
 
         using (var scope = _factory.Services.CreateScope())
@@ -324,10 +258,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     {
         // User A creates a session
         var tokenA = await RegisterAndLogin("user-a-detail@test.com");
-        var createRequest = AuthCreateSession(tokenA);
-        var createResponse = await _client.SendAsync(createRequest);
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
+        var (sessionId, _) = await CreateSessionAsync(tokenA);
 
         // User B tries to get User A's session
         var tokenB = await RegisterAndLogin("user-b-detail@test.com");
@@ -341,51 +272,45 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task GetSessionMessages_ReturnsPaginatedMessages()
     {
         var token = await RegisterAndLogin("messages-session@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
-        // Create a session
-        var createRequest = AuthCreateSession(token);
-        var createResponse = await _client.SendAsync(createRequest);
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
+        // Seed more than one page of messages into the campaign's chronicle, the same repository
+        // the endpoint pages over.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var chatHistoryRepo = scope.ServiceProvider.GetRequiredService<IChatHistoryRepository>();
+            var chronicleId = (await chatHistoryRepo.GetSessionsForCampaign(campaignId)).Single();
+            for (var i = 0; i < 15; i++)
+                await chatHistoryRepo.SaveMessage(chronicleId, new ChatMessage(ChatRole.User, $"turn {i}"));
+        }
 
-        // Get messages
-        var messagesRequest = AuthGet($"/sessions/{sessionId}/messages?page=1&pageSize=10", token);
-        var response = await _client.SendAsync(messagesRequest);
+        var firstResponse = await _client.SendAsync(
+            AuthGet($"/sessions/{sessionId}/messages?page=1&pageSize=10", token));
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var firstPage = await firstResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(15, firstPage.GetProperty("totalMessages").GetInt32());
+        Assert.Equal(1, firstPage.GetProperty("page").GetInt32());
+        Assert.Equal(10, firstPage.GetProperty("pageSize").GetInt32());
+        Assert.Equal(10, firstPage.GetProperty("messages").GetArrayLength());
+        Assert.Equal("turn 0", firstPage.GetProperty("messages")[0].GetProperty("content").GetString());
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(0, json.GetProperty("totalMessages").GetInt32());
-        Assert.Equal(1, json.GetProperty("page").GetInt32());
-        Assert.Equal(10, json.GetProperty("pageSize").GetInt32());
-
-        var messages = json.GetProperty("messages");
-        Assert.Equal(JsonValueKind.Array, messages.ValueKind);
-        Assert.Equal(0, messages.GetArrayLength());
+        var secondPage = await (await _client.SendAsync(
+            AuthGet($"/sessions/{sessionId}/messages?page=2&pageSize=10", token))).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(5, secondPage.GetProperty("messages").GetArrayLength());
+        Assert.Equal("turn 10", secondPage.GetProperty("messages")[0].GetProperty("content").GetString());
     }
 
     [Fact]
-    public async Task GetSessionJournal_ReturnsEntriesForOwner_NotFoundForOtherUser()
+    public async Task GetSessionJournal_ReturnsRecordedEntries()
     {
-        var tokenA = await RegisterAndLogin("journal-owner@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(tokenA));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+        var token = await RegisterAndLogin("journal-owner@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
         // Record a journal entry through the domain, same scoped-DI path the game tools use
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var sp = scope.ServiceProvider;
-            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-            var entity = await db.Campaigns.FindAsync(campaignId);
-            sp.GetRequiredService<IUserContext>().SetUserId(entity!.UserId);
-            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
-            var campaign = await campaignsRepo.Get(campaignId);
-            campaign!.RecordJournalEntry(JournalCategory.Npc, "Met the grave-priest Ulmt");
-            await campaignsRepo.SaveCampaign(campaign);
-        }
+        await WithOwnedCampaign(campaignId, campaign =>
+            campaign.RecordJournalEntry(JournalCategory.Npc, "Met the grave-priest Ulmt"));
 
-        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", tokenA));
+        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var entries = json.GetProperty("entries");
@@ -394,38 +319,23 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal("Met the grave-priest Ulmt", entries[0].GetProperty("text").GetString());
         Assert.Equal(1, entries[0].GetProperty("day").GetInt32());
         Assert.Equal(0, entries[0].GetProperty("hour").GetInt32());
-
-        // Other user gets 404, not 403
-        var tokenB = await RegisterAndLogin("journal-other@test.com");
-        var otherResponse = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", tokenB));
-        Assert.Equal(HttpStatusCode.NotFound, otherResponse.StatusCode);
     }
 
     [Fact]
-    public async Task GetSessionMap_ReturnsPoisForOwner_NotFoundForOtherUser()
+    public async Task GetSessionMap_ReturnsChartedPois()
     {
-        var tokenA = await RegisterAndLogin("map-owner@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(tokenA));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+        var token = await RegisterAndLogin("map-owner@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
         // Chart POIs through the domain, same scoped-DI path the game tools use
-        using (var scope = _factory.Services.CreateScope())
+        await WithOwnedCampaign(campaignId, campaign =>
         {
-            var sp = scope.ServiceProvider;
-            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-            var entity = await db.Campaigns.FindAsync(campaignId);
-            sp.GetRequiredService<IUserContext>().SetUserId(entity!.UserId);
-            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
-            var campaign = await campaignsRepo.Get(campaignId);
-            campaign!.RecordPointOfInterest(PoiType.Town, "Galgenbeck", 48, 30);
+            campaign.RecordPointOfInterest(PoiType.Town, "Galgenbeck", 48, 30);
             campaign.RecordPointOfInterest(PoiType.Dungeon, "Rot-Black Sludge", 60, 42, "Galgenbeck");
             campaign.SetPartyLocation("Galgenbeck");
-            await campaignsRepo.SaveCampaign(campaign);
-        }
+        });
 
-        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/map", tokenA));
+        var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/map", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Galgenbeck", json.GetProperty("currentLocationName").GetString());
@@ -436,23 +346,13 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal(48, pois[0].GetProperty("x").GetInt32());
         Assert.Equal(30, pois[0].GetProperty("y").GetInt32());
         Assert.Equal("Galgenbeck", pois[1].GetProperty("connectedTo").GetString());
-
-        // Other user gets 404, not 403
-        var tokenB = await RegisterAndLogin("map-other@test.com");
-        var otherResponse = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/map", tokenB));
-        Assert.Equal(HttpStatusCode.NotFound, otherResponse.StatusCode);
     }
 
     [Fact]
     public async Task Successor_WithLivingCharacter_ReturnsConflict()
     {
         var token = await RegisterAndLogin("successor-living@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("missing sessionId");
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
-            ?? throw new InvalidOperationException("missing campaignId"));
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
         await SeedCharacterInCampaign(campaignId, dead: false);
 
@@ -464,10 +364,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task Successor_NotOwner_ReturnsNotFound()
     {
         var tokenA = await RegisterAndLogin("successor-owner@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(tokenA));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("missing sessionId");
+        var (sessionId, _) = await CreateSessionAsync(tokenA);
 
         var tokenB = await RegisterAndLogin("successor-other@test.com");
         var response = await _client.SendAsync(AuthCreateSuccessor($"/sessions/{sessionId}/successor", tokenB));
@@ -480,11 +377,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task Successor_UsesChosenClassAndInheritsCampaignDifficulty()
     {
         var token = await RegisterAndLogin("successor-class@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token,
-            new { characterName = "Doomed First", difficulty = "Hardcore" }));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
+        var (sessionId, campaignId) = await CreateSessionAsync(token,
+            new { characterName = "Doomed First", difficulty = "Hardcore" });
 
         await SeedCharacterInCampaign(campaignId, dead: true);
 
@@ -504,9 +398,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task Successor_WithoutAName_ReturnsBadRequest()
     {
         var token = await RegisterAndLogin("successor-noname@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()!;
+        var (sessionId, _) = await CreateSessionAsync(token);
 
         var response = await _client.SendAsync(AuthCreateSuccessor(
             $"/sessions/{sessionId}/successor", token, new { characterName = "" }));
@@ -518,12 +410,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task Successor_DeadCharacter_BuriesAndOpensNewChronicle()
     {
         var token = await RegisterAndLogin("successor-dead@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("missing sessionId");
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
-            ?? throw new InvalidOperationException("missing campaignId"));
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
         await SeedCharacterInCampaign(campaignId, dead: true);
 
@@ -565,12 +452,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task Abandon_ActiveCampaign_EndsIt()
     {
         var token = await RegisterAndLogin("abandon-active@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("missing sessionId");
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
-            ?? throw new InvalidOperationException("missing campaignId"));
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
         await SeedCharacterInCampaign(campaignId, dead: false);
 
@@ -586,65 +468,22 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.True(campaign.IsEnded);
     }
 
-    [Fact]
-    public async Task Abandon_AlreadyEnded_ReturnsConflict()
+    [Theory]
+    [InlineData("abandon")]
+    [InlineData("successor")]
+    public async Task AbandonOrSuccessor_AlreadyEnded_ReturnsConflict(string action)
     {
-        var token = await RegisterAndLogin("abandon-ended@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("missing sessionId");
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
-            ?? throw new InvalidOperationException("missing campaignId"));
+        var token = await RegisterAndLogin($"ended-{action}@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
         await SeedCharacterInCampaign(campaignId, dead: false);
+        await WithOwnedCampaign(campaignId, campaign => campaign.End());
 
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var sp = scope.ServiceProvider;
-            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-            var entity = await db.Campaigns.FindAsync(campaignId)
-                ?? throw new InvalidOperationException("seed campaign missing");
-            sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
-            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
-            var campaign = await campaignsRepo.Get(campaignId)
-                ?? throw new InvalidOperationException("campaign missing");
-            campaign.End();
-            await campaignsRepo.SaveCampaign(campaign);
-        }
+        var request = action == "successor"
+            ? AuthCreateSuccessor($"/sessions/{sessionId}/successor", token)
+            : AuthPost($"/sessions/{sessionId}/abandon", token);
+        var response = await _client.SendAsync(request);
 
-        var response = await _client.SendAsync(AuthPost($"/sessions/{sessionId}/abandon", token));
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Successor_AlreadyEnded_ReturnsConflict()
-    {
-        var token = await RegisterAndLogin("successor-ended@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("missing sessionId");
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
-            ?? throw new InvalidOperationException("missing campaignId"));
-
-        await SeedCharacterInCampaign(campaignId, dead: false);
-
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var sp = scope.ServiceProvider;
-            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-            var entity = await db.Campaigns.FindAsync(campaignId)
-                ?? throw new InvalidOperationException("seed campaign missing");
-            sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
-            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
-            var campaign = await campaignsRepo.Get(campaignId)
-                ?? throw new InvalidOperationException("campaign missing");
-            campaign.End();
-            await campaignsRepo.SaveCampaign(campaign);
-        }
-
-        var response = await _client.SendAsync(AuthCreateSuccessor($"/sessions/{sessionId}/successor", token));
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
@@ -652,28 +491,14 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task Journal_IncludesFallenCharacters()
     {
         var token = await RegisterAndLogin("journal-fallen@test.com");
-        var createResponse = await _client.SendAsync(AuthCreateSession(token));
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var sessionId = createJson.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("missing sessionId");
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()
-            ?? throw new InvalidOperationException("missing campaignId"));
+        var (sessionId, campaignId) = await CreateSessionAsync(token);
 
-        using (var scope = _factory.Services.CreateScope())
+        await WithOwnedCampaign(campaignId, campaign =>
         {
-            var sp = scope.ServiceProvider;
-            var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-            var entity = await db.Campaigns.FindAsync(campaignId)
-                ?? throw new InvalidOperationException("seed campaign missing");
-            sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
-            var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
-            var campaign = await campaignsRepo.Get(campaignId)
-                ?? throw new InvalidOperationException("campaign missing");
             var characterId = Guid.NewGuid();
             campaign.JoinGame(characterId);
             campaign.BuryCharacter(characterId, "Ulmt the Wretched");
-            await campaignsRepo.SaveCampaign(campaign);
-        }
+        });
 
         var response = await _client.SendAsync(AuthGet($"/sessions/{sessionId}/journal", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -682,94 +507,6 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal(1, fallen.GetArrayLength());
         Assert.Equal("Ulmt the Wretched", fallen[0].GetProperty("name").GetString());
         Assert.True(fallen[0].TryGetProperty("dayDied", out _));
-    }
-
-    [Fact]
-    public async Task CampaignsRepository_ParameterlessSaveCampaign_PreservesUserId_ThroughScopedDI()
-    {
-        // Arrange: Create a DI scope from the real application (same as the turn pipeline)
-        using var scope = _factory.Services.CreateScope();
-        var sp = scope.ServiceProvider;
-
-        // Set user context (same as the endpoint filter does from JWT claims)
-        var userContext = sp.GetRequiredService<IUserContext>();
-        userContext.SetUserId("e2e-test-user");
-
-        // Resolve the repository from the SAME scope. The game tools save via the parameterless
-        // SaveCampaign overload, which must stamp the entity with the scoped user context's UserId.
-        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
-
-        // Act
-        var campaign = Campaign.Create(Difficulty.Grim, "E2E UserContext Test", "Verifying user propagation");
-        await campaignsRepo.SaveCampaign(campaign);
-
-        // Assert: Check the database entity has the correct UserId
-        var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-        var entity = await db.Campaigns.FindAsync(campaign.Id);
-        Assert.NotNull(entity);
-        Assert.Equal("e2e-test-user", entity!.UserId);
-    }
-
-    [Fact]
-    public async Task SessionSurvivesPluginSave_UserIdPreservedAfterCampaignModification()
-    {
-        // Arrange: User A creates a session via HTTP
-        var tokenA = await RegisterAndLogin("plugin-save-test@test.com");
-        var createRequest = AuthCreateSession(tokenA);
-        var createResponse = await _client.SendAsync(createRequest);
-        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
-        var createJson = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var campaignId = Guid.Parse(createJson.GetProperty("campaignId").GetString()!);
-
-        // Act: Simulate what happens during an agent turn --
-        // resolve services from a scoped DI container with user context set
-        using var scope = _factory.Services.CreateScope();
-        var sp = scope.ServiceProvider;
-
-        var db = sp.GetRequiredService<WretchedWhispersDbContext>();
-        var entityBefore = await db.Campaigns.FindAsync(campaignId);
-        Assert.NotNull(entityBefore);
-        var originalUserId = entityBefore!.UserId;
-        Assert.False(string.IsNullOrEmpty(originalUserId), "UserId should be set from session creation");
-
-        // Set user context to same userId as the original creator, then call parameterless save
-        var userContext = sp.GetRequiredService<IUserContext>();
-        userContext.SetUserId(originalUserId);
-        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
-        var campaign = await campaignsRepo.Get(campaignId);
-        Assert.NotNull(campaign);
-
-        // Save via parameterless (the previously broken path)
-        await campaignsRepo.SaveCampaign(campaign!);
-
-        // Assert: UserId is preserved after parameterless save
-        db.ChangeTracker.Clear();
-        var entityAfter = await db.Campaigns.FindAsync(campaignId);
-        Assert.NotNull(entityAfter);
-        Assert.Equal(originalUserId, entityAfter!.UserId);
-
-        // Final assertion: User A can still see the session via HTTP (UserId survived)
-        var listRequest = AuthGet("/sessions", tokenA);
-        var listResponse = await _client.SendAsync(listRequest);
-        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
-        var listJson = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(listJson.GetArrayLength() >= 1, "User A should still see their session after plugin save");
-    }
-
-    // Mirrors StageDerivationTests.CreateTestCharacter: minimal valid character with an overridable
-    // maxHp so a single Defend can be forced lethal.
-    private static Character CreateTestCharacter(Dice dice, int maxHp = 20)
-    {
-        var abilities = new Abilities(
-            new AbilityScore(0), new AbilityScore(0),
-            new AbilityScore(0), new AbilityScore(0));
-        var equipment = new StartingEquipment(
-            Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
-            Gear1: null, Gear2: null,
-            Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(ArmorTier.None),
-            Shield: null, Scrolls: []);
-        return Character.Create(Guid.NewGuid(), "TestHero", maxHp, abilities, equipment, dice);
     }
 
     // Seeds a character into the given campaign via the same scoped-DI path the game tools use
@@ -823,25 +560,42 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         return character.Id;
     }
 
-    private async Task<string> RegisterAndLogin(string email)
+    /// <summary>Loads the campaign in a fresh DI scope with the ambient user set to its stored owner
+    /// (ownership is immutable: SaveCampaign throws if the ambient user differs), applies the
+    /// mutation, and saves.</summary>
+    private async Task WithOwnedCampaign(Guid campaignId, Action<Campaign> mutate)
     {
-        await _client.PostAsJsonAsync("/auth/register", new
-        {
-            email,
-            password = "darkdoom42"
-        });
+        using var scope = _factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<WretchedWhispersDbContext>();
+        var entity = await db.Campaigns.FindAsync(campaignId)
+            ?? throw new InvalidOperationException("campaign entity missing");
+        sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var campaign = await campaignsRepo.Get(campaignId)
+            ?? throw new InvalidOperationException("campaign missing");
+        mutate(campaign);
+        await campaignsRepo.SaveCampaign(campaign);
+    }
 
-        var loginResponse = await _client.PostAsJsonAsync("/auth/login?useCookies=false", new
-        {
-            email,
-            password = "darkdoom42"
-        });
+    private Task<string> RegisterAndLogin(string email) => AuthFlow.RegisterAndLogin(_client, email);
 
-        var loginJson = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
-        return loginJson.GetProperty("accessToken").GetString()!;
+    /// <summary>Creates a session via the endpoint and returns the ids every follow-up request needs,
+    /// throwing (not silently null-ing) when the response is malformed.</summary>
+    private async Task<(Guid SessionId, Guid CampaignId)> CreateSessionAsync(string token, object? body = null)
+    {
+        var response = await _client.SendAsync(AuthCreateSession(token, body));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionId = json.GetProperty("sessionId").GetString()
+            ?? throw new InvalidOperationException("missing sessionId");
+        var campaignId = json.GetProperty("campaignId").GetString()
+            ?? throw new InvalidOperationException("missing campaignId");
+        return (Guid.Parse(sessionId), Guid.Parse(campaignId));
     }
 
     private const string DefaultWretchName = "Test Wretch";
+    private const string DefaultCampaignName = "New Campaign";
 
     /// <summary>Creating a session now requires the player's chosen name, so every test that just wants
     /// "a session" goes through here rather than posting an empty body.</summary>

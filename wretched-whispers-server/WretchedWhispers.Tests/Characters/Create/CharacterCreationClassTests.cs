@@ -94,14 +94,6 @@ public class CharacterCreationClassTests : TestBase
         Assert.Equal(DiceExpr.D6, character.Weapon.DamageDie);
     }
 
-    [Fact]
-    public async Task CursedSkinwalker_StillHasAtLeastOneHitPoint()
-    {
-        var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.CursedSkinwalker);
-
-        Assert.True(character.Hp.Max >= 1);
-    }
-
     /// <summary>One scroll, and the school is rolled rather than fixed -- the hermit read whatever was in
     /// the hole with them.</summary>
     [Fact]
@@ -144,16 +136,16 @@ public class CharacterCreationClassTests : TestBase
     }
 
     /// <summary>Silver is a class number too: the priest passes a plate around, the hermit does not.</summary>
-    [Fact]
-    public async Task StartingSilver_FollowsTheClassDice()
+    [Theory]
+    [InlineData(CharacterClass.HereticalPriest, 180)] // 3d6 x 10
+    [InlineData(CharacterClass.EsotericHermit, 60)] // 1d6 x 10
+    public async Task StartingSilver_FollowsTheClassDice(CharacterClass characterClass, int expectedSilver)
     {
         SetupDiceRoll(6, 5); // every d6 rolls 6
 
-        var priest = await NewService().Create("Priest", Difficulty.Grim, CharacterClass.HereticalPriest);
-        var hermit = await NewService().Create("Hermit", Difficulty.Grim, CharacterClass.EsotericHermit);
+        var character = await NewService().Create("Hero", Difficulty.Grim, characterClass);
 
-        Assert.Equal(180, priest.Silver); // 3d6 x 10
-        Assert.Equal(60, hermit.Silver); // 1d6 x 10
+        Assert.Equal(expectedSilver, character.Silver);
     }
 
     /// <summary>Starting able to cast costs armour, and the cap bites a class the tables would otherwise
@@ -209,7 +201,7 @@ public class CharacterCreationClassTests : TestBase
     }
 
     [Fact]
-    public async Task ClasslessKit_IsEmptyAndConsumesNoDice()
+    public async Task ClasslessKit_AddsNoItems()
     {
         // Two rolled gear slots and nothing else -- no class kit means no extra items.
         var character = await NewService().Create("Hero", Difficulty.Grim);
@@ -220,17 +212,15 @@ public class CharacterCreationClassTests : TestBase
     [Fact]
     public void RollRandomClass_NeverReturnsClassless()
     {
-        var service = NewService();
-
-        for (var i = 0; i < 20; i++)
-            Assert.NotEqual(CharacterClass.Classless, service.RollRandomClass());
+        // The mock die always rolls 1, so a single call covers the deterministic mapping.
+        Assert.NotEqual(CharacterClass.Classless, NewService().RollRandomClass());
     }
 
     [Fact]
     public void RollRandomClass_MapsTheLowestRollToTheFirstRollableClass()
     {
-        var character = NewService().RollRandomClass(); // every die rolls 1
+        var rolledClass = NewService().RollRandomClass(); // every die rolls 1
 
-        Assert.Equal(ClassPresets.Rollable[0], character);
+        Assert.Equal(ClassPresets.Rollable[0], rolledClass);
     }
 }

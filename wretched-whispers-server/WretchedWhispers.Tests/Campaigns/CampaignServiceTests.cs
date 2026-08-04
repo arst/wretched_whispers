@@ -1,12 +1,6 @@
 using Moq;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Core.Characters.Create;
-using WretchedWhispers.Core.Characters.Possessions.Armors;
-using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
-using WretchedWhispers.Core.Characters.Possessions.Weapons;
-using WretchedWhispers.Core.Dices;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Campaigns;
@@ -27,14 +21,8 @@ public class CampaignServiceTests : TestBase
     [Fact]
     public async Task CreateCampaign_ShouldSaveCampaign()
     {
-        // Arrange
-        var name = "Test Campaign";
-        var description = "A test campaign";
+        await _service.CreateCampaign(Difficulty.Grim, "Test Campaign", "A test campaign");
 
-        // Act
-        await _service.CreateCampaign(Difficulty.Grim, name, description);
-
-        // Assert
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
     }
 
@@ -42,158 +30,120 @@ public class CampaignServiceTests : TestBase
     public async Task JoinCampaign_WithValidIds_ShouldSaveCampaign()
     {
         // Arrange
-        var campaignId = Guid.NewGuid();
-        var characterId = Guid.NewGuid();
-
         var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
-        var character = CreateTestCharacter(characterId);
+        var character = TestCharacters.Create(Dice);
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
         _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(character);
 
         // Act
-        await _service.JoinCampaign(campaignId, characterId);
+        await _service.JoinCampaign(Guid.NewGuid(), character.Id);
 
         // Assert
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
-        Assert.Contains(characterId, campaign.Players);
+        Assert.Contains(character.Id, campaign.Players);
     }
 
     [Fact]
-    public async Task JoinCampaign_WithInvalidCharacterId_ShouldThrowArgumentException()
+    public async Task JoinCampaign_WithInvalidCharacterId_ThrowsArgumentException()
     {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        var characterId = Guid.NewGuid();
-
         _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Character?)null);
 
-        // Act & Assert
-        try
-        {
-            await _service.JoinCampaign(campaignId, characterId);
-            Assert.Fail("Expected ArgumentException was not thrown");
-        }
-        catch (ArgumentException ex)
-        {
-            Assert.Contains($"Character with {characterId} doesn't exist", ex.Message);
-        }
-    }
-
-    [Fact]
-    public async Task JoinCampaign_WithInvalidCampaignId_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        var characterId = Guid.NewGuid();
-
-        var character = CreateTestCharacter(characterId);
-
-        _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(character);
-        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
-
-        // Act & Assert
-        try
-        {
-            await _service.JoinCampaign(campaignId, characterId);
-            Assert.Fail("Expected ArgumentException was not thrown");
-        }
-        catch (ArgumentException ex)
-        {
-            Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
-        }
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.JoinCampaign(Guid.NewGuid(), Guid.NewGuid()));
     }
 
     [Fact]
     public async Task AttachEncounter_WithValidCampaign_AddsEncounterAndSaves()
     {
         // Arrange
-        var campaignId = Guid.NewGuid();
         var encounterId = Guid.NewGuid();
         var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
         // Act
-        await _service.AttachEncounter(campaignId, encounterId);
+        await _service.AttachEncounter(Guid.NewGuid(), encounterId);
 
         // Assert
         Assert.Contains(encounterId, campaign.EncounterIds);
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
     }
 
-    [Fact]
-    public async Task AttachEncounter_WithInvalidCampaignId_ShouldThrowArgumentException()
+    [Theory]
+    [InlineData(nameof(CampaignService.JoinCampaign))]
+    [InlineData(nameof(CampaignService.ConfigureCampaign))]
+    [InlineData(nameof(CampaignService.AttachEncounter))]
+    [InlineData(nameof(CampaignService.EndCampaign))]
+    [InlineData(nameof(CampaignService.IsActive))]
+    [InlineData(nameof(CampaignService.AdvanceTime))]
+    [InlineData(nameof(CampaignService.AdvanceTimeWithRest))]
+    public async Task AnyServiceCall_WithMissingCampaign_ThrowsArgumentException(string method)
     {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        var encounterId = Guid.NewGuid();
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
+        // JoinCampaign validates the character before the campaign, so give it a real one.
+        _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(TestCharacters.Create(Dice));
 
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.AttachEncounter(campaignId, encounterId));
-        Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
+        Task Act() => method switch
+        {
+            nameof(CampaignService.JoinCampaign) => _service.JoinCampaign(Guid.NewGuid(), Guid.NewGuid()),
+            nameof(CampaignService.ConfigureCampaign) => _service.ConfigureCampaign(Guid.NewGuid(), "Doom", "The end"),
+            nameof(CampaignService.AttachEncounter) => _service.AttachEncounter(Guid.NewGuid(), Guid.NewGuid()),
+            nameof(CampaignService.EndCampaign) => _service.EndCampaign(Guid.NewGuid()),
+            nameof(CampaignService.IsActive) => _service.IsActive(Guid.NewGuid()),
+            nameof(CampaignService.AdvanceTime) => _service.AdvanceTime(Guid.NewGuid(), 5),
+            nameof(CampaignService.AdvanceTimeWithRest) => _service.AdvanceTimeWithRest(Guid.NewGuid(), 8),
+            _ => throw new ArgumentOutOfRangeException(nameof(method))
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(Act);
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Never);
     }
 
     [Fact]
-    public async Task ConfigureCampaign_WithPlayerAlreadyJoined_AutoStartsCampaign()
+    public async Task Configure_ThenJoin_AutoStarts()
     {
-        // Arrange: the auto-start rule is order-independent -- a player who joined before the
-        // campaign was configured still triggers a start the moment Configure completes.
-        var campaignId = Guid.NewGuid();
-        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
-        var characterId = Guid.NewGuid();
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        var character = TestCharacters.Create(Dice);
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        _charactersRepository.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
 
-        campaign.JoinGame(characterId);
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end");
+        Assert.False(campaign.IsActive()); // configured but no player yet
 
-        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
-
-        // Act
-        await _service.ConfigureCampaign(campaignId, "Doom", "The end");
-
-        // Assert
-        Assert.True(campaign.IsActive());
-        _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
+        await _service.JoinCampaign(campaign.Id, character.Id);
+        Assert.True(campaign.IsActive()); // both conditions met -> started
     }
 
     [Fact]
-    public async Task ConfigureCampaign_WithInvalidCampaignId_ShouldThrowArgumentException()
+    public async Task Join_ThenConfigure_AutoStarts()
     {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        var character = TestCharacters.Create(Dice);
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        _charactersRepository.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
 
-        // Act & Assert
-        try
-        {
-            await _service.ConfigureCampaign(campaignId, "Doom", "The end");
-            Assert.Fail("Expected ArgumentException was not thrown");
-        }
-        catch (ArgumentException ex)
-        {
-            Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
-        }
+        await _service.JoinCampaign(campaign.Id, character.Id);
+        Assert.False(campaign.IsActive()); // player joined, not configured yet
+
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end");
+        Assert.True(campaign.IsActive());
     }
 
     [Fact]
     public async Task EndCampaign_WithValidCampaign_ShouldEndCampaign()
     {
         // Arrange
-        var campaignId = Guid.NewGuid();
         var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
-        var characterId = Guid.NewGuid();
-
-        campaign.JoinGame(characterId);
+        campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
         // Act
-        await _service.EndCampaign(campaignId);
+        await _service.EndCampaign(Guid.NewGuid());
 
         // Assert
         Assert.False(campaign.IsActive());
@@ -201,184 +151,71 @@ public class CampaignServiceTests : TestBase
     }
 
     [Fact]
-    public async Task EndCampaign_WithInvalidCampaignId_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
-
-        // Act & Assert
-        try
-        {
-            await _service.EndCampaign(campaignId);
-            Assert.Fail("Expected ArgumentException was not thrown");
-        }
-        catch (ArgumentException ex)
-        {
-            Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
-        }
-    }
-
-    [Fact]
     public async Task IsActive_WithActiveCampaign_ShouldReturnTrue()
     {
         // Arrange
-        var campaignId = Guid.NewGuid();
         var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
-        var characterId = Guid.NewGuid();
-
-        campaign.JoinGame(characterId);
+        campaign.JoinGame(Guid.NewGuid());
         campaign.Start();
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
-        // Act
-        var result = await _service.IsActive(campaignId);
-
-        // Assert
-        Assert.True(result);
+        // Act & Assert
+        Assert.True(await _service.IsActive(Guid.NewGuid()));
     }
 
     [Fact]
     public async Task IsActive_WithInactiveCampaign_ShouldReturnFalse()
     {
         // Arrange
-        var campaignId = Guid.NewGuid();
         var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
-
-        // Act
-        var result = await _service.IsActive(campaignId);
-
-        // Assert
-        Assert.False(result);
-    }
-
-    [Fact]
-    public async Task IsActive_WithInvalidCampaignId_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
 
         // Act & Assert
-        try
-        {
-            await _service.IsActive(campaignId);
-            Assert.Fail("Expected ArgumentException was not thrown");
-        }
-        catch (ArgumentException ex)
-        {
-            Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
-        }
+        Assert.False(await _service.IsActive(Guid.NewGuid()));
     }
 
     [Fact]
-    public async Task AdvanceTime_WithValidCampaign_ShouldReturnOutcome()
+    public async Task AdvanceTime_WithValidCampaign_AdvancesClock()
     {
         // Arrange
-        var campaignId = Guid.NewGuid();
         var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
-        const int hours = 5;
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
 
         // Act
-        var result = await _service.AdvanceTime(campaignId, hours);
+        var result = await _service.AdvanceTime(Guid.NewGuid(), 5);
 
         // Assert
-        Assert.True(result != null);
+        Assert.Equal(1, campaign.CurrentDay);
+        Assert.Equal(5, campaign.CurrentHour);
+        Assert.False(result.IsNewDawn);
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
     }
 
     [Fact]
-    public async Task AdvanceTimeWithRest_WithValidCampaign_ShouldReturnOutcome()
+    public async Task AdvanceTimeWithRest_FullNightRest_AdvancesClockAndRefreshesOmens()
     {
         // Arrange
-        var campaignId = Guid.NewGuid();
-        var characterId = Guid.NewGuid();
         var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
-        var character = CreateTestCharacter(characterId);
-        const int hours = 8;
+        var character = TestCharacters.Create(Dice); // 0 omens -> a full night's rest refills d2
 
-        campaign.JoinGame(characterId);
+        campaign.JoinGame(character.Id);
 
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
         _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(character);
+        SetupDiceRolls(3, 1); // rest heal d6 = 4, omen refill d2 = 2
 
         // Act
-        var result = await _service.AdvanceTimeWithRest(campaignId, hours);
+        var result = await _service.AdvanceTimeWithRest(Guid.NewGuid(), 8);
 
         // Assert
-        Assert.True(result != null);
+        Assert.Equal(8, campaign.CurrentHour);
+        Assert.False(result.IsNewDawn);
+        Assert.Equal(2, result.OmensRefreshed);
         _charactersRepository.Verify(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()), Times.Once);
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task AdvanceTime_WithInvalidCampaignId_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
-
-        // Act & Assert
-        try
-        {
-            await _service.AdvanceTime(campaignId, 5);
-            Assert.Fail("Expected ArgumentException was not thrown");
-        }
-        catch (ArgumentException ex)
-        {
-            Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
-        }
-    }
-
-    [Fact]
-    public async Task AdvanceTimeWithRest_WithInvalidCampaignId_ShouldThrowArgumentException()
-    {
-        // Arrange
-        var campaignId = Guid.NewGuid();
-        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
-
-        // Act & Assert
-        try
-        {
-            await _service.AdvanceTimeWithRest(campaignId, 8);
-            Assert.Fail("Expected ArgumentException was not thrown");
-        }
-        catch (ArgumentException ex)
-        {
-            Assert.Contains($"Campaign with {campaignId} doesn't exist", ex.Message);
-        }
-    }
-
-    /// <summary>
-    ///     Helper method to create a test character with minimal required dependencies.
-    /// </summary>
-    private Character CreateTestCharacter(Guid characterId)
-    {
-        var abilities = new Abilities(
-            new AbilityScore(0), // Agility
-            new AbilityScore(0), // Presence  
-            new AbilityScore(0), // Strength
-            new AbilityScore(0) // Toughness
-        );
-
-        var equipment = new StartingEquipment(
-            0,
-            1,
-            "Sack",
-            null,
-            null,
-            Weapon.Create(WeaponKind.Sword),
-            new Armor(ArmorTier.None),
-            null,
-            []
-        );
-
-        return Character.Create(characterId, "Test Character", 10, abilities, equipment, Dice);
     }
 }

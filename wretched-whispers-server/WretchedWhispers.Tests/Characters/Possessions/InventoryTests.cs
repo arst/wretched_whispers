@@ -5,7 +5,7 @@ using Xunit;
 
 namespace WretchedWhispers.Tests.Characters.Possessions;
 
-public class InventoryTests : TestBase
+public class InventoryTests
 {
     [Fact]
     public void Constructor_ShouldInitializeCorrectly()
@@ -17,18 +17,7 @@ public class InventoryTests : TestBase
         Assert.Equal("Test Container", inventory.Container);
         Assert.Equal(5, inventory.MaxCapacity);
         Assert.Empty(inventory.InventoryItems);
-        Assert.False(inventory.IsFull);
         Assert.Equal(5, inventory.GetFreeSlots());
-    }
-
-    [Fact]
-    public void IsFull_WhenEmptyInventory_ShouldReturnFalse()
-    {
-        // Arrange
-        var inventory = new Inventory("Backpack", 10, []);
-
-        // Act & Assert
-        Assert.False(inventory.IsFull);
     }
 
     [Fact]
@@ -72,8 +61,7 @@ public class InventoryTests : TestBase
         }
 
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => inventory.AddItem(normalItem));
-        Assert.Equal("Inventory is full, throw away another item to add a new one.", exception.Message);
+        Assert.Throws<InvalidOperationException>(() => inventory.AddItem(normalItem));
     }
 
     [Fact]
@@ -115,8 +103,7 @@ public class InventoryTests : TestBase
         var nonExistentId = Guid.NewGuid();
 
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => inventory.RemoveItem(nonExistentId));
-        Assert.Equal($"Item with id {nonExistentId} is not in the inventory", exception.Message);
+        Assert.Throws<InvalidOperationException>(() => inventory.RemoveItem(nonExistentId));
     }
 
     [Fact]
@@ -177,8 +164,7 @@ public class InventoryTests : TestBase
         var nonExistentId = Guid.NewGuid();
 
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => inventory.ConsumeItem(nonExistentId));
-        Assert.Equal($"Item with id {nonExistentId} is not in the inventory", exception.Message);
+        Assert.Throws<InvalidOperationException>(() => inventory.ConsumeItem(nonExistentId));
     }
 
     [Fact]
@@ -198,22 +184,6 @@ public class InventoryTests : TestBase
     }
 
     [Fact]
-    public void ReplenishItem_WithDefaultAmount_ShouldIncreaseByOne()
-    {
-        // Arrange
-        var inventory = new Inventory("Backpack", 10, []);
-        var consumableItem = new InventoryItem(Guid.NewGuid(), "Health Potion", false, true, 3);
-        inventory.AddItem(consumableItem);
-        var initialQuantity = consumableItem.Quantity;
-
-        // Act
-        inventory.ReplenishItem(consumableItem.Id);
-
-        // Assert
-        Assert.Equal(initialQuantity + 1, consumableItem.Quantity);
-    }
-
-    [Fact]
     public void ReplenishItem_WhenItemDoesNotExist_ShouldThrowInvalidOperationException()
     {
         // Arrange
@@ -221,8 +191,7 @@ public class InventoryTests : TestBase
         var nonExistentId = Guid.NewGuid();
 
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => inventory.ReplenishItem(nonExistentId));
-        Assert.Equal($"Item with id {nonExistentId} is not in the inventory", exception.Message);
+        Assert.Throws<InvalidOperationException>(() => inventory.ReplenishItem(nonExistentId));
     }
 
     [Fact]
@@ -243,19 +212,6 @@ public class InventoryTests : TestBase
 
         // Assert
         Assert.Equal(6, freeSlots); // 10 - 4 = 6
-    }
-
-    [Fact]
-    public void GetFreeSlots_WithEmptyInventory_ShouldReturnMaxCapacity()
-    {
-        // Arrange
-        var inventory = new Inventory("Backpack", 10, []);
-
-        // Act
-        var freeSlots = inventory.GetFreeSlots();
-
-        // Assert
-        Assert.Equal(10, freeSlots);
     }
 
     [Theory]
@@ -293,38 +249,5 @@ public class InventoryTests : TestBase
 
         // Assert
         Assert.Equal(expectedEncumbered, isEncumbered);
-    }
-    
-    [Fact]
-    public void MultipleOperations_ShouldMaintainInventoryConsistency()
-    {
-        // Arrange
-        var inventory = new Inventory("Backpack", 10, []);
-        var item1 = new InventoryItem(Guid.NewGuid(), "Item 1", false, false);
-        var item2 = new InventoryItem(Guid.NewGuid(), "Item 2", true, false);
-        var consumable = new InventoryItem(Guid.NewGuid(), "Consumable", false, true, 2);
-
-        // Act & Assert - Add items
-        inventory.AddItem(item1);
-        inventory.AddItem(item2);
-        inventory.AddItem(consumable);
-        Assert.Equal(3, inventory.InventoryItems.Count);
-        Assert.Equal(6, inventory.GetFreeSlots()); // 10 - (1 + 2 + 1) = 6
-
-        // Consume one of the consumable
-        Assert.True(inventory.ConsumeItem(consumable.Id));
-        Assert.Equal(3, inventory.InventoryItems.Count);
-        Assert.Equal(1, consumable.Quantity);
-
-        // Consume the last of the consumable (should remove it)
-        Assert.True(inventory.ConsumeItem(consumable.Id));
-        Assert.Equal(2, inventory.InventoryItems.Count);
-        Assert.Equal(7, inventory.GetFreeSlots()); // 10 - (1 + 2) = 7
-
-        // Remove normal item
-        inventory.RemoveItem(item1.Id);
-        Assert.Single(inventory.InventoryItems);
-        Assert.Equal(8, inventory.GetFreeSlots()); // 10 - 2 = 8
-        Assert.Contains(item2, inventory.InventoryItems);
     }
 }

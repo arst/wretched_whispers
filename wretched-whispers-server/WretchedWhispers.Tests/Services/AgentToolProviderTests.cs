@@ -1,13 +1,10 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
-using WretchedWhispers.Engine.GameTools;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;
@@ -15,7 +12,9 @@ namespace WretchedWhispers.Tests.Services;
 /// <summary>
 /// Verifies the Agent Framework tool provider exposes exactly the stage-scoped tool set
 /// (the registered-function names mirror <see cref="GameToolCatalog"/>). Replaces the former
-/// KernelFactoryTests after the SK→Agent Framework migration.
+/// KernelFactoryTests after the SK→Agent Framework migration. Which tools belong to which stage is
+/// pinned (with explicit lists) in GameToolCatalogTests — here we only prove the provider builds
+/// what the catalog dictates.
 /// </summary>
 public class AgentToolProviderTests
 {
@@ -38,87 +37,22 @@ public class AgentToolProviderTests
             NullLogger<AgentToolProvider>.Instance);
     }
 
-    [Fact]
-    public void CharacterCreation_ExposesNoTools()
+    [Theory]
+    [InlineData(SessionStage.CharacterCreation)]
+    [InlineData(SessionStage.CampaignSetup)]
+    [InlineData(SessionStage.Exploration)]
+    [InlineData(SessionStage.Combat)]
+    [InlineData(SessionStage.Resolution)]
+    [InlineData(SessionStage.Ended)]
+    public void EveryStage_BuildsExactlyTheCatalogToolSet(SessionStage stage)
     {
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.CharacterCreation);
 
-        Assert.Empty(registered);
-        Assert.Empty(tools);
-    }
+        var (tools, registered) = _provider.GetToolsForStage(ctx, stage);
 
-    [Fact]
-    public void CampaignSetup_HasExactly1Function()
-    {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.CampaignSetup);
-
-        Assert.Single(registered);
-        Assert.Single(tools);
-        Assert.Contains("Campaign.ConfigureCampaign", registered);
-    }
-
-    [Fact]
-    public void Exploration_HasExactly16Functions()
-    {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Exploration);
-
-        Assert.Equal(16, registered.Length);
-        Assert.Equal(16, tools.Count);
-        Assert.Contains("Campaign.RecordPointOfInterest", registered);
-        Assert.Contains("Campaign.SetPartyLocation", registered);
-        Assert.Contains("Character.UseItemFromCharacterInventory", registered);
-        Assert.Contains("Character.ChallengeCharacter", registered);
-        Assert.Contains("Character.GettingBetter", registered);
-        Assert.Contains("Campaign.AdvanceTime", registered);
-        Assert.Contains("Campaign.RecordJournalEntry", registered);
-        Assert.Contains("Encounter.CreateEncounter", registered);
-        Assert.Contains("Dice.Roll", registered);
-        Assert.Contains("Encounter.TurnEncounterHostile", registered);
-        Assert.DoesNotContain("Character.CreateCharacter", registered);
-        Assert.DoesNotContain("Campaign.ConfigureCampaign", registered);
-    }
-
-    [Fact]
-    public void Combat_HasExactly5Functions()
-    {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Combat);
-
-        Assert.Equal(5, registered.Length);
-        Assert.Equal(5, tools.Count);
-        Assert.Contains("Character.UseItemFromCharacterInventory", registered);
-        Assert.Contains("Encounter.ResolveCombatRound", registered);
-        Assert.Contains("Character.CastScroll", registered);
-        Assert.Contains("Dice.Roll", registered);
-        Assert.Contains("Campaign.RecordJournalEntry", registered);
-    }
-
-    [Fact]
-    public void Resolution_HasCorrectFunctions()
-    {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (_, registered) = _provider.GetToolsForStage(ctx, SessionStage.Resolution);
-
-        // CompleteResolution lives on EncounterTools, so its telemetry group is "Encounter".
-        Assert.Contains("Encounter.CompleteResolution", registered);
-        Assert.Contains("Campaign.AdvanceTime", registered);
-        Assert.Contains("Campaign.RecordJournalEntry", registered);
-        Assert.Contains("Character.AddItemToCharacterInventory", registered);
-        Assert.DoesNotContain("Character.CreateCharacter", registered);
-        Assert.DoesNotContain("Campaign.StartCampaign", registered);
-    }
-
-    [Fact]
-    public void Ended_HasNoFunctions()
-    {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, registered) = _provider.GetToolsForStage(ctx, SessionStage.Ended);
-
-        Assert.Empty(registered);
-        Assert.Empty(tools);
+        var expected = GameToolCatalog.ForStage(stage);
+        Assert.Equal(expected.Count, tools.Count);
+        Assert.Equal(expected.Select(d => $"{d.Group}.{d.Name}").ToArray(), registered);
     }
 
     [Fact]

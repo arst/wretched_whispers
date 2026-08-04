@@ -1,4 +1,5 @@
 using System.Linq;
+using Moq;
 using Xunit;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
@@ -56,10 +57,10 @@ public sealed class GettingBetterTests : TestBase
     /// startingOmens 1 avoids the omen-refill d2; the second SetupDiceRolls call in each test
     /// replaces this queue with the ritual's own rolls.</summary>
     private WretchedWhispers.Core.Characters.Character CreateRested(
-        int strength = 0, int agility = 0, int presence = 0, int toughness = 0)
+        int strength = 0, int agility = 0, int presence = 0, int toughness = 0, int maxHp = 20)
     {
         var character = TestCharacters.Create(Dice, agility: agility, presence: presence,
-            strength: strength, toughness: toughness, startingOmens: 1);
+            strength: strength, toughness: toughness, startingOmens: 1, maxHp: maxHp);
         SetupDiceRolls(0 /* heal d6 */);
         character.Rest(8, Dice);
         return character;
@@ -93,9 +94,7 @@ public sealed class GettingBetterTests : TestBase
     public void GetBetter_HpRollExactlyEqualsMax_StillIncreases()
     {
         // Meet-or-beat: 6d10 of six 4s = 24 EXACTLY equals max 24 -> the check passes.
-        var character = TestCharacters.Create(Dice, startingOmens: 1, maxHp: 24);
-        SetupDiceRolls(0 /* heal d6 */);
-        character.Rest(8, Dice);
+        var character = CreateRested(maxHp: 24);
         SetupDiceRolls(3, 3, 3, 3, 3, 3, /* hp d6 */ 2, /* abilities */ 0, 0, 0, 0);
 
         var outcome = character.GetBetter(Dice, allowAbilityLoss: true);
@@ -190,20 +189,30 @@ public sealed class GettingBetterTests : TestBase
     }
 
     [Fact]
-    public void GettingBetterOutcomeDto_MapsOutcomeFaithfully()
+    public async Task Service_GetBetter_RollsAndSavesOnce()
     {
-        var outcome = new GettingBetterOutcome(24, 3, 23,
-            new[] { new AbilityChange(AbilityKind.Strength, 1, -1, 2) });
+        var character = CreateRested();
+        var repo = new Mock<ICharactersRepository>();
+        repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        var service = new CharacterService(repo.Object, Dice);
+        SetupDiceRolls(0, 0, 0, 0, 0, 0, 0, 0, 0, 0); // 6d10 fail, four ability d6s
 
-        var dto = WretchedWhispers.Engine.GameTools.Models.GettingBetterOutcomeDto.From(outcome);
+        var outcome = await service.GetBetter(character.Id, allowAbilityLoss: true);
 
-        Assert.Equal(24, dto.HpRoll);
-        Assert.Equal(3, dto.HpGained);
-        Assert.Equal(23, dto.NewMaxHp);
-        var ability = Assert.Single(dto.Abilities);
-        Assert.Equal("Strength", ability.Ability);
-        Assert.Equal(1, ability.Roll);
-        Assert.Equal(-1, ability.Delta);
-        Assert.Equal(2, ability.NewScore);
+        Assert.Equal(6, outcome.HpRoll);
+        Assert.False(character.CanGetBetter);
+        repo.Verify(r => r.Save(character, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Service_GetBetter_UnknownCharacter_Throws()
+    {
+        var repo = new Mock<ICharactersRepository>();
+        repo.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WretchedWhispers.Core.Characters.Character?)null);
+        var service = new CharacterService(repo.Object, Dice);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.GetBetter(Guid.NewGuid(), allowAbilityLoss: true));
     }
 }

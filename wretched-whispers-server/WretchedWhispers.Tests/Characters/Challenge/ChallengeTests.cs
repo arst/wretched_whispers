@@ -8,8 +8,72 @@ using Xunit;
 
 namespace WretchedWhispers.Tests.Characters.Challenge;
 
-public sealed class ChallengeConsequenceTests : TestBase
+public sealed class ChallengeTests : TestBase
 {
+    private readonly Mock<ICharactersRepository> _repo = new();
+
+    private CharacterService NewService(Character character)
+    {
+        _repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        return new CharacterService(_repo.Object, Dice);
+    }
+
+    [Fact]
+    public void Challenge_ReportsRollModifierAndEffectiveDr()
+    {
+        var character = TestCharacters.Create(Dice, toughness: 2);
+        // Dice.Roll(D20) = 1 + GenerateRandomRoll(20), so 13 here yields a roll of 14.
+        SetupDiceRoll(20, 13);
+
+        var outcome = character.Challenge(new Dr(12), AbilityKind.Toughness, Dice);
+
+        Assert.Equal(14, outcome.Roll);
+        Assert.Equal(2, outcome.Modifier);
+        Assert.Equal(12, outcome.EffectiveDr);
+        Assert.True(outcome.IsSuccess);
+    }
+
+    // Spending an omen lowers a test's DR by 4 — validated and applied atomically inside
+    // the domain, spent before the roll.
+
+    [Fact]
+    public void Challenge_WithOmen_LowersDrBy4_AndSpendsOmen()
+    {
+        var character = TestCharacters.Create(Dice, startingOmens: 1);
+        SetupDiceRoll(20, 11); // d20 roll of 12: fails DR 14, passes DR 10
+
+        var outcome = character.Challenge(new Dr(14), AbilityKind.Presence, Dice, spendOmenToLowerDr: true);
+
+        Assert.Equal(10, outcome.EffectiveDr);
+        Assert.True(outcome.IsSuccess);
+        Assert.Equal(0, character.Omens.Count);
+    }
+
+    [Fact]
+    public void Challenge_WithOmen_NoOmensRemaining_Throws()
+    {
+        var character = TestCharacters.Create(Dice, startingOmens: 0);
+
+        Assert.Throws<ArgumentException>(() =>
+            character.Challenge(new Dr(14), AbilityKind.Presence, Dice, spendOmenToLowerDr: true));
+    }
+
+    [Fact]
+    public async Task ChallengePlayer_OmenSpentOnSuccess_StillSavesCharacter()
+    {
+        var character = TestCharacters.Create(Dice, startingOmens: 1);
+        var service = NewService(character);
+        SetupDiceRoll(20, 11); // roll 12 vs effective DR 8 -> success
+
+        var result = await service.ChallengePlayer(
+            character.Id, new Dr(12), AbilityKind.Presence, DifficultyPresets.For(Difficulty.Grim),
+            spendOmenToLowerDr: true);
+
+        Assert.True(result.Outcome.IsSuccess);
+        Assert.Equal(0, character.Omens.Count);
+        _repo.Verify(r => r.Save(character, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Theory]
     [InlineData(ChallengeConsequence.Minor, 2)]
     [InlineData(ChallengeConsequence.Serious, 4)]
@@ -49,9 +113,7 @@ public sealed class ChallengeConsequenceTests : TestBase
     public async Task ChallengePlayer_FailureWithConsequence_AppliesDamage_SavesCharacter()
     {
         var character = TestCharacters.Create(Dice);
-        var repo = new Mock<ICharactersRepository>();
-        repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
-        var service = new CharacterService(repo.Object, Dice);
+        var service = NewService(character);
         SetupDiceRolls(0 /* d20 fumble -> fail */, 3 /* d4 consequence -> 4 damage */);
 
         var result = await service.ChallengePlayer(
@@ -60,7 +122,7 @@ public sealed class ChallengeConsequenceTests : TestBase
 
         Assert.False(result.Outcome.IsSuccess);
         Assert.Equal(4, result.DamageTaken);
-        repo.Verify(r => r.Save(character, It.IsAny<CancellationToken>()), Times.Once);
+        _repo.Verify(r => r.Save(character, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -70,9 +132,7 @@ public sealed class ChallengeConsequenceTests : TestBase
         // rolls an injury (not death) — the character is ALIVE at 0 HP. ChallengeResult must report
         // IsDead=false and CurrentHp=0 so the narrator can't fabricate a death.
         var character = TestCharacters.Create(Dice, maxHp: 3);
-        var repo = new Mock<ICharactersRepository>();
-        repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
-        var service = new CharacterService(repo.Object, Dice);
+        var service = NewService(character);
         // d20 -> 7 (fail vs 12); Deadly d6 -> 3 damage (3 HP -> 0); Broken d4 -> 3 (injury branch, survives);
         // injury d6 -> 3 (SmashedFace).
         SetupDiceRolls(6, 2, 2, 2);
@@ -88,39 +148,22 @@ public sealed class ChallengeConsequenceTests : TestBase
         Assert.True(character.HasSmashedFace); // survived Broken with an injury
     }
 
-    [Fact]
-    public async Task ChallengePlayer_Success_NoConsequence_NoSave()
+    [Theory]
+    [InlineData(19, ChallengeConsequence.Deadly, true)] // success -> configured consequence never applies
+    [InlineData(0, ChallengeConsequence.None, false)] // failure -> no consequence configured
+    public async Task ChallengePlayer_NoConsequenceApplies_NoDamage_NoSave(
+        int d20ZeroBased, ChallengeConsequence consequence, bool expectSuccess)
     {
         var character = TestCharacters.Create(Dice);
-        var repo = new Mock<ICharactersRepository>();
-        repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
-        var service = new CharacterService(repo.Object, Dice);
-        SetupDiceRoll(20, 19); // natural 20 -> success
+        var service = NewService(character);
+        SetupDiceRoll(20, d20ZeroBased);
 
         var result = await service.ChallengePlayer(
             character.Id, new Dr(12), AbilityKind.Agility, DifficultyPresets.For(Difficulty.Grim),
-            ChallengeConsequence.Deadly);
+            consequence);
 
-        Assert.True(result.Outcome.IsSuccess);
+        Assert.Equal(expectSuccess, result.Outcome.IsSuccess);
         Assert.Equal(0, result.DamageTaken);
-        repo.Verify(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task ChallengePlayer_Failure_NoConsequence_NoDamage_NoSave()
-    {
-        var character = TestCharacters.Create(Dice);
-        var repo = new Mock<ICharactersRepository>();
-        repo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
-        var service = new CharacterService(repo.Object, Dice);
-        SetupDiceRoll(20, 0); // d20 fumble -> fail
-
-        var result = await service.ChallengePlayer(
-            character.Id, new Dr(12), AbilityKind.Agility, DifficultyPresets.For(Difficulty.Grim),
-            ChallengeConsequence.None);
-
-        Assert.False(result.Outcome.IsSuccess);
-        Assert.Equal(0, result.DamageTaken);
-        repo.Verify(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repo.Verify(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

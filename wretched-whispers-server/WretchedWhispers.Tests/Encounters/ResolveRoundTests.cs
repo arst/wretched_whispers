@@ -1,11 +1,8 @@
 using Moq;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
-using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using Xunit;
@@ -21,7 +18,7 @@ public sealed class ResolveRoundTests : TestBase
         new(Dice, _charactersRepo.Object, _encountersRepo.Object);
 
     private (Encounter encounter, Character character) Arrange(int adversaries = 1, int adversaryHp = 4,
-        int startingOmens = 0, int characterHp = 20)
+        int startingOmens = 0, int characterHp = 20, ArmorTier armorTier = ArmorTier.None)
     {
         var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
         for (var i = 0; i < adversaries; i++)
@@ -30,7 +27,8 @@ public sealed class ResolveRoundTests : TestBase
                 new AttackProfile("claws", DiceExpr.Parse("d4"))));
         encounter.StartEncounter();
 
-        var character = TestCharacters.Create(Dice, startingOmens: startingOmens, maxHp: characterHp);
+        var character = TestCharacters.Create(Dice, startingOmens: startingOmens, maxHp: characterHp,
+            armorTier: armorTier);
         _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
         _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
         return (encounter, character);
@@ -40,8 +38,8 @@ public sealed class ResolveRoundTests : TestBase
     public async Task Attack_ResolvesPlayerAttack_ThenEveryLivingAdversaryRetaliates()
     {
         var (encounter, character) = Arrange(adversaries: 2, adversaryHp: 100);
-        // d20 attack (hit but no kill vs 100hp), weapon dmg, then per-adversary defence rolls.
-        // Feed generous rolls; assertions below don't depend on exact damage numbers.
+        // d20 attack 15 (hit vs DR 12, no kill at 100 hp), d6 weapon damage, then per adversary:
+        // d20 defence 10 (fail vs DR 12) and d4 claw damage.
         SetupDiceRolls(14, 2, 9, 1, 9, 1);
 
         var outcome = await CreateService().ResolveRound(
@@ -51,6 +49,17 @@ public sealed class ResolveRoundTests : TestBase
         Assert.Equal("Ghoul 1", outcome.PlayerAttackTarget);
         Assert.Equal(2, outcome.Retaliations.Count);
         Assert.False(outcome.EncounterEnded);
+    }
+
+    [Fact]
+    public async Task ResolveRound_SavesEncounterAndCharacter()
+    {
+        var (encounter, character) = Arrange();
+        SetupDiceRolls(1, 0); // d20 defence 2 (fail), d4 claw 1
+
+        await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null);
+
         _encountersRepo.Verify(r => r.Save(encounter), Times.Once);
         _charactersRepo.Verify(r => r.Save(character), Times.Once);
     }
@@ -144,24 +153,7 @@ public sealed class ResolveRoundTests : TestBase
     [Fact]
     public async Task Flee_WithArmorAgilityPenalty_ComputesEffectiveDrExactly()
     {
-        var abilities = new Abilities(
-            agility: new AbilityScore(0), presence: new AbilityScore(0),
-            strength: new AbilityScore(0), toughness: new AbilityScore(0));
-        var equipment = new StartingEquipment(
-            Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
-            Gear1: null, Gear2: null,
-            Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(ArmorTier.Heavy),
-            Shield: null, Scrolls: []);
-        var character = Character.Create(Guid.NewGuid(), "ArmoredHero", 20, abilities, equipment, Dice);
-
-        var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
-        encounter.AddAdversary(new Adversary(
-            "Ghoul 1", new HitPoints(4, 4), new Armor(ArmorTier.None), 7,
-            new AttackProfile("claws", DiceExpr.Parse("d4"))));
-        encounter.StartEncounter();
-        _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
-        _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        var (encounter, character) = Arrange(armorTier: ArmorTier.Heavy);
 
         SetupDiceRoll(20, 9); // arbitrary flee roll; only EffectiveDr is asserted here
 
@@ -169,32 +161,14 @@ public sealed class ResolveRoundTests : TestBase
             encounter.Id, character.Id, PlayerRoundAction.Flee, null);
 
         Assert.NotNull(outcome.FleeAttempt);
-        Assert.Equal(12 + ArmorTier.Heavy.AgilityPenalty(), outcome.FleeAttempt.EffectiveDr);
+        Assert.Equal(16, outcome.FleeAttempt.EffectiveDr); // flee DR 12 + heavy armor agility penalty 4
     }
 
     [Fact]
     public async Task Retaliation_StopsWhenPlayerDies_ReportsPlayerDead_LeavesEncounterOpen()
     {
         // 1-HP character so a single d4 claw kills; two adversaries so the break is observable.
-        var abilities = new Abilities(
-            agility: new AbilityScore(0), presence: new AbilityScore(0),
-            strength: new AbilityScore(0), toughness: new AbilityScore(0));
-        var equipment = new StartingEquipment(
-            Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
-            Gear1: null, Gear2: null,
-            Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(ArmorTier.None),
-            Shield: null, Scrolls: []);
-        var character = Character.Create(Guid.NewGuid(), "FragileHero", 1, abilities, equipment, Dice);
-
-        var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
-        for (var i = 0; i < 2; i++)
-            encounter.AddAdversary(new Adversary(
-                $"Ghoul {i + 1}", new HitPoints(4, 4), new Armor(ArmorTier.None), 7,
-                new AttackProfile("claws", DiceExpr.Parse("d4"))));
-        encounter.StartEncounter();
-        _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
-        _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        var (encounter, character) = Arrange(adversaries: 2, characterHp: 1);
 
         // Ghoul 1's retaliation: d20 defence 5 (fail vs DR 12), d4 claw damage 1 (1 HP -> 0),
         // injury-table d4 = 1 -> InjuryKind.None -> death. Ghoul 2 never rolls: the loop breaks.
@@ -328,5 +302,50 @@ public sealed class ResolveRoundTests : TestBase
         Assert.Equal(0, outcome.Retaliations[1].Outcome.OmenDamageReduction);
         Assert.Equal(4, outcome.Retaliations[1].Outcome.DamageDealt);
         Assert.Equal(1, character.Omens.Count);
+    }
+
+    // Encounter round-type/lifecycle behavior (moved from CombatRoundTypesTests and StageDerivationTests).
+
+    [Fact]
+    public void EndByPlayerEscape_ActiveAdversaries_EncounterEnds()
+    {
+        var (encounter, _) = Arrange();
+
+        encounter.EndByPlayerEscape();
+
+        Assert.True(encounter.IsEnded);
+    }
+
+    [Fact]
+    public void EndByPlayerEscape_NotStarted_Throws()
+    {
+        var encounter = Encounter.Create("Test", "desc", EncounterType.Hostile, Dice);
+
+        Assert.Throws<InvalidOperationException>(encounter.EndByPlayerEscape);
+    }
+
+    [Fact]
+    public void Resolve_EndedEncounter_SetsIsResolved()
+    {
+        var encounter = Encounter.Create("Test", "desc", EncounterType.Hostile, Dice);
+        var adversary = new Adversary(
+            "Ghoul", new HitPoints(4, 4), new Armor(ArmorTier.None), 7,
+            new AttackProfile("claws", DiceExpr.Parse("d4")));
+        encounter.AddAdversary(adversary);
+        encounter.StartEncounter();
+        adversary.ReceiveDamage(1000);
+        encounter.EndEncounter();
+
+        Assert.False(encounter.IsResolved);
+        encounter.Resolve();
+        Assert.True(encounter.IsResolved);
+    }
+
+    [Fact]
+    public void Resolve_NotEnded_Throws()
+    {
+        var (encounter, _) = Arrange();
+
+        Assert.Throws<InvalidOperationException>(encounter.Resolve);
     }
 }

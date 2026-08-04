@@ -47,8 +47,11 @@ public class SqliteCampaignsRepository(
 
         if (entity is not null)
         {
+            if (entity.UserId != userId)
+                throw new InvalidOperationException(
+                    $"Campaign {campaign.Id} belongs to another user; refusing to reassign ownership.");
+
             entity.Data = json;
-            entity.UserId = userId;
             // Rotate the concurrency token. EF matches the original (loaded) Version in the UPDATE's
             // WHERE clause; an overlapping turn that loaded the same original value will then commit
             // against 0 rows and throw DbUpdateConcurrencyException.

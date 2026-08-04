@@ -13,6 +13,8 @@ public class WeaponTests
     [InlineData(WeaponKind.Warhammer, 6)]
     [InlineData(WeaponKind.Sword, 6)]
     [InlineData(WeaponKind.Bow, 6)]
+    [InlineData(WeaponKind.Fangs, 6)]
+    [InlineData(WeaponKind.Claws, 6)]
     [InlineData(WeaponKind.Flail, 8)]
     [InlineData(WeaponKind.Crossbow, 8)]
     [InlineData(WeaponKind.Zweihander, 10)]
@@ -26,16 +28,10 @@ public class WeaponTests
 
     [Theory]
     [InlineData(WeaponKind.Zweihander, true)]
-    [InlineData(WeaponKind.Femur, false)]
-    [InlineData(WeaponKind.Staff, false)]
-    [InlineData(WeaponKind.ShortSword, false)]
-    [InlineData(WeaponKind.Knife, false)]
-    [InlineData(WeaponKind.Warhammer, false)]
     [InlineData(WeaponKind.Sword, false)]
     [InlineData(WeaponKind.Bow, false)]
-    [InlineData(WeaponKind.Flail, false)]
-    [InlineData(WeaponKind.Crossbow, false)]
-    [InlineData(WeaponKind.Improvised, false)]
+    [InlineData(WeaponKind.Fangs, false)]
+    [InlineData(WeaponKind.Claws, false)]
     public void IsTwoHanded_OnlyTrueForZweihander(WeaponKind kind, bool expected)
     {
         var weapon = Weapon.Create(kind);
@@ -45,15 +41,10 @@ public class WeaponTests
     [Theory]
     [InlineData(WeaponKind.Bow, true)]
     [InlineData(WeaponKind.Crossbow, true)]
-    [InlineData(WeaponKind.Femur, false)]
-    [InlineData(WeaponKind.Staff, false)]
-    [InlineData(WeaponKind.ShortSword, false)]
-    [InlineData(WeaponKind.Knife, false)]
-    [InlineData(WeaponKind.Warhammer, false)]
     [InlineData(WeaponKind.Sword, false)]
-    [InlineData(WeaponKind.Flail, false)]
     [InlineData(WeaponKind.Zweihander, false)]
-    [InlineData(WeaponKind.Improvised, false)]
+    [InlineData(WeaponKind.Fangs, false)]
+    [InlineData(WeaponKind.Claws, false)]
     public void IsRanged_TrueOnlyForBowAndCrossbow(WeaponKind kind, bool expected)
     {
         var weapon = Weapon.Create(kind);

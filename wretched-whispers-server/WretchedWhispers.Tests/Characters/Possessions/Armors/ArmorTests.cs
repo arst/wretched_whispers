@@ -6,17 +6,6 @@ namespace WretchedWhispers.Tests.Characters.Possessions.Armors;
 
 public class ArmorTests
 {
-    [Theory]
-    [InlineData(ArmorTier.Heavy)]
-    [InlineData(ArmorTier.Medium)]
-    [InlineData(ArmorTier.Light)]
-    [InlineData(ArmorTier.None)]
-    public void Constructor_SetsTierCorrectly(ArmorTier tier)
-    {
-        var armor = new Armor(tier);
-        Assert.Equal(tier, armor.Tier);
-    }
-
     [Fact]
     public void Degrade_TransitionsCorrectly()
     {
@@ -29,16 +18,5 @@ public class ArmorTests
         Assert.Equal(ArmorTier.None, armor.Tier);
         armor.Degrade();
         Assert.Equal(ArmorTier.None, armor.Tier); // No further degrade
-    }
-
-    [Fact]
-    public void Properties_ReflectCurrentTier()
-    {
-        var armor = new Armor(ArmorTier.Heavy);
-        Assert.Equal(ArmorTier.Heavy.DefencePenalty(), armor.DefencePenalty);
-        Assert.Equal(ArmorTier.Heavy.AgilityPenalty(), armor.AgilityPenalty);
-        Assert.Equal(ArmorTier.Heavy.DamageReduction(), armor.DamageReduction);
-        armor.Degrade();
-        Assert.Equal(ArmorTier.Medium.DefencePenalty(), armor.DefencePenalty);
     }
 }

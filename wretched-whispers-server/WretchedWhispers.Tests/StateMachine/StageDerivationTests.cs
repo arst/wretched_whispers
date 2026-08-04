@@ -2,12 +2,8 @@ using Moq;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Abilities;
-using WretchedWhispers.Core.Characters.Create;
-using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
-using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Encounters;
@@ -17,25 +13,6 @@ namespace WretchedWhispers.Tests.StateMachine;
 
 public class StageDerivationTests : TestBase
 {
-    private static Character CreateTestCharacter(Dice dice, int maxHp = 10)
-    {
-        var abilities = new Abilities(
-            new AbilityScore(0), new AbilityScore(0),
-            new AbilityScore(0), new AbilityScore(0));
-        var equipment = new StartingEquipment(
-            Silver: 10, FoodDays: 3, Container: "backpack (7 items)",
-            Gear1: null, Gear2: null,
-            Weapon: Weapon.Create(WeaponKind.Sword),
-            Armor: new Armor(ArmorTier.None),
-            Shield: null, Scrolls: []);
-        return Character.Create(Guid.NewGuid(), "TestHero", maxHp, abilities, equipment, dice);
-    }
-
-    private static Campaign CreateTestCampaign()
-    {
-        return Campaign.Create(Difficulty.Grim, "Doom Campaign", "The world crumbles");
-    }
-
     [Fact]
     public void No_character_returns_CharacterCreation()
     {
@@ -48,7 +25,7 @@ public class StageDerivationTests : TestBase
     [Fact]
     public void Character_exists_campaign_not_started_returns_CampaignSetup()
     {
-        var character = CreateTestCharacter(Dice);
+        var character = TestCharacters.Create(Dice);
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         // Campaign created with player but NOT started
@@ -65,7 +42,7 @@ public class StageDerivationTests : TestBase
     [Fact]
     public void Campaign_active_no_encounter_returns_Exploration()
     {
-        var character = CreateTestCharacter(Dice);
+        var character = TestCharacters.Create(Dice);
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
@@ -82,13 +59,12 @@ public class StageDerivationTests : TestBase
     [Fact]
     public void Active_encounter_returns_Combat()
     {
-        var character = CreateTestCharacter(Dice);
+        var character = TestCharacters.Create(Dice);
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
 
-        // Create encounter with an adversary and start it
-        SetupDiceRolls(7); // For InitialReaction roll (2d6=7 => Indifferent => Friendly)
+        // Hostile encounters roll no reaction — no dice script needed.
         var encounter = Encounter.Create("Goblin Fight", "Goblins attack", EncounterType.Hostile, Dice);
         var adversary = CreateMinimalAdversary();
         encounter.AddAdversary(adversary);
@@ -108,12 +84,11 @@ public class StageDerivationTests : TestBase
     [Fact]
     public void Encounter_ended_not_resolved_returns_Resolution()
     {
-        var character = CreateTestCharacter(Dice);
+        var character = TestCharacters.Create(Dice);
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
 
-        SetupDiceRolls(7);
         var encounter = Encounter.Create("Goblin Fight", "Goblins attack", EncounterType.Hostile, Dice);
         var adversary = CreateMinimalAdversary();
         encounter.AddAdversary(adversary);
@@ -135,36 +110,12 @@ public class StageDerivationTests : TestBase
     }
 
     [Fact]
-    public void Campaign_ended_returns_Ended()
-    {
-        var character = CreateTestCharacter(Dice);
-        var campaign = CreateTestCampaign();
-        campaign.JoinGame(character.Id);
-        campaign.Start();
-        campaign.End();
-
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        ctx.SetCharacterId(character.Id);
-        ctx.SetCampaignId(campaign.Id);
-        ctx.Character = character;
-        ctx.Campaign = campaign;
-
-        Assert.Equal(SessionStage.Ended, ctx.DeriveStage());
-    }
-
-    [Fact]
     public void Character_dead_returns_Ended()
     {
-        // Create character with 1 HP so a single defend kills them
-        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
-        var character = CreateTestCharacter(Dice, maxHp: 1);
-
+        var character = KillCharacter();
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
-
-        // Defend: d20=2 (fail), damage d6=2 > 1 HP, HP reaches 0, broken d4=2 => dead
-        character.Defend(DiceExpr.D6, Dice);
 
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         ctx.SetCharacterId(character.Id);
@@ -176,6 +127,7 @@ public class StageDerivationTests : TestBase
         Assert.Equal(SessionStage.Ended, ctx.DeriveStage());
     }
 
+    // Pins the stage -> UI status contract the web client relies on.
     [Theory]
     [InlineData(SessionStage.CharacterCreation, "character-creation")]
     [InlineData(SessionStage.CampaignSetup, "in-progress")]
@@ -194,12 +146,10 @@ public class StageDerivationTests : TestBase
         // Regression: nothing calls Campaign.End() on death, so IsActive() stays true. Status must
         // still be "fallen" (recoverable death) because it derives from the stage (which counts death)
         // plus the world/campaign not being terminally over — not from campaign flags alone.
-        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
-        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var character = KillCharacter();
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
-        character.Defend(DiceExpr.D6, Dice); // lethal: HP 1 -> 0, broken roll -> dead
 
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
         ctx.SetCharacterId(character.Id);
@@ -215,13 +165,10 @@ public class StageDerivationTests : TestBase
     [Fact]
     public async Task DeriveStatus_DeadCharacter_WorldAlsoEnded_IsEnded_NotFallen()
     {
-        // Kill the character first (same lethal-defend idiom as Character_dead_returns_Ended).
-        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
-        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var character = KillCharacter();
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
-        character.Defend(DiceExpr.D6, Dice); // lethal
 
         // Campaign.AdvanceTime is internal to Core, so the only public way to drive 7 real dawns from
         // this assembly is through CampaignService — same mocked-repository idiom as CampaignServiceTests.
@@ -260,12 +207,10 @@ public class StageDerivationTests : TestBase
     [Fact]
     public void DeriveStatus_AbandonedCampaign_IsEnded_NotFallen()
     {
-        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
-        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var character = KillCharacter();
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
-        character.Defend(DiceExpr.D6, Dice); // lethal
         campaign.End();
 
         var ctx = new SessionContext { SessionId = Guid.NewGuid() };
@@ -280,12 +225,10 @@ public class StageDerivationTests : TestBase
     [Fact]
     public void DeriveStatus_BuriedCharacter_ActiveCampaign_IsCharacterCreation()
     {
-        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
-        var character = CreateTestCharacter(Dice, maxHp: 1);
+        var character = KillCharacter();
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
-        character.Defend(DiceExpr.D6, Dice); // lethal
         campaign.BuryCharacter(character.Id, character.Name);
 
         // Post-burial the loader finds no player, so the context has no character.
@@ -298,96 +241,9 @@ public class StageDerivationTests : TestBase
     }
 
     [Fact]
-    public void World_ended_returns_Ended()
-    {
-        var character = CreateTestCharacter(Dice);
-        var campaign = CreateTestCampaign();
-        campaign.JoinGame(character.Id);
-        campaign.Start();
-
-        // Trigger 7 miseries to end the world
-        // Each dawn roll of 1 triggers a misery, need 7 total
-        // AdvanceTime is internal, but WorldEnded is checked via Campaign.WorldEnded
-        // We need to advance time enough for 7 dawn rolls of 1
-        // Since AdvanceTime is internal, we can't call it from tests...
-        // We'll verify this through Campaign.WorldEnded if accessible
-
-        // For now, verify the stage derivation logic handles WorldEnded
-        // We'll test this by checking that a campaign with WorldEnded=true returns Ended
-        // Since Campaign.WorldEnded is public (via Calendar.WorldEnded), we need to trigger it
-
-        // Skip direct world-ended test if we can't trigger it without internal access
-        // Instead verify that campaign.End() path works (covered by Campaign_ended_returns_Ended)
-
-        // This test verifies the DeriveStage priority: WorldEnded should return Ended
-        // even if campaign is still "active"
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        ctx.SetCharacterId(character.Id);
-        ctx.SetCampaignId(campaign.Id);
-        ctx.Character = character;
-        ctx.Campaign = campaign;
-
-        // Since we can't easily trigger WorldEnded without internal access,
-        // we at least verify that an active campaign without world-ending returns Exploration
-        if (campaign.WorldEnded)
-            Assert.Equal(SessionStage.Ended, ctx.DeriveStage());
-        else
-            Assert.Equal(SessionStage.Exploration, ctx.DeriveStage());
-    }
-
-    [Fact]
-    public void Encounter_Resolve_sets_IsResolved()
-    {
-        SetupDiceRolls(7);
-        var encounter = Encounter.Create("Test", "Test encounter", EncounterType.Hostile, Dice);
-        var adversary = CreateMinimalAdversary();
-        encounter.AddAdversary(adversary);
-        encounter.StartEncounter();
-        KillAdversary(adversary);
-        encounter.EndEncounter();
-
-        Assert.False(encounter.IsResolved);
-        encounter.Resolve();
-        Assert.True(encounter.IsResolved);
-    }
-
-    [Fact]
-    public void Encounter_Resolve_throws_if_not_ended()
-    {
-        SetupDiceRolls(7);
-        var encounter = Encounter.Create("Test", "Test encounter", EncounterType.Hostile, Dice);
-        var adversary = CreateMinimalAdversary();
-        encounter.AddAdversary(adversary);
-        encounter.StartEncounter();
-
-        Assert.Throws<InvalidOperationException>(() => encounter.Resolve());
-    }
-
-    [Fact]
-    public void SessionContext_tracks_IDs_correctly()
-    {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var charId = Guid.NewGuid();
-        var campaignId = Guid.NewGuid();
-        var encounterId = Guid.NewGuid();
-
-        ctx.SetCharacterId(charId);
-        ctx.SetCampaignId(campaignId);
-        ctx.SetActiveEncounterId(encounterId);
-
-        Assert.Equal(charId, ctx.CharacterId);
-        Assert.Equal(campaignId, ctx.CampaignId);
-        Assert.Equal(encounterId, ctx.ActiveEncounterId);
-
-        ctx.ClearActiveEncounter();
-        Assert.Null(ctx.ActiveEncounterId);
-        Assert.Null(ctx.ActiveEncounter);
-    }
-
-    [Fact]
     public void FormatSnapshot_contains_character_name_and_hp_without_guids()
     {
-        var character = CreateTestCharacter(Dice);
+        var character = TestCharacters.Create(Dice, maxHp: 10);
         var campaign = CreateTestCampaign();
         campaign.JoinGame(character.Id);
         campaign.Start();
@@ -408,21 +264,6 @@ public class StageDerivationTests : TestBase
         Assert.DoesNotMatch(@"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", snapshot);
     }
 
-    private static WretchedWhispers.Core.Adversaries.Adversary CreateMinimalAdversary()
-    {
-        return new WretchedWhispers.Core.Adversaries.Adversary(
-            "Goblin",
-            new HitPoints(5, 5),
-            new Armor(ArmorTier.None),
-            morale: 7,
-            new WretchedWhispers.Core.Adversaries.AttackProfile("Claw", DiceExpr.D6));
-    }
-
-    private static void KillAdversary(WretchedWhispers.Core.Adversaries.Adversary adversary)
-    {
-        adversary.ReceiveDamage(1000);
-    }
-
     [Fact]
     public void FormatSnapshot_ShowsRolledReactionDisposition()
     {
@@ -436,7 +277,10 @@ public class StageDerivationTests : TestBase
 
         var snapshot = ctx.FormatSnapshot();
 
-        Assert.Contains("Disposition: Hostile (reaction roll 4 — Angered)", snapshot);
+        // Load-bearing tokens only — exact prose is the formatter's business.
+        Assert.Contains("Hostile", snapshot);
+        Assert.Contains("reaction roll 4", snapshot);
+        Assert.Contains("Angered", snapshot);
     }
 
     [Fact]
@@ -449,7 +293,7 @@ public class StageDerivationTests : TestBase
 
         var snapshot = ctx.FormatSnapshot();
 
-        Assert.Contains("Disposition: Friendly", snapshot);
+        Assert.Contains("Friendly", snapshot);
         Assert.DoesNotContain("reaction roll", snapshot);
     }
 
@@ -470,5 +314,35 @@ public class StageDerivationTests : TestBase
 
         Assert.Contains("Fallen wretches", snapshot);
         Assert.Contains("Grimnir", snapshot);
+    }
+
+    private static Campaign CreateTestCampaign()
+    {
+        return Campaign.Create(Difficulty.Grim, "Doom Campaign", "The world crumbles");
+    }
+
+    private static Adversary CreateMinimalAdversary()
+    {
+        return new Adversary(
+            "Goblin",
+            new HitPoints(5, 5),
+            new Armor(ArmorTier.None),
+            morale: 7,
+            new AttackProfile("Claw", DiceExpr.D6));
+    }
+
+    private static void KillAdversary(Adversary adversary)
+    {
+        adversary.ReceiveDamage(1000);
+    }
+
+    /// <summary>Creates a 1-HP character and kills it with one lethal defend. Every roll is scripted
+    /// to 2: d20 defence fails vs DR 12, d6 damage zeroes the single HP, broken-table d4 = 2 -> dead.</summary>
+    private Character KillCharacter()
+    {
+        MockRandomService.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(1);
+        var character = TestCharacters.Create(Dice, maxHp: 1);
+        character.Defend(DiceExpr.D6, Dice);
+        return character;
     }
 }

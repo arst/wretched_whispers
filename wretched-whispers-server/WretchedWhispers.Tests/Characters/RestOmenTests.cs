@@ -47,7 +47,8 @@ public sealed class RestOmenTests : TestBase
     [Fact]
     public void InfectedRest_DamagesInsteadOfHealing_NoRefill()
     {
-        var character = TestCharacters.Create(Dice, startingOmens: 0);
+        const int maxHp = 20;
+        var character = TestCharacters.Create(Dice, startingOmens: 0, maxHp: maxHp);
         character.Infect();
         SetupDiceRolls(2 /* infection d6 -> 3 damage */);
 
@@ -55,6 +56,6 @@ public sealed class RestOmenTests : TestBase
 
         Assert.Equal(0, refreshed);
         Assert.Equal(0, character.Omens.Count);
-        Assert.Equal(17, character.Hp.Current);
+        Assert.Equal(maxHp - 3, character.Hp.Current);
     }
 }
