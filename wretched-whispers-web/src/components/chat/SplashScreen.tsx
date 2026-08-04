@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 interface SplashScreenProps {
   onTransition: () => void;
@@ -8,11 +8,8 @@ interface SplashScreenProps {
 }
 
 export default function SplashScreen({ onTransition, show }: SplashScreenProps) {
-  const [fading, setFading] = useState(false);
-
   useEffect(() => {
     if (!show) {
-      setFading(true);
       const timer = setTimeout(() => {
         onTransition();
       }, 400);
@@ -23,7 +20,7 @@ export default function SplashScreen({ onTransition, show }: SplashScreenProps) 
   return (
     <div
       className={`fixed inset-0 z-30 flex flex-col items-center justify-center bg-doom-black transition-opacity duration-400 ${
-        fading ? "opacity-0" : "opacity-100"
+        show ? "opacity-100" : "opacity-0"
       }`}
     >
       <h1

@@ -10,6 +10,8 @@ export interface Message {
   turnDelta: TurnDeltaEvent | null;
 }
 
+export type SessionDrawer = "character" | "journal" | "map";
+
 interface SessionState {
   sessionId: string | null;
   status: string | null;
@@ -20,9 +22,7 @@ interface SessionState {
   error: string | null;
   failedMessage: string | null;
   characterData: CharacterData | null;
-  drawerOpen: boolean;
-  journalOpen: boolean;
-  mapOpen: boolean;
+  activeDrawer: SessionDrawer | null;
   totalMessages: number;
   currentPage: number;
   hasMoreMessages: boolean;
@@ -47,9 +47,7 @@ interface SessionState {
   setError: (message: string) => void;
   clearError: () => void;
   reset: () => void;
-  toggleDrawer: () => void;
-  toggleJournal: () => void;
-  toggleMap: () => void;
+  toggleDrawer: (drawer: SessionDrawer) => void;
   prependMessages: (msgs: ChatMessageDto[], total: number) => void;
   setLoadingMore: (loading: boolean) => void;
 }
@@ -68,9 +66,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   error: null,
   failedMessage: null,
   characterData: null,
-  drawerOpen: false,
-  journalOpen: false,
-  mapOpen: false,
+  activeDrawer: null,
   totalMessages: 0,
   currentPage: 1,
   hasMoreMessages: false,
@@ -283,9 +279,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       error: null,
       failedMessage: null,
       characterData: null,
-      drawerOpen: false,
-      journalOpen: false,
-      mapOpen: false,
+      activeDrawer: null,
       totalMessages: 0,
       currentPage: 1,
       hasMoreMessages: false,
@@ -297,11 +291,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       miseryPsalms: [],
     }),
 
-  toggleDrawer: () => set((s) => ({ drawerOpen: !s.drawerOpen })),
-
-  toggleJournal: () => set((s) => ({ journalOpen: !s.journalOpen })),
-
-  toggleMap: () => set((s) => ({ mapOpen: !s.mapOpen })),
+  toggleDrawer: (drawer) =>
+    set((state) => ({ activeDrawer: state.activeDrawer === drawer ? null : drawer })),
 
   prependMessages: (msgs, total) =>
     set((state) => ({

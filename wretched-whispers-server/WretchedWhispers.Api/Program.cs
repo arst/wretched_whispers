@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
@@ -37,7 +38,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(webOrigin)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -115,6 +117,18 @@ builder.Services.Configure<BearerTokenOptions>(IdentityConstants.BearerScheme, o
 #endif
 
 builder.Services.AddAuthorization();
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+
+#if !DESKTOP
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+});
+#endif
 
 builder.AddWretchedWhispersOpenTelemetry();
 
@@ -184,6 +198,19 @@ app.UseAuthorization();
 
 // Map Identity endpoints under /auth prefix
 app.MapGroup("/auth").MapIdentityApi<IdentityUser>();
+
+app.MapGet("/auth/csrf", (HttpContext http, IAntiforgery antiforgery) =>
+    Results.Ok(new { token = antiforgery.GetAndStoreTokens(http).RequestToken }))
+    .RequireAuthorization();
+
+app.MapPost("/auth/logout", async (HttpContext http, IAntiforgery antiforgery, SignInManager<IdentityUser> signInManager) =>
+{
+    if (!await antiforgery.IsRequestValidAsync(http))
+        return Results.BadRequest();
+
+    await signInManager.SignOutAsync();
+    return Results.Ok();
+}).RequireAuthorization();
 
 // Health check endpoint (no auth)
 app.MapGet("/health", () => Results.Ok("alive"));

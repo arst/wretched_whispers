@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { CharacterClass, Difficulty } from "@/types/api";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -104,6 +104,13 @@ export default function WretchForm({
   const [characterClass, setCharacterClass] = useState<CharacterClass | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>("Grim");
   const [nameError, setNameError] = useState("");
+  const dialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
 
   function submit() {
     const trimmed = name.trim();
@@ -120,13 +127,15 @@ export default function WretchForm({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/70 p-4">
+    <dialog
+      ref={dialog}
+      aria-label={title}
+      onCancel={(event) => { event.preventDefault(); onCancel(); }}
+      className="m-auto w-full max-w-none bg-transparent p-4 text-doom-bone backdrop:bg-[#0a0a0a]/70"
+    >
       {/* Header and footer are pinned; only the options scroll, so the confirm button is always reachable. */}
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="w-full max-w-5xl max-h-full flex flex-col bg-doom-dark border border-doom-card"
+        className="mx-auto w-full max-w-5xl max-h-[calc(100vh_-_2rem)] flex flex-col bg-doom-dark border border-doom-card"
       >
         <div className="px-6 pt-6 pb-4 border-b border-doom-card">
           <h2 className="font-display text-doom-yellow text-xl tracking-wider mb-1">{title}</h2>
@@ -195,6 +204,6 @@ export default function WretchForm({
           </Button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

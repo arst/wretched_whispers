@@ -50,7 +50,7 @@ export default function Header() {
               </button>
             ) : (
               <button
-                onClick={logout}
+                onClick={() => void logout()}
                 className="text-doom-ash text-sm uppercase tracking-wider hover:text-doom-pink transition-colors cursor-pointer"
               >
                 Logout

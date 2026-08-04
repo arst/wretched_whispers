@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/stores/authStore";
-import type { LoginResponse } from "@/types/api";
+import { apiFetch, resetCsrfToken } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -10,10 +10,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 export async function login(
   email: string,
   password: string
-): Promise<LoginResponse> {
-  const response = await fetch(`${API_URL}/auth/login?useCookies=false`, {
+): Promise<void> {
+  const response = await fetch(`${API_URL}/auth/login?useCookies=true`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
 
@@ -25,12 +26,8 @@ export async function login(
     );
   }
 
-  const data: LoginResponse = await response.json();
-  useAuthStore
-    .getState()
-    .setTokens(data.accessToken, data.refreshToken, data.expiresIn);
-
-  return data;
+  resetCsrfToken();
+  useAuthStore.getState().setAuthenticated(true);
 }
 
 /**
@@ -44,6 +41,7 @@ export async function register(
   const response = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
 
@@ -58,12 +56,9 @@ export async function register(
  * Returns true if the token is accepted, false otherwise.
  */
 export async function verifyToken(): Promise<boolean> {
-  const { accessToken } = useAuthStore.getState();
-  if (!accessToken) return false;
-
   try {
     const response = await fetch(`${API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: "include",
     });
     return response.ok;
   } catch {
@@ -74,6 +69,11 @@ export async function verifyToken(): Promise<boolean> {
 /**
  * Clear all auth state. Immediate -- no API call needed.
  */
-export function logout(): void {
-  useAuthStore.getState().logout();
+export async function logout(): Promise<void> {
+  try {
+    await apiFetch("/auth/logout", { method: "POST" });
+  } finally {
+    resetCsrfToken();
+    useAuthStore.getState().logout();
+  }
 }

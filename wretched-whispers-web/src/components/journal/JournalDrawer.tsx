@@ -7,123 +7,43 @@ import type { JournalEntryDto, FallenCharacterDto } from "@/types/api";
 
 export default function JournalDrawer() {
   const sessionId = useSessionStore((s) => s.sessionId);
-  const journalOpen = useSessionStore((s) => s.journalOpen);
-  const toggleJournal = useSessionStore((s) => s.toggleJournal);
+  const journalOpen = useSessionStore((s) => s.activeDrawer === "journal");
+  const toggleDrawer = useSessionStore((s) => s.toggleDrawer);
   const miseryPsalms = useSessionStore((s) => s.miseryPsalms);
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
+  const drawerRef = useRef<HTMLDialogElement>(null);
   const [entries, setEntries] = useState<JournalEntryDto[] | null>(null);
   const [fallen, setFallen] = useState<FallenCharacterDto[]>([]);
 
-  // Mount/unmount with transition support
   useEffect(() => {
-    if (journalOpen) {
-      setMounted(true);
-    } else {
-      const timer = setTimeout(() => setMounted(false), 200);
-      return () => clearTimeout(timer);
-    }
+    if (journalOpen && !drawerRef.current?.open) drawerRef.current?.showModal();
+    if (!journalOpen && drawerRef.current?.open) drawerRef.current.close();
   }, [journalOpen]);
 
   // Fetch on open so entries recorded during play show up without SSE plumbing
   useEffect(() => {
     if (!journalOpen || !sessionId) return;
-    setEntries(null);
-    setFallen([]);
-    apiFetch(`/sessions/${sessionId}/journal`)
+    const controller = new AbortController();
+    apiFetch(`/sessions/${sessionId}/journal`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
+        if (controller.signal.aborted) return;
         setEntries(data.entries);
         setFallen(data.fallen ?? []);
       })
       .catch(() => {
+        if (controller.signal.aborted) return;
         setEntries([]);
         setFallen([]);
       });
+    return () => controller.abort();
   }, [journalOpen, sessionId]);
 
-  // Focus trap
-  useEffect(() => {
-    if (!journalOpen || !drawerRef.current) return;
-
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const drawer = drawerRef.current;
-
-    const focusableSelector =
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
-    function getFocusableElements() {
-      return Array.from(
-        drawer.querySelectorAll<HTMLElement>(focusableSelector)
-      );
-    }
-
-    // Focus first element after transition
-    const focusTimer = setTimeout(() => {
-      const elements = getFocusableElements();
-      if (elements.length > 0) elements[0].focus();
-    }, 50);
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        toggleJournal();
-        return;
-      }
-
-      if (e.key === "Tab") {
-        const elements = getFocusableElements();
-        if (elements.length === 0) return;
-
-        const first = elements[0];
-        const last = elements[elements.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      clearTimeout(focusTimer);
-      document.removeEventListener("keydown", handleKeyDown);
-      if (previousFocus && typeof previousFocus.focus === "function") {
-        previousFocus.focus();
-      }
-    };
-  }, [journalOpen, toggleJournal]);
-
-  if (!mounted) return null;
-
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-50 bg-[#0a0a0a]/60 transition-opacity duration-200 ${
-          journalOpen ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={toggleJournal}
-        aria-hidden="true"
-      />
-
-      {/* Drawer panel */}
-      <div
+      <dialog
         ref={drawerRef}
-        role="dialog"
-        aria-modal="true"
         aria-label="Campaign journal"
-        className={`fixed top-0 right-0 z-50 h-full w-full sm:w-80 bg-doom-dark transform transition-transform duration-200 ease-out overflow-y-auto ${
-          journalOpen ? "translate-x-0" : "translate-x-full"
-        }`}
+        onCancel={(event) => { event.preventDefault(); toggleDrawer("journal"); }}
+        className="fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full sm:w-80 bg-doom-dark text-doom-bone overflow-y-auto backdrop:bg-[#0a0a0a]/60"
       >
         {/* Header row */}
         <div className="px-8 pt-8 pb-0 flex items-center justify-between">
@@ -131,7 +51,7 @@ export default function JournalDrawer() {
             JOURNAL
           </h2>
           <button
-            onClick={toggleJournal}
+            onClick={() => toggleDrawer("journal")}
             aria-label="Close journal"
             className="text-doom-ash hover:text-doom-bone text-xl cursor-pointer"
           >
@@ -191,7 +111,6 @@ export default function JournalDrawer() {
             </div>
           ))}
         </div>
-      </div>
-    </>
+      </dialog>
   );
 }

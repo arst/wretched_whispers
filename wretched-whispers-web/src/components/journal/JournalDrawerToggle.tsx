@@ -3,9 +3,9 @@
 import { useSessionStore } from "@/stores/sessionStore";
 
 export default function JournalDrawerToggle() {
-  const toggleJournal = useSessionStore((s) => s.toggleJournal);
+  const toggleDrawer = useSessionStore((s) => s.toggleDrawer);
   const status = useSessionStore((s) => s.status);
-  const journalOpen = useSessionStore((s) => s.journalOpen);
+  const journalOpen = useSessionStore((s) => s.activeDrawer === "journal");
 
   const isVisible = status === "in-progress" || status === "ended";
 
@@ -16,7 +16,7 @@ export default function JournalDrawerToggle() {
       }`}
     >
       <button
-        onClick={toggleJournal}
+        onClick={() => toggleDrawer("journal")}
         className="min-h-[44px] flex items-center cursor-pointer"
         aria-label={journalOpen ? "Close journal" : "Open journal"}
       >

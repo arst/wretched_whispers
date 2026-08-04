@@ -66,8 +66,6 @@ function GameSession({ id }: { id: string }) {
 
   const showEndCard = status === "ended" && !isStreaming;
   const showDeathPanel = status === "fallen" && !isStreaming;
-  const isDead = characterData?.isDead ?? false;
-
   const { sendAction, retry } = useSseStream(id);
 
   // Auto-dismiss transient errors after 5s — but keep a retryable failure on screen so the player
@@ -140,11 +138,13 @@ function GameSession({ id }: { id: string }) {
         // successor's fresh chronicle — the character already exists in both cases, so the emptiness of
         // the chronicle is the signal, not the session status.
         if (data.messages.length === 0 && data.status !== "ended") {
+          setSplashDismissed(false);
           setShowSplash(true);
           setLoading(false);
           // Kick off the narrator's opening message (silent = no player bubble)
           sendAction("begin", { silent: true });
         } else {
+          setSplashDismissed(true);
           setLoading(false);
         }
 
@@ -207,22 +207,7 @@ function GameSession({ id }: { id: string }) {
 
   // 404 state
   if (notFound) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-4">
-        <h1 className="font-display text-doom-yellow text-3xl mb-4">
-          Session Not Found
-        </h1>
-        <p className="text-doom-ash text-sm mb-8">
-          This session has been consumed by the void.
-        </p>
-        <Link
-          href="/sessions"
-          className="text-doom-yellow text-sm uppercase tracking-wider hover:brightness-110 transition-all"
-        >
-          Return to Sessions
-        </Link>
-      </div>
-    );
+    return <SessionNotFound />;
   }
 
   // Loading state
@@ -233,7 +218,7 @@ function GameSession({ id }: { id: string }) {
   return (
     <div className="flex flex-col h-screen pt-14">
       {/* Splash screen for new character creation sessions */}
-      {showSplash && !splashDismissed && (
+      {!splashDismissed && (
         <SplashScreen
           show={showSplash}
           onTransition={handleSplashTransition}
@@ -274,13 +259,13 @@ function GameSession({ id }: { id: string }) {
       )}
 
       {/* Character sheet drawer */}
-      <CharacterDrawer />
+      <CharacterDrawer key={`character-${id}`} />
 
       {/* Campaign journal drawer */}
-      <JournalDrawer />
+      <JournalDrawer key={`journal-${id}`} />
 
       {/* Regional map drawer */}
-      <MapDrawer />
+      <MapDrawer key={`map-${id}`} />
 
       {/* Chat area */}
       <ChatWindow />
@@ -296,11 +281,9 @@ function GameSession({ id }: { id: string }) {
       {showEndCard && characterData && (
         <EndCard
           characterName={characterData.name}
-          isDead={isDead}
           worldEnded={worldEnded}
           miseryCount={miseryCount}
           currentDay={currentDay}
-          onRestart={() => {}}
         />
       )}
     </div>
@@ -309,7 +292,27 @@ function GameSession({ id }: { id: string }) {
 
 function GameSessionFromQuery() {
   const id = useSearchParams().get("id") ?? "";
+  if (!id) return <SessionNotFound />;
   return <GameSession id={id} />;
+}
+
+function SessionNotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen px-4">
+      <h1 className="font-display text-doom-yellow text-3xl mb-4">
+        Session Not Found
+      </h1>
+      <p className="text-doom-ash text-sm mb-8">
+        This session has been consumed by the void.
+      </p>
+      <Link
+        href="/sessions"
+        className="text-doom-yellow text-sm uppercase tracking-wider hover:brightness-110 transition-all"
+      >
+        Return to Sessions
+      </Link>
+    </div>
+  );
 }
 
 export default function GameSessionPage() {

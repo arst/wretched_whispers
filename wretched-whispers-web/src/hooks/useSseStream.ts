@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useEffect, useCallback } from "react";
-import { useAuthStore } from "@/stores/authStore";
 import { useSessionStore } from "@/stores/sessionStore";
+import { apiFetch } from "@/lib/api";
 import type {
   NarrativeEvent,
   ToolResultEvent,
@@ -11,14 +11,12 @@ import type {
   SseErrorEvent,
 } from "@/types/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-
 interface SseMessage {
   event: string;
   data: string;
 }
 
-function parseSseMessage(raw: string): SseMessage | null {
+export function parseSseMessage(raw: string): SseMessage | null {
   let event = "message";
   const data: string[] = [];
 
@@ -33,11 +31,11 @@ function parseSseMessage(raw: string): SseMessage | null {
   return data.length > 0 ? { event, data: data.join("\n") } : null;
 }
 
-async function readSse(
+export async function readSse(
   response: Response,
-  onMessage: (message: SseMessage) => void,
+  onMessage: (message: SseMessage) => "done" | "error" | undefined,
   signal: AbortSignal
-) {
+): Promise<"done" | "error" | "eof"> {
   if (!response.body) throw new Error("SSE response has no body");
 
   const reader = response.body
@@ -55,15 +53,27 @@ async function readSse(
 
     for (const raw of messages) {
       const message = parseSseMessage(raw);
-      if (message) onMessage(message);
+      if (message) {
+        const outcome = onMessage(message);
+        if (outcome) return outcome;
+      }
     }
   }
 
   const message = parseSseMessage(buffer);
-  if (message) onMessage(message);
+  if (message) {
+    const outcome = onMessage(message);
+    if (outcome) return outcome;
+  }
+
+  if (signal.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+
+  return "eof";
 }
 
-function handleMessage(ev: SseMessage, abort: () => void) {
+function handleMessage(ev: SseMessage): "done" | "error" | undefined {
   const s = useSessionStore.getState();
 
   switch (ev.event) {
@@ -89,14 +99,12 @@ function handleMessage(ev: SseMessage, abort: () => void) {
     }
     case "done":
       s.finishStreaming();
-      abort();
-      break;
+      return "done";
     case "error": {
       const data: SseErrorEvent = JSON.parse(ev.data);
       s.setError(data.message);
       s.failStreaming();
-      abort();
-      break;
+      return "error";
     }
   }
 }
@@ -112,7 +120,6 @@ export function useSseStream(sessionId: string) {
 
   const sendAction = useCallback(
     async (message: string, { silent = false }: { silent?: boolean } = {}) => {
-      const { accessToken } = useAuthStore.getState();
       const store = useSessionStore.getState();
 
       if (store.isStreaming) return;
@@ -130,12 +137,8 @@ export function useSseStream(sessionId: string) {
       store.startStreaming();
 
       try {
-        const response = await fetch(`${API_URL}/sessions/${sessionId}/actions`, {
+        const response = await apiFetch(`/sessions/${sessionId}/actions`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({ message }),
           signal: ctrl.signal,
         });
@@ -151,19 +154,15 @@ export function useSseStream(sessionId: string) {
           throw new Error(`SSE connection failed (${response.status})`);
         }
 
-        await readSse(
-          response,
-          (ev) => handleMessage(ev, () => ctrl.abort()),
-          ctrl.signal
-        );
+        const outcome = await readSse(response, handleMessage, ctrl.signal);
 
         const s = useSessionStore.getState();
-        if (s.error) {
+        if (outcome === "error") {
           // The stream delivered an error event (e.g. the model rate-limited). Remember this turn's
           // message so the player can retry it — the backend rolled the turn back, so it's safe.
           s.setFailedMessage(message);
-        } else if (s.isStreaming) {
-          s.finishStreaming();
+        } else if (outcome === "eof") {
+          throw new Error("SSE connection closed before the turn completed");
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
