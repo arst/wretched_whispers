@@ -38,9 +38,6 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    // Previously skipped as flaky: a single shared SqliteConnection can host only one transaction,
-    // so TurnCoordinator's fire-and-forget per-turn transaction raced concurrent requests. The
-    // factory now uses shared-cache mode with a connection per scope, which removes that race.
     [Fact]
     public async Task PostAction_WithNonExistentSession_Returns404()
     {
@@ -60,8 +57,6 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // Previously skipped as flaky; see PostAction_WithNonExistentSession_Returns404 for why the
-    // shared-cache factory removed the race.
     [Fact]
     public async Task PostAction_SessionOwnedByOtherUser_ReturnsError()
     {
@@ -98,20 +93,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
 
     public class StreamingWebAppFactory : WebApplicationFactory<Program>
     {
-        // A uniquely-named shared-cache in-memory database. Unlike a single shared SqliteConnection,
-        // shared-cache mode lets every request open its OWN connection while all of them see the same
-        // data, and the keep-alive connection below holds the database open for the factory's lifetime.
-        //
-        // This matters because the /actions endpoint runs TurnCoordinator's turn as a fire-and-forget
-        // task that opens a per-turn transaction (BeginTransactionAsync). A single SqliteConnection can
-        // host only one transaction at a time, so that background transaction would intermittently
-        // collide with the ownership-check query of a concurrent request — surfacing as a 500 instead
-        // of the deterministic 404. The race only lost on slower CI runners; per-connection isolation
-        // (as in production with a pooled connection) removes it entirely.
-        private readonly string _connectionString =
-            $"DataSource=ww-stream-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
-
-        private SqliteConnection? _keepAlive;
+        private SqliteConnection? _connection;
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -125,13 +107,11 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
                 foreach (var descriptor in descriptors)
                     services.Remove(descriptor);
 
-                // Keep the shared-cache in-memory database alive for the factory's lifetime.
-                _keepAlive = new SqliteConnection(_connectionString);
-                _keepAlive.Open();
+                _connection = new SqliteConnection("DataSource=:memory:");
+                _connection.Open();
 
-                // Each scoped DbContext opens its own connection to the same shared-cache database.
                 services.AddDbContext<WretchedWhispersDbContext>(options =>
-                    options.UseSqlite(_connectionString));
+                    options.UseSqlite(_connection));
             });
 
             builder.UseEnvironment("Development");
@@ -140,8 +120,8 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            _keepAlive?.Close();
-            _keepAlive?.Dispose();
+            _connection?.Close();
+            _connection?.Dispose();
         }
     }
 }
