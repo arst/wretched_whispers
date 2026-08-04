@@ -49,6 +49,46 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task CookieLogin_UsesCsrfProtectedLogout()
+    {
+        const string email = "cookie-auth@test.com";
+        const string password = AuthFlow.Password;
+        await _client.PostAsJsonAsync("/auth/register", new { email, password });
+
+        var login = await _client.PostAsJsonAsync("/auth/login?useCookies=true", new { email, password });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/auth/me")).StatusCode);
+
+        var csrf = await _client.GetFromJsonAsync<JsonElement>("/auth/csrf");
+        var logout = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        logout.Headers.Add("X-CSRF-TOKEN", csrf.GetProperty("token").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(logout)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task CookieSessionMutation_RequiresCsrfToken()
+    {
+        const string email = "cookie-csrf@test.com";
+        const string password = AuthFlow.Password;
+        await _client.PostAsJsonAsync("/auth/register", new { email, password });
+        await _client.PostAsJsonAsync("/auth/login?useCookies=true", new { email, password });
+
+        var body = JsonContent.Create(new { characterName = "Cookie Wretch" });
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsync("/sessions", body)).StatusCode);
+
+        var csrf = await _client.GetFromJsonAsync<JsonElement>("/auth/csrf");
+        var request = new HttpRequestMessage(HttpMethod.Post, "/sessions")
+        {
+            Content = JsonContent.Create(new { characterName = "Cookie Wretch" })
+        };
+        request.Headers.Add("X-CSRF-TOKEN", csrf.GetProperty("token").GetString());
+
+        Assert.Equal(HttpStatusCode.Created, (await _client.SendAsync(request)).StatusCode);
+    }
+
     public void Dispose()
     {
         _client.Dispose();

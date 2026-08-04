@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDesktopSettingsStore } from "@/stores/desktopSettingsStore";
 
 // Desktop-only settings: the app needs the user's own OpenAI-compatible key. On first run (no key set)
@@ -21,9 +21,12 @@ export default function DesktopSettingsGate({
   const [baseUrl, setBaseUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dialog = useRef<HTMLDialogElement>(null);
 
   const open = useDesktopSettingsStore((s) => s.open);
   const setOpen = useDesktopSettingsStore((s) => s.setOpen);
+  const firstRun = !hasKey;
+  const showForm = isDesktop && ready && (firstRun || open);
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -40,6 +43,11 @@ export default function DesktopSettingsGate({
         setReady(true);
       });
   }, []);
+
+  useEffect(() => {
+    if (showForm && !dialog.current?.open) dialog.current?.showModal();
+    if (!showForm && dialog.current?.open) dialog.current.close();
+  }, [showForm]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -73,15 +81,18 @@ export default function DesktopSettingsGate({
 
   if (!ready) return null;
 
-  // First run (no key) is mandatory and non-dismissible; the header gear opens it again later.
-  const firstRun = !hasKey;
-  const showForm = firstRun || open;
-
   return (
     <>
       {children}
-      {showForm && (
-        <div className="fixed inset-0 z-50 bg-doom-black/90 flex items-center justify-center px-4">
+      <dialog
+        ref={dialog}
+        aria-label={firstRun ? "OpenAI settings required" : "Settings"}
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!firstRun) setOpen(false);
+        }}
+        className="m-auto w-full max-w-none bg-transparent px-4 text-doom-bone backdrop:bg-doom-black/90"
+      >
           <form
             onSubmit={save}
             className="w-full max-w-md bg-doom-card border border-doom-yellow/30 p-8 flex flex-col gap-5"
@@ -153,8 +164,7 @@ export default function DesktopSettingsGate({
               {saving ? "Binding..." : firstRun ? "Begin" : "Save"}
             </button>
           </form>
-        </div>
-      )}
+      </dialog>
     </>
   );
 }

@@ -20,118 +20,41 @@ interface MapData {
 
 export default function MapDrawer() {
   const sessionId = useSessionStore((s) => s.sessionId);
-  const mapOpen = useSessionStore((s) => s.mapOpen);
-  const toggleMap = useSessionStore((s) => s.toggleMap);
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
+  const mapOpen = useSessionStore((s) => s.activeDrawer === "map");
+  const toggleDrawer = useSessionStore((s) => s.toggleDrawer);
+  const drawerRef = useRef<HTMLDialogElement>(null);
   const [data, setData] = useState<MapData | null>(null);
 
-  // Mount/unmount with transition support
   useEffect(() => {
-    if (mapOpen) {
-      setMounted(true);
-    } else {
-      const timer = setTimeout(() => setMounted(false), 200);
-      return () => clearTimeout(timer);
-    }
+    if (mapOpen && !drawerRef.current?.open) drawerRef.current?.showModal();
+    if (!mapOpen && drawerRef.current?.open) drawerRef.current.close();
   }, [mapOpen]);
 
   // Fetch on open so places charted during play show up without SSE plumbing
   useEffect(() => {
     if (!mapOpen || !sessionId) return;
-    setData(null);
-    apiFetch(`/sessions/${sessionId}/map`)
+    const controller = new AbortController();
+    apiFetch(`/sessions/${sessionId}/map`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setData(d))
-      .catch(() => setData({ pois: [], currentLocationName: null }));
+      .then((d) => {
+        if (!controller.signal.aborted) setData(d);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setData({ pois: [], currentLocationName: null });
+      });
+    return () => controller.abort();
   }, [mapOpen, sessionId]);
-
-  // Focus trap
-  useEffect(() => {
-    if (!mapOpen || !drawerRef.current) return;
-
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const drawer = drawerRef.current;
-
-    const focusableSelector =
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
-    function getFocusableElements() {
-      return Array.from(
-        drawer.querySelectorAll<HTMLElement>(focusableSelector)
-      );
-    }
-
-    // Focus first element after transition
-    const focusTimer = setTimeout(() => {
-      const elements = getFocusableElements();
-      if (elements.length > 0) elements[0].focus();
-    }, 50);
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        toggleMap();
-        return;
-      }
-
-      if (e.key === "Tab") {
-        const elements = getFocusableElements();
-        if (elements.length === 0) return;
-
-        const first = elements[0];
-        const last = elements[elements.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      clearTimeout(focusTimer);
-      document.removeEventListener("keydown", handleKeyDown);
-      if (previousFocus && typeof previousFocus.focus === "function") {
-        previousFocus.focus();
-      }
-    };
-  }, [mapOpen, toggleMap]);
-
-  if (!mounted) return null;
 
   const pois = data?.pois ?? [];
   const byName = (name: string | null) =>
     pois.find((p) => p.name === name);
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-50 bg-[#0a0a0a]/60 transition-opacity duration-200 ${
-          mapOpen ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={toggleMap}
-        aria-hidden="true"
-      />
-
-      {/* Drawer panel */}
-      <div
+      <dialog
         ref={drawerRef}
-        role="dialog"
-        aria-modal="true"
         aria-label="Regional map"
-        className={`fixed top-0 right-0 z-50 h-full w-full sm:w-96 bg-doom-dark transform transition-transform duration-200 ease-out overflow-y-auto ${
-          mapOpen ? "translate-x-0" : "translate-x-full"
-        }`}
+        onCancel={(event) => { event.preventDefault(); toggleDrawer("map"); }}
+        className="fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full sm:w-96 bg-doom-dark text-doom-bone overflow-y-auto backdrop:bg-[#0a0a0a]/60"
       >
         {/* Header row */}
         <div className="px-8 pt-8 pb-0 flex items-center justify-between">
@@ -139,7 +62,7 @@ export default function MapDrawer() {
             MAP
           </h2>
           <button
-            onClick={toggleMap}
+            onClick={() => toggleDrawer("map")}
             aria-label="Close map"
             className="text-doom-ash hover:text-doom-bone text-xl cursor-pointer"
           >
@@ -212,7 +135,6 @@ export default function MapDrawer() {
             </svg>
           )}
         </div>
-      </div>
-    </>
+      </dialog>
   );
 }

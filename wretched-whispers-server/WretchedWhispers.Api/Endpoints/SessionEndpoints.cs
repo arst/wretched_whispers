@@ -2,6 +2,8 @@ using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Identity;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Engine.Models;
 using WretchedWhispers.Engine.Services;
@@ -36,6 +38,20 @@ public static class SessionEndpoints
                     return Results.Unauthorized();
 
                 http.RequestServices.GetRequiredService<IUserContext>().SetUserId(userId);
+                return await next(context);
+            })
+            // Bearer-token API consumers are not vulnerable to CSRF. Browser cookie requests are,
+            // so validate only that authentication scheme and leave existing API clients unchanged.
+            .AddEndpointFilter(async (context, next) =>
+            {
+                var http = context.HttpContext;
+                if (!HttpMethods.IsGet(http.Request.Method)
+                    && http.User.Identity?.AuthenticationType == IdentityConstants.ApplicationScheme
+                    && http.Request.Cookies.ContainsKey(".AspNetCore.Identity.Application")
+                    && !await http.RequestServices.GetRequiredService<IAntiforgery>()
+                        .IsRequestValidAsync(http))
+                    return Results.BadRequest();
+
                 return await next(context);
             });
 

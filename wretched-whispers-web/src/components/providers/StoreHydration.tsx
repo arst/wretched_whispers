@@ -2,16 +2,25 @@
 
 import { useEffect } from "react";
 import { useAuthStore } from "@/stores/authStore";
+import { verifyToken } from "@/lib/auth";
 
 /**
- * Triggers Zustand persist rehydration from localStorage on mount.
- * Required because authStore uses skipHydration: true for SSR safety.
- * Place in the root layout to ensure stores hydrate on every page.
+ * Resolves the hosted Identity cookie before guarded pages render. Desktop
+ * starts authenticated through its fixed local-user backend.
  */
 export default function StoreHydration() {
   useEffect(() => {
-    useAuthStore.persist.rehydrate();
-    useAuthStore.getState().setHydrated();
+    const store = useAuthStore.getState();
+    if (store.isAuthenticated) {
+      store.setHydrated();
+      return;
+    }
+
+    void verifyToken().then((authenticated) => {
+      const current = useAuthStore.getState();
+      current.setAuthenticated(authenticated);
+      current.setHydrated();
+    });
   }, []);
 
   return null;

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
-import Button from "@/components/ui/Button";
 
 export default function Home() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -17,10 +16,11 @@ export default function Home() {
       <p className="text-doom-ash text-lg md:text-xl text-center max-w-2xl mb-12 italic">
         The world is dying. You are nothing. Play anyway.
       </p>
-      <Link href={beginHref}>
-        <Button variant="primary" className="text-lg px-10 py-4">
-          BEGIN
-        </Button>
+      <Link
+        href={beginHref}
+        className="bg-doom-yellow text-doom-black hover:brightness-110 active:brightness-90 px-10 py-4 text-lg font-display uppercase tracking-wider transition-all duration-150"
+      >
+        BEGIN
       </Link>
       <Link
         href="/login"

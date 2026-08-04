@@ -16,7 +16,7 @@ export default function CharacterDrawerToggle() {
   const characterData = useSessionStore((s) => s.characterData);
   const toggleDrawer = useSessionStore((s) => s.toggleDrawer);
   const status = useSessionStore((s) => s.status);
-  const drawerOpen = useSessionStore((s) => s.drawerOpen);
+  const drawerOpen = useSessionStore((s) => s.activeDrawer === "character");
 
   const miseryCount = useSessionStore((s) => s.miseryCount);
 
@@ -30,7 +30,7 @@ export default function CharacterDrawerToggle() {
       }`}
     >
       <button
-        onClick={toggleDrawer}
+        onClick={() => toggleDrawer("character")}
         className="min-h-[44px] flex items-center gap-2 cursor-pointer"
         aria-label={drawerOpen ? "Close character sheet" : "Open character sheet"}
       >
