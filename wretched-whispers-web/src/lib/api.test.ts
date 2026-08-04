@@ -18,7 +18,9 @@ describe("apiFetch", () => {
     await apiFetch("/sessions", { method: "POST", body: "{}" });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/auth/csrf");
     const [, request] = fetchMock.mock.calls[1];
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/sessions");
     expect(request.credentials).toBe("include");
     expect(new Headers(request.headers).get("X-CSRF-TOKEN")).toBe("csrf");
   });

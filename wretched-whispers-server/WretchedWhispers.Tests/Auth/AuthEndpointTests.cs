@@ -30,7 +30,7 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
         var accessToken = await AuthFlow.RegisterAndLogin(_client, "authme@test.com");
 
         // Call /auth/me with bearer token
-        var request = new HttpRequestMessage(HttpMethod.Get, "/auth/me");
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         var meResponse = await _client.SendAsync(request);
 
@@ -44,7 +44,7 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
     [Fact]
     public async Task AuthMe_WithoutBearerToken_Returns401()
     {
-        var response = await _client.GetAsync("/auth/me");
+        var response = await _client.GetAsync("/api/auth/me");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -54,18 +54,18 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
     {
         const string email = "cookie-auth@test.com";
         const string password = AuthFlow.Password;
-        await _client.PostAsJsonAsync("/auth/register", new { email, password });
+        await _client.PostAsJsonAsync("/api/auth/register", new { email, password });
 
-        var login = await _client.PostAsJsonAsync("/auth/login?useCookies=true", new { email, password });
+        var login = await _client.PostAsJsonAsync("/api/auth/login?useCookies=true", new { email, password });
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/api/auth/me")).StatusCode);
 
-        var csrf = await _client.GetFromJsonAsync<JsonElement>("/auth/csrf");
-        var logout = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        var csrf = await _client.GetFromJsonAsync<JsonElement>("/api/auth/csrf");
+        var logout = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
         logout.Headers.Add("X-CSRF-TOKEN", csrf.GetProperty("token").GetString());
 
         Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(logout)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/auth/me")).StatusCode);
     }
 
     [Fact]
@@ -73,14 +73,14 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
     {
         const string email = "cookie-csrf@test.com";
         const string password = AuthFlow.Password;
-        await _client.PostAsJsonAsync("/auth/register", new { email, password });
-        await _client.PostAsJsonAsync("/auth/login?useCookies=true", new { email, password });
+        await _client.PostAsJsonAsync("/api/auth/register", new { email, password });
+        await _client.PostAsJsonAsync("/api/auth/login?useCookies=true", new { email, password });
 
         var body = JsonContent.Create(new { characterName = "Cookie Wretch" });
-        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsync("/sessions", body)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsync("/api/sessions", body)).StatusCode);
 
-        var csrf = await _client.GetFromJsonAsync<JsonElement>("/auth/csrf");
-        var request = new HttpRequestMessage(HttpMethod.Post, "/sessions")
+        var csrf = await _client.GetFromJsonAsync<JsonElement>("/api/auth/csrf");
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/sessions")
         {
             Content = JsonContent.Create(new { characterName = "Cookie Wretch" })
         };

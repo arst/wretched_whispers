@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-// Toggles the desktop settings form open from the header (desktop build only).
+// Toggles the standalone settings form open from the header.
 interface DesktopSettingsState {
   open: boolean;
   setOpen: (open: boolean) => void;

@@ -6,10 +6,10 @@ using OpenAI;
 namespace WretchedWhispers.Engine.Configuration;
 
 /// <summary>
-/// Mutable holder for the desktop user's own OpenAI-compatible credentials: key, model, and an optional
+/// Mutable holder for a standalone user's own OpenAI-compatible credentials: key, model, and an optional
 /// base URL (leave empty for OpenAI itself; set e.g. https://openrouter.ai/api/v1 for OpenRouter). Entered
 /// at runtime on the first-run settings screen, so it lives here rather than in immutable config.
-/// Thread-safe: read via <see cref="Snapshot"/>, written via <see cref="Update"/> from POST /settings.
+/// Thread-safe: read via <see cref="Snapshot"/>, written via <see cref="Update"/> from POST /api/settings.
 /// </summary>
 public sealed class DesktopLlmOptions(string apiKey, string model, string baseUrl = "")
 {

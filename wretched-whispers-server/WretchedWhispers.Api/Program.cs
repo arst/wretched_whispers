@@ -3,48 +3,47 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Api.Auth;
 using WretchedWhispers.Api.Configuration;
+using WretchedWhispers.Api.Deployment;
 using WretchedWhispers.Api.Endpoints;
 using WretchedWhispers.Engine.Configuration;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
-using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add user secrets from Infrastructure assembly (where AzureOpenAI keys are stored)
 builder.Configuration.AddUserSecrets(typeof(ServiceCollectionExtensions).Assembly, optional: true);
 
-#if DESKTOP
-// Desktop: point SQLite at the writable app-data dir and select the OpenAI provider (key from
-// settings.json). Applied before service registration so AddDbContext / AddGameAgent pick it up.
-builder.Configuration.AddInMemoryCollection(WretchedWhispers.Api.Desktop.DesktopHost.BuildConfig());
-// Container/CLI overrides: OPENAI_API_KEY / OPENAI_MODEL / OPENAI_BASE_URL. Added LAST so env vars
-// beat settings.json (spec precedence: env > settings.json > first-run UI).
-builder.Configuration.AddInMemoryCollection(
-    EnvConfigOverrides.Map(Environment.GetEnvironmentVariable));
-#endif
-
-// CORS: the web client's origin — Next.js dev server by default, overridable for hosted
-// deployments via Cors:WebOrigin (env: Cors__WebOrigin).
-var webOrigin = builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000";
-builder.Services.AddCors(options =>
+if (DeploymentProfile.UsesLocalAuth)
 {
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.WithOrigins(webOrigin)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
-    });
-});
+    builder.Configuration.AddInMemoryCollection(StandaloneHost.BuildConfig());
+    builder.Configuration.AddInMemoryCollection(
+        EnvConfigOverrides.Map(Environment.GetEnvironmentVariable));
+}
 
-// EF Core: SQLite by default (zero-config local file), Postgres when WW_DB_PROVIDER=postgres —
-// the shared-database mode that lets multiple stateless instances serve the same players.
+var webOrigin = builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000";
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+    .WithOrigins(webOrigin)
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .AllowCredentials()));
+
+if (DeploymentProfile.UsesIdentity && !builder.Environment.IsDevelopment())
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+
 var usePostgres = string.Equals(
     builder.Configuration["WW_DB_PROVIDER"], "postgres", StringComparison.OrdinalIgnoreCase);
 var connectionString = builder.Configuration.GetConnectionString("Default");
@@ -53,90 +52,89 @@ void ConfigureDb(DbContextOptionsBuilder options)
 {
     if (usePostgres) options.UseNpgsql(connectionString);
     else options.UseSqlite(connectionString);
-    // Dev only: turn EF's generic "An error occurred using a transaction" [20205] into the actual
-    // failing SQL, parameter values, and the entity/property that faulted. Sensitive data may include
-    // player input, so keep it out of production.
     if (builder.Environment.IsDevelopment())
         options.EnableDetailedErrors().EnableSensitiveDataLogging();
 }
 
 if (usePostgres)
 {
-    // Fail fast if the SQLite default leaked through (WW_DB_CONNECTION / ConnectionStrings__Default unset).
     if (connectionString is null || connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException(
             "WW_DB_PROVIDER=postgres requires a PostgreSQL connection string via WW_DB_CONNECTION or ConnectionStrings__Default.");
-    // PostgresWwDbContext IS the WretchedWhispersDbContext service — it carries the Postgres
-    // migration set; repositories, Identity stores, and MigrateAsync stay provider-unaware.
     builder.Services.AddDbContext<WretchedWhispersDbContext, PostgresWwDbContext>(ConfigureDb);
-    // Advisory xact lock on the turn's transaction: released by Postgres itself on commit,
-    // rollback, or connection death — a crashed instance can never leave a session locked.
     builder.Services.AddScoped<ISessionLock, PostgresSessionLock>();
 }
 else
 {
     builder.Services.AddDbContext<WretchedWhispersDbContext>(ConfigureDb);
-    // SQLite = single instance by definition; a process-local set is the whole story.
     builder.Services.AddSingleton<ISessionLock, InMemorySessionLock>();
 }
 
-// Identity bearer/refresh tokens must survive restarts and be readable by every instance sharing
-// the database. Harmless on desktop (LocalAuthHandler never issues tokens).
-builder.Services.AddDataProtection().PersistKeysToDbContext<WretchedWhispersDbContext>();
+if (DeploymentProfile.UsesIdentity)
+    builder.Services.AddDataProtection().PersistKeysToDbContext<WretchedWhispersDbContext>();
 
-// Repositories, domain services, dice, JSON options (Scoped)
 builder.Services.AddDomainServices();
 
-#if DESKTOP
-// Desktop single-user auth: authenticate every request as the fixed local user (no login screen).
-// The existing per-user data scoping keeps working with "local" as the user.
-builder.Services.AddAuthentication(LocalAuthHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, LocalAuthHandler>(LocalAuthHandler.SchemeName, null);
-#else
-// Identity API endpoints (register, login, refresh)
-builder.Services.AddIdentityApiEndpoints<IdentityUser>(options =>
-    {
-        // Relaxed password rules for pre-release
-        options.Password.RequireDigit = false;
-        options.Password.RequireNonAlphanumeric = false;
-        options.Password.RequireUppercase = false;
-        options.Password.RequiredLength = 8;
-
-        // No email confirmation required
-        options.SignIn.RequireConfirmedEmail = false;
-        options.SignIn.RequireConfirmedAccount = false;
-    })
-    .AddEntityFrameworkStores<WretchedWhispersDbContext>();
-
-// Configure bearer token expiration
-builder.Services.Configure<BearerTokenOptions>(IdentityConstants.BearerScheme, options =>
+if (DeploymentProfile.UsesLocalAuth)
 {
-    options.BearerTokenExpiration = TimeSpan.FromMinutes(60);   // Access token: 1 hour
-    options.RefreshTokenExpiration = TimeSpan.FromDays(14);     // Refresh token: 2 weeks
-});
-#endif
+    builder.Services.AddAuthentication(LocalAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, LocalAuthHandler>(LocalAuthHandler.SchemeName, null);
+}
+else
+{
+    builder.Services.AddIdentityApiEndpoints<IdentityUser>(options =>
+        {
+            options.Password.RequireDigit = false;
+            options.Password.RequireNonAlphanumeric = false;
+            options.Password.RequireUppercase = false;
+            options.Password.RequiredLength = 8;
+            options.SignIn.RequireConfirmedEmail = false;
+            options.SignIn.RequireConfirmedAccount = false;
+        })
+        .AddEntityFrameworkStores<WretchedWhispersDbContext>();
+
+    builder.Services.Configure<BearerTokenOptions>(IdentityConstants.BearerScheme, options =>
+    {
+        options.BearerTokenExpiration = TimeSpan.FromMinutes(60);
+        options.RefreshTokenExpiration = TimeSpan.FromDays(14);
+    });
+}
 
 builder.Services.AddAuthorization();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 
-#if !DESKTOP
-builder.Services.ConfigureApplicationCookie(options =>
+if (DeploymentProfile.UsesIdentity)
 {
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
-        ? CookieSecurePolicy.SameAsRequest
-        : CookieSecurePolicy.Always;
-});
-#endif
+    builder.Services.ConfigureApplicationCookie(options =>
+    {
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
+        options.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
+}
 
 builder.AddWretchedWhispersOpenTelemetry();
-
 builder.Services.AddGameAgent(builder.Configuration);
 
 var app = builder.Build();
+var uiIndex = app.Environment.WebRootFileProvider.GetFileInfo("index.html");
 
-// Auto-create/migrate database on first launch
+if (DeploymentProfile.UsesIdentity && app.Environment.IsProduction() && !uiIndex.Exists)
+    throw new InvalidOperationException(
+        "The Server profile requires the bundled UI at wwwroot/index.html in Production.");
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
@@ -145,8 +143,6 @@ using (var scope = app.Services.CreateScope())
         .LogInformation("Database migrated successfully");
 }
 
-// Offline CLI: dump all turn traces to JSON for error analysis, then exit (no web host).
-//   dotnet run --project WretchedWhispers.Api -- export-traces [outDir]
 if (args is ["export-traces", ..])
 {
     var outDir = args.Length > 1 ? args[1] : "./traces-export";
@@ -154,35 +150,80 @@ if (args is ["export-traces", ..])
     return;
 }
 
-#if DESKTOP
-// Desktop: serve the static-exported SPA from wwwroot same-origin, expose the first-run settings
-// endpoints, then open the native window. No CORS (same origin), no Identity endpoints.
-app.UseDefaultFiles();
-app.UseStaticFiles();
+if (DeploymentProfile.UsesIdentity && !app.Environment.IsDevelopment())
+    app.UseForwardedHeaders();
+
+if (uiIndex.Exists)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
+
+if (DeploymentProfile.UsesIdentity && app.Environment.IsDevelopment())
+    app.UseCors();
+
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapDesktopSettings(WretchedWhispers.Api.Desktop.DesktopHost.SettingsPath, readOnly: usePostgres);
+
+if (DeploymentProfile.UsesIdentity)
+{
+    var auth = app.MapGroup("/api/auth");
+    auth.MapIdentityApi<IdentityUser>();
+    auth.MapGet("/csrf", (HttpContext http, IAntiforgery antiforgery) =>
+        Results.Ok(new { token = antiforgery.GetAndStoreTokens(http).RequestToken }))
+        .RequireAuthorization();
+    auth.MapPost("/logout", async (HttpContext http, IAntiforgery antiforgery,
+        SignInManager<IdentityUser> signInManager) =>
+    {
+        if (!await antiforgery.IsRequestValidAsync(http)) return Results.BadRequest();
+        await signInManager.SignOutAsync();
+        return Results.Ok();
+    }).RequireAuthorization();
+    auth.MapGet("/me", (HttpContext http) =>
+        Results.Ok(new { userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) }))
+        .RequireAuthorization();
+}
+
+if (DeploymentProfile.UsesSettings)
+    app.MapSettingsEndpoints(StandaloneHost.SettingsPath, readOnly: usePostgres);
+
 app.MapGet("/health", () => Results.Ok("alive"));
 app.MapSessionEndpoints();
-app.MapFallbackToFile("index.html");
 
-if (WretchedWhispers.Api.Desktop.DesktopHost.IsHeadless)
+if (uiIndex.Exists)
 {
-    // Container/server: no native window. Honour ASPNETCORE_URLS when set; otherwise bind all
-    // interfaces on 8080 (the container's EXPOSEd port). Blocks until the host stops.
-    if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
-        app.Urls.Add("http://0.0.0.0:8080");
-    app.Run();
+    app.MapFallback(async context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        var route = context.Request.Path.Value?.Trim('/') ?? "";
+        var routeIndex = app.Environment.WebRootFileProvider.GetFileInfo($"{route}/index.html");
+        var file = routeIndex.Exists ? routeIndex : uiIndex;
+        context.Response.ContentType = "text/html";
+        await context.Response.SendFileAsync(file.PhysicalPath!, context.RequestAborted);
+    });
 }
-else
+
+#if DEPLOYMENT_DESKTOP
+if (DeploymentProfile.OpensDesktopShell)
 {
     var desktopUrl = $"http://127.0.0.1:{GetFreePort()}";
     app.Urls.Add(desktopUrl);
     await app.StartAsync();
-    WretchedWhispers.Api.Desktop.DesktopHost.Run(desktopUrl); // blocks until the window closes
+    WretchedWhispers.Api.Desktop.DesktopShell.Run(desktopUrl);
     await app.StopAsync();
 }
+else
+#endif
+{
+    app.Run();
+}
 
+#if DEPLOYMENT_DESKTOP
 static int GetFreePort()
 {
     var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
@@ -191,39 +232,6 @@ static int GetFreePort()
     listener.Stop();
     return port; // ponytail: negligible TOCTOU window; fine for a single-user local app
 }
-#else
-app.UseCors();
-app.UseAuthentication();
-app.UseAuthorization();
-
-// Map Identity endpoints under /auth prefix
-app.MapGroup("/auth").MapIdentityApi<IdentityUser>();
-
-app.MapGet("/auth/csrf", (HttpContext http, IAntiforgery antiforgery) =>
-    Results.Ok(new { token = antiforgery.GetAndStoreTokens(http).RequestToken }))
-    .RequireAuthorization();
-
-app.MapPost("/auth/logout", async (HttpContext http, IAntiforgery antiforgery, SignInManager<IdentityUser> signInManager) =>
-{
-    if (!await antiforgery.IsRequestValidAsync(http))
-        return Results.BadRequest();
-
-    await signInManager.SignOutAsync();
-    return Results.Ok();
-}).RequireAuthorization();
-
-// Health check endpoint (no auth)
-app.MapGet("/health", () => Results.Ok("alive"));
-
-// Protected endpoint to verify token auth works
-app.MapGet("/auth/me", (HttpContext http) =>
-    Results.Ok(new { userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) }))
-    .RequireAuthorization();
-
-app.MapSessionEndpoints();
-
-app.Run();
 #endif
 
-// Make Program class accessible for WebApplicationFactory in tests
 public partial class Program { }

@@ -2,19 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useDesktopSettingsStore } from "@/stores/desktopSettingsStore";
+import { isStandalone } from "@/lib/deployment";
 
-// Desktop-only settings: the app needs the user's own OpenAI-compatible key. On first run (no key set)
+// Standalone settings: the app needs the user's own OpenAI-compatible key. On first run (no key set)
 // this blocks the UI with a mandatory key screen; afterwards it opens as a dismissible modal from the
-// header gear so the user can change key / model / base URL. In the hosted web build (no
-// NEXT_PUBLIC_DESKTOP) it's a pass-through — /settings doesn't exist there.
-const isDesktop = process.env.NEXT_PUBLIC_DESKTOP === "1";
+// header gear so the user can change key / model / base URL. In Server builds it is a pass-through.
 
 export default function DesktopSettingsGate({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [ready, setReady] = useState(!isDesktop);
+  const [ready, setReady] = useState(!isStandalone);
   const [hasKey, setHasKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("gpt-4o");
@@ -26,11 +25,11 @@ export default function DesktopSettingsGate({
   const open = useDesktopSettingsStore((s) => s.open);
   const setOpen = useDesktopSettingsStore((s) => s.setOpen);
   const firstRun = !hasKey;
-  const showForm = isDesktop && ready && (firstRun || open);
+  const showForm = isStandalone && ready && (firstRun || open);
 
   useEffect(() => {
-    if (!isDesktop) return;
-    fetch("/settings")
+    if (!isStandalone) return;
+    fetch("/api/settings")
       .then((r) => r.json())
       .then((d: { hasKey: boolean; model?: string; baseUrl?: string }) => {
         setHasKey(d.hasKey);
@@ -54,7 +53,7 @@ export default function DesktopSettingsGate({
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/settings", {
+      const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -77,7 +76,7 @@ export default function DesktopSettingsGate({
 
   // Web build never shows the key screen — the hosted API has its own key. Structural, so no
   // state-polarity refactor can regress it again.
-  if (!isDesktop) return <>{children}</>;
+  if (!isStandalone) return <>{children}</>;
 
   if (!ready) return null;
 

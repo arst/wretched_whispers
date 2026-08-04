@@ -2,6 +2,7 @@
 **/obj/
 **/node_modules/
 **/.next/
+**/.next-export/
 wretched-whispers-web/out/
 dist/
 docs/

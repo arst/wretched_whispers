@@ -7,8 +7,7 @@ import { logout } from "@/lib/auth";
 import CharacterDrawerToggle from "@/components/character/CharacterDrawerToggle";
 import JournalDrawerToggle from "@/components/journal/JournalDrawerToggle";
 import MapDrawerToggle from "@/components/map/MapDrawerToggle";
-
-const isDesktop = process.env.NEXT_PUBLIC_DESKTOP === "1";
+import { isStandalone } from "@/lib/deployment";
 
 export default function Header() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -39,7 +38,7 @@ export default function Header() {
             >
               Sessions
             </Link>
-            {isDesktop ? (
+            {isStandalone ? (
               <button
                 onClick={() => openSettings(true)}
                 aria-label="Settings"

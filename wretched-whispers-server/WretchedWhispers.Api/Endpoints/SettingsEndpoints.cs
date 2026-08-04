@@ -4,22 +4,23 @@ using WretchedWhispers.Engine.Configuration;
 namespace WretchedWhispers.Api.Endpoints;
 
 /// <summary>
-/// Desktop-only first-run settings: the user pastes their own OpenAI-compatible key (OpenAI, OpenRouter,
-/// …). Mapped only on the desktop path (loopback, single user) so it needs no auth. GET never returns the
+/// Standalone first-run settings: the user pastes their own OpenAI-compatible key (OpenAI, OpenRouter,
+/// …). Mapped only with local single-user auth, so it needs no additional login. GET never returns the
 /// key — only whether one is set.
 /// </summary>
 public static class SettingsEndpoints
 {
-    public static WebApplication MapDesktopSettings(
+    public static WebApplication MapSettingsEndpoints(
         this WebApplication app, string settingsFilePath, bool readOnly = false)
     {
-        app.MapGet("/settings", (DesktopLlmOptions opt) =>
+        var group = app.MapGroup("/api/settings");
+        group.MapGet("/", (DesktopLlmOptions opt) =>
         {
             var (_, model, baseUrl) = opt.Snapshot();
             return Results.Ok(new { provider = "openai", model, baseUrl, hasKey = opt.HasKey });
         });
 
-        app.MapPost("/settings", async (DesktopSettingsRequest req, DesktopLlmOptions opt, CancellationToken ct) =>
+        group.MapPost("/", async (DesktopSettingsRequest req, DesktopLlmOptions opt, CancellationToken ct) =>
         {
             // Multi-instance (postgres) mode: a save would configure one random instance and write
             // its local settings.json — silently lost on redeploy. Env vars are the one shared path.

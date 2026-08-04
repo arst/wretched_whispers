@@ -12,9 +12,9 @@ internal static class AuthFlow
 
     public static async Task<string> RegisterAndLogin(HttpClient client, string email, string password = Password)
     {
-        await client.PostAsJsonAsync("/auth/register", new { email, password });
+        await client.PostAsJsonAsync("/api/auth/register", new { email, password });
 
-        var loginResponse = await client.PostAsJsonAsync("/auth/login?useCookies=false", new { email, password });
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login?useCookies=false", new { email, password });
 
         var loginJson = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         return loginJson.GetProperty("accessToken").GetString()

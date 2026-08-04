@@ -21,7 +21,7 @@ public static class AgentConfiguration
         var timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
         // Provider selection. Hosted web build leaves "Llm:Provider" unset → Azure (unchanged). The
-        // desktop build sets it to "openai" so users bring their own key.
+        // standalone profiles set it to "openai" so users bring their own key.
         //
         // Transient-fault resilience lives HERE, at the transport: the client retries an individual
         // model HTTP request (on 408/429/5xx/network errors) with exponential backoff, and bounds each
@@ -32,7 +32,7 @@ public static class AgentConfiguration
         var provider = configuration["Llm:Provider"];
         if (string.Equals(provider, "openai", StringComparison.OrdinalIgnoreCase))
         {
-            // Desktop: the user's key is entered at runtime and can change, so the client rebuilds lazily.
+            // Standalone: the user's key is entered at runtime and can change, so the client rebuilds lazily.
             services.AddSingleton(_ => new DesktopLlmOptions(
                 configuration["Llm:ApiKey"] ?? "", configuration["Llm:Model"] ?? "gpt-4o",
                 configuration["Llm:BaseUrl"] ?? ""));

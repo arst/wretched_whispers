@@ -9,7 +9,7 @@ namespace WretchedWhispers.Api.Auth;
 /// Desktop single-user authentication: every request is authenticated as the fixed local user
 /// ("local"). This makes <c>RequireAuthorization()</c> pass and every endpoint's
 /// <c>FindFirstValue(NameIdentifier)</c> / per-user scoping keep working unchanged — no login screen,
-/// zero endpoint edits. Registered only on the desktop path; the hosted web build keeps ASP.NET Identity.
+/// zero endpoint edits. Registered only for standalone profiles; Server keeps ASP.NET Identity.
 /// </summary>
 public sealed class LocalAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,

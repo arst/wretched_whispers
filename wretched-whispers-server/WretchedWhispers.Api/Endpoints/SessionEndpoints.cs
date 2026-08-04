@@ -25,7 +25,7 @@ public static class SessionEndpoints
 
     public static WebApplication MapSessionEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/sessions")
+        var group = app.MapGroup("/api/sessions")
             .RequireAuthorization()
             // The single auth→user-context bridge for every session endpoint: RequireAuthorization
             // guarantees an authenticated principal, this filter guarantees the ambient user scope.
@@ -148,7 +148,7 @@ public static class SessionEndpoints
         await chatHistoryRepo.CreateSession(campaign.Id, ct);
 
         return Results.Created(
-            $"/sessions/{campaign.Id}",
+            $"/api/sessions/{campaign.Id}",
             new CreateSessionResponse(campaign.Id, campaign.Id));
     }
 

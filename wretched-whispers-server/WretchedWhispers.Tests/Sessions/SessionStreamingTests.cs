@@ -35,7 +35,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
             Encoding.UTF8,
             "application/json");
 
-        var response = await _client.PostAsync($"/sessions/{sessionId}/actions", content);
+        var response = await _client.PostAsync($"/api/sessions/{sessionId}/actions", content);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -46,7 +46,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
         var token = await RegisterAndLogin("stream-nonexistent@test.com");
         var nonExistentId = Guid.NewGuid();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, $"/sessions/{nonExistentId}/actions");
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/sessions/{nonExistentId}/actions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Content = new StringContent(
             JsonSerializer.Serialize(new { message = "Hello" }),
@@ -64,7 +64,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
     {
         // User A creates a session
         var tokenA = await RegisterAndLogin("stream-owner-a@test.com");
-        var createRequest = new HttpRequestMessage(HttpMethod.Post, "/sessions");
+        var createRequest = new HttpRequestMessage(HttpMethod.Post, "/api/sessions");
         createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
         createRequest.Content = JsonContent.Create(new { characterName = "Test Wretch" });
         var createResponse = await _client.SendAsync(createRequest);
@@ -73,7 +73,7 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
 
         // User B tries to post an action to User A's session
         var tokenB = await RegisterAndLogin("stream-owner-b@test.com");
-        var actionRequest = new HttpRequestMessage(HttpMethod.Post, $"/sessions/{sessionId}/actions");
+        var actionRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/sessions/{sessionId}/actions");
         actionRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenB);
         actionRequest.Content = new StringContent(
             JsonSerializer.Serialize(new { message = "Intruder!" }),

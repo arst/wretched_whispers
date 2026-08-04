@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { isStandalone } from "@/lib/deployment";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -8,12 +9,10 @@ interface AuthState {
   setHydrated: () => void;
 }
 
-// Desktop build has no login — the backend authenticates every request as the local user — so the
+// Standalone builds have no login — the backend authenticates every request as the local user — so the
 // client starts already "authenticated" and the login gate (AuthGuard) is bypassed.
-const isDesktop = process.env.NEXT_PUBLIC_DESKTOP === "1";
-
 export const useAuthStore = create<AuthState>()((set) => ({
-  isAuthenticated: isDesktop,
+  isAuthenticated: isStandalone,
   isHydrated: false,
   setAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
   logout: () => set({ isAuthenticated: false }),

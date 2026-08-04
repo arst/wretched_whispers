@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/stores/authStore";
+import { isStandalone } from "@/lib/deployment";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-const isDesktop = process.env.NEXT_PUBLIC_DESKTOP === "1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 let csrfToken: string | null = null;
 
 export function resetCsrfToken() {
@@ -11,7 +11,7 @@ export function resetCsrfToken() {
 async function getCsrfToken() {
   if (csrfToken) return csrfToken;
 
-  const response = await fetch(`${API_URL}/auth/csrf`, {
+  const response = await fetch(`${API_URL}/api/auth/csrf`, {
     credentials: "include",
   });
   if (response.status === 401) useAuthStore.getState().logout();
@@ -23,7 +23,7 @@ async function getCsrfToken() {
 
 /**
  * Authenticated fetch wrapper for the hosted Identity cookie. Unsafe requests
- * carry ASP.NET's antiforgery token; desktop local auth accepts the same shape.
+ * carry ASP.NET's antiforgery token; standalone local auth does not need one.
  */
 export async function apiFetch(
   path: string,
@@ -33,10 +33,10 @@ export async function apiFetch(
   const headers = new Headers(options.headers);
   if (options.body && !headers.has("Content-Type"))
     headers.set("Content-Type", "application/json");
-  if (!isDesktop && !["GET", "HEAD", "OPTIONS"].includes(method))
+  if (!isStandalone && !["GET", "HEAD", "OPTIONS"].includes(method))
     headers.set("X-CSRF-TOKEN", await getCsrfToken());
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${API_URL}/api${path}`, {
     ...options,
     headers,
     credentials: "include",
