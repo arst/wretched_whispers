@@ -1,0 +1,94 @@
+name: Deploy Server
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_NAME: wretched-whispers
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2.3.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build and push immutable image
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          set -euo pipefail
+          registry=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" --query properties.outputs.registryName.value -o tsv)
+          login_server=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" --query properties.outputs.registryLoginServer.value -o tsv)
+          az acr login --name "$registry"
+          image="$login_server/wretched-whispers:${GITHUB_SHA}"
+          docker build --build-arg DEPLOYMENT_PROFILE=Server -t "$image" .
+          docker push "$image"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Migrate, verify green, and shift traffic
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          set -euo pipefail
+          app=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" --query properties.outputs.containerAppName.value -o tsv)
+          job=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" --query properties.outputs.migrationJobName.value -o tsv)
+
+          az containerapp job update -g "$RESOURCE_GROUP" -n "$job" --image "$IMAGE" >/dev/null
+          execution=$(az containerapp job start -g "$RESOURCE_GROUP" -n "$job" --query name -o tsv)
+          for attempt in {1..90}; do
+            status=$(az containerapp job execution show -g "$RESOURCE_GROUP" -n "$job" \
+              --job-execution-name "$execution" --query properties.status -o tsv)
+            case "$status" in
+              Succeeded) break ;;
+              Failed|Stopped) echo "Migration execution $execution ended with $status"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          test "$status" = Succeeded
+
+          if ! az containerapp show -g "$RESOURCE_GROUP" -n "$app" >/dev/null 2>&1; then
+            az deployment group create --name "$DEPLOYMENT_NAME" -g "$RESOURCE_GROUP" \
+              --template-file deploy/azure/main.bicep \
+              --parameters environmentName="${{ vars.AZURE_ENVIRONMENT_NAME }}" \
+                location="${{ vars.AZURE_LOCATION }}" \
+                deploymentPrincipalObjectId="${{ vars.AZURE_PRINCIPAL_OBJECT_ID }}" \
+                postgresAdministratorPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+                azureOpenAiEndpoint="${{ vars.AZURE_OPENAI_ENDPOINT }}" \
+                azureOpenAiDeployment="${{ vars.AZURE_OPENAI_DEPLOYMENT }}" \
+                image="$IMAGE" deployWorkloads=true deployApplication=true >/dev/null
+            first_revision=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.latestRevisionName -o tsv)
+            az containerapp revision label add -g "$RESOURCE_GROUP" -n "$app" \
+              --revision "$first_revision" --label green --yes >/dev/null
+            fqdn=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.configuration.ingress.fqdn -o tsv)
+            scripts/verify-server-revision.sh "https://$fqdn"
+            exit 0
+          fi
+
+          blue=$(az containerapp revision list -g "$RESOURCE_GROUP" -n "$app" \
+            --query "sort_by([?properties.trafficWeight > \`0\`], &properties.trafficWeight)[-1].name" -o tsv)
+          az containerapp revision label add -g "$RESOURCE_GROUP" -n "$app" --revision "$blue" --label blue --yes >/dev/null
+          az containerapp ingress traffic set -g "$RESOURCE_GROUP" -n "$app" --revision-weight "$blue=100" >/dev/null
+          suffix="g${GITHUB_SHA:0:8}"
+          az containerapp update -g "$RESOURCE_GROUP" -n "$app" --image "$IMAGE" --revision-suffix "$suffix" >/dev/null
+          green=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.latestRevisionName -o tsv)
+          az containerapp revision label add -g "$RESOURCE_GROUP" -n "$app" --revision "$green" --label green --yes >/dev/null
+          rollback() { az containerapp ingress traffic set -g "$RESOURCE_GROUP" -n "$app" --revision-weight "$blue=100" "$green=0" >/dev/null; }
+          trap rollback ERR
+          fqdn=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.configuration.ingress.fqdn -o tsv)
+          green_fqdn=${fqdn/$app/$app---green}
+          scripts/verify-server-revision.sh "https://$green_fqdn"
+          for green_weight in 10 50 100; do
+            blue_weight=$((100 - green_weight))
+            az containerapp ingress traffic set -g "$RESOURCE_GROUP" -n "$app" \
+              --revision-weight "$blue=$blue_weight" "$green=$green_weight" >/dev/null
+            curl -fsS "https://$fqdn/health/ready" >/dev/null
+          done
+          trap - ERR
