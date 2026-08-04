@@ -51,9 +51,9 @@ jobs:
           git worktree add /tmp/wretched-whispers-previous "${{ github.event.pull_request.base.sha }}"
           docker build --build-arg DEPLOYMENT_PROFILE=Server \
             -t wretched-whispers:previous /tmp/wretched-whispers-previous
-          app_connection='Host=postgres;Port=5432;Database=wretched;Username=ww_app;Password=smokeapp'
+          migration_connection='Host=postgres;Port=5432;Database=wretched;Username=ww_migrator;Password=smokemigrator'
           docker run -d --name wretched-whispers-previous --network wretched-whispers-smoke -p 8081:8080 \
-            -e WW_DB_PROVIDER=postgres -e ConnectionStrings__Default="$app_connection" wretched-whispers:previous
+            -e WW_DB_PROVIDER=postgres -e ConnectionStrings__Default="$migration_connection" wretched-whispers:previous
           for attempt in {1..30}; do curl -fsS http://localhost:8081/health && break; sleep 1; done
           curl -fsS -X POST http://localhost:8081/api/auth/register -H 'Content-Type: application/json' \
             -d '{"email":"previous@example.com","password":"password"}'
