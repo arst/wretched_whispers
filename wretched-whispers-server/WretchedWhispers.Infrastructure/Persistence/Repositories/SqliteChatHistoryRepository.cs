@@ -103,7 +103,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
                 ct);
     }
 
-    public async Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default)
+    public async Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default, Guid? turnId = null)
     {
         var orderIndex = await _db.ChatMessages
             .Where(m => m.SessionId == sessionId)
@@ -120,6 +120,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             MetadataJson = SerializeMetadata(message.AdditionalProperties),
             Timestamp = DateTime.UtcNow,
             OrderIndex = orderIndex
+            ,TurnId = turnId
         };
 
         _db.ChatMessages.Add(entity);

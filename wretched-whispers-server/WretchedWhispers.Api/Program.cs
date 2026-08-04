@@ -138,9 +138,12 @@ if (DeploymentProfile.UsesIdentity && app.Environment.IsProduction() && !uiIndex
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-    await db.Database.MigrateAsync();
-    scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
-        .LogInformation("Database migrated successfully");
+    if (DeploymentProfile.UsesLocalAuth)
+    {
+        await db.Database.MigrateAsync();
+        scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
+            .LogInformation("Database migrated successfully");
+    }
 }
 
 if (args is ["export-traces", ..])
@@ -189,6 +192,7 @@ if (DeploymentProfile.UsesSettings)
 
 app.MapGet("/health", () => Results.Ok("alive"));
 app.MapSessionEndpoints();
+app.MapTurnEndpoints();
 
 if (uiIndex.Exists)
 {

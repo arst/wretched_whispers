@@ -30,6 +30,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatHistoryRepository, SqliteChatHistoryRepository>();
         services.AddScoped<ITurnTraceRepository, SqliteTurnTraceRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<TurnQueue>();
+        services.AddSingleton<TurnEventStore>();
 
         services.AddScoped<CharacterCreationService>();
         services.AddScoped<CharacterService>();

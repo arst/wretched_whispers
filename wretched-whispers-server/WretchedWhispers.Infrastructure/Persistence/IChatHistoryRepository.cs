@@ -9,7 +9,7 @@ public sealed record ChatRecap(string Text, DateTime ActivityAt);
 public interface IChatHistoryRepository
 {
     Task<IReadOnlyList<ChatMessage>?> LoadSession(Guid sessionId, CancellationToken ct = default);
-    Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default);
+    Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default, Guid? turnId = null);
     Task<Guid> CreateSession(Guid campaignId, CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetSessionsForCampaign(Guid campaignId, CancellationToken ct = default);
     Task<DateTime?> GetLastActivity(Guid campaignId, CancellationToken ct = default);

@@ -12,6 +12,7 @@ public class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMessageEnti
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.HasIndex(e => e.SessionId);
+        builder.HasIndex(e => e.TurnId);
         builder.Property(e => e.Role).IsRequired();
         builder.Property(e => e.Content).HasColumnType("TEXT");
         builder.Property(e => e.ItemsJson).HasColumnType("TEXT");

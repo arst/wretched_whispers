@@ -33,9 +33,10 @@ public sealed class TurnCoordinator(
     public IAsyncEnumerable<GameTurnEvent> ExecuteTurnAsync(
         Guid sessionId,
         string playerMessage,
-        CancellationToken ct) =>
+        CancellationToken ct,
+        Guid? turnId = null) =>
         RunProducer(
-            (writer, token) => ProduceEventsAsync(writer, sessionId, playerMessage, token),
+            (writer, token) => ProduceEventsAsync(writer, sessionId, playerMessage, token, turnId),
             ct);
 
     private static async IAsyncEnumerable<GameTurnEvent> RunProducer(
@@ -74,7 +75,8 @@ public sealed class TurnCoordinator(
         ChannelWriter<GameTurnEvent> writer,
         Guid sessionId,
         string playerMessage,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? turnId)
     {
         using var activity = AgentToolProvider.ActivitySource.StartActivity("TurnCoordinator.ExecuteTurnAsync");
         activity?.SetTag("session.id", sessionId.ToString());
@@ -166,11 +168,11 @@ public sealed class TurnCoordinator(
             // appends the player message itself, so persisting it first would double it in the
             // conversation the model sees.
             await chatHistoryRepository.SaveMessage(
-                chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct);
+                chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct, turnId);
             await chatHistoryRepository.SaveMessage(
                 chatSessionId,
                 new ChatMessage(ChatRole.Assistant, fullResponse.ToString()) { AuthorName = "Game_Master" },
-                ct);
+                ct, turnId);
 
             await uow.CommitAsync(ct);
 

@@ -11,6 +11,7 @@ public class ChatMessageEntity
     public string? MetadataJson { get; set; }
     public DateTime Timestamp { get; set; }
     public int OrderIndex { get; set; }
+    public Guid? TurnId { get; set; }
 
     public ChatSessionEntity Session { get; set; } = null!;
 }

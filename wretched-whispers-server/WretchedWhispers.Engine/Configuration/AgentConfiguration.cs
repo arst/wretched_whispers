@@ -82,6 +82,7 @@ public static class AgentConfiguration
     public static IServiceCollection AddGameAgentOrchestration(this IServiceCollection services)
     {
         services.AddScoped<TurnCoordinator>();
+        services.AddHostedService<TurnWorker>();
         services.AddScoped<ISessionContextLoader, SessionContextLoader>();
         services.AddScoped<IAgentToolProvider, AgentToolProvider>();
         services.AddScoped<IAgentExecutor, AgentExecutor>();
