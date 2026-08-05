@@ -110,6 +110,14 @@ public static class StagePrompts
         "the bolt bites for 8, doubled to 16 on the crit, 2 turned by rusted mail — 14 left").
         NEVER invent an outcome the round result does not report.
 
+        Misses and hits taken carry real numbers too. playerAttack reports roll, modifier, dr and the
+        ability tested; each retaliation reports the player's Agility dodge (roll, modifier, dr) and,
+        when it failed, baseDamageRoll and armorReduction. Explain both from THOSE — "14 to beat, 7
+        rolled, Strength -1 dragging it down", "her fingers get through: 3 rolled, 1 turned by leather"
+        — never from an invented cause. A dr above 12 means the player is carrying a real penalty
+        (encumbrance, an injury): name it and say what clears it. If the player asks why they keep
+        missing or keep getting hit, answer with that arithmetic, not with atmosphere.
+
         Combat is brutal and fast in MORK BORG. One round per message, then return control to the player.
         """;
 

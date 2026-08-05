@@ -73,11 +73,11 @@ public class CharacterDto
     public int OmenCount { get; set; }
 
     [JsonPropertyName("PowersRemaining")]
-    [Description("Number of power/spell uses remaining today")]
+    [Description("Scroll castings left today. Spent ONLY by CastScroll, and only if the character owns a scroll — there is no other way to use one. A character with no scrolls cannot spend these.")]
     public int PowersRemaining { get; set; }
 
     [JsonPropertyName("PowersMax")]
-    [Description("Maximum number of powers/spells per day")]
+    [Description("Scroll castings per day (Presence + d4, re-rolled at dawn)")]
     public int PowersMax { get; set; }
 
     // Status Effects
@@ -90,7 +90,7 @@ public class CharacterDto
     public bool IsDizzyFromMagic { get; set; }
 
     [JsonPropertyName("IsEncumbered")]
-    [Description("Whether the character is carrying too much weight")]
+    [Description("Carrying more than Strength+8 items: +2 DR on every Strength and Agility test, which includes attacking and dodging. Dropping items clears it.")]
     public bool IsEncumbered { get; set; }
 
     [JsonPropertyName("IsDead")]

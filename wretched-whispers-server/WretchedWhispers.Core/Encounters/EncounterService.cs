@@ -1,4 +1,5 @@
 using WretchedWhispers.Core.Adversaries;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
@@ -69,7 +70,7 @@ public class EncounterService(
     /// every adversary still standing (unless the player fled), then end-of-round bookkeeping.</summary>
     public async Task<CombatRoundOutcome> ResolveRound(
         Guid encounterId, Guid characterId, PlayerRoundAction action, string? targetName = null,
-        CombatOmenUse omenUse = CombatOmenUse.None)
+        CombatOmenUse omenUse = CombatOmenUse.None, DifficultySettings? settings = null)
     {
         var encounter = await encountersRepository.Get(encounterId)
             ?? throw new InvalidOperationException("Encounter not found");
@@ -97,8 +98,11 @@ public class EncounterService(
                 var target = living.FirstOrDefault(a =>
                         a.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
                     ?? living[0];
+                // No settings => MORK BORG RAW, the strictest reading. Only the forgiving presets
+                // floor a landed blow, and only for the player's own swing.
                 var outcome = character.Attack(target.Armor, dice,
-                    spendOmenForMaxDamage: omenUse is CombatOmenUse.MaxDamage);
+                    spendOmenForMaxDamage: omenUse is CombatOmenUse.MaxDamage,
+                    minimumOneDamage: settings?.PlayerHitsAlwaysDamage ?? false);
                 encounter.ProcessPlayerAttackOutcome(outcome, target.Id, dice);
                 playerAttack = outcome;
                 attackedName = target.Name;

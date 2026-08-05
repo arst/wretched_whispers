@@ -1,8 +1,11 @@
 using Moq;
 using WretchedWhispers.Core.Adversaries;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using Xunit;
@@ -18,17 +21,18 @@ public sealed class ResolveRoundTests : TestBase
         new(Dice, _charactersRepo.Object, _encountersRepo.Object);
 
     private (Encounter encounter, Character character) Arrange(int adversaries = 1, int adversaryHp = 4,
-        int startingOmens = 0, int characterHp = 20, ArmorTier armorTier = ArmorTier.None)
+        int startingOmens = 0, int characterHp = 20, ArmorTier armorTier = ArmorTier.None,
+        ArmorTier adversaryArmor = ArmorTier.None, WeaponKind weaponKind = WeaponKind.Sword)
     {
         var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
         for (var i = 0; i < adversaries; i++)
             encounter.AddAdversary(new Adversary(
-                $"Ghoul {i + 1}", new HitPoints(adversaryHp, adversaryHp), new Armor(ArmorTier.None), 7,
+                $"Ghoul {i + 1}", new HitPoints(adversaryHp, adversaryHp), new Armor(adversaryArmor), 7,
                 new AttackProfile("claws", DiceExpr.Parse("d4"))));
         encounter.StartEncounter();
 
         var character = TestCharacters.Create(Dice, startingOmens: startingOmens, maxHp: characterHp,
-            armorTier: armorTier);
+            armorTier: armorTier, weaponKind: weaponKind);
         _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
         _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
         return (encounter, character);
@@ -69,7 +73,8 @@ public sealed class ResolveRoundTests : TestBase
     {
         var (encounter, character) = Arrange(adversaries: 1, adversaryHp: 1);
         // nat-20 hit, d6 damage well past 1 HP, then ProcessPlayerAttackOutcome's morale check
-        // (single-adversary group below 30% HP) rolls 2d6 even for a dead target: 6+6=12 >= morale 7.
+        // (single-adversary group below 30% HP) rolls 2d6 even for a dead target. 6+6=12 breaks morale 7,
+        // but a corpse fleeing changes nothing: IsDead already excludes it from ActiveAdversaries.
         SetupDiceRolls(19, 5, 5, 5);
 
         var outcome = await CreateService().ResolveRound(
@@ -302,6 +307,93 @@ public sealed class ResolveRoundTests : TestBase
         Assert.Equal(0, outcome.Retaliations[1].Outcome.OmenDamageReduction);
         Assert.Equal(4, outcome.Retaliations[1].Outcome.DamageDealt);
         Assert.Equal(1, character.Omens.Count);
+    }
+
+    // The femur-vs-light-armor case that made a real session unwinnable: a d4 weapon against a d2
+    // reduction absorbs roughly 4 in 9 landed hits to nothing, so the fight reads as "I keep hitting
+    // her and nothing happens". Forgiving difficulties floor a landed blow at 1.
+    // Rolls: d20 attack 14 (hit vs DR 12), d4 weapon 1, d2 armor 2, then d20 defence 20 (avoided).
+    [Theory]
+    [InlineData(Difficulty.StoryMode, 1)]
+    [InlineData(Difficulty.Grim, 1)]
+    [InlineData(Difficulty.Doomed, 0)]
+    [InlineData(Difficulty.Hardcore, 0)]
+    public async Task Attack_ArmorExceedsDamage_FloorsAtOne_OnlyOnForgivingDifficulties(
+        Difficulty difficulty, int expectedDamage)
+    {
+        var (encounter, character) = Arrange(adversaryHp: 10, adversaryArmor: ArmorTier.Light,
+            weaponKind: WeaponKind.Femur);
+        SetupDiceRolls(13, 0, 1, 19);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Attack, "Ghoul 1",
+            settings: DifficultyPresets.For(difficulty));
+
+        Assert.NotNull(outcome.PlayerAttack);
+        Assert.True(outcome.PlayerAttack.Value.Hit);
+        // The breakdown is reported either way — only the final damage differs.
+        Assert.Equal(1, outcome.PlayerAttack.Value.BaseDamageRoll);
+        Assert.Equal(2, outcome.PlayerAttack.Value.DamageReduction);
+        Assert.Equal(expectedDamage, outcome.PlayerAttack.Value.Damage.Amount);
+        Assert.Equal(10 - expectedDamage, encounter.Adversaries.Single().Hp.Current);
+    }
+
+    [Fact]
+    public async Task Retaliation_DamageFloor_NeverAppliesToTheAdversary()
+    {
+        // The floor is a mercy for the player only. Applying it to incoming blows would make the
+        // forgiving tiers deadlier than the harsh ones.
+        var (encounter, character) = Arrange(armorTier: ArmorTier.Light);
+        // d20 defence 6 (fail vs DR 12), d4 claw 1, d2 player armor 2 -> 0 damage, not 1.
+        SetupDiceRolls(5, 0, 1);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null,
+            settings: DifficultyPresets.For(Difficulty.StoryMode));
+
+        var retaliation = Assert.Single(outcome.Retaliations);
+        Assert.False(retaliation.Outcome.Avoided);
+        Assert.Equal(0, retaliation.Outcome.DamageDealt);
+        Assert.Equal(20, character.Hp.Current);
+    }
+
+    [Fact]
+    public async Task Attack_ReportsTheToHitTest_SoAMissIsExplainable()
+    {
+        var (encounter, character) = Arrange(adversaryHp: 10);
+        // d20 attack 8 vs DR 12 with Strength 0 -> miss, then d20 defence 20 (avoided).
+        SetupDiceRolls(7, 19);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Attack, "Ghoul 1");
+
+        Assert.NotNull(outcome.PlayerAttack);
+        var attack = outcome.PlayerAttack.Value;
+        Assert.False(attack.Hit);
+        Assert.Equal(8, attack.Roll);
+        Assert.Equal(0, attack.Modifier);
+        Assert.Equal(12, attack.EffectiveDr);
+        Assert.Equal(AbilityKind.Strength, attack.Ability);
+    }
+
+    [Fact]
+    public async Task Retaliation_ReportsTheDodgeTest_SoAHitTakenIsExplainable()
+    {
+        var (encounter, character) = Arrange(characterHp: 20);
+        // d20 defence 6 (fail vs DR 12, Agility 0), d4 claw 3, no player armor.
+        SetupDiceRolls(5, 2);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Other, null);
+
+        var retaliation = Assert.Single(outcome.Retaliations).Outcome;
+        Assert.False(retaliation.Avoided);
+        Assert.Equal(6, retaliation.Roll);
+        Assert.Equal(0, retaliation.Modifier);
+        Assert.Equal(12, retaliation.EffectiveDr);
+        Assert.Equal(3, retaliation.BaseDamageRoll);
+        Assert.Equal(0, retaliation.ArmorReduction);
+        Assert.Equal(3, retaliation.DamageDealt);
     }
 
     // Encounter round-type/lifecycle behavior (moved from CombatRoundTypesTests and StageDerivationTests).

@@ -148,13 +148,14 @@ public sealed class Character
         IsDizzyFromMagic = false;
     }
 
-    public AttackOutcome Attack(Armor targetArmor, Dice dice, bool spendOmenForMaxDamage = false)
+    public AttackOutcome Attack(Armor targetArmor, Dice dice, bool spendOmenForMaxDamage = false,
+        bool minimumOneDamage = false)
     {
         // Pre-declared spend: the omen is consumed before the roll, even if the attack misses.
         if (spendOmenForMaxDamage && !Omens.TrySpend())
             throw new ArgumentException("No omens remaining.");
 
-        var outcome = ResolveAttack(targetArmor, dice, spendOmenForMaxDamage);
+        var outcome = ResolveAttack(targetArmor, dice, spendOmenForMaxDamage, minimumOneDamage);
 
         if (outcome.Fumble)
             // Weapon breaks => fallback to Improvised
@@ -165,7 +166,8 @@ public sealed class Character
         return outcome;
     }
 
-    private AttackOutcome ResolveAttack(Armor targetArmor, Dice dice, bool spendOmenForMaxDamage = false)
+    private AttackOutcome ResolveAttack(Armor targetArmor, Dice dice, bool spendOmenForMaxDamage = false,
+        bool minimumOneDamage = false)
     {
         var abilityKind = Weapon.IsRanged ? AbilityKind.Presence : AbilityKind.Strength;
         var test = Challenge(new Dr(12), abilityKind, dice);
@@ -184,7 +186,9 @@ public sealed class Character
             var raw = crit ? baseRoll * 2 : baseRoll;
             // Armor damage reduction delegated to ArmorTier
             reduction = targetArmor.Tier.RollDamageReduction(dice);
-            var final = Math.Max(0, raw - reduction);
+            // Forgiving difficulties floor a landed blow at 1: armor may blunt the swing but never
+            // swallow it whole, which is what makes a weak weapon feel like hitting a wall.
+            var final = Math.Max(minimumOneDamage ? 1 : 0, raw - reduction);
             dmg = Damage.From(final);
 
             if (crit && targetArmor.Tier is not ArmorTier.None) targetArmorDegraded = true;
@@ -195,25 +199,30 @@ public sealed class Character
             weaponBroken = true;
         }
 
-        return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded, baseRoll, reduction);
+        return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded, baseRoll, reduction,
+            test.Roll, test.Modifier, test.EffectiveDr, abilityKind);
     }
 
     public DefenceOutcome Defend(DiceExpr attackDie, Dice dice, bool spendOmenToReduceDamage = false)
     {
-        var outcome = ResolveDefence(dice);
+        var test = Challenge(new Dr(12 + Armor.DefencePenalty), AbilityKind.Agility, dice, Armor.AgilityPenalty);
+        var isFumble = test.Natural == Natural.One;
 
         // A natural 20 always avoids, so the crit flag only ever rides the avoided path — the free
         // attack it promises is the narrator's to grant, not a domain-resolved swing.
-        if (outcome.IsAvoided)
+        if (test.IsSuccess)
             return new DefenceOutcome
             {
                 DamageDealt = 0,
-                Avoided = outcome.IsAvoided,
-                CriticalFreeAttack = outcome.IsCritFree,
-                FumbleDoubleDamage = outcome.IsFumble
+                Avoided = true,
+                CriticalFreeAttack = test.Natural == Natural.Twenty,
+                FumbleDoubleDamage = isFumble,
+                Roll = test.Roll,
+                Modifier = test.Modifier,
+                EffectiveDr = test.EffectiveDr
             };
 
-        var damage = CalculateDamageAfterDefense(attackDie, outcome.IsFumble, dice);
+        var (damage, baseRoll, armorReduction) = CalculateDamageAfterDefense(attackDie, isFumble, dice);
 
         // Silent TrySpend: the model-facing "no omens" guard lives in ResolveRound before any
         // mutation — throwing here would corrupt a half-resolved round.
@@ -229,10 +238,15 @@ public sealed class Character
         return new DefenceOutcome
         {
             DamageDealt = damage,
-            Avoided = outcome.IsAvoided,
-            CriticalFreeAttack = outcome.IsCritFree,
-            FumbleDoubleDamage = outcome.IsFumble,
-            OmenDamageReduction = omenReduction
+            Avoided = false,
+            CriticalFreeAttack = false,
+            FumbleDoubleDamage = isFumble,
+            OmenDamageReduction = omenReduction,
+            Roll = test.Roll,
+            Modifier = test.Modifier,
+            EffectiveDr = test.EffectiveDr,
+            BaseDamageRoll = baseRoll,
+            ArmorReduction = armorReduction
         };
     }
 
@@ -254,28 +268,17 @@ public sealed class Character
     }
 
 
-    private int CalculateDamageAfterDefense(DiceExpr attackDie, bool isFumble, Dice dice)
+    private (int Damage, int BaseRoll, int ArmorReduction) CalculateDamageAfterDefense(
+        DiceExpr attackDie, bool isFumble, Dice dice)
     {
-        var damage = dice.Roll(attackDie);
-
-        if (isFumble) damage *= 2; // Fumble doubles the damage
+        var baseRoll = dice.Roll(attackDie);
+        var damage = isFumble ? baseRoll * 2 : baseRoll; // Fumble doubles the damage
 
         // ponytail: shield is a flat +1 to reduction; the break-to-ignore-one-attack choice needs a
         // player decision in the round, add it when defence outcomes get consequences.
         var armorReduction = Armor.Tier.RollDamageReduction(dice) + (Shield is not null ? 1 : 0);
 
-        return Math.Max(0, damage - armorReduction);
-    }
-
-    private (bool IsAvoided, bool IsCritFree, bool IsFumble) ResolveDefence(Dice dice)
-    {
-        var dr = new Dr(12 + Armor.DefencePenalty);
-        var test = Challenge(dr, AbilityKind.Agility, dice, Armor.AgilityPenalty);
-        var avoided = test.IsSuccess;
-        var critFree = test.Natural == Natural.Twenty;
-        var fumble = test.Natural == Natural.One;
-
-        return (avoided, critFree, fumble);
+        return (Math.Max(0, damage - armorReduction), baseRoll, armorReduction);
     }
 
     private InjuryKind? ResolveBroken(Dice dice)

@@ -99,13 +99,22 @@ public sealed class SessionContext
             sb.AppendLine($"  Shield: {(Character.Shield is null ? "none" : Character.Shield.IsBroken ? "broken" : "intact")}");
             sb.AppendLine($"  Silver: {Character.Silver}");
             sb.AppendLine($"  Food: {Character.FoodDays} days");
-            sb.AppendLine($"  Powers: {Character.Powers.UsesRemaining}/{Character.Powers.MaxUses}");
+            // "Powers" is only the daily budget for casting scrolls (Character.Cast spends one). There is
+            // no other way to spend it, so showing the counter to a character with no scrolls just invites
+            // the model to narrate a power that no tool can apply.
+            if (Character.Scrolls.Count > 0)
+                sb.AppendLine(
+                    $"  Scroll castings left today: {Character.Powers.UsesRemaining}/{Character.Powers.MaxUses}");
             sb.AppendLine($"  Omens: {Character.Omens.Count}");
             sb.AppendLine($"  Inventory ({Character.Inventory.GetFreeSlots()}/{Character.Inventory.MaxCapacity} slots free):");
             foreach (var item in Character.Inventory.InventoryItems)
                 sb.AppendLine($"    - {item.Description} x{item.Quantity}");
             foreach (var scroll in Character.Scrolls)
                 sb.AppendLine($"    - Scroll: {scroll.Description} ({scroll.School})");
+            // Named with its cost: the +2 DR is applied silently inside Challenge, so without this the
+            // model cannot explain a miss and invents a reason instead.
+            if (Character.IsEncumbered)
+                sb.AppendLine("  Status: ENCUMBERED (over carry limit: +2 DR on all Strength and Agility tests)");
             if (Character.IsInfected) sb.AppendLine("  Status: INFECTED");
             if (Character.IsDead) sb.AppendLine("  Status: DEAD");
         }

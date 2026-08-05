@@ -26,6 +26,9 @@ public static class TurnDeltaMapper
         AddIfGained(afflictions, "Smashed face", before.HasSmashedFace, after.HasSmashedFace);
         AddIfGained(afflictions, "Infected", before.IsInfected, after.IsInfected);
         AddIfGained(afflictions, "Shield broken", before.IsShieldBroken, after.IsShieldBroken);
+        // Crossing the carry limit silently costs +2 DR on every Strength and Agility test — including
+        // every attack and every dodge — so the turn that picks up one item too many has to say so.
+        AddIfGained(afflictions, "Encumbered (DR +2 Strength/Agility)", before.IsEncumbered, after.IsEncumbered);
 
         return new TurnDelta(
             SilverChange: (after.CharacterSilver ?? 0) - (before.CharacterSilver ?? 0),
