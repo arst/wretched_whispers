@@ -3,18 +3,23 @@ using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Infrastructure.Persistence;
 
+/// <summary>The outcome of an enqueue. A null <see cref="Turn"/> means the client reused a request id
+/// for a different campaign or message — a client bug, not a transient fault.</summary>
+public readonly record struct TurnEnqueueResult(TurnRequestEntity? Turn, bool Created);
+
 public sealed class TurnQueue(WretchedWhispersDbContext db)
 {
-    public async Task<(TurnRequestEntity Turn, bool Created)> EnqueueAsync(Guid campaignId, string userId,
+    /// <summary>
+    /// Idempotent on (user, client request id): replaying the same submission returns the original
+    /// turn. Reusing that id for a different action is reported through the result rather than an
+    /// exception, so no framework exception type doubles as a policy signal at the endpoint.
+    /// </summary>
+    public async Task<TurnEnqueueResult> EnqueueAsync(Guid campaignId, string userId,
         Guid clientRequestId, string message, CancellationToken ct)
     {
         var existing = await db.TurnRequests.SingleOrDefaultAsync(x => x.UserId == userId && x.ClientRequestId == clientRequestId, ct);
         if (existing is not null)
-        {
-            if (existing.CampaignId != campaignId || existing.PlayerMessage != message)
-                throw new InvalidOperationException("That request ID was already used for a different action.");
-            return (existing, false);
-        }
+            return Replay(existing, campaignId, message);
 
         var turn = new TurnRequestEntity { Id = Guid.NewGuid(), CampaignId = campaignId, UserId = userId,
             ClientRequestId = clientRequestId, PlayerMessage = message, CreatedAt = DateTime.UtcNow };
@@ -22,12 +27,19 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
         {
+            // Lost the race on the (user, request id) index — the winner's row is the answer. Detach
+            // ours first or the failed insert stays Added and re-fires on the next SaveChanges.
+            db.Entry(turn).State = EntityState.Detached;
             var raced = await db.TurnRequests.SingleAsync(x => x.UserId == userId && x.ClientRequestId == clientRequestId, ct);
-            if (raced.CampaignId != campaignId || raced.PlayerMessage != message) throw;
-            return (raced, false);
+            return Replay(raced, campaignId, message);
         }
-        return (turn, true);
+        return new TurnEnqueueResult(turn, Created: true);
     }
+
+    private static TurnEnqueueResult Replay(TurnRequestEntity existing, Guid campaignId, string message) =>
+        existing.CampaignId == campaignId && existing.PlayerMessage == message
+            ? new TurnEnqueueResult(existing, Created: false)
+            : new TurnEnqueueResult(null, Created: false);
 
     public Task<TurnRequestEntity?> GetOwnedAsync(Guid id, string userId, CancellationToken ct) =>
         db.TurnRequests.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct);

@@ -1,17 +1,22 @@
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using WretchedWhispers.Api;
 using WretchedWhispers.Api.Auth;
 using WretchedWhispers.Api.Configuration;
 using WretchedWhispers.Api.Deployment;
 using WretchedWhispers.Api.Endpoints;
 using WretchedWhispers.Api.Health;
+using WretchedWhispers.Api.Models;
 using WretchedWhispers.Engine.Configuration;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure;
@@ -19,7 +24,8 @@ using WretchedWhispers.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration.AddUserSecrets(typeof(ServiceCollectionExtensions).Assembly, optional: true);
+if (builder.Environment.IsDevelopment())
+    builder.Configuration.AddUserSecrets(typeof(ServiceCollectionExtensions).Assembly, optional: true);
 
 if (DeploymentProfile.UsesLocalAuth)
     builder.Configuration.AddInMemoryCollection(StandaloneHost.BuildConfig());
@@ -110,6 +116,31 @@ builder.Services.AddAuthorization();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 
+// One error contract for the whole surface. MapIdentityApi already answers in RFC 9457
+// ProblemDetails; without this our own handlers answered in an ad-hoc {"error": "..."} shape and
+// unhandled exceptions returned a bodiless 500 in production.
+builder.Services.AddProblemDetails();
+// ponytail: no AddValidation(). Both free-text fields need trim-then-check and answer in the game's
+// own voice, which DataAnnotations can't express — PlayerInput is the single place that does it.
+builder.Services.AddOpenApi();
+
+// A turn costs a model call and registration is open, so both are worth bounding. The policies are
+// always registered — the endpoints carry the metadata unconditionally — but the middleware that
+// enforces them is only added for the hosted multi-user profile, and not in Development, where every
+// request shares one address and the limiter would only ever throttle the developer.
+var useRateLimiting = DeploymentProfile.UsesIdentity && !builder.Environment.IsDevelopment();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(RateLimitPolicies.Turns, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1) }));
+    options.AddPolicy(RateLimitPolicies.Auth, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+});
+
 if (DeploymentProfile.UsesIdentity)
 {
     builder.Services.ConfigureApplicationCookie(options =>
@@ -153,12 +184,16 @@ if (DeploymentProfile.UsesLocalAuth || (app.Environment.IsDevelopment() && !useP
         .LogInformation("Database migrated successfully");
 }
 
-if (args is ["export-traces", ..])
+if (TraceExportCommand.Matches(args))
 {
-    var outDir = args.Length > 1 ? args[1] : "./traces-export";
-    await TraceExporter.ExportAsync(app.Services, outDir);
+    await TraceExportCommand.RunAsync(app.Services, args);
     return;
 }
+
+// Turns any unhandled exception into a ProblemDetails 500 instead of a bodiless one, and gives
+// bodiless framework responses (401/404/429) the same shape as our own errors.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 if (DeploymentProfile.UsesIdentity && !app.Environment.IsDevelopment())
     app.UseForwardedHeaders();
@@ -175,34 +210,44 @@ if (DeploymentProfile.UsesIdentity && app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+if (useRateLimiting)
+    app.UseRateLimiter();
+
+if (app.Environment.IsDevelopment())
+    app.MapOpenApi();
+
 if (DeploymentProfile.UsesIdentity)
 {
-    var auth = app.MapGroup("/api/auth");
+    var auth = app.MapGroup("/api/auth").RequireRateLimiting(RateLimitPolicies.Auth);
     auth.MapIdentityApi<IdentityUser>();
     auth.MapGet("/csrf", (HttpContext http, IAntiforgery antiforgery) =>
-        Results.Ok(new { token = antiforgery.GetAndStoreTokens(http).RequestToken }))
+        TypedResults.Ok(new CsrfTokenDto(antiforgery.GetAndStoreTokens(http).RequestToken ?? "")))
         .RequireAuthorization();
-    auth.MapPost("/logout", async (HttpContext http, IAntiforgery antiforgery,
-        SignInManager<IdentityUser> signInManager) =>
+    auth.MapPost("/logout", async Task<Results<Ok, ProblemHttpResult>> (HttpContext http,
+        IAntiforgery antiforgery, SignInManager<IdentityUser> signInManager) =>
     {
-        if (!await antiforgery.IsRequestValidAsync(http)) return Results.BadRequest();
+        if (!await antiforgery.IsRequestValidAsync(http))
+            return ApiProblem.BadRequest("Invalid antiforgery token.");
         await signInManager.SignOutAsync();
-        return Results.Ok();
+        return TypedResults.Ok();
     }).RequireAuthorization();
     auth.MapGet("/me", (HttpContext http) =>
-        Results.Ok(new { userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) }))
+        TypedResults.Ok(new CurrentUserDto(http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "")))
         .RequireAuthorization();
 }
 
-if (DeploymentProfile.UsesSettings)
-    app.MapSettingsEndpoints(StandaloneHost.SettingsPath, readOnly: usePostgres);
-
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
-app.MapGet("/health", () => Results.Ok("alive"));
+
 var api = app.MapAuthenticatedApi();
 api.MapSessionEndpoints();
 api.MapTurnEndpoints();
+
+// Under the authenticated group like everything else: the standalone container binds 0.0.0.0, and an
+// unauthenticated POST here can repoint Llm:BaseUrl at an attacker's server — i.e. redirect every
+// prompt. Local auth makes this free (LocalAuthHandler authenticates every request).
+if (DeploymentProfile.UsesSettings)
+    api.MapSettingsEndpoints(StandaloneHost.SettingsPath, readOnly: usePostgres);
 
 if (uiIndex.Exists)
 {
@@ -217,8 +262,10 @@ if (uiIndex.Exists)
         var route = context.Request.Path.Value?.Trim('/') ?? "";
         var routeIndex = app.Environment.WebRootFileProvider.GetFileInfo($"{route}/index.html");
         var file = routeIndex.Exists ? routeIndex : uiIndex;
-        context.Response.ContentType = "text/html";
-        await context.Response.SendFileAsync(file.PhysicalPath!, context.RequestAborted);
+        context.Response.ContentType = "text/html; charset=utf-8";
+        // The IFileInfo overload, not PhysicalPath: a non-physical web root (embedded resources in a
+        // future single-file publish) has no physical path, and dereferencing it would be an NRE.
+        await context.Response.SendFileAsync(file, context.RequestAborted);
     });
 }
 

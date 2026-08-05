@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiErrorMessage } from "@/lib/api";
 import type { SessionPreviewDto, CreateSessionResponse } from "@/types/api";
 import SessionCard from "@/components/session/SessionCard";
 import Button from "@/components/ui/Button";
@@ -62,10 +62,7 @@ export default function SessionsPage() {
           ...(characterClass ? { characterClass } : {}),
         }),
       });
-      if (!res.ok) {
-        const detail = await res.json().catch(() => null);
-        throw new Error(detail?.error ?? `Failed to create session (${res.status})`);
-      }
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "Failed to create session"));
       const data: CreateSessionResponse = await res.json();
       router.push(`/sessions/play?id=${data.sessionId}`);
     } catch (err) {

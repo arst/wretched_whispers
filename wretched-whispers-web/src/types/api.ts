@@ -25,9 +25,9 @@ export interface SessionPreviewDto {
   lastPlayed: string | null;
 }
 
+// The session id IS the campaign id — the API used to send both, always equal.
 export interface SessionDetailDto {
   sessionId: string;
-  campaignId: string;
   campaignName: string;
   description: string;
   currentDay: number;
@@ -54,7 +54,6 @@ export interface ChatMessageDto {
 
 export interface CreateSessionResponse {
   sessionId: string;
-  campaignId: string;
 }
 
 // Auth types

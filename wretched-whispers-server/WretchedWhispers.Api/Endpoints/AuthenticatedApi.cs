@@ -25,18 +25,28 @@ public static class AuthenticatedApi
                 http.RequestServices.GetRequiredService<IUserContext>().SetUserId(userId);
                 return await next(context);
             })
-            // Bearer-token API consumers are not vulnerable to CSRF. Browser cookie requests are,
-            // so validate only that authentication scheme and leave existing API clients unchanged.
+            // Bearer-token API consumers are not vulnerable to CSRF. Browser cookie requests are, so
+            // validate only those and leave existing API clients unchanged.
+            //
+            // Both conditions are needed. A bearer token carries the principal SignInManager built,
+            // whose identity is stamped ApplicationScheme — so the scheme alone does NOT distinguish
+            // a cookie request from a token one, and testing it by itself makes every bearer client
+            // fail antiforgery. The cookie's presence is what actually separates them.
             .AddEndpointFilter(async (context, next) =>
             {
                 var http = context.HttpContext;
                 if (!HttpMethods.IsGet(http.Request.Method)
                     && http.User.Identity?.AuthenticationType == IdentityConstants.ApplicationScheme
-                    && http.Request.Cookies.ContainsKey(".AspNetCore.Identity.Application")
+                    && http.Request.Cookies.ContainsKey(IdentityCookieName)
                     && !await http.RequestServices.GetRequiredService<IAntiforgery>()
                         .IsRequestValidAsync(http))
-                    return Results.BadRequest(new { error = "Invalid antiforgery token." });
+                    return ApiProblem.BadRequest("Invalid antiforgery token.");
 
                 return await next(context);
             });
+
+    /// <summary>ASP.NET Identity's default application cookie name. Named here so the coupling is at
+    /// least visible: renaming the cookie via ConfigureApplicationCookie must update this too, or
+    /// browser requests quietly stop being CSRF-checked.</summary>
+    private const string IdentityCookieName = ".AspNetCore.Identity.Application";
 }
