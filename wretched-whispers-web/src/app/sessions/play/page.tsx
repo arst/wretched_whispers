@@ -55,7 +55,13 @@ function GameSession({ id }: { id: string }) {
   const error = useSessionStore((s) => s.error);
   const clearError = useSessionStore((s) => s.clearError);
   const status = useSessionStore((s) => s.status);
-  const streamingText = useSessionStore((s) => s.streamingText);
+  // Narration the player can actually see: the live buffer while a turn streams, or the committed
+  // message once it finishes. A durable turn often delivers narrative and `done` in one network
+  // chunk, so React batches them and the buffer is never rendered non-empty — keying the splash on
+  // the buffer alone left it covering the opening message forever.
+  const hasNarration = useSessionStore(
+    (s) => s.streamingText.length > 0 || s.messages.some((m) => m.content.length > 0)
+  );
   const reset = useSessionStore((s) => s.reset);
   const miseryCount = useSessionStore((s) => s.miseryCount);
   const worldEnded = useSessionStore((s) => s.worldEnded);
@@ -76,12 +82,12 @@ function GameSession({ id }: { id: string }) {
     return () => clearTimeout(timer);
   }, [error, failedMessage, clearError]);
 
-  // Transition from splash when first narrative chunk arrives
+  // Transition from splash once the opening turn has narration to show
   useEffect(() => {
-    if (showSplash && streamingText.length > 0) {
+    if (showSplash && hasNarration) {
       setShowSplash(false);
     }
-  }, [showSplash, streamingText]);
+  }, [showSplash, hasNarration]);
 
   // If the opening turn fails (e.g. rate-limited), drop the splash so the retry banner is reachable.
   useEffect(() => {

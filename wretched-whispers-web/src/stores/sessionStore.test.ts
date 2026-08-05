@@ -24,4 +24,18 @@ describe("session store", () => {
     expect(state.isStreaming).toBe(false);
     expect(state.messages.at(-1)?.content).toBe("A partial warning");
   });
+
+  // A durable turn often arrives as one network chunk, so the reader appends the narrative and
+  // finishes the turn in the same batch: `streamingText` is never observably non-empty. Anything
+  // waiting for narration (the opening splash) must read the committed message instead.
+  it("leaves visible narration when a turn arrives in one batch", () => {
+    const store = useSessionStore.getState();
+    store.startStreaming();
+    store.appendNarrativeChunk("The sky is a slab of ash.");
+    store.finishStreaming();
+
+    const state = useSessionStore.getState();
+    expect(state.streamingText).toBe("");
+    expect(state.messages.some((m) => m.content.length > 0)).toBe(true);
+  });
 });
