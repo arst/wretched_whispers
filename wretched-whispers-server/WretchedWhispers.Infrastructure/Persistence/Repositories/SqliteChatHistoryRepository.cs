@@ -43,6 +43,35 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             .ToListAsync(ct);
     }
 
+    public Task<Guid?> GetActiveChronicle(Guid campaignId, CancellationToken ct = default) =>
+        _db.ChatSessions
+            .Where(s => s.CampaignId == campaignId)
+            .OrderByDescending(s => s.StartedAt)
+            .Select(s => (Guid?)s.Id)
+            .FirstOrDefaultAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, DateTime>> GetLastActivityForCampaigns(
+        IReadOnlyCollection<Guid> campaignIds, CancellationToken ct = default)
+    {
+        if (campaignIds.Count == 0) return new Dictionary<Guid, DateTime>();
+
+        // Same rule as the single-campaign read: the newest message, or the chronicle's own start
+        // when nothing has been said yet. Expressed as one grouped query over the join so the list
+        // view costs one round trip regardless of how many campaigns the player has.
+        var activity = await _db.ChatSessions
+            .Where(s => campaignIds.Contains(s.CampaignId))
+            .GroupJoin(_db.ChatMessages, s => s.Id, m => m.SessionId, (s, messages) => new
+            {
+                s.CampaignId,
+                Last = messages.Max(m => (DateTime?)m.Timestamp) ?? s.StartedAt
+            })
+            .GroupBy(x => x.CampaignId)
+            .Select(g => new { CampaignId = g.Key, Last = g.Max(x => x.Last) })
+            .ToListAsync(ct);
+
+        return activity.ToDictionary(x => x.CampaignId, x => x.Last);
+    }
+
     public async Task<DateTime?> GetLastActivity(Guid campaignId, CancellationToken ct = default)
     {
         var sessionIds = _db.ChatSessions
@@ -140,6 +169,30 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             .OrderBy(m => m.OrderIndex)
             .ToListAsync(ct);
 
+        return Rehydrate(entities);
+    }
+
+    public async Task<(IReadOnlyList<ChatMessage> Messages, int Total)?> LoadSessionPage(
+        Guid sessionId, int skip, int take, CancellationToken ct = default)
+    {
+        var sessionExists = await _db.ChatSessions.AnyAsync(s => s.Id == sessionId, ct);
+        if (!sessionExists)
+            return null;
+
+        var total = await _db.ChatMessages.CountAsync(m => m.SessionId == sessionId, ct);
+
+        var entities = await _db.ChatMessages
+            .Where(m => m.SessionId == sessionId)
+            .OrderBy(m => m.OrderIndex)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(ct);
+
+        return (Rehydrate(entities), total);
+    }
+
+    private static List<ChatMessage> Rehydrate(List<ChatMessageEntity> entities)
+    {
         var history = new List<ChatMessage>(entities.Count);
 
         foreach (var entity in entities)

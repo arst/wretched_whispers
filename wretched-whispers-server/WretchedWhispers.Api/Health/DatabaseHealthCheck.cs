@@ -4,7 +4,12 @@ using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Api.Health;
 
-public sealed class DatabaseHealthCheck(IServiceScopeFactory scopeFactory) : IHealthCheck
+/// <summary>
+/// Readiness: the database answers, and the schema the running code expects is actually applied.
+/// Health checks are resolved from a fresh scope per probe, so the DbContext is injected directly
+/// rather than through a scope factory.
+/// </summary>
+public sealed class DatabaseHealthCheck(WretchedWhispersDbContext db) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
@@ -12,8 +17,6 @@ public sealed class DatabaseHealthCheck(IServiceScopeFactory scopeFactory) : IHe
     {
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
             if (!await db.Database.CanConnectAsync(cancellationToken))
                 return HealthCheckResult.Unhealthy("Database is unavailable");
 
@@ -22,9 +25,10 @@ public sealed class DatabaseHealthCheck(IServiceScopeFactory scopeFactory) : IHe
 
             return HealthCheckResult.Healthy();
         }
-        catch
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return HealthCheckResult.Unhealthy("Database is unavailable");
+            // Carry the exception: a probe that can only ever say "unavailable" cannot be diagnosed.
+            return HealthCheckResult.Unhealthy("Database is unavailable", exception);
         }
     }
 }

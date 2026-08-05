@@ -24,6 +24,26 @@ public class SqliteCharactersRepository : ICharactersRepository
         return JsonSerializer.Deserialize<Character>(entity.Data, _jsonOptions);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, Character>> GetMany(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return new Dictionary<Guid, Character>();
+
+        var entities = await _db.Characters
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToListAsync(ct);
+
+        var characters = new Dictionary<Guid, Character>(entities.Count);
+        foreach (var entity in entities)
+        {
+            if (JsonSerializer.Deserialize<Character>(entity.Data, _jsonOptions) is { } character)
+                characters[entity.Id] = character;
+        }
+
+        return characters;
+    }
+
     public async Task Save(Character character, CancellationToken ct = default)
     {
         var json = JsonSerializer.Serialize(character, _jsonOptions);
