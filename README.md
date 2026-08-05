@@ -47,9 +47,20 @@ port 8080 — put Caddy/Traefik/nginx in front if you expose it beyond your mach
 | `StandaloneContainer` | `docker build -t wretched-whispers:standalone .` | Local user, settings UI, SQLite in `/data` |
 | `Desktop` | `./build-desktop.sh [rid]` | Local user, settings UI, SQLite in OS app-data, Photino window |
 
-For local web development, leave `NEXT_PUBLIC_DEPLOYMENT_PROFILE` unset and run Next separately.
-All release profiles set it and bundle the static export into the ASP.NET app. Application endpoints
-live under `/api`; health probes remain at `/health`.
+All release profiles set `NEXT_PUBLIC_DEPLOYMENT_PROFILE` and bundle the static export into the
+ASP.NET app. Application endpoints live under `/api`; health probes remain at `/health`.
+
+# Local development
+
+```bash
+./dev.sh              # API on :5007 + Next dev server on :3000 (Ctrl-C stops both)
+./dev.sh --api-only   # or --web-only
+```
+
+`dev.sh` builds the default `Server` profile in Development: leave `NEXT_PUBLIC_DEPLOYMENT_PROFILE`
+unset, and the API applies pending SQLite migrations on startup. See
+[docs/database-migrations.md](docs/database-migrations.md) for PostgreSQL, which is never migrated
+by the API.
 
 # DISCLAIMER
 

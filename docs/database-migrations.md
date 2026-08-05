@@ -3,6 +3,20 @@
 Server releases run `dotnet WretchedWhispers.Migrations.dll` before a new API revision receives
 traffic. API startup never migrates PostgreSQL, and rollback never reverses a migration.
 
+## Local development
+
+`./dev.sh` runs the API and the Next dev server together. In Development with SQLite the API applies
+pending migrations at startup, so a local database can't fall behind the code. Local PostgreSQL
+(`WW_DB_PROVIDER=postgres`) follows the production rule and is never migrated by the API — run the
+migration project yourself, which also works for SQLite:
+
+```bash
+cd wretched-whispers-server
+WW_DB_PROVIDER=sqlite \
+WW_DB_CONNECTION="Data Source=$PWD/WretchedWhispers.Api/wretched-whispers.db" \
+  dotnet run --project WretchedWhispers.Migrations
+```
+
 ## Expand, roll out, contract
 
 1. **Expand:** add nullable columns, new tables/indexes, or parallel representations that both the

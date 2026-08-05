@@ -13,6 +13,7 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var failures = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -44,9 +45,16 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                     if (item is Models.TurnError turnError) error = turnError.Message;
                 }
                 await queue.CompleteAsync(turn.Id, error, stoppingToken);
+                failures = 0;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
-            catch (Exception ex) { logger.LogError(ex, "Durable turn worker iteration failed"); await Task.Delay(250, stoppingToken); }
+            catch (Exception ex)
+            {
+                // ponytail: back off so a broken database doesn't spam a stack trace every 250ms
+                var delay = TimeSpan.FromMilliseconds(Math.Min(250 * Math.Pow(2, failures++), 30_000));
+                logger.LogError(ex, "Durable turn worker iteration failed; retrying in {Delay}", delay);
+                await Task.Delay(delay, stoppingToken);
+            }
         }
     }
 }

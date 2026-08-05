@@ -137,7 +137,9 @@ if (DeploymentProfile.UsesIdentity && app.Environment.IsProduction() && !uiIndex
     throw new InvalidOperationException(
         "The Server profile requires the bundled UI at wwwroot/index.html in Production.");
 
-if (DeploymentProfile.UsesLocalAuth)
+// Postgres is migrated out of band by WretchedWhispers.Migrations (see docs/database-migrations.md);
+// local SQLite migrates itself so a dev's database can't fall behind the code.
+if (DeploymentProfile.UsesLocalAuth || (app.Environment.IsDevelopment() && !usePostgres))
 {
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
