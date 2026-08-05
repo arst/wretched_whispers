@@ -54,7 +54,7 @@ public sealed class EncounterTools(
         return CreateEncounterDto(encounter);
     }
 
-    [Description("Add an adversary to the current encounter")]
+    [Description("Add an adversary to the current encounter. Stat the creature as the fiction demands — the domain then scales hit points and caps armor to the campaign's difficulty, so forgiving campaigns stay winnable. The returned encounter carries the ADJUSTED stats: treat those as the truth and never restate the numbers you sent.")]
     [GameTool(SessionStage.Exploration)]
     public async Task<EncounterDto> AddAdversaryToEncounter(
         [Description("The adversary to add")] NewAdversaryDto adversary)
@@ -64,15 +64,18 @@ public sealed class EncounterTools(
         ToolGuard.DiceExpression(adversary.WeaponDamageDie, "adversary.weaponDamageDie");
 
         var encounterId = RequireEncounterId();
+        // The domain scales the GM's stats to the campaign difficulty — the model states the creature
+        // it imagines and never has to reason about whether the fight is winnable.
         await encounterService.AddAdversaries(
             encounterId,
             [
-                new Adversary(
+                Adversary.Create(
                     adversary.Name,
-                    new HitPoints(adversary.HitPoints, adversary.HitPoints),
-                    GenerateArmor(adversary.ArmorTier),
+                    adversary.HitPoints,
+                    MapArmorTier(adversary.ArmorTier),
                     adversary.Morale,
-                    new AttackProfile(adversary.WeaponDescription, DiceExpr.Parse(adversary.WeaponDamageDie)))
+                    new AttackProfile(adversary.WeaponDescription, DiceExpr.Parse(adversary.WeaponDamageDie)),
+                    Difficulty())
             ]);
 
         var encounter = await repository.Get(encounterId)
@@ -111,7 +114,8 @@ public sealed class EncounterTools(
                 $"Action '{action}' is not valid. Expected one of: Attack, Flee, Other.");
 
         var outcome = await encounterService.ResolveRound(
-            RequireEncounterId(), RequireCharacterId(), roundAction, targetAdversaryName, omenUse);
+            RequireEncounterId(), RequireCharacterId(), roundAction, targetAdversaryName, omenUse,
+            Difficulty());
         return CombatRoundOutcomeDto.From(outcome);
     }
 
@@ -185,12 +189,16 @@ public sealed class EncounterTools(
         _ => throw new ArgumentException($"Unknown armor tier: {armorTier}.")
     };
 
-    private static Armor GenerateArmor(ArmorTierDto armorType) => armorType switch
+    // Same fallback as CharacterTools: an unconfigured campaign is treated as Grim.
+    private DifficultySettings Difficulty() =>
+        DifficultyPresets.For(sessionContext.Campaign?.Difficulty ?? Core.Campaigns.Difficulty.Grim);
+
+    private static ArmorTier MapArmorTier(ArmorTierDto armorType) => armorType switch
     {
-        ArmorTierDto.Light => new Armor(ArmorTier.Light),
-        ArmorTierDto.Medium => new Armor(ArmorTier.Medium),
-        ArmorTierDto.Heavy => new Armor(ArmorTier.Heavy),
-        ArmorTierDto.None => new Armor(ArmorTier.None),
+        ArmorTierDto.Light => ArmorTier.Light,
+        ArmorTierDto.Medium => ArmorTier.Medium,
+        ArmorTierDto.Heavy => ArmorTier.Heavy,
+        ArmorTierDto.None => ArmorTier.None,
         _ => throw new ArgumentException(
             $"Unknown armor type: {armorType}. Expected one of: light, medium, heavy, none.")
     };

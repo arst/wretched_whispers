@@ -50,4 +50,35 @@ public class DifficultyPresetsTests
         Assert.True(DifficultyPresets.For(Difficulty.Doomed).AbilityLossOnGettingBetter);
         Assert.True(DifficultyPresets.For(Difficulty.Hardcore).AbilityLossOnGettingBetter);
     }
+
+    [Fact]
+    public void For_HarderDifficulty_AdversariesNeverGetWeaker()
+    {
+        var settings = EasiestToHardest.Select(DifficultyPresets.For).ToArray();
+
+        for (var i = 1; i < settings.Length; i++)
+        {
+            var easier = settings[i - 1];
+            var harder = settings[i];
+            Assert.True(harder.AdversaryHpScale >= easier.AdversaryHpScale);
+            Assert.True(harder.MaxAdversaryArmor >= easier.MaxAdversaryArmor);
+            // A damage floor only ever helps the player, so it must not appear on a harder tier
+            // once a gentler one has dropped it.
+            Assert.True(easier.PlayerHitsAlwaysDamage || !harder.PlayerHitsAlwaysDamage);
+        }
+    }
+
+    [Fact]
+    public void ForgivingDifficulties_ScaleAdversariesDown_HarshOnesLeaveThemRaw()
+    {
+        Assert.Equal(1.0, DifficultyPresets.For(Difficulty.Doomed).AdversaryHpScale);
+        Assert.Equal(1.0, DifficultyPresets.For(Difficulty.Hardcore).AdversaryHpScale);
+        Assert.False(DifficultyPresets.For(Difficulty.Doomed).PlayerHitsAlwaysDamage);
+        Assert.False(DifficultyPresets.For(Difficulty.Hardcore).PlayerHitsAlwaysDamage);
+
+        Assert.True(DifficultyPresets.For(Difficulty.StoryMode).AdversaryHpScale < 1.0);
+        Assert.True(DifficultyPresets.For(Difficulty.Grim).AdversaryHpScale < 1.0);
+        Assert.True(DifficultyPresets.For(Difficulty.StoryMode).PlayerHitsAlwaysDamage);
+        Assert.True(DifficultyPresets.For(Difficulty.Grim).PlayerHitsAlwaysDamage);
+    }
 }

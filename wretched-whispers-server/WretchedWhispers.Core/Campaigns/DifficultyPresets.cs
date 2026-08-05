@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Campaigns;
@@ -14,7 +15,10 @@ public static class DifficultyPresets
             DeadlyDamage: DiceExpr.D(1, 4),
             DawnDice: DiceExpr.D(1, 8),
             GmToneNote: "Difficulty: STORY MODE. Be forgiving — favor tension over death. Prefer None or Minor consequences; reserve Deadly for reckless, self-destructive acts.",
-            AbilityLossOnGettingBetter: false),
+            AbilityLossOnGettingBetter: false,
+            MaxAdversaryArmor: ArmorTier.None,
+            AdversaryHpScale: 0.5,
+            PlayerHitsAlwaysDamage: true),
         Difficulty.Grim => new DifficultySettings(
             StartingHpBonus: 0,
             MinorDamage: DiceExpr.D(1, 2),
@@ -22,7 +26,10 @@ public static class DifficultyPresets
             DeadlyDamage: DiceExpr.D(1, 6),
             DawnDice: DiceExpr.D(1, 6),
             GmToneNote: "Difficulty: GRIM. Measured danger. Default to None or Minor; use Serious only for genuine peril; reserve Deadly for explicit death-traps.",
-            AbilityLossOnGettingBetter: true),
+            AbilityLossOnGettingBetter: true,
+            MaxAdversaryArmor: ArmorTier.Light,
+            AdversaryHpScale: 0.75,
+            PlayerHitsAlwaysDamage: true),
         Difficulty.Doomed => new DifficultySettings(
             StartingHpBonus: 0,
             MinorDamage: DiceExpr.D(1, 2),
@@ -30,7 +37,10 @@ public static class DifficultyPresets
             DeadlyDamage: DiceExpr.D(1, 10),
             DawnDice: DiceExpr.D(1, 6),
             GmToneNote: "Difficulty: DOOMED. True MORK BORG — unfair and grim. Let Serious and Deadly consequences fall as the fiction demands.",
-            AbilityLossOnGettingBetter: true),
+            AbilityLossOnGettingBetter: true,
+            MaxAdversaryArmor: ArmorTier.Heavy,
+            AdversaryHpScale: 1.0,
+            PlayerHitsAlwaysDamage: false),
         Difficulty.Hardcore => new DifficultySettings(
             StartingHpBonus: 0,
             MinorDamage: DiceExpr.D(1, 4),
@@ -38,7 +48,10 @@ public static class DifficultyPresets
             DeadlyDamage: DiceExpr.D(1, 12),
             DawnDice: DiceExpr.D(1, 4),
             GmToneNote: "Difficulty: HARDCORE. Merciless — the world wants them dead. Reach readily for Serious and Deadly consequences.",
-            AbilityLossOnGettingBetter: true),
+            AbilityLossOnGettingBetter: true,
+            MaxAdversaryArmor: ArmorTier.Heavy,
+            AdversaryHpScale: 1.0,
+            PlayerHitsAlwaysDamage: false),
         _ => throw new ArgumentOutOfRangeException(nameof(level))
     };
 }

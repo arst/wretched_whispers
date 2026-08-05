@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Combat;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
@@ -143,5 +144,54 @@ public sealed class EncounterReactionTests : TestBase
         Assert.NotNull(restored);
         Assert.Null(restored.Reaction);
         Assert.Null(restored.ReactionRoll);
+    }
+
+    // MORK BORG RAW: 2d6 strictly HIGHER than morale and they break. Mock is 0-based per die, so
+    // SetupDiceRolls(a, b) -> 2d6 total a + b + 2. Morale is 7 for MinimalAdversary.
+    [Theory]
+    [InlineData(0, 0, false)] //  2 — holds
+    [InlineData(2, 3, false)] //  7 — equal to morale, holds
+    [InlineData(3, 3, true)]  //  8 — over morale, breaks
+    [InlineData(5, 5, true)]  // 12 — routs
+    public void MoraleCheck_BreaksOnlyWhenRollExceedsMorale(int die1, int die2, bool expectedFled)
+    {
+        // 5 max HP, 4 damage -> 1 left, which is at-or-below a third: the check fires.
+        var encounter = Encounter.Create("Ambush", "Bandits leap out", EncounterType.Hostile, Dice);
+        encounter.AddAdversary(MinimalAdversary());
+        encounter.StartEncounter();
+        var adversary = encounter.Adversaries.Single();
+        // Drop it under the 30%-HP threshold that triggers the check for a lone adversary: a 4-damage
+        // hit on 5 max HP leaves 1. First scripted roll is the morale 2d6 (the hit is passed in, not rolled).
+        SetupDiceRolls(die1, die2);
+
+        encounter.ProcessPlayerAttackOutcome(
+            new AttackOutcome(Hit: true, Damage.From(4), Critical: false, Fumble: false,
+                WeaponBroken: false, TargetArmorDegraded: false),
+            adversary.Id, Dice);
+
+        Assert.Equal(expectedFled, adversary.IsFled);
+    }
+
+    [Fact]
+    public void MoraleCheck_SmallAdversary_CanStillBreakWhileAlive()
+    {
+        // Difficulty scaling shrinks hit points, so the threshold has to stay reachable at 3 HP.
+        // The old float form (< Max * 0.3) needed under 0.9 HP here — i.e. only a corpse qualified.
+        var encounter = Encounter.Create("Ambush", "Bandits leap out", EncounterType.Hostile, Dice);
+        encounter.AddAdversary(new Adversary(
+            "Rat", new HitPoints(3, 3), new Armor(ArmorTier.None), 5,
+            new AttackProfile("teeth", DiceExpr.D4)));
+        encounter.StartEncounter();
+        var adversary = encounter.Adversaries.Single();
+        SetupDiceRolls(5, 5); // 2d6 = 12, well over morale 5
+
+        encounter.ProcessPlayerAttackOutcome(
+            new AttackOutcome(Hit: true, Damage.From(2), Critical: false, Fumble: false,
+                WeaponBroken: false, TargetArmorDegraded: false),
+            adversary.Id, Dice);
+
+        Assert.Equal(1, adversary.Hp.Current);
+        Assert.False(adversary.IsDead);
+        Assert.True(adversary.IsFled);
     }
 }

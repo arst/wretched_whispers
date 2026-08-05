@@ -114,7 +114,9 @@ public sealed class Encounter
         var moraleDiceExpr = DiceExpr.D(2, 6);
         var moraleRoll = dice.Roll(moraleDiceExpr);
 
-        if (moraleRoll >= adversary.Morale)
+        // MORK BORG RAW: 2d6 HIGHER than morale and they break. The comparison used to be inverted,
+        // which made low-morale enemies the hardest to rout and turned losing fights into grinds.
+        if (moraleRoll <= adversary.Morale)
             return;
 
         adversary.Retreat();
@@ -163,9 +165,10 @@ public sealed class Encounter
         if (groupSize == 1)
         {
             var adversary = Adversaries.First();
-            var hasLessThanThirdHp = adversary.Hp.Current < adversary.Hp.Max * 0.3;
-
-            return hasLessThanThirdHp;
+            // "Down to a third" — inclusive, and integer-exact. The old `< Max * 0.3` was unreachable
+            // while alive for small creatures (a 3 HP thing needed under 0.9 HP), so anything the
+            // difficulty scaling shrank could only ever die, never break and run.
+            return adversary.Hp.Current * 3 <= adversary.Hp.Max;
         }
 
         var livingAdversaries = LivingAdversaries.Count;
