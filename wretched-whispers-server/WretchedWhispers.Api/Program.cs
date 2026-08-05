@@ -27,12 +27,17 @@ if (DeploymentProfile.UsesLocalAuth)
 builder.Configuration.AddInMemoryCollection(
     EnvConfigOverrides.Map(Environment.GetEnvironmentVariable));
 
-var webOrigin = builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000";
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .WithOrigins(webOrigin)
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .AllowCredentials()));
+// Only the hosted Server profile serves a separately-origined web app, and only in development —
+// elsewhere the UI ships from wwwroot, same origin. Registered under the same condition as UseCors.
+if (DeploymentProfile.UsesIdentity && builder.Environment.IsDevelopment())
+{
+    var webOrigin = builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000";
+    builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+        .WithOrigins(webOrigin)
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials()));
+}
 
 if (DeploymentProfile.UsesIdentity && !builder.Environment.IsDevelopment())
 {
@@ -195,8 +200,9 @@ if (DeploymentProfile.UsesSettings)
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
 app.MapGet("/health", () => Results.Ok("alive"));
-app.MapSessionEndpoints();
-app.MapTurnEndpoints();
+var api = app.MapAuthenticatedApi();
+api.MapSessionEndpoints();
+api.MapTurnEndpoints();
 
 if (uiIndex.Exists)
 {

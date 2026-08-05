@@ -5,6 +5,8 @@ namespace WretchedWhispers.Api.Deployment;
 
 public static class StandaloneHost
 {
+    public const string DefaultModel = "gpt-4o";
+
     public static string DataDir { get; } = CreateDataDir();
     public static string SettingsPath => Path.Combine(DataDir, "settings.json");
 
@@ -14,14 +16,14 @@ public static class StandaloneHost
         {
             ["ConnectionStrings:Default"] = $"Data Source={Path.Combine(DataDir, "wretched-whispers.db")}",
             ["Llm:Provider"] = "openai",
-            ["Llm:Model"] = "gpt-4o",
+            ["Llm:Model"] = DefaultModel,
         };
 
         if (!File.Exists(SettingsPath)) return config;
 
         try
         {
-            var settings = JsonSerializer.Deserialize<Persisted>(File.ReadAllText(SettingsPath));
+            var settings = JsonSerializer.Deserialize<PersistedSettings>(File.ReadAllText(SettingsPath));
             if (!string.IsNullOrWhiteSpace(settings?.ApiKey)) config["Llm:ApiKey"] = settings.ApiKey;
             if (!string.IsNullOrWhiteSpace(settings?.Model)) config["Llm:Model"] = settings.Model;
             if (!string.IsNullOrWhiteSpace(settings?.BaseUrl)) config["Llm:BaseUrl"] = settings.BaseUrl;
@@ -44,5 +46,6 @@ public static class StandaloneHost
         return path;
     }
 
-    private sealed record Persisted(string? Provider, string? ApiKey, string? Model, string? BaseUrl);
+    /// <summary>The settings.json contract — written by the settings endpoint, read back here on startup.</summary>
+    public sealed record PersistedSettings(string? Provider, string? ApiKey, string? Model, string? BaseUrl);
 }
