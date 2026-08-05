@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http.HttpResults;
 using WretchedWhispers.Api.Models;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Entities;
 
@@ -22,7 +23,7 @@ public static class TurnEndpoints
         return app;
     }
 
-    private static async Task<Results<Accepted<TurnResponse>, BadRequest<object>, NotFound>> Submit(Guid sessionId, SubmitTurnRequest request,
+    private static async Task<IResult> Submit(Guid sessionId, SubmitTurnRequest request,
         HttpContext http, ICampaignsRepository campaigns, TurnQueue queue, CancellationToken ct)
     {
         var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
