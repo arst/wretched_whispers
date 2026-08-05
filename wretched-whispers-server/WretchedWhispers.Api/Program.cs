@@ -5,11 +5,13 @@ using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Api.Auth;
 using WretchedWhispers.Api.Configuration;
 using WretchedWhispers.Api.Deployment;
 using WretchedWhispers.Api.Endpoints;
+using WretchedWhispers.Api.Health;
 using WretchedWhispers.Engine.Configuration;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure;
@@ -20,11 +22,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddUserSecrets(typeof(ServiceCollectionExtensions).Assembly, optional: true);
 
 if (DeploymentProfile.UsesLocalAuth)
-{
     builder.Configuration.AddInMemoryCollection(StandaloneHost.BuildConfig());
-    builder.Configuration.AddInMemoryCollection(
-        EnvConfigOverrides.Map(Environment.GetEnvironmentVariable));
-}
+
+builder.Configuration.AddInMemoryCollection(
+    EnvConfigOverrides.Map(Environment.GetEnvironmentVariable));
 
 var webOrigin = builder.Configuration["Cors:WebOrigin"] ?? "http://localhost:3000";
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
@@ -102,6 +103,7 @@ else
 
 builder.Services.AddAuthorization();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 
 if (DeploymentProfile.UsesIdentity)
 {
@@ -135,15 +137,13 @@ if (DeploymentProfile.UsesIdentity && app.Environment.IsProduction() && !uiIndex
     throw new InvalidOperationException(
         "The Server profile requires the bundled UI at wwwroot/index.html in Production.");
 
-using (var scope = app.Services.CreateScope())
+if (DeploymentProfile.UsesLocalAuth)
 {
+    await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-    if (DeploymentProfile.UsesLocalAuth)
-    {
-        await db.Database.MigrateAsync();
-        scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
-            .LogInformation("Database migrated successfully");
-    }
+    await db.Database.MigrateAsync();
+    scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
+        .LogInformation("Database migrated successfully");
 }
 
 if (args is ["export-traces", ..])
@@ -190,6 +190,8 @@ if (DeploymentProfile.UsesIdentity)
 if (DeploymentProfile.UsesSettings)
     app.MapSettingsEndpoints(StandaloneHost.SettingsPath, readOnly: usePostgres);
 
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready");
 app.MapGet("/health", () => Results.Ok("alive"));
 app.MapSessionEndpoints();
 app.MapTurnEndpoints();

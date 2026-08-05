@@ -25,6 +25,7 @@
         <ProjectReference Include="..\WretchedWhispers.Infrastructure\WretchedWhispers.Infrastructure.csproj" />
         <ProjectReference Include="..\WretchedWhispers.Engine\WretchedWhispers.Engine.csproj" />
         <ProjectReference Include="..\WretchedWhispers.Api\WretchedWhispers.Api.csproj" />
+        <ProjectReference Include="..\WretchedWhispers.Migrations\WretchedWhispers.Migrations.csproj" />
     </ItemGroup>
 
 </Project>

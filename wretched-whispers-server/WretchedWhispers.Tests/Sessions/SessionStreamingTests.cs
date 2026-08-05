@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 
@@ -123,6 +124,14 @@ public class SessionStreamingTests : IClassFixture<SessionStreamingTests.Streami
             });
 
             builder.UseEnvironment("Development");
+        }
+
+        protected override IHost CreateHost(IHostBuilder builder)
+        {
+            var host = base.CreateHost(builder);
+            using var scope = host.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>().Database.Migrate();
+            return host;
         }
 
         protected override void Dispose(bool disposing)

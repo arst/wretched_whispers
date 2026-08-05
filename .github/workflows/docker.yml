@@ -7,25 +7,59 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Build container profiles
         run: |
           docker build --build-arg DEPLOYMENT_PROFILE=Server -t wretched-whispers:server .
           docker build --build-arg DEPLOYMENT_PROFILE=StandaloneContainer -t wretched-whispers:standalone .
       - name: Smoke Server image
         run: |
-          docker run -d --name wretched-whispers-server -p 8080:8080 wretched-whispers:server
-          for attempt in {1..30}; do curl -fsS http://localhost:8080/health && break; sleep 1; done
+          docker network create wretched-whispers-smoke
+          docker run -d --name postgres --network wretched-whispers-smoke \
+            -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=wretched postgres:17-alpine
+          for attempt in {1..30}; do docker logs postgres 2>&1 | grep -q 'PostgreSQL init process complete' && break; sleep 1; done
+          docker exec postgres pg_isready -U postgres
+          docker exec -i postgres psql -U postgres -d wretched \
+            -v database_name=wretched -v app_password=smokeapp -v migrator_password=smokemigrator \
+            < deploy/azure/bootstrap-database.sql
+          migration_connection='Host=postgres;Port=5432;Database=wretched;Username=ww_migrator;Password=smokemigrator'
+          app_connection='Host=postgres;Port=5432;Database=wretched;Username=ww_app;Password=smokeapp'
+          docker run --rm --network wretched-whispers-smoke \
+            -e WW_DB_PROVIDER=postgres -e WW_DB_CONNECTION="$migration_connection" \
+            --entrypoint dotnet wretched-whispers:server WretchedWhispers.Migrations.dll
+          docker run -d --name wretched-whispers-server --network wretched-whispers-smoke -p 8080:8080 \
+            -e WW_DB_PROVIDER=postgres -e WW_DB_CONNECTION="$app_connection" wretched-whispers:server
+          for attempt in {1..30}; do curl -fsS http://localhost:8080/health/ready && break; sleep 1; done
+          curl -fsS http://localhost:8080/health/live
           curl -fsS http://localhost:8080/
           curl -fsSL http://localhost:8080/sessions
           curl -fsS -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{"email":"smoke@example.com","password":"password"}'
           token=$(curl -fsS -X POST 'http://localhost:8080/api/auth/login?useCookies=false' -H 'Content-Type: application/json' -d '{"email":"smoke@example.com","password":"password"}' | jq -r .accessToken)
           curl -fsS http://localhost:8080/api/sessions -H "Authorization: Bearer $token"
+      - name: Previous Server commit accepts the expanded schema
+        run: |
+          git worktree add /tmp/wretched-whispers-previous "${{ github.event.pull_request.base.sha }}"
+          docker build --build-arg DEPLOYMENT_PROFILE=Server \
+            -t wretched-whispers:previous /tmp/wretched-whispers-previous
+          migration_connection='Host=postgres;Port=5432;Database=wretched;Username=ww_migrator;Password=smokemigrator'
+          docker run -d --name wretched-whispers-previous --network wretched-whispers-smoke -p 8081:8080 \
+            -e WW_DB_PROVIDER=postgres -e ConnectionStrings__Default="$migration_connection" wretched-whispers:previous
+          for attempt in {1..30}; do curl -fsS http://localhost:8081/health && break; sleep 1; done
+          curl -fsS -X POST http://localhost:8081/api/auth/register -H 'Content-Type: application/json' \
+            -d '{"email":"previous@example.com","password":"password"}'
+          token=$(curl -fsS -X POST 'http://localhost:8081/api/auth/login?useCookies=false' \
+            -H 'Content-Type: application/json' -d '{"email":"previous@example.com","password":"password"}' | jq -r .accessToken)
+          curl -fsS http://localhost:8081/api/sessions -H "Authorization: Bearer $token"
 
   publish:
     if: github.event_name != 'pull_request'
