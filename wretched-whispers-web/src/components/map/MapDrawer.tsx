@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { apiFetch } from "@/lib/api";
+import Drawer from "@/components/ui/Drawer";
 import type { PoiDto } from "@/types/api";
 
 const POI_COLORS: Record<string, string> = {
@@ -21,14 +22,7 @@ interface MapData {
 export default function MapDrawer() {
   const sessionId = useSessionStore((s) => s.sessionId);
   const mapOpen = useSessionStore((s) => s.activeDrawer === "map");
-  const toggleDrawer = useSessionStore((s) => s.toggleDrawer);
-  const drawerRef = useRef<HTMLDialogElement>(null);
   const [data, setData] = useState<MapData | null>(null);
-
-  useEffect(() => {
-    if (mapOpen && !drawerRef.current?.open) drawerRef.current?.showModal();
-    if (!mapOpen && drawerRef.current?.open) drawerRef.current.close();
-  }, [mapOpen]);
 
   // Fetch on open so places charted during play show up without SSE plumbing
   useEffect(() => {
@@ -50,26 +44,7 @@ export default function MapDrawer() {
     pois.find((p) => p.name === name);
 
   return (
-      <dialog
-        ref={drawerRef}
-        aria-label="Regional map"
-        onCancel={(event) => { event.preventDefault(); toggleDrawer("map"); }}
-        className="fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full sm:w-96 bg-doom-dark text-doom-bone overflow-y-auto backdrop:bg-[#0a0a0a]/60"
-      >
-        {/* Header row */}
-        <div className="px-8 pt-8 pb-0 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-doom-yellow">
-            MAP
-          </h2>
-          <button
-            onClick={() => toggleDrawer("map")}
-            aria-label="Close map"
-            className="text-doom-ash hover:text-doom-bone text-xl cursor-pointer"
-          >
-            {"×"}
-          </button>
-        </div>
-
+      <Drawer name="map" title="MAP" label="Regional map" width="sm:w-96">
         <div className="px-8 pt-6 pb-8">
           {data === null && (
             <p className="text-doom-ash text-sm">Loading...</p>
@@ -135,6 +110,6 @@ export default function MapDrawer() {
             </svg>
           )}
         </div>
-      </dialog>
+      </Drawer>
   );
 }

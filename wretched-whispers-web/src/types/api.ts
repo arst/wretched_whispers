@@ -56,24 +56,7 @@ export interface CreateSessionResponse {
   sessionId: string;
 }
 
-// Auth types
-
-export interface LoginResponse {
-  tokenType: string;
-  accessToken: string;
-  expiresIn: number;
-  refreshToken: string;
-}
-
 // SSE event types
-
-export type SseEventType =
-  | "narrative"
-  | "tool_result"
-  | "turn_delta"
-  | "state_update"
-  | "done"
-  | "error";
 
 export interface NarrativeEvent {
   text: string;
@@ -145,42 +128,6 @@ export interface StateUpdateEvent {
   characterOmens?: number;
   characterScrolls?: string[];
   miseryPsalms?: string[];
-}
-
-export interface CharacterData {
-  name: string;
-  class: string | null;
-  currentHp: number;
-  maxHp: number;
-  abilities: {
-    strength: number;
-    agility: number;
-    presence: number;
-    toughness: number;
-  };
-  weapon: string | null;
-  armor: string | null;
-  inventory: string[];
-  silver: number | null;
-  // Injuries
-  hasLostEye: boolean;
-  hasStabbedLung: boolean;
-  hasBrokenHand: boolean;
-  hasCrushedFoot: boolean;
-  hasSeveredArm: boolean;
-  hasSmashedFace: boolean;
-  // Status effects
-  isInfected: boolean;
-  isDizzyFromMagic: boolean;
-  isEncumbered: boolean;
-  isDead: boolean;
-  // Equipment condition
-  armorTier: string;
-  hasShield: boolean;
-  isShieldBroken: boolean;
-  // Powers
-  omens: number;
-  scrolls: string[];
 }
 
 export interface SseErrorEvent {

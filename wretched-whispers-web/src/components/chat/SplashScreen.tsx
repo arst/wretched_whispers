@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Dots from "@/components/ui/Dots";
 
 interface SplashScreenProps {
   onTransition: () => void;
@@ -35,19 +36,8 @@ export default function SplashScreen({ onTransition, show }: SplashScreenProps) 
       >
         The darkness stirs...
       </p>
-      <div className="flex items-center gap-2 mt-10">
-        <span
-          className="inline-block w-1.5 h-1.5 rounded-full bg-doom-yellow"
-          style={{ animation: "doom-pulse 1.4s ease-in-out infinite" }}
-        />
-        <span
-          className="inline-block w-1.5 h-1.5 rounded-full bg-doom-yellow"
-          style={{ animation: "doom-pulse 1.4s ease-in-out 0.2s infinite" }}
-        />
-        <span
-          className="inline-block w-1.5 h-1.5 rounded-full bg-doom-yellow"
-          style={{ animation: "doom-pulse 1.4s ease-in-out 0.4s infinite" }}
-        />
+      <div className="mt-10">
+        <Dots size="w-1.5 h-1.5" />
       </div>
     </div>
   );

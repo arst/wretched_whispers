@@ -1,8 +1,30 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useSessionStore } from "./sessionStore";
+import type { StateUpdateEvent } from "@/types/api";
+
+const update = (extra: Partial<StateUpdateEvent> = {}): StateUpdateEvent => ({
+  campaignId: "c",
+  currentDay: 1,
+  currentHour: 1,
+  miseryCount: 0,
+  status: "in-progress",
+  ...extra,
+});
 
 describe("session store", () => {
   beforeEach(() => useSessionStore.getState().reset());
+
+  // A state_update sent before the wretch exists (or during creation) carries no character fields.
+  // Blanking the sheet on one would empty the drawer mid-session.
+  it("keeps the last character sheet through a character-less update", () => {
+    const store = useSessionStore.getState();
+    store.setStateUpdate(update({ characterName: "Grim", characterHp: 5, characterMaxHp: 8 }));
+    store.setStateUpdate(update({ currentDay: 2 }));
+
+    const state = useSessionStore.getState();
+    expect(state.characterData?.characterName).toBe("Grim");
+    expect(state.currentDay).toBe(2);
+  });
 
   it("keeps only one drawer active", () => {
     const store = useSessionStore.getState();

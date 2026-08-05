@@ -31,24 +31,12 @@ function isDiceRollData(result: unknown): result is DiceRollData {
   );
 }
 
-function isDiceFunction(fn: string): boolean {
-  const lower = fn.toLowerCase();
-  return (
-    lower.includes("dice") ||
-    lower.includes("roll") ||
-    lower.includes("d6") ||
-    lower.includes("d20") ||
-    lower.includes("d4") ||
-    lower.includes("d8") ||
-    lower.includes("d10") ||
-    lower.includes("d12")
-  );
-}
+const DICE_FUNCTION = /dice|roll|d(4|6|8|10|12|20)/i;
 
 export default function ToolResultCallout({
   toolResult,
 }: ToolResultCalloutProps) {
-  const isDice = isDiceFunction(toolResult.function);
+  const isDice = DICE_FUNCTION.test(toolResult.function);
   const hasStructuredDice = isDice && isDiceRollData(toolResult.result);
 
   if (hasStructuredDice) {

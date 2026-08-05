@@ -118,7 +118,6 @@ function handleMessage(ev: SseMessage): "done" | "error" | undefined {
 
 export function useSseStream(sessionId: string) {
   const abortRef = useRef<AbortController | null>(null);
-  const turnIdRef = useRef<string | null>(null);
   const lastEventIdRef = useRef(0);
 
   useEffect(() => {
@@ -132,9 +131,6 @@ export function useSseStream(sessionId: string) {
       const store = useSessionStore.getState();
 
       if (store.isStreaming) return;
-
-      // New attempt: clear any prior retry state so a stale failed message can't be resent.
-      store.setFailedMessage(null);
 
       abortRef.current?.abort();
       const ctrl = new AbortController();
@@ -157,7 +153,6 @@ export function useSseStream(sessionId: string) {
         }
 
         const turn: { turnId: string } = await response.json();
-        turnIdRef.current = turn.turnId;
         lastEventIdRef.current = 0;
         let outcome: "done" | "error" | "eof" = "eof";
         while (!ctrl.signal.aborted && outcome === "eof") {
@@ -177,10 +172,7 @@ export function useSseStream(sessionId: string) {
           }, ctrl.signal);
         }
 
-        const s = useSessionStore.getState();
-        if (outcome === "error") {
-          s.setFailedMessage(null);
-        } else if (outcome === "eof") {
+        if (outcome === "eof") {
           throw new Error("SSE connection closed before the turn completed");
         }
       } catch (err) {
@@ -192,16 +184,10 @@ export function useSseStream(sessionId: string) {
         if (!s.error) {
           s.setError("Connection to the narrator was lost.");
         }
-        s.setFailedMessage(null);
       }
     },
     [sessionId]
   );
 
-  // A durable turn never retries its POST; reconnecting its event stream is enough.
-  const retry = useCallback(() => {
-    if (turnIdRef.current) abortRef.current?.abort();
-  }, []);
-
-  return { sendAction, retry };
+  return { sendAction };
 }

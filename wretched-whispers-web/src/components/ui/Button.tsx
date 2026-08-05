@@ -2,7 +2,7 @@
 
 import { type ButtonHTMLAttributes } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "danger";
+type ButtonVariant = "primary" | "secondary";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -14,8 +14,6 @@ const variantStyles: Record<ButtonVariant, string> = {
     "bg-doom-yellow text-doom-black hover:brightness-110 active:brightness-90",
   secondary:
     "bg-transparent border border-doom-yellow text-doom-yellow hover:bg-doom-yellow/10 active:bg-doom-yellow/20",
-  danger:
-    "bg-doom-pink text-white hover:brightness-110 active:brightness-90",
 };
 
 export default function Button({

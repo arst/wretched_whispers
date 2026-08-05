@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 
 const NEAR_BOTTOM_THRESHOLD = 100;
 
@@ -38,10 +38,5 @@ export function useAutoScroll(deps: unknown[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  const scrollToBottom = useCallback(() => {
-    userScrolledUp.current = false;
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  return { containerRef, bottomRef, scrollToBottom, isPrependRef };
+  return { containerRef, bottomRef, isPrependRef };
 }
