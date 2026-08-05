@@ -240,9 +240,14 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("TurnId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SessionId");
+
+                    b.HasIndex("TurnId");
 
                     b.ToTable("ChatMessages", (string)null);
                 });
@@ -292,6 +297,90 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.ToTable("Encounters", (string)null);
+                });
+
+            modelBuilder.Entity("WretchedWhispers.Infrastructure.Persistence.Entities.TurnEventEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TurnId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TurnId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("TurnEvents", (string)null);
+                });
+
+            modelBuilder.Entity("WretchedWhispers.Infrastructure.Persistence.Entities.TurnRequestEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PlayerMessage")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TerminalError")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.HasIndex("UserId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.ToTable("TurnRequests", (string)null);
                 });
 
             modelBuilder.Entity("WretchedWhispers.Infrastructure.Persistence.Entities.TurnTraceEntity", b =>

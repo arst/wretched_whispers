@@ -43,7 +43,6 @@ public static class MigrationRunner
                 await log.WriteLineAsync($"Current migration: {applied.LastOrDefault() ?? "<none>"}");
                 await log.WriteLineAsync($"Applied migrations: {string.Join(", ", applied)}");
                 await log.WriteLineAsync($"Pending migrations: {string.Join(", ", pending)}");
-
                 await db.Database.MigrateAsync(cancellationToken);
                 foreach (var migration in pending)
                     await log.WriteLineAsync($"Applied: {migration}");

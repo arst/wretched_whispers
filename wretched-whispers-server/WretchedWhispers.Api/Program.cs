@@ -194,6 +194,7 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 app.MapHealthChecks("/health/ready");
 app.MapGet("/health", () => Results.Ok("alive"));
 app.MapSessionEndpoints();
+app.MapTurnEndpoints();
 
 if (uiIndex.Exists)
 {

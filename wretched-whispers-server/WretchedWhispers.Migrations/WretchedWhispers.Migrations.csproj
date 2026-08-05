@@ -5,7 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\WretchedWhispers.Infrastructure\WretchedWhispers.Infrastructure.csproj" />
   </ItemGroup>

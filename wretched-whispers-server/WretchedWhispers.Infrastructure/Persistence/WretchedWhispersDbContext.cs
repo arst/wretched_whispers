@@ -25,6 +25,8 @@ public class WretchedWhispersDbContext : IdentityUserContext<IdentityUser>, IDat
     public DbSet<ChatSessionEntity> ChatSessions => Set<ChatSessionEntity>();
     public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
     public DbSet<TurnTraceEntity> TurnTraces => Set<TurnTraceEntity>();
+    public DbSet<TurnRequestEntity> TurnRequests => Set<TurnRequestEntity>();
+    public DbSet<TurnEventEntity> TurnEvents => Set<TurnEventEntity>();
 
     // ASP.NET data-protection key ring, persisted so Identity bearer/refresh tokens survive
     // restarts and are readable by every instance sharing the database.

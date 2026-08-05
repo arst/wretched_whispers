@@ -14,21 +14,28 @@ import type {
 interface SseMessage {
   event: string;
   data: string;
+  id?: number;
 }
 
 export function parseSseMessage(raw: string): SseMessage | null {
   let event = "message";
   const data: string[] = [];
+  let id: number | undefined;
 
   for (const line of raw.split(/\r?\n/)) {
     if (line.startsWith("event:")) {
       event = line.slice(6).trim();
+    } else if (line.startsWith("id:")) {
+      const parsed = Number(line.slice(3).trim());
+      if (Number.isSafeInteger(parsed)) id = parsed;
     } else if (line.startsWith("data:")) {
       data.push(line.slice(5).trimStart());
     }
   }
 
-  return data.length > 0 ? { event, data: data.join("\n") } : null;
+  return data.length > 0
+    ? { event, data: data.join("\n"), ...(id === undefined ? {} : { id }) }
+    : null;
 }
 
 export async function readSse(
@@ -111,6 +118,8 @@ function handleMessage(ev: SseMessage): "done" | "error" | undefined {
 
 export function useSseStream(sessionId: string) {
   const abortRef = useRef<AbortController | null>(null);
+  const turnIdRef = useRef<string | null>(null);
+  const lastEventIdRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -137,30 +146,40 @@ export function useSseStream(sessionId: string) {
       store.startStreaming();
 
       try {
-        const response = await apiFetch(`/sessions/${sessionId}/actions`, {
+        const requestId = crypto.randomUUID();
+        const response = await apiFetch(`/sessions/${sessionId}/turns`, {
           method: "POST",
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({ requestId, message }),
           signal: ctrl.signal,
         });
-
-        if (response.status === 409) {
-          const s = useSessionStore.getState();
-          s.setError("The narrator is still speaking...");
-          s.failStreaming();
-          return;
-        }
-
         if (!response.ok) {
-          throw new Error(`SSE connection failed (${response.status})`);
+          throw new Error(`Turn submission failed (${response.status})`);
         }
 
-        const outcome = await readSse(response, handleMessage, ctrl.signal);
+        const turn: { turnId: string } = await response.json();
+        turnIdRef.current = turn.turnId;
+        lastEventIdRef.current = 0;
+        let outcome: "done" | "error" | "eof" = "eof";
+        while (!ctrl.signal.aborted && outcome === "eof") {
+          const stream = await apiFetch(`/turns/${turn.turnId}/events`, {
+            headers: lastEventIdRef.current
+              ? { "Last-Event-ID": String(lastEventIdRef.current) }
+              : undefined,
+            signal: ctrl.signal,
+          });
+          if (!stream.ok) throw new Error(`SSE connection failed (${stream.status})`);
+          outcome = await readSse(stream, (event) => {
+            if (event.id !== undefined) {
+              if (event.id <= lastEventIdRef.current) return;
+              lastEventIdRef.current = event.id;
+            }
+            return handleMessage(event);
+          }, ctrl.signal);
+        }
 
         const s = useSessionStore.getState();
         if (outcome === "error") {
-          // The stream delivered an error event (e.g. the model rate-limited). Remember this turn's
-          // message so the player can retry it — the backend rolled the turn back, so it's safe.
-          s.setFailedMessage(message);
+          s.setFailedMessage(null);
         } else if (outcome === "eof") {
           throw new Error("SSE connection closed before the turn completed");
         }
@@ -173,22 +192,16 @@ export function useSseStream(sessionId: string) {
         if (!s.error) {
           s.setError("Connection to the narrator was lost.");
         }
-        s.setFailedMessage(message);
+        s.setFailedMessage(null);
       }
     },
     [sessionId]
   );
 
-  // Resend the last failed turn's message. Silent: the player bubble (if any) is already on screen,
-  // and the backend discarded the failed turn, so this is a clean re-run rather than a duplicate.
+  // A durable turn never retries its POST; reconnecting its event stream is enough.
   const retry = useCallback(() => {
-    const store = useSessionStore.getState();
-    const message = store.failedMessage;
-    if (message === null) return;
-    store.clearError();
-    store.setFailedMessage(null);
-    sendAction(message, { silent: true });
-  }, [sendAction]);
+    if (turnIdRef.current) abortRef.current?.abort();
+  }, []);
 
   return { sendAction, retry };
 }
