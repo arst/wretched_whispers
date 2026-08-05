@@ -22,15 +22,15 @@ public class DomainAuthorityEvals
         string? failHint = null)
     {
         await using var scenario = await EvalScenario.StartAsync(
-            Suite, scenarioName, [new ToolCallContainsEvaluator()]);
+            Suite, scenarioName, [new ToolCallEvaluator(ordered: false)]);
         await using var host = await createHost(scenario.ChatClient);
         var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new RequiredToolCallsContext([requiredTool])]);
+            additionalContext: [new ToolCallsContext([requiredTool])]);
 
-        var metric = result.Get<BooleanMetric>(ToolCallContainsEvaluator.MetricName);
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
             $"Expected a {requiredTool} call; got [{string.Join(", ", outcome.ToolCalls)}]."
             + (failHint is null ? "" : $" {failHint}"));
@@ -109,16 +109,16 @@ public class DomainAuthorityEvals
     public async Task Combat_InventoryQuestion_AnswersWithoutTakingTurn()
     {
         await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Combat-InventoryQuestion-NoTurn", [new ToolCallOrderEvaluator()]);
+            Suite, "Combat-InventoryQuestion-NoTurn", [new ToolCallEvaluator(ordered: true)]);
         await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("What do I have in my inventory and equipment?");
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [],
             modelResponse: outcome.Response,
-            additionalContext: [new ExpectedToolCallOrderContext([])]);
+            additionalContext: [new ToolCallsContext([])]);
 
-        var metric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.True(metric.Value, $"Expected no combat tools for an inventory question; got [{string.Join(", ", outcome.ToolCalls)}]");
         Assert.Contains("staff", outcome.Narrative, StringComparison.OrdinalIgnoreCase);
     }
@@ -127,7 +127,7 @@ public class DomainAuthorityEvals
     public async Task Combat_MissingItemUse_DoesNotInventItemOrTakeTurn()
     {
         await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Combat-MissingItemUse-NoTurn", [new ToolCallOrderEvaluator(), new NarrativeCheckEvaluator()]);
+            Suite, "Combat-MissingItemUse-NoTurn", [new ToolCallEvaluator(ordered: true), new NarrativeCheckEvaluator()]);
         await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("I light my lantern and throw it at the priest.");
 
@@ -136,14 +136,14 @@ public class DomainAuthorityEvals
             modelResponse: outcome.Response,
             additionalContext:
             [
-                new ExpectedToolCallOrderContext([]),
+                new ToolCallsContext([]),
                 new NarrativeCheckContext(
                     "The player tried to use a lantern their character does not possess. The narration "
                     + "must make clear the lantern is not available (in any wording), and must NOT "
                     + "narrate the lantern actually being lit, thrown, or otherwise used."),
             ]);
 
-        var orderMetric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
+        var orderMetric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.True(orderMetric.Value,
             $"Expected no combat tools for a missing lantern; got [{string.Join(", ", outcome.ToolCalls)}]");
 

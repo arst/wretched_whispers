@@ -59,7 +59,7 @@ public sealed class EncounterTools(
     public async Task<EncounterDto> AddAdversaryToEncounter(
         [Description("The adversary to add")] NewAdversaryDto adversary)
     {
-        ToolGuard.Quantity(adversary.HitPoints, "adversary.hitPoints");
+        ToolGuard.Positive(adversary.HitPoints, "adversary.hitPoints", "at least 1");
         ToolGuard.InRange(adversary.Morale, 2, 12, "adversary.morale", "a d6+d6-style score");
         ToolGuard.DiceExpression(adversary.WeaponDamageDie, "adversary.weaponDamageDie");
 

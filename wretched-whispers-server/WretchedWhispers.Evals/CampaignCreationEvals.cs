@@ -16,7 +16,7 @@ public class CampaignCreationEvals
     public async Task Opening_ConfiguresCampaignAndNarratesTheRolledWretch()
     {
         await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Opening-NarratesRolledWretch", [new ToolCallOrderEvaluator()]);
+            Suite, "Opening-NarratesRolledWretch", [new ToolCallEvaluator(ordered: true)]);
         await using var host = await EvalHost.CreateOpeningAsync(
             scenario.ChatClient, "Halvard", CharacterClass.FangedDeserter);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
@@ -24,9 +24,9 @@ public class CampaignCreationEvals
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [],
             modelResponse: outcome.Response,
-            additionalContext: [new ExpectedToolCallOrderContext(["ConfigureCampaign"])]);
+            additionalContext: [new ToolCallsContext(["ConfigureCampaign"])]);
 
-        var metric = result.Get<BooleanMetric>(ToolCallOrderEvaluator.MetricName);
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.True(metric.Value,
             $"Expected [ConfigureCampaign]; got [{string.Join(", ", outcome.ToolCalls)}]");
         Assert.Contains("Halvard", outcome.Narrative, StringComparison.OrdinalIgnoreCase);

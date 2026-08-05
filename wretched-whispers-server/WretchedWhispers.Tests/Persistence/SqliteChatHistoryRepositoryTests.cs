@@ -27,19 +27,20 @@ public sealed class SqliteChatHistoryRepositoryTests : SqliteTestBase
     }
 
     [Fact]
-    public async Task GetLastActivity_TracksMessagesAndFallsBackToSessionStart()
+    public async Task GetLastActivityForCampaigns_TracksMessagesAndFallsBackToSessionStart()
     {
         var campaignId = Guid.NewGuid();
 
-        Assert.Null(await _repo.GetLastActivity(campaignId));
+        Assert.Empty(await _repo.GetLastActivityForCampaigns([campaignId]));
 
         var sessionId = await _repo.CreateSession(campaignId);
-        Assert.NotNull(await _repo.GetLastActivity(campaignId));
+        Assert.True(
+            (await _repo.GetLastActivityForCampaigns([campaignId])).ContainsKey(campaignId));
 
         await _repo.SaveMessage(sessionId, new ChatMessage(ChatRole.User, "hello"));
-        var afterMessage = await _repo.GetLastActivity(campaignId);
+        var afterMessage = await _repo.GetLastActivityForCampaigns([campaignId]);
         var messageTimestamp = Db.ChatMessages.Single(m => m.SessionId == sessionId).Timestamp;
-        Assert.Equal(messageTimestamp, afterMessage);
+        Assert.Equal(messageTimestamp, afterMessage[campaignId]);
     }
 
     [Fact]

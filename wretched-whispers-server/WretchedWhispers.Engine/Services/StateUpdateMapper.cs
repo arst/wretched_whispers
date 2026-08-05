@@ -1,4 +1,5 @@
 using WretchedWhispers.Engine.Models;
+using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 
@@ -11,117 +12,55 @@ public static class StateUpdateMapper
         var campaign = context.Campaign;
         var character = context.Character;
 
-        int? characterHp = null;
-        int? characterMaxHp = null;
-        Guid? characterId = null;
-        string? characterName = null;
-        string? characterClass = null;
-        int? characterStrength = null;
-        int? characterAgility = null;
-        int? characterPresence = null;
-        int? characterToughness = null;
-        string? characterWeapon = null;
-        string? characterArmor = null;
-        string[]? characterInventory = null;
-        int? characterSilver = null;
-        bool hasLostEye = false;
-        bool hasStabbedLung = false;
-        bool hasBrokenHand = false;
-        bool hasCrushedFoot = false;
-        bool hasSeveredArm = false;
-        bool hasSmashedFace = false;
-        bool isInfected = false;
-        bool isDizzyFromMagic = false;
-        bool isEncumbered = false;
-        bool isDead = false;
-        string armorTier = "none";
-        bool hasShield = false;
-        bool isShieldBroken = false;
-        int? characterOmens = null;
-        string[]? characterScrolls = null;
-
-        if (character is not null)
-        {
-            characterId = character.Id;
-            characterHp = character.Hp.Current;
-            characterMaxHp = character.Hp.Max;
-            characterName = character.Name;
-            // Null for classless wretches, so the UI shows a class line only when there is one.
-            characterClass = character.Class == CharacterClass.Classless
-                ? null
-                : ClassPresets.For(character.Class).DisplayName;
-            characterStrength = character.Abilities.Strength.Modifier;
-            characterAgility = character.Abilities.Agility.Modifier;
-            characterPresence = character.Abilities.Presence.Modifier;
-            characterToughness = character.Abilities.Toughness.Modifier;
-            characterWeapon = character.Weapon.Kind.ToString();
-            characterArmor = character.Armor.Tier.DisplayName();
-            // One entry per UNIT: the UI groups duplicates back with a xN badge, and the turn-delta
-            // multiset diff needs units so a quantity decrement (3 torches -> 2) surfaces as one
-            // removed entry instead of vanishing (per-item mapping hid all quantity-only changes).
-            characterInventory = character.Inventory.InventoryItems
-                .SelectMany(i => Enumerable.Repeat(i.Description, i.Quantity)).ToArray();
-            characterSilver = character.Silver;
-            hasLostEye = character.HasLostEye;
-            hasStabbedLung = character.HasStabbedLung;
-            hasBrokenHand = character.HasBrokenHand;
-            hasCrushedFoot = character.HasCrushedFoot;
-            hasSeveredArm = character.HasSeveredArm;
-            hasSmashedFace = character.HasSmashedFace;
-            isInfected = character.IsInfected;
-            isDizzyFromMagic = character.IsDizzyFromMagic;
-            isEncumbered = character.IsEncumbered;
-            isDead = character.IsDead;
-            armorTier = character.Armor.Tier.Token();
-            hasShield = character.Shield is not null;
-            isShieldBroken = character.Shield?.IsBroken ?? false;
-            characterOmens = character.Omens.Count;
-            characterScrolls = character.Scrolls
-                .Select(s => $"{s.Description} ({s.School})").ToArray();
-        }
-
-        var derivedStage = context.DeriveStage();
-        var stage = derivedStage.ToString().ToLowerInvariant();
-        var status = context.DeriveStatus();
-
         return new StateUpdate(
             CampaignId: campaign?.Id,
             CurrentDay: campaign?.CurrentDay ?? 0,
             CurrentHour: campaign?.CurrentHour ?? 0,
-            CharacterId: characterId,
-            CharacterName: characterName,
-            CharacterClass: characterClass,
-            CharacterHp: characterHp,
-            CharacterMaxHp: characterMaxHp,
-            CharacterStrength: characterStrength,
-            CharacterAgility: characterAgility,
-            CharacterPresence: characterPresence,
-            CharacterToughness: characterToughness,
-            CharacterWeapon: characterWeapon,
-            CharacterArmor: characterArmor,
-            CharacterInventory: characterInventory,
-            CharacterSilver: characterSilver,
+            CharacterId: character?.Id,
+            CharacterName: character?.Name,
+            CharacterHp: character?.Hp.Current,
+            CharacterMaxHp: character?.Hp.Max,
+            CharacterStrength: character?.Abilities.Strength.Modifier,
+            CharacterAgility: character?.Abilities.Agility.Modifier,
+            CharacterPresence: character?.Abilities.Presence.Modifier,
+            CharacterToughness: character?.Abilities.Toughness.Modifier,
+            CharacterWeapon: character?.Weapon.Kind.ToString(),
+            CharacterArmor: character?.Armor.Tier.DisplayName(),
+            // One entry per UNIT: the UI groups duplicates back with a xN badge, and the turn-delta
+            // multiset diff needs units so a quantity decrement (3 torches -> 2) surfaces as one
+            // removed entry instead of vanishing (per-item mapping hid all quantity-only changes).
+            CharacterInventory: character?.Inventory.InventoryItems
+                .SelectMany(i => Enumerable.Repeat(i.Description, i.Quantity)).ToArray(),
+            CharacterSilver: character?.Silver,
             MiseryCount: campaign?.Miseries.Count ?? 0,
-            Stage: stage,
-            Status: status,
-            HasLostEye: hasLostEye,
-            HasStabbedLung: hasStabbedLung,
-            HasBrokenHand: hasBrokenHand,
-            HasCrushedFoot: hasCrushedFoot,
-            HasSeveredArm: hasSeveredArm,
-            HasSmashedFace: hasSmashedFace,
-            IsInfected: isInfected,
-            IsDizzyFromMagic: isDizzyFromMagic,
-            IsEncumbered: isEncumbered,
-            IsDead: isDead,
-            ArmorTier: armorTier,
-            HasShield: hasShield,
-            IsShieldBroken: isShieldBroken,
+            Stage: context.DeriveStage().ToString().ToLowerInvariant(),
+            Status: context.DeriveStatus(),
+            HasLostEye: character?.HasLostEye ?? false,
+            HasStabbedLung: character?.HasStabbedLung ?? false,
+            HasBrokenHand: character?.HasBrokenHand ?? false,
+            HasCrushedFoot: character?.HasCrushedFoot ?? false,
+            HasSeveredArm: character?.HasSeveredArm ?? false,
+            HasSmashedFace: character?.HasSmashedFace ?? false,
+            IsInfected: character?.IsInfected ?? false,
+            IsDizzyFromMagic: character?.IsDizzyFromMagic ?? false,
+            IsEncumbered: character?.IsEncumbered ?? false,
+            IsDead: character?.IsDead ?? false,
+            ArmorTier: character?.Armor.Tier.Token() ?? "none",
+            HasShield: character?.Shield is not null,
+            IsShieldBroken: character?.Shield?.IsBroken ?? false,
             WorldEnded: campaign?.WorldEnded ?? false,
             CurrentLocationName: campaign?.CurrentLocationName,
-            CharacterOmens: characterOmens,
-            CharacterScrolls: characterScrolls,
+            CharacterOmens: character?.Omens.Count,
+            CharacterScrolls: character?.Scrolls
+                .Select(s => $"{s.Description} ({s.School})").ToArray(),
             MiseryPsalms: campaign?.Miseries
-                .Select(m => string.IsNullOrEmpty(m.Psalm) ? m.Code : m.Psalm).ToArray() ?? []);
+                .Select(m => string.IsNullOrEmpty(m.Psalm) ? m.Code : m.Psalm).ToArray() ?? [],
+            CharacterClass: DisplayClass(character));
     }
+
+    /// <summary>Null for classless wretches, so the UI shows a class line only when there is one.</summary>
+    private static string? DisplayClass(Character? character) =>
+        character is null || character.Class == CharacterClass.Classless
+            ? null
+            : ClassPresets.For(character.Class).DisplayName;
 }

@@ -8,6 +8,7 @@ using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Engine.GameTools;
@@ -73,7 +74,7 @@ public sealed class CharacterTools(
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
         [Description("Quantity of the item to add")] int quantity = 1)
     {
-        ToolGuard.Quantity(quantity, nameof(quantity));
+        ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
         character.AddItem(new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity));
         await charactersRepository.Save(character);
@@ -156,7 +157,7 @@ public sealed class CharacterTools(
         [Description("Quantity of the item to buy")] int quantity = 1)
     {
         ToolGuard.NonNegative(silverCost, nameof(silverCost));
-        ToolGuard.Quantity(quantity, nameof(quantity));
+        ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
         character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity));
         await charactersRepository.Save(character);
@@ -165,7 +166,7 @@ public sealed class CharacterTools(
 
     [Description("Cast a scroll spell that the character possesses")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat)]
-    public async Task<CastOutcomeDto> CastScroll(
+    public async Task<CastOutcome> CastScroll(
         [Description("Description of the scroll to cast, exactly as shown in Game State")] string scrollDescription)
     {
         var character = await RequireCharacter();
@@ -179,14 +180,7 @@ public sealed class CharacterTools(
                 $"{string.Join("; ", character.Scrolls.Select(s => s.Description))}.");
         var outcome = character.Cast(scroll.Id, dice);
         await charactersRepository.Save(character);
-
-        return new CastOutcomeDto
-        {
-            Succeeded = outcome.Succeeded,
-            Reason = outcome.Reason,
-            PowerKey = outcome.PowerKey,
-            HpLost = outcome.HpLost
-        };
+        return outcome;
     }
 
     private async Task<Character> RequireCharacter()
