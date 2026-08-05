@@ -2,6 +2,8 @@ using System.ComponentModel;
 using WretchedWhispers.Engine.GameTools.Models;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Campaigns.Time;
+using WretchedWhispers.Core.Campaigns.World;
 
 namespace WretchedWhispers.Engine.GameTools;
 
@@ -33,23 +35,20 @@ public sealed class CampaignTools(
 
     [Description("Advance time in the campaign by the specified number of hours")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
-    public async Task<AdvanceTimeOutcomeDto> AdvanceTime(
+    public async Task<AdvanceTimeOutcome> AdvanceTime(
         [Description("The number of hours to advance the campaign time by")] int hours)
     {
         ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
-        var outcome = await campaignService.AdvanceTime(RequireCampaignId(), hours);
-        return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn);
+        return await campaignService.AdvanceTime(RequireCampaignId(), hours);
     }
 
     [Description("Rest for recovery -- characters heal HP and restore magical abilities during the rest period")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
-    public async Task<AdvanceTimeOutcomeDto> Rest(
+    public async Task<AdvanceTimeOutcome> Rest(
         [Description("The number of hours characters will rest and recover")] int hours)
     {
         ToolGuard.Positive(hours, nameof(hours), "at least 1 hour");
-        var outcome = await campaignService.AdvanceTimeWithRest(RequireCampaignId(), hours);
-        return new AdvanceTimeOutcomeDto(outcome.Miseries, outcome.IsWorldEnded, outcome.IsNewDawn,
-            outcome.OmensRefreshed);
+        return await campaignService.AdvanceTimeWithRest(RequireCampaignId(), hours);
     }
 
     [Description("Record a lasting fact in the campaign journal — the GM's memory of the fiction. Use it the moment something durable is established: an NPC met, a location discovered, a promise made, a quest taken, or a notable event (a death, a betrayal, a discovery).")]
@@ -94,5 +93,5 @@ public sealed class CampaignTools(
         campaign.Description,
         campaign.CurrentDay,
         campaign.CurrentHour,
-        campaign.Miseries.Select(m => new MiseryDto(m.Code, m.Psalm)).ToList());
+        campaign.Miseries.ToList());
 }

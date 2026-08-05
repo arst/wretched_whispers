@@ -10,12 +10,6 @@ namespace WretchedWhispers.Engine.GameTools;
 /// </summary>
 internal static class ToolGuard
 {
-    public static void Quantity(int value, string name)
-    {
-        if (value < 1)
-            throw new ArgumentException($"{name} must be at least 1.", name);
-    }
-
     public static void NonNegative(int value, string name)
     {
         if (value < 0)

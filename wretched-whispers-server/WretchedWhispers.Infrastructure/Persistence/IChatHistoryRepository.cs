@@ -29,12 +29,10 @@ public interface IChatHistoryRepository
     /// </summary>
     Task<Guid?> GetActiveChronicle(Guid campaignId, CancellationToken ct = default);
 
-    Task<DateTime?> GetLastActivity(Guid campaignId, CancellationToken ct = default);
-
     /// <summary>
     /// Last activity for many campaigns in one query, keyed by campaign id. The session list needs
-    /// it for every card, and one <see cref="GetLastActivity"/> per campaign made listing N
-    /// campaigns cost N round trips.
+    /// it for every card, and one round trip per campaign made listing N campaigns cost N of them.
+    /// A campaign with no messages yet counts as active from its chronicle's start.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, DateTime>> GetLastActivityForCampaigns(
         IReadOnlyCollection<Guid> campaignIds, CancellationToken ct = default);
