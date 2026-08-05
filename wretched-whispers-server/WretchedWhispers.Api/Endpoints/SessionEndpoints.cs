@@ -1,11 +1,4 @@
-using System.Net.ServerSentEvents;
-using System.Runtime.CompilerServices;
-using System.Security.Claims;
-using System.Text.Json;
-using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Identity;
 using WretchedWhispers.Api.Models;
-using WretchedWhispers.Engine.Models;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
@@ -23,42 +16,12 @@ public static class SessionEndpoints
     private const int MaxPageSize = 200;
     private static readonly TimeSpan RecapAfter = TimeSpan.FromHours(48);
 
-    public static WebApplication MapSessionEndpoints(this WebApplication app)
+    public static RouteGroupBuilder MapSessionEndpoints(this RouteGroupBuilder api)
     {
-        var group = app.MapGroup("/api/sessions")
-            .RequireAuthorization()
-            // The single auth→user-context bridge for every session endpoint: RequireAuthorization
-            // guarantees an authenticated principal, this filter guarantees the ambient user scope.
-            // Handlers assume both — no per-handler identity checks.
-            .AddEndpointFilter(async (context, next) =>
-            {
-                var http = context.HttpContext;
-                var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId))
-                    return Results.Unauthorized();
-
-                http.RequestServices.GetRequiredService<IUserContext>().SetUserId(userId);
-                return await next(context);
-            })
-            // Bearer-token API consumers are not vulnerable to CSRF. Browser cookie requests are,
-            // so validate only that authentication scheme and leave existing API clients unchanged.
-            .AddEndpointFilter(async (context, next) =>
-            {
-                var http = context.HttpContext;
-                if (!HttpMethods.IsGet(http.Request.Method)
-                    && http.User.Identity?.AuthenticationType == IdentityConstants.ApplicationScheme
-                    && http.Request.Cookies.ContainsKey(".AspNetCore.Identity.Application")
-                    && !await http.RequestServices.GetRequiredService<IAntiforgery>()
-                        .IsRequestValidAsync(http))
-                    return Results.BadRequest();
-
-                return await next(context);
-            });
+        var group = api.MapGroup("/sessions");
 
         // Mutating POSTs are transactional via WithUnitOfWork. GETs read only — a transaction would
-        // add round-trips for nothing. /actions is the exception: its handler returns the SSE stream
-        // immediately and the turn's writes run inside TurnCoordinator's own transaction, which a
-        // request-spanning one would collide with.
+        // add round-trips for nothing.
         group.MapPost("/", CreateSession).WithUnitOfWork();
         group.MapGet("/", ListSessions);
         group.MapGet("/{sessionId:guid}", GetSessionDetail);
@@ -68,9 +31,8 @@ public static class SessionEndpoints
         group.MapPost("/{sessionId:guid}/resume", ResumeSession).WithUnitOfWork();
         group.MapPost("/{sessionId:guid}/successor", CreateSuccessor).WithUnitOfWork();
         group.MapPost("/{sessionId:guid}/abandon", AbandonSession).WithUnitOfWork();
-        group.MapPost("/{sessionId:guid}/actions", PostAction);
 
-        return app;
+        return api;
     }
 
     /// <summary>
@@ -92,34 +54,6 @@ public static class SessionEndpoints
                 await uow.CommitAsync(http.RequestAborted);
             return result;
         });
-
-    private static async Task<IResult> PostAction(
-        Guid sessionId,
-        PlayerActionRequest request,
-        TurnCoordinator turnCoordinator,
-        ICampaignsRepository campaignsRepo,
-        CancellationToken ct)
-    {
-        if (await campaignsRepo.GetOwned(sessionId, ct) is null)
-            return Results.NotFound();
-
-        // Busy sessions surface as an early TurnError event: the session lock is acquired inside
-        // the turn's transaction (TurnCoordinator), which is where the cross-instance Postgres
-        // advisory lock can live — before any LLM call, so a lost race costs nothing.
-        return Results.ServerSentEvents(
-            MapToSseItems(turnCoordinator.ExecuteTurnAsync(sessionId, request.Message, ct)));
-    }
-
-    private static async IAsyncEnumerable<SseItem<string>> MapToSseItems(
-        IAsyncEnumerable<GameTurnEvent> events,
-        [EnumeratorCancellation] CancellationToken ct = default)
-    {
-        await foreach (var evt in events.WithCancellation(ct))
-        {
-            var json = JsonSerializer.Serialize<object>(evt, JsonSerializerOptions.Web);
-            yield return new SseItem<string>(json, evt.EventType);
-        }
-    }
 
     private static async Task<IResult> CreateSession(
         ICampaignsRepository campaignsRepo,
