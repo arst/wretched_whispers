@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiErrorMessage } from "@/lib/api";
 import WretchForm, { type WretchChoices } from "@/components/session/WretchForm";
 
 interface DeathPanelProps {
@@ -26,10 +26,7 @@ export default function DeathPanel({ sessionId, characterName }: DeathPanelProps
           ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
           : {}),
       });
-      if (!res.ok) {
-        const detail = await res.json().catch(() => null);
-        throw new Error(detail?.error ?? `Request failed (${res.status})`);
-      }
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "Request failed"));
       window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "The void refused.");

@@ -19,6 +19,24 @@ public sealed class SessionContext
     public Campaign? Campaign { get; set; }
     public Encounter? ActiveEncounter { get; set; }
 
+    /// <summary>
+    /// Assembles the context needed to answer "what stage is this session in?" from aggregates the
+    /// caller already holds. The list view needs that answer for many campaigns at once and cannot
+    /// afford <see cref="ISessionContextLoader"/>'s per-session round trips; without this it
+    /// hand-rolled the same wiring out at the API boundary, where a forgotten SetCharacterId would
+    /// silently change the derived stage. <paramref name="characterId"/> is separate from
+    /// <paramref name="character"/> on purpose: a campaign whose player row failed to load is still
+    /// past character creation.
+    /// </summary>
+    public static SessionContext For(Campaign campaign, Guid? characterId, Character? character)
+    {
+        var context = new SessionContext { Campaign = campaign, Character = character };
+        context.SetCampaignId(campaign.Id);
+        if (characterId is { } id && id != Guid.Empty)
+            context.SetCharacterId(id);
+        return context;
+    }
+
     public SessionStage DeriveStage()
     {
         // Ended takes priority: death, world ended, campaign ended

@@ -46,3 +46,16 @@ export async function apiFetch(
 
   return response;
 }
+
+/**
+ * Pulls the human-readable message out of a failed response. The API answers every error in RFC
+ * 9457 ProblemDetails — the same shape ASP.NET Identity's own endpoints use — so the text lives in
+ * `detail`, with `title` as the fallback for framework-generated problems that carry no detail.
+ */
+export async function apiErrorMessage(
+  response: Response,
+  fallback: string
+): Promise<string> {
+  const problem = await response.json().catch(() => null);
+  return problem?.detail ?? problem?.title ?? `${fallback} (${response.status})`;
+}

@@ -5,7 +5,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /**
  * Log in with email and password. Updates the auth store on success.
- * Uses ?useCookies=false to get Bearer token response from ASP.NET Identity.
+ * Cookie auth (?useCookies=true), so writes must carry an antiforgery token —
+ * see apiFetch. Bearer tokens can read but not mutate.
  */
 export async function login(
   email: string,

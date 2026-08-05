@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http.Metadata;
 using WretchedWhispers.Infrastructure;
 
 namespace WretchedWhispers.Api.Endpoints;
@@ -9,8 +9,8 @@ public static class AuthenticatedApi
 {
     /// <summary>
     /// The one authenticated entry point every game endpoint hangs off. RequireAuthorization guarantees
-    /// an authenticated principal, the first filter guarantees the ambient user scope, the second covers
-    /// CSRF for browser cookie requests. Handlers assume all three — no per-handler identity checks.
+    /// an authenticated principal, the first filter guarantees the ambient user scope, the second turns
+    /// the antiforgery middleware's verdict into our error contract. Handlers assume all three.
     /// </summary>
     public static RouteGroupBuilder MapAuthenticatedApi(this WebApplication app) =>
         app.MapGroup("/api")
@@ -25,18 +25,29 @@ public static class AuthenticatedApi
                 http.RequestServices.GetRequiredService<IUserContext>().SetUserId(userId);
                 return await next(context);
             })
-            // Bearer-token API consumers are not vulnerable to CSRF. Browser cookie requests are,
-            // so validate only that authentication scheme and leave existing API clients unchanged.
-            .AddEndpointFilter(async (context, next) =>
-            {
-                var http = context.HttpContext;
-                if (!HttpMethods.IsGet(http.Request.Method)
-                    && http.User.Identity?.AuthenticationType == IdentityConstants.ApplicationScheme
-                    && http.Request.Cookies.ContainsKey(".AspNetCore.Identity.Application")
-                    && !await http.RequestServices.GetRequiredService<IAntiforgery>()
-                        .IsRequestValidAsync(http))
-                    return Results.BadRequest(new { error = "Invalid antiforgery token." });
+            .RequireAntiforgery();
+}
 
-                return await next(context);
-            });
+public static class AntiforgeryExtensions
+{
+    /// <summary>
+    /// CSRF-protects every unsafe request under this route. UseAntiforgery decides which requests to
+    /// check and validates the token; the metadata is how an endpoint opts in, since ASP.NET adds it
+    /// automatically only for form binding. Both halves are load-bearing — for a JSON endpoint the
+    /// middleware only *records* its verdict, so the filter is what answers on its behalf.
+    /// </summary>
+    public static TBuilder RequireAntiforgery<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(RequiredMetadata.Instance)
+            .AddEndpointFilter(async (context, next) =>
+                context.HttpContext.Features.Get<IAntiforgeryValidationFeature>() is { IsValid: false }
+                    ? ApiProblem.BadRequest("Invalid antiforgery token.")
+                    : await next(context));
+
+    private sealed class RequiredMetadata : IAntiforgeryMetadata
+    {
+        public static readonly RequiredMetadata Instance = new();
+
+        public bool RequiresValidation => true;
+    }
 }

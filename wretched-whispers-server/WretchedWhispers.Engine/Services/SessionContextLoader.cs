@@ -13,14 +13,25 @@ public sealed class SessionContextLoader(
 {
     public async Task<SessionContext> LoadAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var context = new SessionContext { SessionId = sessionId };
-
         var campaign = await campaignsRepository.Get(sessionId);
         if (campaign is null)
         {
             logger.LogInformation("Session {SessionId}: no campaign found", sessionId);
-            return context;
+            return new SessionContext { SessionId = sessionId };
         }
+
+        return await BuildAsync(sessionId, campaign, ct);
+    }
+
+    public async Task<SessionContext?> LoadOwnedAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        var campaign = await campaignsRepository.GetOwned(sessionId, ct);
+        return campaign is null ? null : await BuildAsync(sessionId, campaign, ct);
+    }
+
+    private async Task<SessionContext> BuildAsync(Guid sessionId, Campaign campaign, CancellationToken ct)
+    {
+        var context = new SessionContext { SessionId = sessionId };
 
         context.Campaign = campaign;
         context.SetCampaignId(campaign.Id);

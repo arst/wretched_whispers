@@ -69,6 +69,7 @@ public class DatabaseHealthCheckTests
         return services.BuildServiceProvider();
     }
 
+    // The check takes the scoped DbContext directly now, exactly as the health-check host resolves it.
     private static DatabaseHealthCheck CreateHealthCheck(ServiceProvider services) =>
-        new(services.GetRequiredService<IServiceScopeFactory>());
+        new(services.CreateScope().ServiceProvider.GetRequiredService<WretchedWhispersDbContext>());
 }
