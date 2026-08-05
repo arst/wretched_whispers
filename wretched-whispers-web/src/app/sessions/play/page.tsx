@@ -15,6 +15,7 @@ import MapDrawer from "@/components/map/MapDrawer";
 import EndCard from "@/components/session/EndCard";
 import DeathPanel from "@/components/session/DeathPanel";
 import RecapModal from "@/components/session/RecapModal";
+import Dots from "@/components/ui/Dots";
 import type { SessionDetailDto, SessionResumeDto } from "@/types/api";
 
 // Session id comes from the ?id= query string rather than a dynamic route segment, so the app
@@ -22,20 +23,7 @@ import type { SessionDetailDto, SessionResumeDto } from "@/types/api";
 function LoadingDots() {
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="flex items-center gap-2">
-        <span
-          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-          style={{ animation: "doom-pulse 1.4s ease-in-out infinite" }}
-        />
-        <span
-          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-          style={{ animation: "doom-pulse 1.4s ease-in-out 0.2s infinite" }}
-        />
-        <span
-          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-          style={{ animation: "doom-pulse 1.4s ease-in-out 0.4s infinite" }}
-        />
-      </div>
+      <Dots />
     </div>
   );
 }
@@ -68,19 +56,17 @@ function GameSession({ id }: { id: string }) {
   const currentDay = useSessionStore((s) => s.currentDay);
   const currentLocationName = useSessionStore((s) => s.currentLocationName);
   const characterData = useSessionStore((s) => s.characterData);
-  const failedMessage = useSessionStore((s) => s.failedMessage);
 
   const showEndCard = status === "ended" && !isStreaming;
   const showDeathPanel = status === "fallen" && !isStreaming;
-  const { sendAction, retry } = useSseStream(id);
+  const { sendAction } = useSseStream(id);
 
-  // Auto-dismiss transient errors after 5s — but keep a retryable failure on screen so the player
-  // can act on it.
+  // Auto-dismiss transient errors after 5s.
   useEffect(() => {
-    if (!error || failedMessage) return;
+    if (!error) return;
     const timer = setTimeout(() => clearError(), 5000);
     return () => clearTimeout(timer);
-  }, [error, failedMessage, clearError]);
+  }, [error, clearError]);
 
   // Transition from splash once the opening turn has narration to show
   useEffect(() => {
@@ -241,19 +227,9 @@ function GameSession({ id }: { id: string }) {
         onClose={closeRecap}
       />
 
-      {/* Error banner — with a Retry when the failed turn can be resent */}
       {error && (
-        <div className="bg-doom-pink/20 border-b border-doom-pink text-doom-pink text-sm py-2 px-4 flex items-center justify-center gap-3">
-          <span>{error}</span>
-          {failedMessage && (
-            <button
-              onClick={retry}
-              disabled={isStreaming}
-              className="uppercase tracking-wider text-xs border border-doom-pink px-2 py-0.5 hover:bg-doom-pink hover:text-doom-black transition-colors disabled:opacity-40 cursor-pointer"
-            >
-              Retry
-            </button>
-          )}
+        <div className="bg-doom-pink/20 border-b border-doom-pink text-doom-pink text-sm py-2 px-4 text-center">
+          {error}
         </div>
       )}
 
@@ -278,7 +254,7 @@ function GameSession({ id }: { id: string }) {
 
       {/* Input bar */}
       {showDeathPanel ? (
-        <DeathPanel sessionId={id} characterName={characterData?.name ?? null} />
+        <DeathPanel sessionId={id} characterName={characterData?.characterName ?? null} />
       ) : (
         <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
       )}
@@ -286,7 +262,7 @@ function GameSession({ id }: { id: string }) {
       {/* End card overlay */}
       {showEndCard && characterData && (
         <EndCard
-          characterName={characterData.name}
+          characterName={characterData.characterName ?? ""}
           worldEnded={worldEnded}
           miseryCount={miseryCount}
           currentDay={currentDay}

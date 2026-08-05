@@ -1,4 +1,4 @@
-export const deploymentProfiles = [
+const deploymentProfiles = [
   "Server",
   "StandaloneContainer",
   "Desktop",
@@ -19,7 +19,6 @@ export function isStandaloneProfile(profile: DeploymentProfile | null) {
   return profile === "StandaloneContainer" || profile === "Desktop";
 }
 
-export const deploymentProfile = parseDeploymentProfile(
-  process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE
+export const isStandalone = isStandaloneProfile(
+  parseDeploymentProfile(process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE)
 );
-export const isStandalone = isStandaloneProfile(deploymentProfile);

@@ -26,22 +26,20 @@ const statusLabels: Record<SessionPreviewDto["status"], string> = {
   fallen: "\u2620 Fallen",
 };
 
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "narrow" });
+const DAY = 86_400_000;
+
 function formatRelativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
+  const elapsed = Date.now() - new Date(dateStr).getTime();
+  if (elapsed >= 30 * DAY) return new Date(dateStr).toLocaleDateString();
 
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-
-  return new Date(dateStr).toLocaleDateString();
+  const [ms, unit] =
+    elapsed >= DAY
+      ? ([DAY, "day"] as const)
+      : elapsed >= 3_600_000
+        ? ([3_600_000, "hour"] as const)
+        : ([60_000, "minute"] as const);
+  return relative.format(-Math.floor(elapsed / ms), unit);
 }
 
 export default function SessionCard({ session }: SessionCardProps) {

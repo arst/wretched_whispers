@@ -1,160 +1,146 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
+import Drawer from "@/components/ui/Drawer";
 import HpBar from "./HpBar";
-import AbilityScore from "./AbilityScore";
 import EquipmentSlot from "./EquipmentSlot";
 import InventoryList from "./InventoryList";
 import InjuryBadges from "./InjuryBadges";
 import StatusIndicators from "./StatusIndicators";
 import ClassGlyph from "@/components/session/ClassGlyph";
 
+function Section({
+  title,
+  accent = "border-doom-yellow",
+  children,
+}: {
+  title?: string;
+  accent?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="px-8 pt-6 last:pb-8">
+      <div className={`bg-doom-card rounded p-4 border-l-2 ${accent}`}>
+        {title && (
+          <span className="text-xs font-bold uppercase text-doom-ash">{title}</span>
+        )}
+        <div className="mt-2">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function CharacterDrawer() {
   const characterData = useSessionStore((s) => s.characterData);
-  const drawerOpen = useSessionStore((s) => s.activeDrawer === "character");
-  const toggleDrawer = useSessionStore((s) => s.toggleDrawer);
-  const drawerRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    if (drawerOpen && !drawerRef.current?.open) drawerRef.current?.showModal();
-    if (!drawerOpen && drawerRef.current?.open) drawerRef.current.close();
-  }, [drawerOpen]);
 
   if (!characterData) return null;
 
+  const characterClass = characterData.characterClass;
+  const abilities = [
+    ["STR", characterData.characterStrength ?? 0],
+    ["AGI", characterData.characterAgility ?? 0],
+    ["PRE", characterData.characterPresence ?? 0],
+    ["TOU", characterData.characterToughness ?? 0],
+  ] as const;
+  const injured =
+    characterData.hasLostEye ||
+    characterData.hasStabbedLung ||
+    characterData.hasBrokenHand ||
+    characterData.hasCrushedFoot ||
+    characterData.hasSeveredArm ||
+    characterData.hasSmashedFace;
+  const afflicted =
+    characterData.isInfected ||
+    characterData.isDizzyFromMagic ||
+    characterData.isEncumbered;
+  const scrolls = characterData.characterScrolls ?? [];
+
   return (
-      <dialog
-        ref={drawerRef}
-        aria-label="Character sheet"
-        onCancel={(event) => { event.preventDefault(); toggleDrawer("character"); }}
-        className="fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full sm:w-80 bg-doom-dark text-doom-bone overflow-y-auto backdrop:bg-[#0a0a0a]/60"
-      >
-        {/* Header row */}
-        <div className="px-8 pt-8 pb-0 flex items-start justify-between">
-          <div>
-            <h2 className="font-display text-lg font-bold text-doom-yellow">
-              {characterData.name}
-            </h2>
-            {characterData.class && (
-              <p className="flex items-center gap-1.5 font-body text-xs uppercase tracking-wide text-doom-ash">
-                <ClassGlyph characterClass={characterData.class} className="w-4 h-4 shrink-0" />
-                {characterData.class}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => toggleDrawer("character")}
-            aria-label="Close character sheet"
-            className="text-doom-ash hover:text-doom-bone text-xl cursor-pointer"
-          >
-            {"\u00D7"}
-          </button>
-        </div>
+    <Drawer
+      name="character"
+      label="Character sheet"
+      title={characterData.characterName ?? ""}
+      subtitle={
+        characterClass && (
+          <p className="flex items-center gap-1.5 font-body text-xs uppercase tracking-wide text-doom-ash">
+            <ClassGlyph characterClass={characterClass} className="w-4 h-4 shrink-0" />
+            {characterClass}
+          </p>
+        )
+      }
+    >
+      <div className="px-8 pt-6">
+        <HpBar
+          currentHp={characterData.characterHp ?? 0}
+          maxHp={characterData.characterMaxHp ?? 0}
+          variant="full"
+        />
+      </div>
 
-        {/* HP section */}
-        <div className="px-8 pt-6">
-          <HpBar
-            currentHp={characterData.currentHp}
-            maxHp={characterData.maxHp}
-            variant="full"
-          />
-        </div>
+      {injured && (
+        <Section title="INJURIES" accent="border-doom-pink">
+          <InjuryBadges characterData={characterData} />
+        </Section>
+      )}
 
-        {/* Injuries section */}
-        {(characterData.hasLostEye || characterData.hasStabbedLung || characterData.hasBrokenHand || characterData.hasCrushedFoot || characterData.hasSeveredArm || characterData.hasSmashedFace) && (
-          <div className="px-8 pt-6">
-            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-pink">
-              <InjuryBadges characterData={characterData} />
-            </div>
-          </div>
-        )}
+      {afflicted && (
+        <Section title="STATUS">
+          <StatusIndicators characterData={characterData} />
+        </Section>
+      )}
 
-        {/* Status section */}
-        {(characterData.isInfected || characterData.isDizzyFromMagic || characterData.isEncumbered) && (
-          <div className="px-8 pt-6">
-            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
-              <StatusIndicators
-                isInfected={characterData.isInfected}
-                isDizzyFromMagic={characterData.isDizzyFromMagic}
-                isEncumbered={characterData.isEncumbered}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Abilities section */}
-        <div className="px-8 pt-6">
-          <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
-            <span className="text-xs font-bold uppercase text-doom-ash">
-              ABILITIES
-            </span>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <AbilityScore name="STR" modifier={characterData.abilities.strength} />
-              <AbilityScore name="AGI" modifier={characterData.abilities.agility} />
-              <AbilityScore name="PRE" modifier={characterData.abilities.presence} />
-              <AbilityScore name="TOU" modifier={characterData.abilities.toughness} />
-            </div>
-          </div>
-        </div>
-
-        {/* Equipment section */}
-        <div className="px-8 pt-6">
-          <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
-            <span className="text-xs font-bold uppercase text-doom-ash">
-              EQUIPMENT
-            </span>
-            <div className="mt-2 space-y-1">
-              <EquipmentSlot label="WEAPON" value={characterData.weapon} />
-              <EquipmentSlot label="ARMOR" value={characterData.armor} tier={characterData.armorTier as "none" | "light" | "medium" | "heavy"} />
-              {characterData.hasShield && (
-                <EquipmentSlot label="SHIELD" value="Shield" isBroken={characterData.isShieldBroken} />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Omens section */}
-        <div className="px-8 pt-6">
-          <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
-            <span className="text-xs font-bold uppercase text-doom-ash">
-              OMENS
-            </span>
-            <div className="mt-2 text-doom-yellow text-sm font-bold">
-              {characterData.omens}
-            </div>
-          </div>
-        </div>
-
-        {/* Scrolls section */}
-        {characterData.scrolls.length > 0 && (
-          <div className="px-8 pt-6">
-            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
-              <span className="text-xs font-bold uppercase text-doom-ash">
-                SCROLLS
+      <Section title="ABILITIES">
+        <div className="grid grid-cols-2 gap-2">
+          {abilities.map(([name, score]) => (
+            <div key={name} className="flex flex-col items-center p-2 bg-doom-card rounded">
+              <span className="text-xs font-bold uppercase text-doom-ash">{name}</span>
+              <span className="text-sm text-doom-bone">
+                {score > 0 ? `+${score}` : score}
               </span>
-              <div className="mt-2 space-y-1">
-                {characterData.scrolls.map((scroll) => (
-                  <div key={scroll} className="text-doom-bone text-sm">
-                    {scroll}
-                  </div>
-                ))}
-              </div>
             </div>
-          </div>
-        )}
-
-        {/* Inventory section */}
-        <div className="px-8 pt-6 pb-8">
-          <div className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow">
-            <span className="text-xs font-bold uppercase text-doom-ash">
-              INVENTORY
-            </span>
-            <div className="mt-2">
-              <InventoryList items={characterData.inventory} />
-            </div>
-          </div>
+          ))}
         </div>
-      </dialog>
+      </Section>
+
+      <Section title="EQUIPMENT">
+        <div className="space-y-1">
+          <EquipmentSlot label="WEAPON" value={characterData.characterWeapon ?? null} />
+          <EquipmentSlot
+            label="ARMOR"
+            value={characterData.characterArmor ?? null}
+            tier={characterData.armorTier as "none" | "light" | "medium" | "heavy"}
+          />
+          {characterData.hasShield && (
+            <EquipmentSlot
+              label="SHIELD"
+              value="Shield"
+              isBroken={characterData.isShieldBroken}
+            />
+          )}
+        </div>
+      </Section>
+
+      <Section title="OMENS">
+        <div className="text-doom-yellow text-sm font-bold">
+          {characterData.characterOmens ?? 0}
+        </div>
+      </Section>
+
+      {scrolls.length > 0 && (
+        <Section title="SCROLLS">
+          <div className="space-y-1">
+            {scrolls.map((scroll) => (
+              <div key={scroll} className="text-doom-bone text-sm">
+                {scroll}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      <Section title="INVENTORY">
+        <InventoryList items={characterData.characterInventory ?? []} />
+      </Section>
+    </Drawer>
   );
 }

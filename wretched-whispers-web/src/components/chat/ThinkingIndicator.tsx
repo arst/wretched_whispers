@@ -1,6 +1,7 @@
 "use client";
 
 import { useSessionStore } from "@/stores/sessionStore";
+import Dots from "@/components/ui/Dots";
 
 export default function ThinkingIndicator() {
   const isStreaming = useSessionStore((s) => s.isStreaming);
@@ -14,23 +15,8 @@ export default function ThinkingIndicator() {
       <p className="text-doom-ash text-xs uppercase tracking-widest mb-2 font-body">
         Game Master
       </p>
-      <div className="flex items-center gap-1.5 py-1">
-        <span
-          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-          style={{ animation: "doom-pulse 1.4s ease-in-out infinite" }}
-        />
-        <span
-          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-          style={{
-            animation: "doom-pulse 1.4s ease-in-out 0.2s infinite",
-          }}
-        />
-        <span
-          className="inline-block w-2 h-2 rounded-full bg-doom-yellow"
-          style={{
-            animation: "doom-pulse 1.4s ease-in-out 0.4s infinite",
-          }}
-        />
+      <div className="py-1">
+        <Dots />
       </div>
     </div>
   );

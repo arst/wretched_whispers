@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ChatMessageDto, ToolResultEvent, TurnDeltaEvent, StateUpdateEvent, CharacterData } from "@/types/api";
+import type { ChatMessageDto, ToolResultEvent, TurnDeltaEvent, StateUpdateEvent } from "@/types/api";
 
 export interface Message {
   id: string;
@@ -20,11 +20,11 @@ interface SessionState {
   streamingMessageId: string | null;
   streamingText: string;
   error: string | null;
-  failedMessage: string | null;
-  characterData: CharacterData | null;
+  // The last state_update, kept whole. Null until the campaign has a character; the optional
+  // character* fields are populated exactly when it does.
+  characterData: StateUpdateEvent | null;
   activeDrawer: SessionDrawer | null;
   totalMessages: number;
-  currentPage: number;
   hasMoreMessages: boolean;
   loadingMore: boolean;
   miseryCount: number;
@@ -43,7 +43,6 @@ interface SessionState {
   setStateUpdate: (update: StateUpdateEvent) => void;
   finishStreaming: () => void;
   failStreaming: () => void;
-  setFailedMessage: (message: string | null) => void;
   setError: (message: string) => void;
   clearError: () => void;
   reset: () => void;
@@ -52,11 +51,22 @@ interface SessionState {
   setLoadingMore: (loading: boolean) => void;
 }
 
-function generateId(): string {
-  return crypto.randomUUID();
+function message(
+  role: Message["role"],
+  content: string,
+  authorName: string | null = null
+): Message {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    content,
+    authorName,
+    toolResults: [],
+    turnDelta: null,
+  };
 }
 
-export const useSessionStore = create<SessionState>()((set, get) => ({
+const initialState = {
   sessionId: null,
   status: null,
   messages: [],
@@ -64,11 +74,9 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   streamingMessageId: null,
   streamingText: "",
   error: null,
-  failedMessage: null,
   characterData: null,
   activeDrawer: null,
   totalMessages: 0,
-  currentPage: 1,
   hasMoreMessages: false,
   loadingMore: false,
   miseryCount: 0,
@@ -76,62 +84,32 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   currentDay: 1,
   currentLocationName: null,
   miseryPsalms: [],
+} satisfies Partial<SessionState>;
+
+export const useSessionStore = create<SessionState>()((set, get) => ({
+  ...initialState,
 
   setSession: (sessionId, status, dtos, totalMessages = 0) =>
     set({
+      ...initialState,
       sessionId,
       status,
-      messages: dtos.map((dto) => ({
-        id: generateId(),
-        role: dto.role,
-        content: dto.content ?? "",
-        authorName: dto.authorName,
-        toolResults: [],
-        turnDelta: null,
-      })),
+      messages: dtos.map((dto) => message(dto.role, dto.content ?? "", dto.authorName)),
       totalMessages,
       hasMoreMessages: dtos.length < totalMessages,
-      currentPage: 1,
-      isStreaming: false,
-      streamingMessageId: null,
-      streamingText: "",
-      error: null,
-      failedMessage: null,
     }),
 
   addPlayerMessage: (content) =>
-    set((state) => ({
-      messages: [
-        ...state.messages,
-        {
-          id: generateId(),
-          role: "user" as const,
-          content,
-          authorName: null,
-          toolResults: [],
-          turnDelta: null,
-        },
-      ],
-    })),
+    set((state) => ({ messages: [...state.messages, message("user", content)] })),
 
   startStreaming: () => {
-    const id = generateId();
+    const placeholder = message("assistant", "", "Game Master");
     set((state) => ({
       isStreaming: true,
-      streamingMessageId: id,
+      streamingMessageId: placeholder.id,
       streamingText: "",
       error: null,
-      messages: [
-        ...state.messages,
-        {
-          id,
-          role: "assistant" as const,
-          content: "",
-          authorName: "Game Master",
-          toolResults: [],
-          turnDelta: null,
-        },
-      ],
+      messages: [...state.messages, placeholder],
     }));
   },
 
@@ -162,56 +140,19 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }));
   },
 
-  setStateUpdate: (update) => {
-    const newState: Partial<SessionState> = {
+  setStateUpdate: (update) =>
+    set({
       status: update.status,
       miseryCount: update.miseryCount,
       worldEnded: update.worldEnded ?? false,
       currentDay: update.currentDay,
       currentLocationName: update.currentLocationName ?? null,
       miseryPsalms: update.miseryPsalms ?? [],
-    };
-
-    if (update.characterName && update.characterHp != null) {
-      newState.characterData = {
-        name: update.characterName,
-        class: update.characterClass ?? null,
-        currentHp: update.characterHp,
-        maxHp: update.characterMaxHp!,
-        abilities: {
-          strength: update.characterStrength ?? 0,
-          agility: update.characterAgility ?? 0,
-          presence: update.characterPresence ?? 0,
-          toughness: update.characterToughness ?? 0,
-        },
-        weapon: update.characterWeapon ?? null,
-        armor: update.characterArmor ?? null,
-        inventory: update.characterInventory ?? [],
-        silver: update.characterSilver ?? null,
-        // Injuries
-        hasLostEye: update.hasLostEye ?? false,
-        hasStabbedLung: update.hasStabbedLung ?? false,
-        hasBrokenHand: update.hasBrokenHand ?? false,
-        hasCrushedFoot: update.hasCrushedFoot ?? false,
-        hasSeveredArm: update.hasSeveredArm ?? false,
-        hasSmashedFace: update.hasSmashedFace ?? false,
-        // Status effects
-        isInfected: update.isInfected ?? false,
-        isDizzyFromMagic: update.isDizzyFromMagic ?? false,
-        isEncumbered: update.isEncumbered ?? false,
-        isDead: update.isDead ?? false,
-        // Equipment condition
-        armorTier: update.armorTier ?? "none",
-        hasShield: update.hasShield ?? false,
-        isShieldBroken: update.isShieldBroken ?? false,
-        // Powers
-        omens: update.characterOmens ?? 0,
-        scrolls: update.characterScrolls ?? [],
-      };
-    }
-
-    set(newState);
-  },
+      // A character-less update (still in creation) leaves the previous sheet alone.
+      ...(update.characterName && update.characterHp != null
+        ? { characterData: update }
+        : {}),
+    }),
 
   finishStreaming: () => {
     const { streamingMessageId, streamingText } = get();
@@ -233,8 +174,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   // A turn failed (429, dropped connection, server error). Drop the empty assistant placeholder the
   // failed turn left behind (keep it only if it managed to stream real text or a tool/delta) so the
-  // chat shows just the player's message + the retry banner. The player message stays so retry can
-  // resend it silently. The backend rolls the turn back, so nothing was persisted server-side.
+  // chat shows just the player's message + the error banner. The backend rolls the turn back, so
+  // nothing was persisted server-side.
   failStreaming: () => {
     const { streamingMessageId, streamingText } = get();
     set((state) => ({
@@ -259,37 +200,13 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }));
   },
 
-  setFailedMessage: (message) =>
-    set({ failedMessage: message }),
-
   setError: (message) =>
     set({ error: message }),
 
   clearError: () =>
     set({ error: null }),
 
-  reset: () =>
-    set({
-      sessionId: null,
-      status: null,
-      messages: [],
-      isStreaming: false,
-      streamingMessageId: null,
-      streamingText: "",
-      error: null,
-      failedMessage: null,
-      characterData: null,
-      activeDrawer: null,
-      totalMessages: 0,
-      currentPage: 1,
-      hasMoreMessages: false,
-      loadingMore: false,
-      miseryCount: 0,
-      worldEnded: false,
-      currentDay: 1,
-      currentLocationName: null,
-      miseryPsalms: [],
-    }),
+  reset: () => set(initialState),
 
   toggleDrawer: (drawer) =>
     set((state) => ({ activeDrawer: state.activeDrawer === drawer ? null : drawer })),
@@ -297,14 +214,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   prependMessages: (msgs, total) =>
     set((state) => ({
       messages: [
-        ...msgs.map((dto) => ({
-          id: generateId(),
-          role: dto.role,
-          content: dto.content ?? "",
-          authorName: dto.authorName,
-          toolResults: [],
-          turnDelta: null,
-        })),
+        ...msgs.map((dto) => message(dto.role, dto.content ?? "", dto.authorName)),
         ...state.messages,
       ],
       totalMessages: total,
