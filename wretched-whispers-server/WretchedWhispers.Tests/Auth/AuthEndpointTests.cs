@@ -28,7 +28,7 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
     [Fact]
     public async Task AuthMe_WithValidBearerToken_ReturnsUserId()
     {
-        var accessToken = await AuthFlow.RegisterAndLogin(_client, "authme@test.com");
+        var accessToken = await AuthFlow.RegisterAndLoginWithBearerToken(_client, "authme@test.com");
 
         // Call /auth/me with bearer token
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
@@ -48,6 +48,24 @@ public class AuthEndpointTests : IClassFixture<AuthEndpointTests.AuthWebAppFacto
         var response = await _client.GetAsync("/api/auth/me");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>CSRF protection is unconditional, so a bearer token — which has no antiforgery cookie
+    /// to pair with — can read but not write. Deliberate: the web app authenticates with cookies, and
+    /// the exemption that used to let bearer clients through had to name Identity's cookie to spot
+    /// them. Supporting bearer API clients again means giving them a token flow, not an exemption.</summary>
+    [Fact]
+    public async Task BearerToken_CannotMutate()
+    {
+        var accessToken = await AuthFlow.RegisterAndLoginWithBearerToken(_client, "bearer-write@test.com");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/sessions")
+        {
+            Content = JsonContent.Create(new { characterName = "Tokenbearer" })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.SendAsync(request)).StatusCode);
     }
 
     [Fact]

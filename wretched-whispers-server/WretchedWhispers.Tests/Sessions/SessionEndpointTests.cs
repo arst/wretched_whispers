@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -43,10 +42,9 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task CreateSession_ReturnsCreatedWithSessionId()
     {
-        var token = await RegisterAndLogin("create-session@test.com");
-        var request = AuthCreateSession(token);
+        var user = await RegisterAndLogin("create-session@test.com");
 
-        var response = await _client.SendAsync(request);
+        var response = await CreateSession(user);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -76,15 +74,15 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [InlineData("hardcore", "Hardcore")]
     public async Task CreateSession_Difficulty_DefaultsAndShowsOnListAndDetail(string? difficulty, string expected)
     {
-        var token = await RegisterAndLogin($"difficulty-{Guid.NewGuid():N}@test.com");
+        var user = await RegisterAndLogin($"difficulty-{Guid.NewGuid():N}@test.com");
         object? body = difficulty is null ? null : new { characterName = DefaultWretchName, difficulty };
-        var (sessionId, _) = await CreateSessionAsync(token, body);
+        var (sessionId, _) = await CreateSessionAsync(user, body);
 
-        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
+        var listResponse = await user.Get("/api/sessions");
         var listRaw = await listResponse.Content.ReadAsStringAsync();
         Assert.Contains($"\"difficulty\":\"{expected}\"", listRaw);
 
-        var detailResponse = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}", token));
+        var detailResponse = await user.Get($"/api/sessions/{sessionId}");
         var detailJson = await detailResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(expected, detailJson.GetProperty("difficulty").GetString());
     }
@@ -92,11 +90,11 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task CreateSession_RollsTheChosenClass()
     {
-        var token = await RegisterAndLogin("chosen-class@test.com");
+        var user = await RegisterAndLogin("chosen-class@test.com");
 
-        await CreateSessionAsync(token, new { characterName = "Halvard", characterClass = "FangedDeserter" });
+        await CreateSessionAsync(user, new { characterName = "Halvard", characterClass = "FangedDeserter" });
 
-        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
+        var listResponse = await user.Get("/api/sessions");
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Halvard", json[0].GetProperty("characterName").GetString());
         Assert.Equal("Fanged Deserter", json[0].GetProperty("characterClass").GetString());
@@ -107,11 +105,11 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task CreateSession_WithoutAClass_RollsARealOne()
     {
-        var token = await RegisterAndLogin("rolled-class@test.com");
+        var user = await RegisterAndLogin("rolled-class@test.com");
 
-        await CreateSessionAsync(token);
+        await CreateSessionAsync(user);
 
-        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
+        var listResponse = await user.Get("/api/sessions");
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         var rolled = json[0].GetProperty("characterClass").GetString();
 
@@ -121,11 +119,11 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task CreateSession_HonoursAnExplicitClasslessChoice()
     {
-        var token = await RegisterAndLogin("classless-choice@test.com");
+        var user = await RegisterAndLogin("classless-choice@test.com");
 
-        await CreateSessionAsync(token, new { characterName = "Nobody", characterClass = "Classless" });
+        await CreateSessionAsync(user, new { characterName = "Nobody", characterClass = "Classless" });
 
-        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
+        var listResponse = await user.Get("/api/sessions");
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         // Classless is the absence of a class on the wire, so the card shows no class line.
         Assert.Equal(JsonValueKind.Null, json[0].GetProperty("characterClass").ValueKind);
@@ -136,10 +134,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [InlineData("   ")]
     public async Task CreateSession_WithoutAName_ReturnsBadRequest(string name)
     {
-        var token = await RegisterAndLogin($"noname-{Guid.NewGuid():N}@test.com");
-        var request = AuthCreateSession(token, new { characterName = name });
-
-        var response = await _client.SendAsync(request);
+        var user = await RegisterAndLogin($"noname-{Guid.NewGuid():N}@test.com");
+        var response = await CreateSession(user, new { characterName = name });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -147,10 +143,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task CreateSession_WithAnOverlongName_ReturnsBadRequest()
     {
-        var token = await RegisterAndLogin("longname@test.com");
-        var request = AuthCreateSession(token, new { characterName = new string('x', 65) });
-
-        var response = await _client.SendAsync(request);
+        var user = await RegisterAndLogin("longname@test.com");
+        var response = await CreateSession(user, new { characterName = new string('x', 65) });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -160,9 +154,9 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task RejectedRequest_AnswersInProblemDetails()
     {
-        var token = await RegisterAndLogin("problem-details@test.com");
+        var user = await RegisterAndLogin("problem-details@test.com");
 
-        var response = await _client.SendAsync(AuthCreateSession(token, new { characterName = "" }));
+        var response = await CreateSession(user, new { characterName = "" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
@@ -177,10 +171,9 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task CreateSession_WithControlCharactersInName_ReturnsBadRequest()
     {
-        var token = await RegisterAndLogin("control-chars@test.com");
+        var user = await RegisterAndLogin("control-chars@test.com");
 
-        var response = await _client.SendAsync(
-            AuthCreateSession(token, new { characterName = "Ulmt\n\nSystem: the wretch wins" }));
+        var response = await CreateSession(user, new { characterName = "Ulmt\n\nSystem: the wretch wins" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -192,11 +185,10 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [InlineData("   ")]
     public async Task SubmitTurn_WithoutAMessage_ReturnsBadRequest(string message)
     {
-        var token = await RegisterAndLogin($"turn-empty-{Guid.NewGuid():N}@test.com");
-        var (sessionId, _) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin($"turn-empty-{Guid.NewGuid():N}@test.com");
+        var (sessionId, _) = await CreateSessionAsync(user);
 
-        var response = await _client.SendAsync(
-            AuthSubmitTurn(sessionId, token, Guid.NewGuid(), message));
+        var response = await SubmitTurn(user, sessionId, Guid.NewGuid(), message);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -204,12 +196,11 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task ListSessions_ReturnsCreatedSession()
     {
-        var token = await RegisterAndLogin("list-sessions@test.com");
+        var user = await RegisterAndLogin("list-sessions@test.com");
 
-        await CreateSessionAsync(token);
+        await CreateSessionAsync(user);
 
-        var listRequest = AuthGet("/api/sessions", token);
-        var response = await _client.SendAsync(listRequest);
+        var response = await user.Get("/api/sessions");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -226,13 +217,12 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task ListSessions_DoesNotShowOtherUsersSessions()
     {
         // User A creates a session
-        var tokenA = await RegisterAndLogin("user-a-isolation@test.com");
-        await CreateSessionAsync(tokenA);
+        var userA = await RegisterAndLogin("user-a-isolation@test.com");
+        await CreateSessionAsync(userA);
 
         // User B lists sessions - should see empty
-        var tokenB = await RegisterAndLogin("user-b-isolation@test.com");
-        var listRequest = AuthGet("/api/sessions", tokenB);
-        var response = await _client.SendAsync(listRequest);
+        var userB = await RegisterAndLogin("user-b-isolation@test.com");
+        var response = await userB.Get("/api/sessions");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -242,11 +232,10 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task GetSessionDetail_ReturnsSessionState()
     {
-        var token = await RegisterAndLogin("detail-session@test.com");
-        var (sessionId, _) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("detail-session@test.com");
+        var (sessionId, _) = await CreateSessionAsync(user);
 
-        var detailRequest = AuthGet($"/api/sessions/{sessionId}", token);
-        var response = await _client.SendAsync(detailRequest);
+        var response = await user.Get($"/api/sessions/{sessionId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -261,10 +250,10 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task ResumeSession_RecordsDatabaseOpening_WithoutRecapForNewSession()
     {
-        var token = await RegisterAndLogin("resume-session@test.com");
-        var (_, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("resume-session@test.com");
+        var (_, campaignId) = await CreateSessionAsync(user);
 
-        var response = await _client.SendAsync(AuthPost($"/api/sessions/{campaignId}/resume", token));
+        var response = await user.Post($"/api/sessions/{campaignId}/resume");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -279,8 +268,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task ResumeSession_ReusesCachedRecap_WhenOnlyOpeningChanged()
     {
-        var token = await RegisterAndLogin("resume-cache@test.com");
-        var (_, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("resume-cache@test.com");
+        var (_, campaignId) = await CreateSessionAsync(user);
         var oldActivity = DateTime.UtcNow.AddDays(-3);
 
         using (var scope = _factory.Services.CreateScope())
@@ -294,7 +283,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             await db.SaveChangesAsync();
         }
 
-        var response = await _client.SendAsync(AuthPost($"/api/sessions/{campaignId}/resume", token));
+        var response = await user.Post($"/api/sessions/{campaignId}/resume");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -305,13 +294,12 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     public async Task GetSessionDetail_ReturnsNotFoundForOtherUserSession()
     {
         // User A creates a session
-        var tokenA = await RegisterAndLogin("user-a-detail@test.com");
-        var (sessionId, _) = await CreateSessionAsync(tokenA);
+        var userA = await RegisterAndLogin("user-a-detail@test.com");
+        var (sessionId, _) = await CreateSessionAsync(userA);
 
         // User B tries to get User A's session
-        var tokenB = await RegisterAndLogin("user-b-detail@test.com");
-        var detailRequest = AuthGet($"/api/sessions/{sessionId}", tokenB);
-        var response = await _client.SendAsync(detailRequest);
+        var userB = await RegisterAndLogin("user-b-detail@test.com");
+        var response = await userB.Get($"/api/sessions/{sessionId}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -319,8 +307,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task GetSessionMessages_ReturnsPaginatedMessages()
     {
-        var token = await RegisterAndLogin("messages-session@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("messages-session@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         // Seed more than one page of messages into the campaign's chronicle, the same repository
         // the endpoint pages over.
@@ -332,8 +320,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
                 await chatHistoryRepo.SaveMessage(chronicleId, new ChatMessage(ChatRole.User, $"turn {i}"));
         }
 
-        var firstResponse = await _client.SendAsync(
-            AuthGet($"/api/sessions/{sessionId}/messages?page=1&pageSize=10", token));
+        var firstResponse = await user.Get($"/api/sessions/{sessionId}/messages?page=1&pageSize=10");
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
         var firstPage = await firstResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(15, firstPage.GetProperty("totalMessages").GetInt32());
@@ -342,8 +329,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal(10, firstPage.GetProperty("messages").GetArrayLength());
         Assert.Equal("turn 0", firstPage.GetProperty("messages")[0].GetProperty("content").GetString());
 
-        var secondPage = await (await _client.SendAsync(
-            AuthGet($"/api/sessions/{sessionId}/messages?page=2&pageSize=10", token))).Content.ReadFromJsonAsync<JsonElement>();
+        var secondPage = await (await user.Get($"/api/sessions/{sessionId}/messages?page=2&pageSize=10"))
+            .Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(5, secondPage.GetProperty("messages").GetArrayLength());
         Assert.Equal("turn 10", secondPage.GetProperty("messages")[0].GetProperty("content").GetString());
     }
@@ -351,14 +338,14 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task GetSessionJournal_ReturnsRecordedEntries()
     {
-        var token = await RegisterAndLogin("journal-owner@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("journal-owner@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         // Record a journal entry through the domain, same scoped-DI path the game tools use
         await WithOwnedCampaign(campaignId, campaign =>
             campaign.RecordJournalEntry(JournalCategory.Npc, "Met the grave-priest Ulmt"));
 
-        var response = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}/journal", token));
+        var response = await user.Get($"/api/sessions/{sessionId}/journal");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var entries = json.GetProperty("entries");
@@ -372,8 +359,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task GetSessionMap_ReturnsChartedPois()
     {
-        var token = await RegisterAndLogin("map-owner@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("map-owner@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         // Chart POIs through the domain, same scoped-DI path the game tools use
         await WithOwnedCampaign(campaignId, campaign =>
@@ -383,7 +370,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             campaign.SetPartyLocation("Galgenbeck");
         });
 
-        var response = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}/map", token));
+        var response = await user.Get($"/api/sessions/{sessionId}/map");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Galgenbeck", json.GetProperty("currentLocationName").GetString());
@@ -399,23 +386,23 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task Successor_WithLivingCharacter_ReturnsConflict()
     {
-        var token = await RegisterAndLogin("successor-living@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("successor-living@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         await SeedCharacterInCampaign(campaignId, dead: false);
 
-        var response = await _client.SendAsync(AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", token));
+        var response = await CreateSuccessor(user, sessionId);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     [Fact]
     public async Task Successor_NotOwner_ReturnsNotFound()
     {
-        var tokenA = await RegisterAndLogin("successor-owner@test.com");
-        var (sessionId, _) = await CreateSessionAsync(tokenA);
+        var userA = await RegisterAndLogin("successor-owner@test.com");
+        var (sessionId, _) = await CreateSessionAsync(userA);
 
-        var tokenB = await RegisterAndLogin("successor-other@test.com");
-        var response = await _client.SendAsync(AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", tokenB));
+        var userB = await RegisterAndLogin("successor-other@test.com");
+        var response = await CreateSuccessor(userB, sessionId);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -424,18 +411,17 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task Successor_UsesChosenClassAndInheritsCampaignDifficulty()
     {
-        var token = await RegisterAndLogin("successor-class@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token,
+        var user = await RegisterAndLogin("successor-class@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user,
             new { characterName = "Doomed First", difficulty = "Hardcore" });
 
         await SeedCharacterInCampaign(campaignId, dead: true);
 
-        var response = await _client.SendAsync(AuthCreateSuccessor(
-            $"/api/sessions/{sessionId}/successor", token,
-            new { characterName = "Second Wretch", characterClass = "OccultHerbmaster" }));
+        var response = await CreateSuccessor(user, sessionId,
+            new { characterName = "Second Wretch", characterClass = "OccultHerbmaster" });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var listResponse = await _client.SendAsync(AuthGet("/api/sessions", token));
+        var listResponse = await user.Get("/api/sessions");
         var json = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Second Wretch", json[0].GetProperty("characterName").GetString());
         Assert.Equal("Occult Herbmaster", json[0].GetProperty("characterClass").GetString());
@@ -445,11 +431,10 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task Successor_WithoutAName_ReturnsBadRequest()
     {
-        var token = await RegisterAndLogin("successor-noname@test.com");
-        var (sessionId, _) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("successor-noname@test.com");
+        var (sessionId, _) = await CreateSessionAsync(user);
 
-        var response = await _client.SendAsync(AuthCreateSuccessor(
-            $"/api/sessions/{sessionId}/successor", token, new { characterName = "" }));
+        var response = await CreateSuccessor(user, sessionId, new { characterName = "" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -457,8 +442,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task Successor_DeadCharacter_BuriesAndOpensNewChronicle()
     {
-        var token = await RegisterAndLogin("successor-dead@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("successor-dead@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         await SeedCharacterInCampaign(campaignId, dead: true);
 
@@ -472,7 +457,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             originalChronicleId = chronicles.First();
         }
 
-        var response = await _client.SendAsync(AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", token));
+        var response = await CreateSuccessor(user, sessionId);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("in-progress", body.GetProperty("status").GetString());
@@ -499,12 +484,12 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task Abandon_ActiveCampaign_EndsIt()
     {
-        var token = await RegisterAndLogin("abandon-active@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("abandon-active@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         await SeedCharacterInCampaign(campaignId, dead: false);
 
-        var response = await _client.SendAsync(AuthPost($"/api/sessions/{sessionId}/abandon", token));
+        var response = await user.Post($"/api/sessions/{sessionId}/abandon");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("ended", body.GetProperty("status").GetString());
@@ -521,16 +506,15 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [InlineData("successor")]
     public async Task AbandonOrSuccessor_AlreadyEnded_ReturnsConflict(string action)
     {
-        var token = await RegisterAndLogin($"ended-{action}@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin($"ended-{action}@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         await SeedCharacterInCampaign(campaignId, dead: false);
         await WithOwnedCampaign(campaignId, campaign => campaign.End());
 
-        var request = action == "successor"
-            ? AuthCreateSuccessor($"/api/sessions/{sessionId}/successor", token)
-            : AuthPost($"/api/sessions/{sessionId}/abandon", token);
-        var response = await _client.SendAsync(request);
+        var response = action == "successor"
+            ? await CreateSuccessor(user, sessionId)
+            : await user.Post($"/api/sessions/{sessionId}/abandon");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -538,8 +522,8 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
     [Fact]
     public async Task Journal_IncludesFallenCharacters()
     {
-        var token = await RegisterAndLogin("journal-fallen@test.com");
-        var (sessionId, campaignId) = await CreateSessionAsync(token);
+        var user = await RegisterAndLogin("journal-fallen@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
 
         await WithOwnedCampaign(campaignId, campaign =>
         {
@@ -548,7 +532,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             campaign.BuryCharacter(characterId, "Ulmt the Wretched");
         });
 
-        var response = await _client.SendAsync(AuthGet($"/api/sessions/{sessionId}/journal", token));
+        var response = await user.Get($"/api/sessions/{sessionId}/journal");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var fallen = json.GetProperty("fallen");
@@ -626,14 +610,14 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         await campaignsRepo.SaveCampaign(campaign);
     }
 
-    private Task<string> RegisterAndLogin(string email) => AuthFlow.RegisterAndLogin(_client, email);
+    private Task<TestUser> RegisterAndLogin(string email) => TestUser.RegisterAndLogin(_factory, email);
 
     /// <summary>Creates a session via the endpoint and returns its id, throwing (not silently
     /// null-ing) when the response is malformed. The API's session id IS the campaign id — one value
     /// under two names, kept so each call site can say which role it is using the id in.</summary>
-    private async Task<(Guid SessionId, Guid CampaignId)> CreateSessionAsync(string token, object? body = null)
+    private static async Task<(Guid SessionId, Guid CampaignId)> CreateSessionAsync(TestUser user, object? body = null)
     {
-        var response = await _client.SendAsync(AuthCreateSession(token, body));
+        var response = await CreateSession(user, body);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var sessionId = Guid.Parse(json.GetProperty("sessionId").GetString()
@@ -646,40 +630,15 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
     /// <summary>Creating a session now requires the player's chosen name, so every test that just wants
     /// "a session" goes through here rather than posting an empty body.</summary>
-    private static HttpRequestMessage AuthCreateSession(string token, object? body = null)
-    {
-        var request = AuthPost("/api/sessions", token);
-        request.Content = JsonContent.Create(body ?? new { characterName = DefaultWretchName });
-        return request;
-    }
+    private static Task<HttpResponseMessage> CreateSession(TestUser user, object? body = null) =>
+        user.Post("/api/sessions", body ?? new { characterName = DefaultWretchName });
 
-    private static HttpRequestMessage AuthCreateSuccessor(string url, string token, object? body = null)
-    {
-        var request = AuthPost(url, token);
-        request.Content = JsonContent.Create(body ?? new { characterName = "The Next Wretch" });
-        return request;
-    }
+    private static Task<HttpResponseMessage> CreateSuccessor(TestUser user, Guid sessionId, object? body = null) =>
+        user.Post($"/api/sessions/{sessionId}/successor", body ?? new { characterName = "The Next Wretch" });
 
-    private static HttpRequestMessage AuthSubmitTurn(Guid sessionId, string token, Guid requestId, string message)
-    {
-        var request = AuthPost($"/api/sessions/{sessionId}/turns", token);
-        request.Content = JsonContent.Create(new { requestId, message });
-        return request;
-    }
-
-    private static HttpRequestMessage AuthPost(string url, string token)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return request;
-    }
-
-    private static HttpRequestMessage AuthGet(string url, string token)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return request;
-    }
+    private static Task<HttpResponseMessage> SubmitTurn(
+        TestUser user, Guid sessionId, Guid requestId, string message) =>
+        user.Post($"/api/sessions/{sessionId}/turns", new { requestId, message });
 
     public void Dispose()
     {

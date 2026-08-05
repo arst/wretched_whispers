@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
@@ -210,6 +209,12 @@ if (DeploymentProfile.UsesIdentity && app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+// CSRF for the browser-cookie clients. Only the hosted profile has cookies to forge — the standalone
+// profiles authenticate every request through LocalAuthHandler, with no ambient credential a third
+// party could ride. Endpoints opt in by carrying RequireAntiforgery metadata.
+if (DeploymentProfile.UsesIdentity)
+    app.UseAntiforgery();
+
 if (useRateLimiting)
     app.UseRateLimiter();
 
@@ -223,14 +228,13 @@ if (DeploymentProfile.UsesIdentity)
     auth.MapGet("/csrf", (HttpContext http, IAntiforgery antiforgery) =>
         TypedResults.Ok(new CsrfTokenDto(antiforgery.GetAndStoreTokens(http).RequestToken ?? "")))
         .RequireAuthorization();
-    auth.MapPost("/logout", async Task<Results<Ok, ProblemHttpResult>> (HttpContext http,
-        IAntiforgery antiforgery, SignInManager<IdentityUser> signInManager) =>
+    // Register and login can't carry a token — the user has no identity to bind one to yet — so only
+    // logout opts in, rather than the whole /api/auth group.
+    auth.MapPost("/logout", async (SignInManager<IdentityUser> signInManager) =>
     {
-        if (!await antiforgery.IsRequestValidAsync(http))
-            return ApiProblem.BadRequest("Invalid antiforgery token.");
         await signInManager.SignOutAsync();
         return TypedResults.Ok();
-    }).RequireAuthorization();
+    }).RequireAuthorization().RequireAntiforgery();
     auth.MapGet("/me", (HttpContext http) =>
         TypedResults.Ok(new CurrentUserDto(http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "")))
         .RequireAuthorization();
