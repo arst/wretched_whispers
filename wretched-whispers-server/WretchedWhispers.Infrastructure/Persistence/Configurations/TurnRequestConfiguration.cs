@@ -13,7 +13,7 @@ public sealed class TurnRequestConfiguration : IEntityTypeConfiguration<TurnRequ
         builder.Property(x => x.Id).ValueGeneratedNever();
         builder.Property(x => x.UserId).IsRequired().HasMaxLength(450);
         builder.Property(x => x.PlayerMessage).IsRequired().HasColumnType("TEXT");
-        builder.Property(x => x.Status).IsRequired().HasMaxLength(16);
+        builder.Property(x => x.Status).IsRequired().HasMaxLength(16).HasConversion<string>();
         builder.HasIndex(x => new { x.UserId, x.ClientRequestId }).IsUnique();
         builder.HasIndex(x => new { x.Status, x.CreatedAt });
     }

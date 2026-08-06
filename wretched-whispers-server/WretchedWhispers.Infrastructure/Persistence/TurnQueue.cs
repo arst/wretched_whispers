@@ -50,20 +50,20 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
     public async Task<TurnRequestEntity?> ClaimAsync(string owner, TimeSpan lease, int maxAttempts, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        var candidate = await db.TurnRequests.AsNoTracking().Where(x => x.Status == "Pending" || (x.Status == "Running" && x.LeaseExpiresAt < now))
+        var candidate = await db.TurnRequests.AsNoTracking().Where(x => x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now))
             .OrderBy(x => x.CreatedAt).FirstOrDefaultAsync(ct);
         if (candidate is null) return null;
         if (candidate.AttemptCount >= maxAttempts)
         {
-            await db.TurnRequests.Where(x => x.Id == candidate.Id && x.Status != "Completed").ExecuteUpdateAsync(s => s
-                .SetProperty(x => x.Status, "Failed").SetProperty(x => x.TerminalError, "Turn exceeded retry limit.")
+            await db.TurnRequests.Where(x => x.Id == candidate.Id && x.Status != TurnStatus.Completed).ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, TurnStatus.Failed).SetProperty(x => x.TerminalError, "Turn exceeded retry limit.")
                 .SetProperty(x => x.CompletedAt, now), ct);
-            candidate.Status = "Failed";
+            candidate.Status = TurnStatus.Failed;
             candidate.TerminalError = "Turn exceeded retry limit.";
             return candidate;
         }
-        var changed = await db.TurnRequests.Where(x => x.Id == candidate.Id && (x.Status == "Pending" || (x.Status == "Running" && x.LeaseExpiresAt < now)))
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "Running").SetProperty(x => x.LeaseOwner, owner)
+        var changed = await db.TurnRequests.Where(x => x.Id == candidate.Id && (x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now)))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, TurnStatus.Running).SetProperty(x => x.LeaseOwner, owner)
                 .SetProperty(x => x.LeaseExpiresAt, now.Add(lease)).SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1), ct);
         return changed == 1 ? await db.TurnRequests.AsNoTracking().SingleAsync(x => x.Id == candidate.Id, ct) : null;
     }
@@ -73,7 +73,7 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
     public async Task<bool> RenewAsync(Guid id, string owner, TimeSpan lease, CancellationToken ct)
     {
         var expires = DateTime.UtcNow.Add(lease);
-        return await db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner && x.Status == "Running")
+        return await db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner && x.Status == TurnStatus.Running)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.LeaseExpiresAt, expires), ct) == 1;
     }
 
@@ -82,7 +82,7 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
     /// owner managed to commit.</summary>
     public Task CompleteAsync(Guid id, string owner, string? error, CancellationToken ct)
     {
-        var status = error == null ? "Completed" : "Failed";
+        var status = error == null ? TurnStatus.Completed : TurnStatus.Failed;
         return db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner)
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, status)
             .SetProperty(x => x.TerminalError, error).SetProperty(x => x.CompletedAt, DateTime.UtcNow)

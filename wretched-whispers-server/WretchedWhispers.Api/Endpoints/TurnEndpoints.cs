@@ -54,7 +54,7 @@ public static class TurnEndpoints
             return TypedResults.NotFound();
 
         var from = long.TryParse(http.Request.Headers["Last-Event-ID"], out var last) ? last : 0;
-        var alreadyFinished = turn.Status is "Completed" or "Failed";
+        var alreadyFinished = turn.Status is TurnStatus.Completed or TurnStatus.Failed;
 
         return TypedResults.ServerSentEvents(
             Stream(store, turnId, from, alreadyFinished, turn.TerminalError, ct));

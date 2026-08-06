@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Engine.Services;
 
@@ -24,7 +26,7 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                 var queue = scope.ServiceProvider.GetRequiredService<TurnQueue>();
                 var turn = await queue.ClaimAsync(_owner, Lease, 3, stoppingToken);
                 if (turn is null) { await Task.Delay(TimeSpan.FromMilliseconds(250), stoppingToken); continue; }
-                if (turn.Status == "Failed")
+                if (turn.Status == TurnStatus.Failed)
                 {
                     await events.AppendTerminalAsync(turn.Id, "error", new { message = turn.TerminalError }, stoppingToken);
                     continue;
@@ -40,7 +42,7 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                 try
                 {
                     var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-                    if (await db.ChatMessages.AnyAsync(x => x.TurnId == turn.Id && x.Role == "assistant", execution.Token))
+                    if (await db.ChatMessages.AnyAsync(x => x.TurnId == turn.Id && x.Role == ChatRole.Assistant.Value, execution.Token))
                     {
                         await events.AppendTerminalAsync(turn.Id, "done", new { }, execution.Token);
                         await queue.CompleteAsync(turn.Id, _owner, null, execution.Token);
