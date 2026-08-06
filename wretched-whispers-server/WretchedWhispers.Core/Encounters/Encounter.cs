@@ -42,8 +42,8 @@ public sealed class Encounter
     public string Description { get; }
     // Read-only projection over the list the constructor binds — mutation goes through AddAdversary.
     [JsonInclude] public IReadOnlyList<Adversary> Adversaries => _adversaries;
-    [JsonIgnore] public IReadOnlyList<Adversary> LivingAdversaries => Adversaries.Where(a => !a.IsDead).ToList().AsReadOnly();
-    [JsonIgnore] public IReadOnlyList<Adversary> DeadAdversaries => Adversaries.Where(a => a.IsDead).ToList().AsReadOnly();
+    [JsonIgnore] public IReadOnlyList<Adversary> LivingAdversaries => [.. _adversaries.Where(a => !a.IsDead)];
+    [JsonIgnore] public IReadOnlyList<Adversary> DeadAdversaries => [.. _adversaries.Where(a => a.IsDead)];
     [JsonInclude] public bool IsStarted { get; private set; }
     [JsonInclude] public bool IsEnded { get; private set; }
     [JsonInclude] public bool IsResolved { get; private set; }
@@ -177,8 +177,7 @@ public sealed class Encounter
             return adversary.Hp.Current * 3 <= adversary.Hp.Max;
         }
 
-        var livingAdversaries = LivingAdversaries.Count;
-
-        return livingAdversaries <= groupSize / 2;
+        // Count directly — the list-building properties allocate on every access.
+        return _adversaries.Count(a => !a.IsDead) <= groupSize / 2;
     }
 }

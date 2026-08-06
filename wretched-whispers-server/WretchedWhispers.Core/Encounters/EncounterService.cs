@@ -141,7 +141,7 @@ public class EncounterService(
         var endReason =
             playerFled ? EncounterEndReason.PlayerFled
             : character.IsDead ? EncounterEndReason.PlayerDead
-            : ActiveAdversaries(encounter).Count == 0 ? EncounterEndReason.AllDefeated
+            : !encounter.Adversaries.Any(a => a is { IsDead: false, IsFled: false }) ? EncounterEndReason.AllDefeated
             : EncounterEndReason.None;
 
         if (endReason is EncounterEndReason.AllDefeated) encounter.EndEncounter();
