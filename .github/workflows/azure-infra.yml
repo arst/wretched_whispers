@@ -26,7 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: az bicep build --file deploy/azure/main.bicep
+      - run: |
+          az bicep build --file deploy/azure/main.bicep
+          az bicep build --file deploy/azure/destroy.bicep
 
   what-if:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'what-if'
@@ -103,8 +105,10 @@ jobs:
             --value "Host=$host;Port=5432;Database=$database;Username=ww_app;Password=$app_password;SSL Mode=Require" >/dev/null
           az keyvault secret set --vault-name "$vault" --name migration-db-connection \
             --value "Host=$host;Port=5432;Database=$database;Username=ww_migrator;Password=$migrator_password;SSL Mode=Require" >/dev/null
+          # The secret must exist even without an LLM key — the container app's Key Vault
+          # reference fails to resolve otherwise. The app treats it as unconfigured either way.
           az keyvault secret set --vault-name "$vault" --name azure-openai-key \
-            --value "$AZURE_OPENAI_KEY" >/dev/null
+            --value "${AZURE_OPENAI_KEY:-not-configured}" >/dev/null
       - name: Provision migration job
         if: inputs.operation == 'bootstrap'
         run: |
