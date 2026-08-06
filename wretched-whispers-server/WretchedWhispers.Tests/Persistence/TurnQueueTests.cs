@@ -64,6 +64,28 @@ public class TurnQueueTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task Lease_RenewAndComplete_AreFencedByOwner()
+    {
+        var queue = new TurnQueue(Db);
+        await queue.EnqueueAsync(Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
+        var claimed = await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+        Assert.NotNull(claimed);
+
+        // Only the lease holder can renew; a worker that reclaimed under a different owner is the
+        // only one allowed to decide the outcome.
+        Assert.True(await queue.RenewAsync(claimed!.Id, "worker-a", TimeSpan.FromMinutes(5), CancellationToken.None));
+        Assert.False(await queue.RenewAsync(claimed.Id, "worker-b", TimeSpan.FromMinutes(5), CancellationToken.None));
+
+        await queue.CompleteAsync(claimed.Id, "worker-b", null, CancellationToken.None);
+        var afterStale = await queue.GetOwnedAsync(claimed.Id, UserId, CancellationToken.None);
+        Assert.Equal("Running", afterStale!.Status);
+
+        await queue.CompleteAsync(claimed.Id, "worker-a", null, CancellationToken.None);
+        var afterOwner = await queue.GetOwnedAsync(claimed.Id, UserId, CancellationToken.None);
+        Assert.Equal("Completed", afterOwner!.Status);
+    }
+
+    [Fact]
     public async Task Enqueue_SameRequestIdFromADifferentUser_IsItsOwnTurn()
     {
         var queue = new TurnQueue(Db);

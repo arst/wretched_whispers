@@ -65,10 +65,22 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
         return changed == 1 ? await db.TurnRequests.AsNoTracking().SingleAsync(x => x.Id == candidate.Id, ct) : null;
     }
 
-    public Task CompleteAsync(Guid id, string? error, CancellationToken ct)
+    /// <summary>Extends a held lease. False means the lease is no longer ours — another worker
+    /// reclaimed the turn — and the caller must stop working on it.</summary>
+    public async Task<bool> RenewAsync(Guid id, string owner, TimeSpan lease, CancellationToken ct)
+    {
+        var expires = DateTime.UtcNow.Add(lease);
+        return await db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner && x.Status == "Running")
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.LeaseExpiresAt, expires), ct) == 1;
+    }
+
+    /// <summary>Owner-fenced: a worker that lost its lease can no longer decide the turn's outcome —
+    /// the reclaiming worker owns it, and its duplicate-answer check reconciles whatever the old
+    /// owner managed to commit.</summary>
+    public Task CompleteAsync(Guid id, string owner, string? error, CancellationToken ct)
     {
         var status = error == null ? "Completed" : "Failed";
-        return db.TurnRequests.Where(x => x.Id == id)
+        return db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner)
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, status)
             .SetProperty(x => x.TerminalError, error).SetProperty(x => x.CompletedAt, DateTime.UtcNow)
             .SetProperty(x => x.LeaseExpiresAt, (DateTime?)null), ct);
