@@ -50,7 +50,14 @@ public sealed class SessionContextLoader(
         foreach (var encId in campaign.EncounterIds.Reverse())
         {
             var enc = await encountersRepository.Get(encId);
-            if (enc is not null && enc.IsStarted && !enc.IsResolved)
+            // Any unresolved encounter is still live — including a created-but-unstarted one (a
+            // Friendly meeting can't start until it turns hostile). Requiring IsStarted orphaned
+            // those at the turn boundary: the next turn had no ActiveEncounterId, so escalation
+            // (TurnEncounterHostile/StartEncounter) threw and the model had to recreate the
+            // encounter, losing the rolled reaction and its adversaries. Newest-first iteration
+            // means a newer encounter supersedes an abandoned one. DeriveStage still reports
+            // Exploration for an unstarted encounter, so the stage machine is unaffected.
+            if (enc is not null && !enc.IsResolved)
             {
                 context.ActiveEncounter = enc;
                 context.SetActiveEncounterId(enc.Id);

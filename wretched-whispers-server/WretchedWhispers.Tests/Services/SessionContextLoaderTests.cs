@@ -52,6 +52,30 @@ public class SessionContextLoaderTests
     }
 
     [Fact]
+    public async Task Load_UnstartedFriendlyEncounter_SurvivesTheTurnBoundary()
+    {
+        // A Friendly encounter can't be started (escalation must come first), so it reaches the next
+        // turn unstarted. The loader must still re-attach it — otherwise TurnEncounterHostile has no
+        // active encounter and the rolled reaction is lost — while the stage stays Exploration.
+        var character = TestCharacters.Create(_dice);
+        var campaign = Campaign.Create(Difficulty.Grim, "Test", "desc");
+        campaign.JoinGame(character.Id);
+        campaign.Start();
+
+        var encounter = Encounter.Create("Wanderer", "test", EncounterType.Friendly, _dice);
+        campaign.AddEncounter(encounter.Id);
+
+        _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
+
+        var ctx = await CreateLoader().LoadAsync(campaign.Id);
+
+        Assert.Equal(encounter.Id, ctx.ActiveEncounterId);
+        Assert.Equal(SessionStage.Exploration, ctx.DeriveStage());
+    }
+
+    [Fact]
     public async Task Load_CampaignWithCharacterAndActiveEncounter_PopulatesFullContext()
     {
         var character = TestCharacters.Create(_dice);
