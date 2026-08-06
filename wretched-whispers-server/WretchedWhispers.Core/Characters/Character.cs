@@ -365,8 +365,7 @@ public sealed class Character
 
     public void BuyItem(int price, InventoryItem item)
     {
-        if (price <= 0)
-            throw new ArgumentOutOfRangeException(nameof(price), "Price must be positive.");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(price);
 
         if (Silver < price) throw new InvalidOperationException("Not enough silver to buy the item.");
 

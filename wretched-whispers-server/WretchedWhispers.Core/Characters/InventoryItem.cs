@@ -26,7 +26,7 @@ public class InventoryItem
 
     public void Add(int amount)
     {
-        if (amount <= 0) throw new ArgumentOutOfRangeException(nameof(amount), "Amount to add must be positive.");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
         Quantity += amount;
     }
 
