@@ -72,10 +72,9 @@ public sealed class ResolveRoundTests : TestBase
     public async Task Attack_KillsLastAdversary_AutoEnds_NoRetaliation()
     {
         var (encounter, character) = Arrange(adversaries: 1, adversaryHp: 1);
-        // nat-20 hit, d6 damage well past 1 HP, then ProcessPlayerAttackOutcome's morale check
-        // (single-adversary group below 30% HP) rolls 2d6 even for a dead target. 6+6=12 breaks morale 7,
-        // but a corpse fleeing changes nothing: IsDead already excludes it from ActiveAdversaries.
-        SetupDiceRolls(19, 5, 5, 5);
+        // nat-20 hit, d6 damage well past 1 HP. No morale roll is scripted: the dead don't test
+        // morale, so the round must not report the same creature as both dead and fled.
+        SetupDiceRolls(19, 5);
 
         var outcome = await CreateService().ResolveRound(
             encounter.Id, character.Id, PlayerRoundAction.Attack, "Ghoul 1");
@@ -83,6 +82,25 @@ public sealed class ResolveRoundTests : TestBase
         Assert.True(outcome.EncounterEnded);
         Assert.Equal(EncounterEndReason.AllDefeated, outcome.EndReason);
         Assert.Empty(outcome.Retaliations);
+        Assert.Empty(outcome.AdversariesFledThisRound);
+        Assert.True(encounter.IsEnded);
+    }
+
+    [Fact]
+    public async Task Attack_HalvesTheGroup_SurvivorsTestMoraleAndRoutTogether()
+    {
+        var (encounter, character) = Arrange(adversaries: 2, adversaryHp: 1);
+        // nat-20 hit kills Ghoul 1 (half the group down -> group morale check for the SURVIVORS,
+        // who never used to be tested). 2d6 = 6+6 = 12 breaks morale 7: Ghoul 2 routs, so nobody
+        // is left to retaliate and the encounter ends.
+        SetupDiceRolls(19, 5, 5, 5);
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Attack, "Ghoul 1");
+
+        Assert.Equal(["Ghoul 2"], outcome.AdversariesFledThisRound);
+        Assert.Empty(outcome.Retaliations);
+        Assert.True(outcome.EncounterEnded);
         Assert.True(encounter.IsEnded);
     }
 
