@@ -1,13 +1,9 @@
 namespace WretchedWhispers.Core.Dices;
 
-public sealed class Dice
+public sealed class Dice(IRandomService randomService)
 {
-    private readonly IRandomService _randomService;
-
-    public Dice(IRandomService randomService)
-    {
-        _randomService = randomService ?? throw new ArgumentNullException(nameof(randomService));
-    }
+    private readonly IRandomService _randomService =
+        randomService ?? throw new ArgumentNullException(nameof(randomService));
 
     public int Roll(DiceExpr expr)
     {

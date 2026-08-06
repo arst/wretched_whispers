@@ -299,7 +299,7 @@ public sealed class ResolveRoundTests : TestBase
     {
         var (encounter, character) = Arrange(startingOmens: 0);
 
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             CreateService().ResolveRound(encounter.Id, character.Id, PlayerRoundAction.Attack, null,
                 omenUse: CombatOmenUse.MaxDamage));
 

@@ -5,7 +5,7 @@ using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Infrastructure.Persistence;
 
-public sealed class TurnEventStore(IServiceScopeFactory scopes)
+public sealed class TurnEventStore(IServiceScopeFactory scopes, TimeProvider clock)
 {
     public async Task AppendAsync(Guid turnId, string eventType, object payload, CancellationToken ct)
     {
@@ -17,7 +17,7 @@ public sealed class TurnEventStore(IServiceScopeFactory scopes)
         {
             var sequence = (await db.TurnEvents.Where(x => x.TurnId == turnId).MaxAsync(x => (long?)x.Sequence, ct) ?? 0) + 1;
             var entity = new TurnEventEntity { Id = Guid.NewGuid(), TurnId = turnId, Sequence = sequence,
-                EventType = eventType, Payload = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web), CreatedAt = DateTime.UtcNow };
+                EventType = eventType, Payload = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web), CreatedAt = clock.GetUtcNow().UtcDateTime };
             db.TurnEvents.Add(entity);
             try { await db.SaveChangesAsync(ct); return; }
             catch (DbUpdateException) when (attempt < 3)

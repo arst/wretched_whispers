@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
@@ -153,7 +154,7 @@ public sealed class Character
     {
         // Pre-declared spend: the omen is consumed before the roll, even if the attack misses.
         if (spendOmenForMaxDamage && !Omens.TrySpend())
-            throw new ArgumentException("No omens remaining.");
+            throw new InvalidOperationException("No omens remaining.");
 
         var outcome = ResolveAttack(targetArmor, dice, spendOmenForMaxDamage, minimumOneDamage);
 
@@ -300,7 +301,7 @@ public sealed class Character
             4 => InjuryKind.StabbedLung,
             5 => InjuryKind.BrokenHand,
             6 => InjuryKind.LostEye,
-            _ => throw new ArgumentOutOfRangeException()
+            _ => throw new UnreachableException()
         };
     }
 
@@ -364,8 +365,7 @@ public sealed class Character
 
     public void BuyItem(int price, InventoryItem item)
     {
-        if (price <= 0)
-            throw new ArgumentOutOfRangeException(nameof(price), "Price must be positive.");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(price);
 
         if (Silver < price) throw new InvalidOperationException("Not enough silver to buy the item.");
 
@@ -401,7 +401,7 @@ public sealed class Character
     {
         if (spendOmenToLowerDr)
         {
-            if (!Omens.TrySpend()) throw new ArgumentException("No omens remaining.");
+            if (!Omens.TrySpend()) throw new InvalidOperationException("No omens remaining.");
             challenge = new Dr(challenge.Value - 4);
         }
 

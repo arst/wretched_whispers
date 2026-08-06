@@ -13,7 +13,7 @@ public sealed class SessionContextLoader(
 {
     public async Task<SessionContext> LoadAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var campaign = await campaignsRepository.Get(sessionId);
+        var campaign = await campaignsRepository.Get(sessionId, ct);
         if (campaign is null)
         {
             logger.LogInformation("Session {SessionId}: no campaign found", sessionId);
@@ -49,7 +49,7 @@ public sealed class SessionContextLoader(
 
         foreach (var encId in campaign.EncounterIds.Reverse())
         {
-            var enc = await encountersRepository.Get(encId);
+            var enc = await encountersRepository.Get(encId, ct);
             // Any unresolved encounter is still live — including a created-but-unstarted one (a
             // Friendly meeting can't start until it turns hostile). Requiring IsStarted orphaned
             // those at the turn boundary: the next turn had no ActiveEncounterId, so escalation

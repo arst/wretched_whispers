@@ -1,4 +1,5 @@
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Infrastructure.Persistence.Entities;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Persistence;
@@ -15,7 +16,7 @@ public class TurnQueueTests : SqliteTestBase
     [Fact]
     public async Task Enqueue_CreatesOneTurn()
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
 
         var result = await queue.EnqueueAsync(
             Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
@@ -27,7 +28,7 @@ public class TurnQueueTests : SqliteTestBase
     [Fact]
     public async Task Enqueue_ReplayingTheSameSubmission_ReturnsTheOriginalTurn()
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
         var campaignId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
 
@@ -47,7 +48,7 @@ public class TurnQueueTests : SqliteTestBase
     public async Task Enqueue_ReusingARequestIdForADifferentAction_ReturnsNoTurn(
         bool differentCampaign, bool differentMessage)
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
         var campaignId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
         await queue.EnqueueAsync(campaignId, UserId, requestId, "I open the door.", CancellationToken.None);
@@ -66,7 +67,7 @@ public class TurnQueueTests : SqliteTestBase
     [Fact]
     public async Task Lease_RenewAndComplete_AreFencedByOwner()
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
         await queue.EnqueueAsync(Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
         var claimed = await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
         Assert.NotNull(claimed);
@@ -78,17 +79,17 @@ public class TurnQueueTests : SqliteTestBase
 
         await queue.CompleteAsync(claimed.Id, "worker-b", null, CancellationToken.None);
         var afterStale = await queue.GetOwnedAsync(claimed.Id, UserId, CancellationToken.None);
-        Assert.Equal("Running", afterStale!.Status);
+        Assert.Equal(TurnStatus.Running, afterStale!.Status);
 
         await queue.CompleteAsync(claimed.Id, "worker-a", null, CancellationToken.None);
         var afterOwner = await queue.GetOwnedAsync(claimed.Id, UserId, CancellationToken.None);
-        Assert.Equal("Completed", afterOwner!.Status);
+        Assert.Equal(TurnStatus.Completed, afterOwner!.Status);
     }
 
     [Fact]
     public async Task Enqueue_SameRequestIdFromADifferentUser_IsItsOwnTurn()
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
         var requestId = Guid.NewGuid();
 
         var mine = await queue.EnqueueAsync(

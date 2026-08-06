@@ -7,7 +7,7 @@ namespace WretchedWhispers.Infrastructure.Persistence;
 /// for a different campaign or message — a client bug, not a transient fault.</summary>
 public readonly record struct TurnEnqueueResult(TurnRequestEntity? Turn, bool Created);
 
-public sealed class TurnQueue(WretchedWhispersDbContext db)
+public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
 {
     /// <summary>
     /// Idempotent on (user, client request id): replaying the same submission returns the original
@@ -22,7 +22,7 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
             return Replay(existing, campaignId, message);
 
         var turn = new TurnRequestEntity { Id = Guid.NewGuid(), CampaignId = campaignId, UserId = userId,
-            ClientRequestId = clientRequestId, PlayerMessage = message, CreatedAt = DateTime.UtcNow };
+            ClientRequestId = clientRequestId, PlayerMessage = message, CreatedAt = clock.GetUtcNow().UtcDateTime };
         db.TurnRequests.Add(turn);
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
@@ -49,21 +49,21 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
 
     public async Task<TurnRequestEntity?> ClaimAsync(string owner, TimeSpan lease, int maxAttempts, CancellationToken ct)
     {
-        var now = DateTime.UtcNow;
-        var candidate = await db.TurnRequests.AsNoTracking().Where(x => x.Status == "Pending" || (x.Status == "Running" && x.LeaseExpiresAt < now))
+        var now = clock.GetUtcNow().UtcDateTime;
+        var candidate = await db.TurnRequests.AsNoTracking().Where(x => x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now))
             .OrderBy(x => x.CreatedAt).FirstOrDefaultAsync(ct);
         if (candidate is null) return null;
         if (candidate.AttemptCount >= maxAttempts)
         {
-            await db.TurnRequests.Where(x => x.Id == candidate.Id && x.Status != "Completed").ExecuteUpdateAsync(s => s
-                .SetProperty(x => x.Status, "Failed").SetProperty(x => x.TerminalError, "Turn exceeded retry limit.")
+            await db.TurnRequests.Where(x => x.Id == candidate.Id && x.Status != TurnStatus.Completed).ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, TurnStatus.Failed).SetProperty(x => x.TerminalError, "Turn exceeded retry limit.")
                 .SetProperty(x => x.CompletedAt, now), ct);
-            candidate.Status = "Failed";
+            candidate.Status = TurnStatus.Failed;
             candidate.TerminalError = "Turn exceeded retry limit.";
             return candidate;
         }
-        var changed = await db.TurnRequests.Where(x => x.Id == candidate.Id && (x.Status == "Pending" || (x.Status == "Running" && x.LeaseExpiresAt < now)))
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "Running").SetProperty(x => x.LeaseOwner, owner)
+        var changed = await db.TurnRequests.Where(x => x.Id == candidate.Id && (x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now)))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, TurnStatus.Running).SetProperty(x => x.LeaseOwner, owner)
                 .SetProperty(x => x.LeaseExpiresAt, now.Add(lease)).SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1), ct);
         return changed == 1 ? await db.TurnRequests.AsNoTracking().SingleAsync(x => x.Id == candidate.Id, ct) : null;
     }
@@ -72,8 +72,8 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
     /// reclaimed the turn — and the caller must stop working on it.</summary>
     public async Task<bool> RenewAsync(Guid id, string owner, TimeSpan lease, CancellationToken ct)
     {
-        var expires = DateTime.UtcNow.Add(lease);
-        return await db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner && x.Status == "Running")
+        var expires = clock.GetUtcNow().UtcDateTime.Add(lease);
+        return await db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner && x.Status == TurnStatus.Running)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.LeaseExpiresAt, expires), ct) == 1;
     }
 
@@ -82,10 +82,10 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
     /// owner managed to commit.</summary>
     public Task CompleteAsync(Guid id, string owner, string? error, CancellationToken ct)
     {
-        var status = error == null ? "Completed" : "Failed";
+        var status = error == null ? TurnStatus.Completed : TurnStatus.Failed;
         return db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner)
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, status)
-            .SetProperty(x => x.TerminalError, error).SetProperty(x => x.CompletedAt, DateTime.UtcNow)
+            .SetProperty(x => x.TerminalError, error).SetProperty(x => x.CompletedAt, clock.GetUtcNow().UtcDateTime)
             .SetProperty(x => x.LeaseExpiresAt, (DateTime?)null), ct);
     }
 }

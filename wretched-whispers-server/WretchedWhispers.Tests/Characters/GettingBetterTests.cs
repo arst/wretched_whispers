@@ -212,7 +212,7 @@ public sealed class GettingBetterTests : TestBase
             .ReturnsAsync((WretchedWhispers.Core.Characters.Character?)null);
         var service = new CharacterService(repo.Object, Dice);
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.GetBetter(Guid.NewGuid(), allowAbilityLoss: true));
     }
 }

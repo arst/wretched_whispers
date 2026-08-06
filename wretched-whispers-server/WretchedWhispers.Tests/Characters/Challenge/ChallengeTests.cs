@@ -54,7 +54,7 @@ public sealed class ChallengeTests : TestBase
     {
         var character = TestCharacters.Create(Dice, startingOmens: 0);
 
-        Assert.Throws<ArgumentException>(() =>
+        Assert.Throws<InvalidOperationException>(() =>
             character.Challenge(new Dr(14), AbilityKind.Presence, Dice, spendOmenToLowerDr: true));
     }
 

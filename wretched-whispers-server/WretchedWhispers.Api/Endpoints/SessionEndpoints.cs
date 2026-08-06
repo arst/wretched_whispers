@@ -168,6 +168,7 @@ public static class SessionEndpoints
         Guid sessionId,
         ISessionContextLoader contextLoader,
         IChatHistoryRepository chatHistoryRepo,
+        TimeProvider clock,
         CancellationToken ct,
         int page = 1,
         int pageSize = 50)
@@ -186,7 +187,7 @@ public static class SessionEndpoints
         var lastActivity = chronicleId is null
             ? null
             : await chatHistoryRepo.GetSessionLastActivity(chronicleId.Value, ct);
-        var recapDue = totalMessages > 0 && IsRecapDue(lastOpened, lastActivity, DateTime.UtcNow);
+        var recapDue = totalMessages > 0 && IsRecapDue(lastOpened, lastActivity, clock.GetUtcNow().UtcDateTime);
 
         return TypedResults.Ok(new SessionDetailDto(
             campaign.Id,
@@ -216,6 +217,7 @@ public static class SessionEndpoints
         IChatHistoryRepository chatHistoryRepo,
         ISessionContextLoader contextLoader,
         ChatHistoryReducer historyReducer,
+        TimeProvider clock,
         CancellationToken ct)
     {
         var campaign = await campaignsRepo.GetOwned(sessionId, ct);
@@ -226,7 +228,7 @@ public static class SessionEndpoints
         if (chronicleId is null)
             return TypedResults.Ok(new SessionResumeDto(null));
 
-        var now = DateTime.UtcNow;
+        var now = clock.GetUtcNow().UtcDateTime;
         var lastOpened = await chatHistoryRepo.GetLastOpened(chronicleId.Value, ct);
         var lastActivity = await chatHistoryRepo.GetSessionLastActivity(chronicleId.Value, ct);
         await chatHistoryRepo.MarkOpened(chronicleId.Value, now, ct);
