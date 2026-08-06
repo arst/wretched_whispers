@@ -49,27 +49,35 @@ public static class SessionEndpoints
             await using var uow = await http.RequestServices.GetRequiredService<IUnitOfWork>()
                 .BeginAsync(http.RequestAborted);
 
-            var result = await next(context);
-
-            // Commit unless the handler explicitly failed. Testing for success instead would treat
-            // any result that carries no status code (IStatusCodeHttpResult.StatusCode is int?) as a
-            // failure and silently discard its writes while still answering 200.
-            var status = (result as IStatusCodeHttpResult)?.StatusCode ?? StatusCodes.Status200OK;
-            if (status >= StatusCodes.Status400BadRequest)
-                return result;
-
             try
             {
+                var result = await next(context);
+
+                // Commit unless the handler explicitly failed. Handlers return Results<...> unions,
+                // which nest the actual result — unwrap before reading the status, else every union
+                // reads as 200 and a failure result would commit its writes. Testing for success
+                // instead would treat any result that carries no status code
+                // (IStatusCodeHttpResult.StatusCode is int?) as a failure and silently discard its
+                // writes while still answering 200.
+                var unwrapped = result;
+                while (unwrapped is INestedHttpResult nested)
+                    unwrapped = nested.Result;
+
+                var status = (unwrapped as IStatusCodeHttpResult)?.StatusCode ?? StatusCodes.Status200OK;
+                if (status >= StatusCodes.Status400BadRequest)
+                    return result;
+
                 await uow.CommitAsync(http.RequestAborted);
+                return result;
             }
             catch (DbUpdateConcurrencyException)
             {
-                // The campaign's Version token lost a race with a turn committing concurrently.
-                // IUnitOfWorkScope deliberately leaves this to the caller; this is that caller.
+                // The campaign's Version token lost a race with a turn committing concurrently. The
+                // token is checked at SaveChangesAsync inside the handler, not at commit, so the
+                // catch must cover the handler too. IUnitOfWorkScope deliberately leaves this to the
+                // caller; this is that caller.
                 return ApiProblem.Conflict("The session changed while this action was in flight. Try again.");
             }
-
-            return result;
         });
 
     private static async Task<Results<Created<CreateSessionResponse>, ProblemHttpResult>> CreateSession(
