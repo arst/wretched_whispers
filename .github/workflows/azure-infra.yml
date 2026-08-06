@@ -92,10 +92,10 @@ jobs:
           database=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" --query properties.outputs.databaseName.value -o tsv)
           vault=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" --query properties.outputs.keyVaultName.value -o tsv)
           runner_ip=$(curl -fsS https://api.ipify.org)
-          cleanup() { az postgres flexible-server firewall-rule delete -g "$RESOURCE_GROUP" -n "$server" -r GitHubBootstrap --yes >/dev/null 2>&1 || true; }
+          cleanup() { az postgres flexible-server firewall-rule delete -g "$RESOURCE_GROUP" --server-name "$server" --name GitHubBootstrap --yes >/dev/null 2>&1 || true; }
           trap cleanup EXIT
-          az postgres flexible-server firewall-rule create -g "$RESOURCE_GROUP" -n "$server" \
-            -r GitHubBootstrap --start-ip-address "$runner_ip" --end-ip-address "$runner_ip" >/dev/null
+          az postgres flexible-server firewall-rule create -g "$RESOURCE_GROUP" --server-name "$server" \
+            --name GitHubBootstrap --start-ip-address "$runner_ip" --end-ip-address "$runner_ip" >/dev/null
           app_password=$(openssl rand -hex 32)
           migrator_password=$(openssl rand -hex 32)
           PGPASSWORD="$ADMIN_PASSWORD" psql "host=$host dbname=$database user=$ADMIN_LOGIN sslmode=require" \
