@@ -79,7 +79,7 @@ public class EncounterService(
         if (!encounter.IsStarted || encounter.IsEnded)
             throw new InvalidOperationException("The encounter is not in active combat.");
         if (omenUse is not CombatOmenUse.None && character.Omens.Count == 0)
-            throw new ArgumentException("No omens remaining.");
+            throw new InvalidOperationException("No omens remaining.");
 
         AttackOutcome? playerAttack = null;
         string? attackedName = null;

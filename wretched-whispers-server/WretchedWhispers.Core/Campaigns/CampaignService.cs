@@ -18,7 +18,7 @@ public class CampaignService(
     private async Task<Campaign> GetRequiredCampaign(Guid campaignId)
     {
         return await campaignsRepository.Get(campaignId)
-               ?? throw new ArgumentException($"Campaign with {campaignId} doesn't exist.");
+               ?? throw new InvalidOperationException($"Campaign with {campaignId} doesn't exist.");
     }
 
     public async Task<Campaign> ConfigureCampaign(Guid campaignId, string name, string description)
@@ -34,7 +34,7 @@ public class CampaignService(
     public async Task JoinCampaign(Guid campaignId, Guid characterId)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character is null) throw new ArgumentException($"Character with {characterId} doesn't exist.");
+        if (character is null) throw new InvalidOperationException($"Character with {characterId} doesn't exist.");
 
         var campaign = await GetRequiredCampaign(campaignId);
 

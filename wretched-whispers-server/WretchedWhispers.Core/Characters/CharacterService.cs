@@ -14,7 +14,7 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
     {
         var character = await charactersRepository.Get(characterId);
 
-        if (character is null) throw new ArgumentException($"Character with id {characterId} does not exist.");
+        if (character is null) throw new InvalidOperationException($"Character with id {characterId} does not exist.");
 
         var outcome = character.Challenge(dr, ability, dice, spendOmenToLowerDr: spendOmenToLowerDr);
 
@@ -33,7 +33,7 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
     public async Task<GettingBetterOutcome> GetBetter(Guid characterId, bool allowAbilityLoss)
     {
         var character = await charactersRepository.Get(characterId);
-        if (character is null) throw new ArgumentException($"Character with id {characterId} does not exist.");
+        if (character is null) throw new InvalidOperationException($"Character with id {characterId} does not exist.");
 
         var outcome = character.GetBetter(dice, allowAbilityLoss);
         await charactersRepository.Save(character);

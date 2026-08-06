@@ -46,12 +46,12 @@ public class CampaignServiceTests : TestBase
     }
 
     [Fact]
-    public async Task JoinCampaign_WithInvalidCharacterId_ThrowsArgumentException()
+    public async Task JoinCampaign_WithInvalidCharacterId_ThrowsInvalidOperationException()
     {
         _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Character?)null);
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        await Assert.ThrowsAsync<InvalidOperationException>(
             () => _service.JoinCampaign(Guid.NewGuid(), Guid.NewGuid()));
     }
 
@@ -79,7 +79,7 @@ public class CampaignServiceTests : TestBase
     [InlineData(nameof(CampaignService.IsActive))]
     [InlineData(nameof(CampaignService.AdvanceTime))]
     [InlineData(nameof(CampaignService.AdvanceTimeWithRest))]
-    public async Task AnyServiceCall_WithMissingCampaign_ThrowsArgumentException(string method)
+    public async Task AnyServiceCall_WithMissingCampaign_ThrowsInvalidOperationException(string method)
     {
         _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync((Campaign?)null);
         // JoinCampaign validates the character before the campaign, so give it a real one.
@@ -98,7 +98,7 @@ public class CampaignServiceTests : TestBase
             _ => throw new ArgumentOutOfRangeException(nameof(method))
         };
 
-        await Assert.ThrowsAsync<ArgumentException>(Act);
+        await Assert.ThrowsAsync<InvalidOperationException>(Act);
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Never);
     }
 
