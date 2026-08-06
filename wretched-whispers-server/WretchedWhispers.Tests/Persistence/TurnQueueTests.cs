@@ -15,7 +15,7 @@ public class TurnQueueTests : SqliteTestBase
     [Fact]
     public async Task Enqueue_CreatesOneTurn()
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
 
         var result = await queue.EnqueueAsync(
             Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
@@ -27,7 +27,7 @@ public class TurnQueueTests : SqliteTestBase
     [Fact]
     public async Task Enqueue_ReplayingTheSameSubmission_ReturnsTheOriginalTurn()
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
         var campaignId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
 
@@ -47,7 +47,7 @@ public class TurnQueueTests : SqliteTestBase
     public async Task Enqueue_ReusingARequestIdForADifferentAction_ReturnsNoTurn(
         bool differentCampaign, bool differentMessage)
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
         var campaignId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
         await queue.EnqueueAsync(campaignId, UserId, requestId, "I open the door.", CancellationToken.None);
@@ -88,7 +88,7 @@ public class TurnQueueTests : SqliteTestBase
     [Fact]
     public async Task Enqueue_SameRequestIdFromADifferentUser_IsItsOwnTurn()
     {
-        var queue = new TurnQueue(Db);
+        var queue = new TurnQueue(Db, TimeProvider.System);
         var requestId = Guid.NewGuid();
 
         var mine = await queue.EnqueueAsync(

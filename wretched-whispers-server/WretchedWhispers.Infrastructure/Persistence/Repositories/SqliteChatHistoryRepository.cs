@@ -6,18 +6,13 @@ using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Infrastructure.Persistence.Repositories;
 
-public class SqliteChatHistoryRepository : IChatHistoryRepository
+public class SqliteChatHistoryRepository(WretchedWhispersDbContext db, TimeProvider clock)
+    : IChatHistoryRepository
 {
-    private readonly WretchedWhispersDbContext _db;
 
     // Microsoft.Extensions.AI provides polymorphic (de)serialization for AIContent
     // (TextContent / FunctionCallContent / FunctionResultContent / ...).
     private static readonly JsonSerializerOptions ContentJsonOptions = AIJsonUtilities.DefaultOptions;
-
-    public SqliteChatHistoryRepository(WretchedWhispersDbContext db)
-    {
-        _db = db;
-    }
 
     public async Task<Guid> CreateSession(Guid campaignId, CancellationToken ct = default)
     {
@@ -25,18 +20,18 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
         {
             Id = Guid.NewGuid(),
             CampaignId = campaignId,
-            StartedAt = DateTime.UtcNow
+            StartedAt = clock.GetUtcNow().UtcDateTime
         };
 
-        _db.ChatSessions.Add(session);
-        await _db.SaveChangesAsync(ct);
+        db.ChatSessions.Add(session);
+        await db.SaveChangesAsync(ct);
         return session.Id;
     }
 
     public async Task<IReadOnlyList<Guid>> GetSessionsForCampaign(Guid campaignId, CancellationToken ct = default)
     {
         // Newest-first: the head of the list is the ACTIVE chronicle (one chat session per wretch).
-        return await _db.ChatSessions
+        return await db.ChatSessions
             .Where(s => s.CampaignId == campaignId)
             .OrderByDescending(s => s.StartedAt)
             .Select(s => s.Id)
@@ -44,7 +39,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
     }
 
     public Task<Guid?> GetActiveChronicle(Guid campaignId, CancellationToken ct = default) =>
-        _db.ChatSessions
+        db.ChatSessions
             .Where(s => s.CampaignId == campaignId)
             .OrderByDescending(s => s.StartedAt)
             .Select(s => (Guid?)s.Id)
@@ -58,9 +53,9 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
         // Same rule as the single-campaign read: the newest message, or the chronicle's own start
         // when nothing has been said yet. Expressed as one grouped query over the join so the list
         // view costs one round trip regardless of how many campaigns the player has.
-        var activity = await _db.ChatSessions
+        var activity = await db.ChatSessions
             .Where(s => campaignIds.Contains(s.CampaignId))
-            .GroupJoin(_db.ChatMessages, s => s.Id, m => m.SessionId, (s, messages) => new
+            .GroupJoin(db.ChatMessages, s => s.Id, m => m.SessionId, (s, messages) => new
             {
                 s.CampaignId,
                 Last = messages.Max(m => (DateTime?)m.Timestamp) ?? s.StartedAt
@@ -74,25 +69,25 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
 
     public async Task<DateTime?> GetSessionLastActivity(Guid sessionId, CancellationToken ct = default)
     {
-        var lastMessage = await _db.ChatMessages
+        var lastMessage = await db.ChatMessages
             .Where(m => m.SessionId == sessionId)
             .MaxAsync(m => (DateTime?)m.Timestamp, ct);
 
-        return lastMessage ?? await _db.ChatSessions
+        return lastMessage ?? await db.ChatSessions
             .Where(s => s.Id == sessionId)
             .Select(s => (DateTime?)s.StartedAt)
             .SingleOrDefaultAsync(ct);
     }
 
     public Task<DateTime?> GetLastOpened(Guid sessionId, CancellationToken ct = default) =>
-        _db.ChatSessions
+        db.ChatSessions
             .Where(s => s.Id == sessionId)
             .Select(s => (DateTime?)(s.LastOpenedAt ?? s.StartedAt))
             .SingleOrDefaultAsync(ct);
 
     public async Task MarkOpened(Guid sessionId, DateTime openedAt, CancellationToken ct = default)
     {
-        await _db.ChatSessions
+        await db.ChatSessions
             .Where(s => s.Id == sessionId)
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(s => s.LastOpenedAt, openedAt),
@@ -103,7 +98,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
     {
         // Project the raw nullable columns and null-check after materialization — no null-forgiving
         // inside the expression tree.
-        var row = await _db.ChatSessions
+        var row = await db.ChatSessions
             .Where(s => s.Id == sessionId)
             .Select(s => new { s.RecapText, s.RecapActivityAt })
             .SingleOrDefaultAsync(ct);
@@ -115,7 +110,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
 
     public async Task SaveRecap(Guid sessionId, ChatRecap recap, CancellationToken ct = default)
     {
-        await _db.ChatSessions
+        await db.ChatSessions
             .Where(s => s.Id == sessionId)
             .ExecuteUpdateAsync(
                 setters => setters
@@ -126,7 +121,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
 
     public async Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default, Guid? turnId = null)
     {
-        var orderIndex = await _db.ChatMessages
+        var orderIndex = await db.ChatMessages
             .Where(m => m.SessionId == sessionId)
             .CountAsync(ct);
 
@@ -139,24 +134,24 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
             AuthorName = message.AuthorName,
             ItemsJson = SerializeContents(message),
             MetadataJson = SerializeMetadata(message.AdditionalProperties),
-            Timestamp = DateTime.UtcNow,
+            Timestamp = clock.GetUtcNow().UtcDateTime,
             OrderIndex = orderIndex
             ,TurnId = turnId
         };
 
-        _db.ChatMessages.Add(entity);
-        await _db.SaveChangesAsync(ct);
+        db.ChatMessages.Add(entity);
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task<IReadOnlyList<ChatMessage>?> LoadSession(Guid sessionId, CancellationToken ct = default)
     {
-        var sessionExists = await _db.ChatSessions
+        var sessionExists = await db.ChatSessions
             .AnyAsync(s => s.Id == sessionId, ct);
 
         if (!sessionExists)
             return null;
 
-        var entities = await _db.ChatMessages
+        var entities = await db.ChatMessages
             .Where(m => m.SessionId == sessionId)
             .OrderBy(m => m.OrderIndex)
             .ToListAsync(ct);
@@ -167,13 +162,13 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
     public async Task<(IReadOnlyList<ChatMessage> Messages, int Total)?> LoadSessionPage(
         Guid sessionId, int skip, int take, CancellationToken ct = default)
     {
-        var sessionExists = await _db.ChatSessions.AnyAsync(s => s.Id == sessionId, ct);
+        var sessionExists = await db.ChatSessions.AnyAsync(s => s.Id == sessionId, ct);
         if (!sessionExists)
             return null;
 
-        var total = await _db.ChatMessages.CountAsync(m => m.SessionId == sessionId, ct);
+        var total = await db.ChatMessages.CountAsync(m => m.SessionId == sessionId, ct);
 
-        var entities = await _db.ChatMessages
+        var entities = await db.ChatMessages
             .Where(m => m.SessionId == sessionId)
             .OrderBy(m => m.OrderIndex)
             .Skip(skip)
@@ -240,7 +235,7 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
 
     public async Task<ChatSummary?> GetSummary(Guid sessionId, CancellationToken ct = default)
     {
-        var session = await _db.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct);
+        var session = await db.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct);
         return session?.SummaryText is null
             ? null
             : new ChatSummary(session.SummaryText, session.SummaryCoveredCount);
@@ -248,11 +243,11 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
 
     public async Task SaveSummary(Guid sessionId, ChatSummary summary, CancellationToken ct = default)
     {
-        var session = await _db.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct)
+        var session = await db.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct)
             ?? throw new InvalidOperationException($"Chat session {sessionId} not found");
         session.SummaryText = summary.Text;
         session.SummaryCoveredCount = summary.CoveredCount;
-        await _db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);
     }
 
     private static void ApplyMetadata(ChatMessage message, string? metadataJson)

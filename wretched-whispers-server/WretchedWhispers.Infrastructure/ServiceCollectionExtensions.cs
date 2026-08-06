@@ -20,6 +20,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddDomainServices(this IServiceCollection services)
     {
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IRandomService, SeededRandomService>();
         services.AddSingleton<Dice>();
         services.AddScoped<IUserContext, UserContext>();

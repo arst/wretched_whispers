@@ -49,6 +49,7 @@ public class TurnCoordinatorTests
             _turnTraceRepo.Object,
             _unitOfWork.Object,
             _sessionLock.Object,
+            TimeProvider.System,
             NullLogger<TurnCoordinator>.Instance);
 
     private SessionContext MakeExplorationContext()

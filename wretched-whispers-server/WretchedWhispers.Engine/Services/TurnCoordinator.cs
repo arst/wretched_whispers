@@ -25,6 +25,7 @@ public sealed class TurnCoordinator(
     ITurnTraceRepository turnTraceRepository,
     IUnitOfWork unitOfWork,
     ISessionLock sessionLock,
+    TimeProvider clock,
     ILogger<TurnCoordinator> logger)
 {
     private static readonly JsonSerializerOptions TraceJson =
@@ -239,7 +240,7 @@ public sealed class TurnCoordinator(
 
     // Assembles one turn trace row. Tool-call arguments and tool results are stored as embedded JSON
     // (not escaped strings) so the exporter emits clean nested objects for error analysis.
-    private static TurnTraceEntity BuildTrace(
+    private TurnTraceEntity BuildTrace(
         Guid campaignId,
         Guid chatSessionId,
         SessionStage stage,
@@ -267,7 +268,7 @@ public sealed class TurnCoordinator(
             CampaignId = campaignId,
             ChatSessionId = chatSessionId,
             Stage = stage.ToString(),
-            Timestamp = DateTime.UtcNow,
+            Timestamp = clock.GetUtcNow().UtcDateTime,
             PlayerMessage = playerMessage,
             GameStateJson = gameStateJson,
             ToolCallsJson = callsArray.ToJsonString(),

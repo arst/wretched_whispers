@@ -11,7 +11,7 @@ public sealed class SqliteChatHistoryRepositoryTests : SqliteTestBase
 
     public SqliteChatHistoryRepositoryTests()
     {
-        _repo = new SqliteChatHistoryRepository(Db);
+        _repo = new SqliteChatHistoryRepository(Db, TimeProvider.System);
     }
 
     [Fact]
