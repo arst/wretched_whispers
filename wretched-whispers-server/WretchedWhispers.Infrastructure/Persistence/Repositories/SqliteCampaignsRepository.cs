@@ -11,9 +11,9 @@ public class SqliteCampaignsRepository(
     JsonSerializerOptions jsonOptions,
     IUserContext userContext) : ICampaignsRepository
 {
-    public async Task<Campaign?> Get(Guid campaignId)
+    public async Task<Campaign?> Get(Guid campaignId, CancellationToken ct = default)
     {
-        var entity = await db.Campaigns.FindAsync(campaignId);
+        var entity = await db.Campaigns.FindAsync([campaignId], ct);
         if (entity is null) return null;
 
         return JsonSerializer.Deserialize<Campaign>(entity.Data, jsonOptions);
@@ -42,11 +42,11 @@ public class SqliteCampaignsRepository(
             .ToList();
     }
 
-    public async Task SaveCampaign(Campaign campaign)
+    public async Task SaveCampaign(Campaign campaign, CancellationToken ct = default)
     {
         var userId = userContext.UserId;
         var json = JsonSerializer.Serialize(campaign, jsonOptions);
-        var entity = await db.Campaigns.FindAsync(campaign.Id);
+        var entity = await db.Campaigns.FindAsync([campaign.Id], ct);
 
         if (entity is not null)
         {
@@ -66,6 +66,6 @@ public class SqliteCampaignsRepository(
             db.Campaigns.Add(entity);
         }
 
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
     }
 }

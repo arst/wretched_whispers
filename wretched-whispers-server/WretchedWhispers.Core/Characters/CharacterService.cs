@@ -10,9 +10,10 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
     public async Task<ChallengeResult> ChallengePlayer(
         Guid characterId, Dr dr, AbilityKind ability, DifficultySettings settings,
         ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None,
-        bool spendOmenToLowerDr = false)
+        bool spendOmenToLowerDr = false,
+        CancellationToken ct = default)
     {
-        var character = await charactersRepository.Get(characterId);
+        var character = await charactersRepository.Get(characterId, ct);
 
         if (character is null) throw new InvalidOperationException($"Character with id {characterId} does not exist.");
 
@@ -25,18 +26,18 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
 
         // A spent omen must persist even when the test succeeds.
         if (spendOmenToLowerDr || consequenceApplied)
-            await charactersRepository.Save(character);
+            await charactersRepository.Save(character, ct);
 
         return new ChallengeResult(outcome, damageTaken, character.IsDead, character.Hp.Current);
     }
 
-    public async Task<GettingBetterOutcome> GetBetter(Guid characterId, bool allowAbilityLoss)
+    public async Task<GettingBetterOutcome> GetBetter(Guid characterId, bool allowAbilityLoss, CancellationToken ct = default)
     {
-        var character = await charactersRepository.Get(characterId);
+        var character = await charactersRepository.Get(characterId, ct);
         if (character is null) throw new InvalidOperationException($"Character with id {characterId} does not exist.");
 
         var outcome = character.GetBetter(dice, allowAbilityLoss);
-        await charactersRepository.Save(character);
+        await charactersRepository.Save(character, ct);
         return outcome;
     }
 }

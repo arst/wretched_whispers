@@ -12,56 +12,56 @@ public class EncounterService(
     ICharactersRepository charactersRepository,
     IEncountersRepository encountersRepository)
 {
-    public async Task<Encounter> CreateEncounter(string name, string description, EncounterType encounterType)
+    public async Task<Encounter> CreateEncounter(string name, string description, EncounterType encounterType, CancellationToken ct = default)
     {
         var encounter = Encounter.Create(name, description, encounterType, dice);
-        await encountersRepository.Save(encounter);
+        await encountersRepository.Save(encounter, ct);
         return encounter;
     }
 
-    public async Task AddAdversaries(Guid encounterId, IEnumerable<Adversary> adversaries)
+    public async Task AddAdversaries(Guid encounterId, IEnumerable<Adversary> adversaries, CancellationToken ct = default)
     {
-        var encounter = await encountersRepository.Get(encounterId) ??
+        var encounter = await encountersRepository.Get(encounterId, ct) ??
                         throw new InvalidOperationException("Encounter not found");
 
         foreach (var adversary in adversaries) encounter.AddAdversary(adversary);
 
-        await encountersRepository.Save(encounter);
+        await encountersRepository.Save(encounter, ct);
     }
 
-    public async Task<Encounter> StartEncounter(Guid encounterId)
+    public async Task<Encounter> StartEncounter(Guid encounterId, CancellationToken ct = default)
     {
-        var encounter = await encountersRepository.Get(encounterId) ??
+        var encounter = await encountersRepository.Get(encounterId, ct) ??
                         throw new InvalidOperationException("Encounter not found");
         encounter.StartEncounter();
-        await encountersRepository.Save(encounter);
+        await encountersRepository.Save(encounter, ct);
 
         return encounter;
     }
 
-    public async Task<Encounter> EndEncounter(Guid encounterId)
+    public async Task<Encounter> EndEncounter(Guid encounterId, CancellationToken ct = default)
     {
-        var encounter = await encountersRepository.Get(encounterId) ??
+        var encounter = await encountersRepository.Get(encounterId, ct) ??
                         throw new InvalidOperationException("Encounter not found");
         encounter.EndEncounter();
-        await encountersRepository.Save(encounter);
+        await encountersRepository.Save(encounter, ct);
 
         return encounter;
     }
 
-    public async Task<Encounter> TurnHostile(Guid encounterId)
+    public async Task<Encounter> TurnHostile(Guid encounterId, CancellationToken ct = default)
     {
-        var encounter = await encountersRepository.Get(encounterId) ??
+        var encounter = await encountersRepository.Get(encounterId, ct) ??
                         throw new InvalidOperationException("Encounter not found");
         encounter.TurnHostile();
-        await encountersRepository.Save(encounter);
+        await encountersRepository.Save(encounter, ct);
 
         return encounter;
     }
 
-    public async Task<bool> IsEncounterActive(Guid encounterId)
+    public async Task<bool> IsEncounterActive(Guid encounterId, CancellationToken ct = default)
     {
-        var encounter = await encountersRepository.Get(encounterId) ??
+        var encounter = await encountersRepository.Get(encounterId, ct) ??
                         throw new InvalidOperationException("Encounter not found");
         return encounter is { IsStarted: true, IsEnded: false };
     }
@@ -70,11 +70,12 @@ public class EncounterService(
     /// every adversary still standing (unless the player fled), then end-of-round bookkeeping.</summary>
     public async Task<CombatRoundOutcome> ResolveRound(
         Guid encounterId, Guid characterId, PlayerRoundAction action, string? targetName = null,
-        CombatOmenUse omenUse = CombatOmenUse.None, DifficultySettings? settings = null)
+        CombatOmenUse omenUse = CombatOmenUse.None, DifficultySettings? settings = null,
+        CancellationToken ct = default)
     {
-        var encounter = await encountersRepository.Get(encounterId)
+        var encounter = await encountersRepository.Get(encounterId, ct)
             ?? throw new InvalidOperationException("Encounter not found");
-        var character = await charactersRepository.Get(characterId)
+        var character = await charactersRepository.Get(characterId, ct)
             ?? throw new InvalidOperationException("Character not found");
         if (!encounter.IsStarted || encounter.IsEnded)
             throw new InvalidOperationException("The encounter is not in active combat.");
@@ -148,8 +149,8 @@ public class EncounterService(
         else if (endReason is EncounterEndReason.PlayerFled) encounter.EndByPlayerEscape();
         // PlayerDead: DeriveStage's IsDead check takes over; the encounter is left as-is.
 
-        await charactersRepository.Save(character);
-        await encountersRepository.Save(encounter);
+        await charactersRepository.Save(character, ct);
+        await encountersRepository.Save(encounter, ct);
 
         return new CombatRoundOutcome(
             playerAttack, attackedName, fleeAttempt, retaliations, fledThisRound,

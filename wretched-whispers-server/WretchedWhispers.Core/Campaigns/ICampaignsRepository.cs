@@ -10,12 +10,12 @@ public interface ICampaignsRepository
     /// Loads a campaign by its unique identifier, regardless of owner.
     /// Returns null if no campaign exists with the specified ID.
     /// </summary>
-    Task<Campaign?> Get(Guid campaignId);
+    Task<Campaign?> Get(Guid campaignId, CancellationToken ct = default);
 
     /// <summary>
     /// Saves the campaign, stamping ownership from the ambient user context.
     /// </summary>
-    Task SaveCampaign(Campaign campaign);
+    Task SaveCampaign(Campaign campaign, CancellationToken ct = default);
 
     /// <summary>
     /// Loads a campaign only if it belongs to the ambient user, as a single-row query.
