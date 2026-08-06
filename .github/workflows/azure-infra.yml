@@ -26,7 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: az bicep build --file deploy/azure/main.bicep
+      - run: |
+          az bicep build --file deploy/azure/main.bicep
+          az bicep build --file deploy/azure/destroy.bicep
 
   what-if:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'what-if'
