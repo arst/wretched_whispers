@@ -21,7 +21,14 @@ using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 
-var builder = WebApplication.CreateBuilder(args);
+// The standalone flavours are launched from arbitrary working directories (a double-clicked desktop
+// binary most of all), and the bundled UI sits in wwwroot next to the executable — so the content
+// root must be the executable's directory, not the default CWD, or the SPA silently isn't served.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = DeploymentProfile.UsesLocalAuth ? AppContext.BaseDirectory : null,
+});
 
 if (builder.Environment.IsDevelopment())
     builder.Configuration.AddUserSecrets(typeof(ServiceCollectionExtensions).Assembly, optional: true);

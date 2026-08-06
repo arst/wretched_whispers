@@ -36,6 +36,9 @@ docker run -p 8080:8080 -v ww-data:/data ghcr.io/arst/wretched-whispers
 
 When `OPENAI_API_KEY` is set on the container, it always wins over a key saved in the browser — including after a restart.
 
+Azure OpenAI works through its OpenAI-compatible endpoint: set `OPENAI_BASE_URL` to
+`https://<resource>.openai.azure.com/openai/v1` and `OPENAI_MODEL` to your deployment name.
+
 Game data (SQLite + settings) lives in the `/data` volume. The container serves plain HTTP on
 port 8080 — put Caddy/Traefik/nginx in front if you expose it beyond your machine.
 
