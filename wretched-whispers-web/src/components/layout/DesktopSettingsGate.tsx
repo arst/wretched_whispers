@@ -149,7 +149,9 @@ export default function DesktopSettingsGate({
               />
               <span className="normal-case text-doom-ash/60 text-[11px]">
                 Leave blank for OpenAI. For OpenRouter use the URL above and a
-                tool-calling model.
+                tool-calling model. For Azure OpenAI use
+                https://&lt;resource&gt;.openai.azure.com/openai/v1 and your
+                deployment name as the model.
               </span>
             </label>
 
