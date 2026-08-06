@@ -108,7 +108,11 @@ public sealed class Encounter
 
         if (outcome.Hit) adversary.ReceiveDamage(outcome.Damage.Amount);
 
-        if (!ShouldCheckMorale())
+        // Morale belongs to the living: a corpse can't flee (the killing blow used to roll morale
+        // for the target it just dropped — the round then reported the same creature dead AND fled),
+        // and when a group breaks it's the survivors who run, not just whoever was hit last.
+        var standing = Adversaries.Where(a => a is { IsDead: false, IsFled: false }).ToList();
+        if (standing.Count == 0 || !ShouldCheckMorale())
             return;
 
         var moraleDiceExpr = DiceExpr.D(2, 6);
@@ -116,10 +120,12 @@ public sealed class Encounter
 
         // MORK BORG RAW: 2d6 HIGHER than morale and they break. The comparison used to be inverted,
         // which made low-morale enemies the hardest to rout and turned losing fights into grinds.
-        if (moraleRoll <= adversary.Morale)
+        // One roll against the sturdiest survivor; the group breaks together.
+        if (moraleRoll <= standing.Max(a => a.Morale))
             return;
 
-        adversary.Retreat();
+        foreach (var survivor in standing)
+            survivor.Retreat();
     }
 
     private void Initiate(EncounterType initialType, Dice dice)
