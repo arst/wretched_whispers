@@ -57,6 +57,8 @@ public class DiceExprTests
     [InlineData("1d6d8")] // more than one 'd'
     [InlineData("0d6")] // non-positive dice count
     [InlineData("1d0")] // non-positive dice sides
+    [InlineData("99999999d9")] // count above the sanity cap: rolling is O(count) inside a turn
+    [InlineData("1d99999999")] // sides above the sanity cap
     public void Parse_MalformedExpression_ThrowsArgumentException(string input)
     {
         Assert.Throws<ArgumentException>(() => DiceExpr.Parse(input));

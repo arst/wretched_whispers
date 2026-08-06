@@ -89,12 +89,19 @@ public sealed class Campaign
 
         if (CurrentHour >= 24)
         {
-            CurrentDay += CurrentHour / 24;
+            var dawnsCrossed = CurrentHour / 24;
+            CurrentDay += dawnsCrossed;
             CurrentHour %= 24;
-            // Report only the misery this dawn actually triggered (0 or 1), not the standing tally —
-            // otherwise every dawn would re-announce miseries the world already suffered.
-            var triggered = Calendar.DawnRoll(DawnDice, dice);
-            List<string> newMiseries = triggered is null ? [] : [triggered.Psalm];
+            // One roll per dawn crossed — a 48-hour rest meets two dawns and the doom clock must
+            // tick for each, stopping if a misery ends the world mid-span. Report only the miseries
+            // these dawns actually triggered, not the standing tally — otherwise every dawn would
+            // re-announce miseries the world already suffered.
+            var newMiseries = new List<string>();
+            for (var dawn = 0; dawn < dawnsCrossed && !Calendar.WorldEnded; dawn++)
+            {
+                var triggered = Calendar.DawnRoll(DawnDice, dice);
+                if (triggered is not null) newMiseries.Add(triggered.Psalm);
+            }
             return new AdvanceTimeOutcome(newMiseries, Calendar.WorldEnded, true);
         }
 
