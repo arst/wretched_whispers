@@ -50,12 +50,26 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                     }
 
                     scope.ServiceProvider.GetRequiredService<IUserContext>().SetUserId(turn.UserId);
-                    var coordinator = scope.ServiceProvider.GetRequiredService<TurnCoordinator>();
                     string? error = null;
-                    await foreach (var item in coordinator.ExecuteTurnAsync(turn.CampaignId, turn.PlayerMessage, turn.Id, execution.Token))
+                    try
                     {
-                        await events.AppendAsync(turn.Id, item.EventType, item, execution.Token);
-                        if (item is Models.TurnError turnError) error = turnError.Message;
+                        var coordinator = scope.ServiceProvider.GetRequiredService<TurnCoordinator>();
+                        await foreach (var item in coordinator.ExecuteTurnAsync(turn.CampaignId, turn.PlayerMessage, turn.Id, execution.Token))
+                        {
+                            await events.AppendAsync(turn.Id, item.EventType, item, execution.Token);
+                            if (item is Models.TurnError turnError) error = turnError.Message;
+                        }
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        // A failure OUTSIDE the coordinator's own net — resolving it (a misconfigured
+                        // LLM client throws at DI time) or persisting its events. The coordinator turns
+                        // its failures into a terminal error event; these must end the same way, or the
+                        // client tails keepalives while the lease cycle burns the attempts for minutes.
+                        logger.LogError(ex, "Turn failed outside the coordinator — Turn={TurnId}", turn.Id);
+                        error = "An error occurred while processing your action";
+                        await events.AppendTerminalAsync(turn.Id, "error", new { message = error }, execution.Token);
                     }
                     await queue.CompleteAsync(turn.Id, _owner, error, execution.Token);
                     failures = 0;
