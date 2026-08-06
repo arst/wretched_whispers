@@ -23,7 +23,9 @@ public sealed class Inventory
     /// AddItem/RemoveItem/ConsumeItem/ReplenishItem.</summary>
     public IReadOnlyList<InventoryItem> InventoryItems => _inventoryItems;
 
-    [JsonIgnore] public bool IsFull => GetFreeSlots() == 0;
+    // <= not ==: a Strength loss can shrink MaxCapacity below what's already carried, driving free
+    // slots negative — an equality test would report that overstuffed inventory as not-full forever.
+    [JsonIgnore] public bool IsFull => GetFreeSlots() <= 0;
 
     /// <summary>The one home of the carry rule: Strength+8 slots carried free, twice that as the hard cap.</summary>
     public static int CapacityFor(AbilityScore strength)
@@ -38,7 +40,10 @@ public sealed class Inventory
 
     public void AddItem(InventoryItem item)
     {
-        if (IsFull) throw new InvalidOperationException("Inventory is full, throw away another item to add a new one.");
+        // The item's whole slot cost must fit: a bulky item needs two slots, and one free slot
+        // plus a bulky add would push occupancy past capacity.
+        if (GetFreeSlots() < (item.IsBulky ? 2 : 1))
+            throw new InvalidOperationException("Inventory is full, throw away another item to add a new one.");
 
         _inventoryItems.Add(item);
     }
@@ -86,6 +91,7 @@ public sealed class Inventory
 
     public bool IsEncumbered(AbilityScore abilitiesStrength)
     {
-        return FreeCarrySlots(abilitiesStrength) <= CalculateOccupiedSlots();
+        // Strictly above the free allowance: exactly Strength+8 slots is still carried free.
+        return CalculateOccupiedSlots() > FreeCarrySlots(abilitiesStrength);
     }
 }

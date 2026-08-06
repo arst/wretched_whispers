@@ -65,6 +65,32 @@ public class InventoryTests
     }
 
     [Fact]
+    public void AddItem_BulkyItemWithOneFreeSlot_ShouldThrowInsteadOfOverfilling()
+    {
+        var inventory = new Inventory("Backpack", 3, []);
+        inventory.AddItem(new InventoryItem(Guid.NewGuid(), "Rope", false, false));
+        inventory.AddItem(new InventoryItem(Guid.NewGuid(), "Torch", false, false));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            inventory.AddItem(new InventoryItem(Guid.NewGuid(), "Heavy Armor", true, false)));
+    }
+
+    [Fact]
+    public void IsFull_WhenCapacityIsBelowOccupancy_ShouldStayFull()
+    {
+        // A Strength loss shrinks MaxCapacity below what's already carried (Character.ModifyAbility);
+        // this is that state as it comes back from persistence. The inventory must report full, not
+        // resurrect as it did when free slots went negative.
+        var inventory = new Inventory("Backpack", 3, [
+            new InventoryItem(Guid.NewGuid(), "Heavy Armor", true, false),
+            new InventoryItem(Guid.NewGuid(), "Heavy Shield", true, false)]);
+
+        Assert.True(inventory.IsFull);
+        Assert.Throws<InvalidOperationException>(() =>
+            inventory.AddItem(new InventoryItem(Guid.NewGuid(), "Rope", false, false)));
+    }
+
+    [Fact]
     public void AddItem_BulkyItem_ShouldTakeTwoSlots()
     {
         // Arrange
@@ -215,17 +241,18 @@ public class InventoryTests
     }
 
     [Theory]
-    [InlineData(-3, 3, false)] // Strength -3 + 8 = 5, occupied slots = 4, not encumbered
-    [InlineData(-3, 5, true)]  // Strength -3 + 8 = 5, occupied slots = 5, encumbered
-    [InlineData(0, 6, false)]  // Strength 0 + 8 = 8, occupied slots = 7, not encumbered
-    [InlineData(0, 8, true)]   // Strength 0 + 8 = 8, occupied slots = 8, encumbered
-    [InlineData(2, 9, false)]  // Strength 2 + 8 = 10, occupied slots = 9, not encumbered
-    [InlineData(2, 10, true)]  // Strength 2 + 8 = 10, occupied slots = 10, encumbered
+    [InlineData(-3, 4, false)] // Strength -3 + 8 = 5 free, occupied 4: under the allowance
+    [InlineData(-3, 5, false)] // exactly Strength+8 is still carried free
+    [InlineData(-3, 6, true)]  // one over the allowance
+    [InlineData(0, 8, false)]  // Strength 0 + 8 = 8 free, occupied 8: exact, free
+    [InlineData(0, 9, true)]   // one over
+    [InlineData(2, 10, false)] // Strength 2 + 8 = 10 free, occupied 10: exact, free
+    [InlineData(2, 11, true)]  // one over
     public void IsEncumbered_WithVariousStrengthAndOccupiedSlots_ShouldCalculateCorrectly(
         int strengthModifier, int occupiedSlots, bool expectedEncumbered)
     {
         // Arrange
-        var inventory = new Inventory("Backpack", 10, []);
+        var inventory = new Inventory("Backpack", 20, []);
         var strength = new AbilityScore(strengthModifier);
         
         // Add items to reach desired occupied slots
