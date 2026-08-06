@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http.Metadata;
+using WretchedWhispers.Api.Deployment;
 using WretchedWhispers.Infrastructure;
 
 namespace WretchedWhispers.Api.Endpoints;
@@ -12,8 +13,9 @@ public static class AuthenticatedApi
     /// an authenticated principal, the first filter guarantees the ambient user scope, the second turns
     /// the antiforgery middleware's verdict into our error contract. Handlers assume all three.
     /// </summary>
-    public static RouteGroupBuilder MapAuthenticatedApi(this WebApplication app) =>
-        app.MapGroup("/api")
+    public static RouteGroupBuilder MapAuthenticatedApi(this WebApplication app)
+    {
+        var group = app.MapGroup("/api")
             .RequireAuthorization()
             .AddEndpointFilter(async (context, next) =>
             {
@@ -24,8 +26,15 @@ public static class AuthenticatedApi
 
                 http.RequestServices.GetRequiredService<IUserContext>().SetUserId(userId);
                 return await next(context);
-            })
-            .RequireAntiforgery();
+            });
+
+        // Only the hosted profile runs UseAntiforgery (Program.cs) — carrying the metadata without
+        // the middleware makes EndpointMiddleware fault every request in the standalone profiles.
+        if (DeploymentProfile.UsesIdentity)
+            group.RequireAntiforgery();
+
+        return group;
+    }
 }
 
 public static class AntiforgeryExtensions
