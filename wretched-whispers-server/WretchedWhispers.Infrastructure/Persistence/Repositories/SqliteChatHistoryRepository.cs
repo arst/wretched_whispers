@@ -99,11 +99,19 @@ public class SqliteChatHistoryRepository : IChatHistoryRepository
                 ct);
     }
 
-    public Task<ChatRecap?> GetRecap(Guid sessionId, CancellationToken ct = default) =>
-        _db.ChatSessions
-            .Where(s => s.Id == sessionId && s.RecapText != null && s.RecapActivityAt != null)
-            .Select(s => new ChatRecap(s.RecapText!, s.RecapActivityAt!.Value))
+    public async Task<ChatRecap?> GetRecap(Guid sessionId, CancellationToken ct = default)
+    {
+        // Project the raw nullable columns and null-check after materialization — no null-forgiving
+        // inside the expression tree.
+        var row = await _db.ChatSessions
+            .Where(s => s.Id == sessionId)
+            .Select(s => new { s.RecapText, s.RecapActivityAt })
             .SingleOrDefaultAsync(ct);
+
+        return row?.RecapText is { } text && row.RecapActivityAt is { } activityAt
+            ? new ChatRecap(text, activityAt)
+            : null;
+    }
 
     public async Task SaveRecap(Guid sessionId, ChatRecap recap, CancellationToken ct = default)
     {

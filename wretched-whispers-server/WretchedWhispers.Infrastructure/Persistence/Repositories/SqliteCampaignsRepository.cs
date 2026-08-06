@@ -34,8 +34,11 @@ public class SqliteCampaignsRepository(
             .Where(c => c.UserId == userContext.UserId)
             .ToListAsync(ct);
 
+        // Skip rows whose blob no longer deserializes instead of returning a null element that
+        // NREs far from the cause — same policy as SqliteCharactersRepository.GetMany.
         return entities
-            .Select(e => JsonSerializer.Deserialize<Campaign>(e.Data, jsonOptions)!)
+            .Select(e => JsonSerializer.Deserialize<Campaign>(e.Data, jsonOptions))
+            .OfType<Campaign>()
             .ToList();
     }
 
