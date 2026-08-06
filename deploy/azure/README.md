@@ -13,11 +13,14 @@ migration executions, revisions, labels, and traffic.
    `Role Based Access Control Administrator` on only the target resource group. Bicep uses the
    latter to grant ACR pull and Key Vault access to the workload identity.
 3. Protect the GitHub `production` Environment with required reviewers.
-4. Configure repository/environment variables:
-   `AZURE_CLIENT_ID`, `AZURE_PRINCIPAL_OBJECT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
-   `AZURE_RESOURCE_GROUP`, `AZURE_ENVIRONMENT_NAME`, `AZURE_LOCATION`, `AZURE_OPENAI_ENDPOINT`, and
-   `AZURE_OPENAI_DEPLOYMENT`.
-5. Configure Environment secrets `POSTGRES_ADMIN_PASSWORD` and `AZURE_OPENAI_KEY`.
+4. Configure repository variables `AZURE_RESOURCE_GROUP`, `AZURE_ENVIRONMENT_NAME`,
+   `AZURE_LOCATION`, `AZURE_OPENAI_ENDPOINT`, and `AZURE_OPENAI_DEPLOYMENT` (the last two may stay
+   unset for a keyless deployment — the app boots and only turns fail).
+5. Configure repository secrets `AZURE_CLIENT_ID`, `AZURE_PRINCIPAL_OBJECT_ID`, `AZURE_TENANT_ID`,
+   and `AZURE_SUBSCRIPTION_ID`. These are identifiers rather than credentials — OIDC federation is
+   what authenticates — but secrets keep them masked out of public workflow logs.
+6. Configure Environment secrets `POSTGRES_ADMIN_PASSWORD` and `AZURE_OPENAI_KEY` (the latter may
+   stay unset; bootstrap stores a placeholder so the Key Vault reference still resolves).
 
 The client ID identifies the OIDC application; the principal object ID is the corresponding
 service principal object used in Azure role assignments.
