@@ -14,10 +14,15 @@ public static class StandaloneHost
     {
         var config = new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Default"] = $"Data Source={Path.Combine(DataDir, "wretched-whispers.db")}",
             ["Llm:Provider"] = "openai",
             ["Llm:Model"] = DefaultModel,
         };
+
+        // This layer is added AFTER the default environment-variable provider, so seeding the key
+        // unconditionally would mask ConnectionStrings__Default — the standard ASP.NET variable,
+        // and one of the two the postgres startup guard tells the user to set.
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ConnectionStrings__Default")))
+            config["ConnectionStrings:Default"] = $"Data Source={Path.Combine(DataDir, "wretched-whispers.db")}";
 
         if (!File.Exists(SettingsPath)) return config;
 
