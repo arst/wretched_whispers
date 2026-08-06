@@ -63,13 +63,19 @@ public readonly record struct DiceExpr(int Count, int Sides, int Constant = 0)
         if (parts.Length != 2)
             throw new ArgumentException($"Invalid dice expression format: {diceExpression}", nameof(diceExpression));
 
+        // Parse is the untrusted path — model-supplied strings arrive here via ToolGuard. Rolling is
+        // O(count), so an absurd count would spin inside an open turn transaction; no game expression
+        // comes near these caps.
+        const int maxCount = 100;
+        const int maxSides = 1000;
+
         int count;
         if (string.IsNullOrEmpty(parts[0]))
             count = 1;
-        else if (!int.TryParse(parts[0], out count) || count <= 0)
+        else if (!int.TryParse(parts[0], out count) || count <= 0 || count > maxCount)
             throw new ArgumentException($"Invalid dice count: {parts[0]}", nameof(diceExpression));
 
-        if (!int.TryParse(parts[1], out var sides) || sides <= 0)
+        if (!int.TryParse(parts[1], out var sides) || sides <= 0 || sides > maxSides)
             throw new ArgumentException($"Invalid dice sides: {parts[1]}", nameof(diceExpression));
 
         return new DiceExpr(count, sides, constant);

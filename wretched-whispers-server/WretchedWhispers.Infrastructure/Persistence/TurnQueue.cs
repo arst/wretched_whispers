@@ -30,7 +30,10 @@ public sealed class TurnQueue(WretchedWhispersDbContext db)
             // Lost the race on the (user, request id) index — the winner's row is the answer. Detach
             // ours first or the failed insert stays Added and re-fires on the next SaveChanges.
             db.Entry(turn).State = EntityState.Detached;
-            var raced = await db.TurnRequests.SingleAsync(x => x.UserId == userId && x.ClientRequestId == clientRequestId, ct);
+            var raced = await db.TurnRequests.SingleOrDefaultAsync(x => x.UserId == userId && x.ClientRequestId == clientRequestId, ct);
+            // No winner row means this wasn't the idempotency race (FK failure, disk full, ...) —
+            // surface the real save error instead of burying it under a phantom-row lookup.
+            if (raced is null) throw;
             return Replay(raced, campaignId, message);
         }
         return new TurnEnqueueResult(turn, Created: true);

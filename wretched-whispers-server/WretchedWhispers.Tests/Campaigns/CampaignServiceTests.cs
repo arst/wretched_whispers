@@ -195,6 +195,23 @@ public class CampaignServiceTests : TestBase
     }
 
     [Fact]
+    public async Task AdvanceTime_AcrossTwoDawns_RollsTheDoomClockForEach()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
+        // Two dawns crossed, both trigger (dawn roll 1), each picking a distinct misery
+        // (d6*10+d6 indices 11 and 12). One roll per dawn — a 48-hour span used to tick once.
+        SetupDiceRolls(0, 0, 0, 0, 0, 1);
+
+        var result = await _service.AdvanceTime(Guid.NewGuid(), 48);
+
+        Assert.Equal(3, campaign.CurrentDay);
+        Assert.Equal(0, campaign.CurrentHour);
+        Assert.True(result.IsNewDawn);
+        Assert.Equal(2, result.Miseries.Count);
+    }
+
+    [Fact]
     public async Task AdvanceTimeWithRest_FullNightRest_AdvancesClockAndRefreshesOmens()
     {
         // Arrange
