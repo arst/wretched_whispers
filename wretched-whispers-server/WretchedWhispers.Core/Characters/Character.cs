@@ -367,9 +367,6 @@ public sealed class Character
         if (price <= 0)
             throw new ArgumentOutOfRangeException(nameof(price), "Price must be positive.");
 
-        if (Inventory.IsFull)
-            throw new InvalidOperationException("Inventory is full, throw away another item to add a new one.");
-
         if (Silver < price) throw new InvalidOperationException("Not enough silver to buy the item.");
 
         Inventory.AddItem(item);
