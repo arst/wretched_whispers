@@ -184,7 +184,12 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = if (deployApplication) {
   properties: {
     environmentId: containerEnvironment.id
     configuration: {
-      activeRevisionsMode: 'Multiple'
+      // Single-revision mode: az containerapp update does the rollout natively — new revision, health
+// gate, traffic cutover, old revision deactivated. The deactivation is load-bearing: TurnWorker
+// polls a shared queue from every live replica, so a lingering old revision (as blue/green keeps
+// for rollback) would keep claiming turns with outdated code. Rollback = redeploy the previous
+// immutable SHA-tagged image.
+activeRevisionsMode: 'Single'
       maxInactiveRevisions: 5
       registries: [
         {

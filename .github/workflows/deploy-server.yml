@@ -33,7 +33,7 @@ jobs:
           docker build --build-arg DEPLOYMENT_PROFILE=Server -t "$image" .
           docker push "$image"
           echo "IMAGE=$image" >> "$GITHUB_ENV"
-      - name: Migrate, verify green, and shift traffic
+      - name: Migrate, roll out, and verify
         env:
           RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
@@ -54,6 +54,11 @@ jobs:
           done
           test "$status" = Succeeded
 
+          # Single-revision mode: the update below does the rollout natively — new revision, health
+          # gate, traffic cutover, old revision deactivated. Deactivation matters here: TurnWorker
+          # polls a shared queue from every live replica, so a lingering old revision (as blue/green
+          # keeps for rollback) would keep claiming turns with outdated code. Rollback is redeploying
+          # the previous immutable SHA-tagged image.
           if ! az containerapp show -g "$RESOURCE_GROUP" -n "$app" >/dev/null 2>&1; then
             az deployment group create --name "$DEPLOYMENT_NAME" -g "$RESOURCE_GROUP" \
               --template-file deploy/azure/main.bicep \
@@ -64,31 +69,19 @@ jobs:
                 azureOpenAiEndpoint="${{ vars.AZURE_OPENAI_ENDPOINT }}" \
                 azureOpenAiDeployment="${{ vars.AZURE_OPENAI_DEPLOYMENT }}" \
                 image="$IMAGE" deployWorkloads=true deployApplication=true >/dev/null
-            first_revision=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.latestRevisionName -o tsv)
-            az containerapp revision label add -g "$RESOURCE_GROUP" -n "$app" \
-              --revision "$first_revision" --label green --yes >/dev/null
-            fqdn=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.configuration.ingress.fqdn -o tsv)
-            scripts/verify-server-revision.sh "https://$fqdn"
-            exit 0
+          else
+            # set-mode is idempotent and migrates an app created before the Single-mode template.
+            az containerapp revision set-mode -g "$RESOURCE_GROUP" -n "$app" --mode single >/dev/null
+            az containerapp update -g "$RESOURCE_GROUP" -n "$app" --image "$IMAGE" >/dev/null
           fi
 
-          blue=$(az containerapp revision list -g "$RESOURCE_GROUP" -n "$app" \
-            --query "sort_by([?properties.trafficWeight > \`0\`], &properties.trafficWeight)[-1].name" -o tsv)
-          az containerapp revision label add -g "$RESOURCE_GROUP" -n "$app" --revision "$blue" --label blue --yes >/dev/null
-          az containerapp ingress traffic set -g "$RESOURCE_GROUP" -n "$app" --revision-weight "$blue=100" >/dev/null
-          suffix="g${GITHUB_SHA:0:8}"
-          az containerapp update -g "$RESOURCE_GROUP" -n "$app" --image "$IMAGE" --revision-suffix "$suffix" >/dev/null
-          green=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.latestRevisionName -o tsv)
-          az containerapp revision label add -g "$RESOURCE_GROUP" -n "$app" --revision "$green" --label green --yes >/dev/null
-          rollback() { az containerapp ingress traffic set -g "$RESOURCE_GROUP" -n "$app" --revision-weight "$blue=100" "$green=0" >/dev/null; }
-          trap rollback ERR
-          fqdn=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.configuration.ingress.fqdn -o tsv)
-          green_fqdn=${fqdn/$app/$app---green}
-          scripts/verify-server-revision.sh "https://$green_fqdn"
-          for green_weight in 10 50 100; do
-            blue_weight=$((100 - green_weight))
-            az containerapp ingress traffic set -g "$RESOURCE_GROUP" -n "$app" \
-              --revision-weight "$blue=$blue_weight" "$green=$green_weight" >/dev/null
-            curl -fsS "https://$fqdn/health/ready" >/dev/null
+          for attempt in {1..60}; do
+            latest=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.latestRevisionName -o tsv)
+            ready=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.latestReadyRevisionName -o tsv)
+            [ "$latest" = "$ready" ] && break
+            sleep 5
           done
-          trap - ERR
+          test "$latest" = "$ready"
+
+          fqdn=$(az containerapp show -g "$RESOURCE_GROUP" -n "$app" --query properties.configuration.ingress.fqdn -o tsv)
+          scripts/verify-server-revision.sh "https://$fqdn"

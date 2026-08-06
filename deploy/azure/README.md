@@ -33,8 +33,9 @@ service principal object used in Azure role assignments.
    creates/rotates `ww_migrator` and DML-only `ww_app`, stores their connection strings and the
    Azure OpenAI key in Key Vault, removes the temporary firewall rule, and provisions the manual
    migration job.
-4. Run **Deploy Server**. It builds the commit-SHA image in ACR, runs the migration job, verifies a
-   zero-production-traffic green revision, then moves traffic through 10%, 50%, and 100%.
+4. Run **Deploy Server**. It builds the commit-SHA image in ACR, runs the migration job, rolls the
+   container app to the new image (single-revision mode: health-gated cutover, old revision
+   deactivated), and verifies the deployment end-to-end over HTTPS.
 
 `production.bicepparam.example` documents every template input. Copy it without the `.example`
 suffix for local use; real parameter files are ignored because the administrator password is a
@@ -45,11 +46,14 @@ secure deployment input.
 - The API receives only the `ww_app` connection; the job alone receives `ww_migrator`.
 - Both connections and the Azure OpenAI key are versionless Key Vault references, so rotation does
   not require editing Bicep.
-- The previous `blue` revision stays active. Rollback is traffic-only:
+- The app runs in single-revision mode: `az containerapp update` health-gates the cutover and
+  deactivates the old revision. The deactivation is deliberate — `TurnWorker` polls a shared queue
+  from every live replica, so a lingering old revision would keep claiming turns with outdated
+  code. Rollback is redeploying the previous immutable image:
 
   ```bash
-  az containerapp ingress traffic set -g RESOURCE_GROUP -n APP \
-    --label-weight blue=100 green=0
+  az containerapp update -g RESOURCE_GROUP -n APP \
+    --image REGISTRY.azurecr.io/wretched-whispers:PREVIOUS_COMMIT_SHA
   ```
 
 - The default public PostgreSQL rule permits connections originating from Azure services because a
