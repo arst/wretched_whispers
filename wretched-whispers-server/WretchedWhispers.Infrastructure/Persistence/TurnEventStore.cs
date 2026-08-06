@@ -11,10 +11,20 @@ public sealed class TurnEventStore(IServiceScopeFactory scopes)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-        var sequence = (await db.TurnEvents.Where(x => x.TurnId == turnId).MaxAsync(x => (long?)x.Sequence, ct) ?? 0) + 1;
-        db.TurnEvents.Add(new TurnEventEntity { Id = Guid.NewGuid(), TurnId = turnId, Sequence = sequence,
-            EventType = eventType, Payload = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web), CreatedAt = DateTime.UtcNow });
-        await db.SaveChangesAsync(ct);
+        // Two appenders can race the same next sequence — the unique (TurnId, Sequence) index picks
+        // the winner, the loser recomputes and retries.
+        for (var attempt = 0; ; attempt++)
+        {
+            var sequence = (await db.TurnEvents.Where(x => x.TurnId == turnId).MaxAsync(x => (long?)x.Sequence, ct) ?? 0) + 1;
+            var entity = new TurnEventEntity { Id = Guid.NewGuid(), TurnId = turnId, Sequence = sequence,
+                EventType = eventType, Payload = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web), CreatedAt = DateTime.UtcNow };
+            db.TurnEvents.Add(entity);
+            try { await db.SaveChangesAsync(ct); return; }
+            catch (DbUpdateException) when (attempt < 3)
+            {
+                db.Entry(entity).State = EntityState.Detached;
+            }
+        }
     }
 
     public async Task<List<TurnEventEntity>> ReadAfterAsync(Guid turnId, long sequence, CancellationToken ct)
