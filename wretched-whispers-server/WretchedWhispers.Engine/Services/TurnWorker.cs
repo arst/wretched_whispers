@@ -52,7 +52,7 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                     scope.ServiceProvider.GetRequiredService<IUserContext>().SetUserId(turn.UserId);
                     var coordinator = scope.ServiceProvider.GetRequiredService<TurnCoordinator>();
                     string? error = null;
-                    await foreach (var item in coordinator.ExecuteTurnAsync(turn.CampaignId, turn.PlayerMessage, execution.Token, turn.Id))
+                    await foreach (var item in coordinator.ExecuteTurnAsync(turn.CampaignId, turn.PlayerMessage, turn.Id, execution.Token))
                     {
                         await events.AppendAsync(turn.Id, item.EventType, item, execution.Token);
                         if (item is Models.TurnError turnError) error = turnError.Message;

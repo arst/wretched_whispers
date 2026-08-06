@@ -34,8 +34,8 @@ public sealed class TurnCoordinator(
     public IAsyncEnumerable<GameTurnEvent> ExecuteTurnAsync(
         Guid sessionId,
         string playerMessage,
-        CancellationToken ct,
-        Guid? turnId = null) =>
+        Guid? turnId = null,
+        CancellationToken ct = default) =>
         RunProducer(
             (writer, token) => ProduceEventsAsync(writer, sessionId, playerMessage, token, turnId),
             ct);

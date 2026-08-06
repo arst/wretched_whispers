@@ -148,7 +148,7 @@ public class TurnCoordinatorTests
         var coordinator = CreateCoordinator();
 
         var events = new List<GameTurnEvent>();
-        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "I explore", CancellationToken.None))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "I explore", ct: CancellationToken.None))
             events.Add(evt);
 
         var error = Assert.Single(events.OfType<TurnError>());
@@ -177,7 +177,7 @@ public class TurnCoordinatorTests
 
         // Act
         var events = new List<GameTurnEvent>();
-        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "I explore", CancellationToken.None))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "I explore", ct: CancellationToken.None))
         {
             events.Add(evt);
         }
@@ -214,7 +214,7 @@ public class TurnCoordinatorTests
             .Returns(Task.CompletedTask);
 
         var coordinator = CreateCoordinator();
-        await foreach (var _ in coordinator.ExecuteTurnAsync(_sessionId, "I buy the map", CancellationToken.None)) { }
+        await foreach (var _ in coordinator.ExecuteTurnAsync(_sessionId, "I buy the map", ct: CancellationToken.None)) { }
 
         Assert.NotNull(saved);
         Assert.NotNull(saved!.TurnDeltaJson);
@@ -252,7 +252,7 @@ public class TurnCoordinatorTests
 
         // Act
         var events = new List<GameTurnEvent>();
-        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "attack", CancellationToken.None))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "attack", ct: CancellationToken.None))
             events.Add(evt);
 
         // Assert
@@ -276,7 +276,7 @@ public class TurnCoordinatorTests
 
         // Act
         var events = new List<GameTurnEvent>();
-        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "hello", CancellationToken.None))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "hello", ct: CancellationToken.None))
         {
             events.Add(evt);
         }
@@ -299,7 +299,7 @@ public class TurnCoordinatorTests
 
         // Act
         var events = new List<GameTurnEvent>();
-        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "hello", CancellationToken.None))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "hello", ct: CancellationToken.None))
         {
             events.Add(evt);
         }
@@ -323,7 +323,7 @@ public class TurnCoordinatorTests
 
         // Act
         var events = new List<GameTurnEvent>();
-        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "continue", CancellationToken.None))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "continue", ct: CancellationToken.None))
             events.Add(evt);
 
         // Assert — the client is re-synced to the ended state, then the turn is refused. No narration
