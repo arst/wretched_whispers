@@ -134,6 +134,11 @@ public static class StagePrompts
           the domain rolls everything. Narrate the returned result, including ability losses.
           ImproveCharacterAbility and DegradeCharacterAbility are for story-driven blessings and curses,
           never for leveling.
+
+        The aftermath ENDS the moment the player moves on -- departing the scene, resuming the journey,
+        turning to anything beyond this fight's fallout. When that happens you MUST call
+        CompleteResolution, alongside whatever tools the departure itself needs; the session cannot
+        return to exploration without it.
         """;
 
     // Unreachable in normal play: TurnCoordinator refuses Ended turns before any prompt is composed

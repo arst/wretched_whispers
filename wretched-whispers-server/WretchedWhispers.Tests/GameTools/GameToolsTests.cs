@@ -138,9 +138,17 @@ public class GameToolsTests
     [Fact]
     public async Task CreateEncounter_SetsActiveEncounterId()
     {
-        var result = await EncounterTools().CreateEncounter("Goblins", "A goblin ambush", "Hostile");
+        // The DTO carries no id (the model never sees GUIDs), so the saved aggregate is the witness.
+        Encounter? saved = null;
+        _encountersRepo
+            .Setup(r => r.Save(It.IsAny<Encounter>(), It.IsAny<CancellationToken>()))
+            .Callback<Encounter, CancellationToken>((e, _) => saved = e)
+            .Returns(Task.CompletedTask);
 
-        Assert.Equal(result.Id, _context.ActiveEncounterId);
+        await EncounterTools().CreateEncounter("Goblins", "A goblin ambush", "Hostile");
+
+        Assert.NotNull(saved);
+        Assert.Equal(saved!.Id, _context.ActiveEncounterId);
     }
 
     [Fact]

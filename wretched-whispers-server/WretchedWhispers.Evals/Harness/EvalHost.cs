@@ -59,6 +59,10 @@ public sealed class EvalHost : IAsyncDisposable
         services.AddDomainServices();
         services.AddGameAgentOrchestration();
         services.AddSingleton(chatClient);
+        // Deterministic dice (last registration wins over AddDomainServices' unseeded default):
+        // rolled values land in tool results, which land in model requests — unseeded dice would
+        // change the request hash every run and defeat the response cache.
+        services.AddSingleton<IRandomService>(new SeededRandomService(seed: 1));
 
         var provider = services.BuildServiceProvider();
 
@@ -90,7 +94,53 @@ public sealed class EvalHost : IAsyncDisposable
         return new EvalHost(connection, provider, sessionId, chatSessionId);
     }
 
-    public static async Task<EvalHost> CreateCombatAsync(IChatClient chatClient)
+    /// <summary>Combat mid-fight: the priest stands, the encounter is started. Pass
+    /// <paramref name="scrolls"/> for scenarios that cast in combat (default keeps the shared seed
+    /// byte-identical so existing scenarios' cached responses stay valid).</summary>
+    public static async Task<EvalHost> CreateCombatAsync(
+        IChatClient chatClient, IReadOnlyList<Scroll>? scrolls = null)
+    {
+        var host = await CreateAsync(chatClient);
+
+        await using var scope = host._provider.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        SetEvalUser(sp);
+
+        var dice = sp.GetRequiredService<Dice>();
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var charactersRepo = sp.GetRequiredService<ICharactersRepository>();
+        var encountersRepo = sp.GetRequiredService<IEncountersRepository>();
+
+        var campaign = await campaignsRepo.Get(host.SessionId)
+            ?? throw new InvalidOperationException("Seed campaign was not found.");
+
+        var character = SeedTuck(dice, scrolls: scrolls?.ToList() ?? []);
+        await charactersRepo.Save(character);
+
+        var encounter = Encounter.Create("Chapel Duel", "A priest blocks the road.", EncounterType.Hostile, dice);
+        encounter.AddAdversary(new Adversary(
+            "Priest",
+            new HitPoints(4, 4),
+            new Armor(ArmorTier.Light),
+            7,
+            new AttackProfile("Brass crucible", DiceExpr.Parse("1d4"))));
+        encounter.StartEncounter();
+        await encountersRepo.Save(encounter);
+
+        campaign.JoinGame(character.Id);
+        campaign.AddEncounter(encounter.Id);
+        campaign.Start();
+        await campaignsRepo.SaveCampaign(campaign);
+
+        return host;
+    }
+
+    /// <summary>
+    /// The combat aftermath: same fight as <see cref="CreateCombatAsync"/> but the priest already
+    /// slain and the encounter ended (not resolved), so <c>DeriveStage</c> gives
+    /// <see cref="SessionStage.Resolution"/> and the Resolution-only tools are in play.
+    /// </summary>
+    public static async Task<EvalHost> CreateResolutionAsync(IChatClient chatClient)
     {
         var host = await CreateAsync(chatClient);
 
@@ -110,13 +160,16 @@ public sealed class EvalHost : IAsyncDisposable
         await charactersRepo.Save(character);
 
         var encounter = Encounter.Create("Chapel Duel", "A priest blocks the road.", EncounterType.Hostile, dice);
-        encounter.AddAdversary(new Adversary(
+        var priest = new Adversary(
             "Priest",
             new HitPoints(4, 4),
             new Armor(ArmorTier.Light),
             7,
-            new AttackProfile("Brass crucible", DiceExpr.Parse("1d4"))));
+            new AttackProfile("Brass crucible", DiceExpr.Parse("1d4")));
+        encounter.AddAdversary(priest);
         encounter.StartEncounter();
+        priest.ReceiveDamage(4);
+        encounter.EndEncounter();
         await encountersRepo.Save(encounter);
 
         campaign.JoinGame(character.Id);
@@ -231,6 +284,15 @@ public sealed class EvalHost : IAsyncDisposable
             ChatSessionId);
         _runners.Add(runner);
         return runner;
+    }
+
+    /// <summary>Reads committed domain state after a turn (e.g. the active encounter's reaction, the
+    /// derived stage) so scenarios can assert on the DOMAIN's truth, not on tool-result strings.</summary>
+    public async Task<T> QueryAsync<T>(Func<IServiceProvider, Task<T>> query)
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        SetEvalUser(scope.ServiceProvider);
+        return await query(scope.ServiceProvider);
     }
 
     public async ValueTask DisposeAsync()

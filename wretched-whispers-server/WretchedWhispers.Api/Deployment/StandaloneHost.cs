@@ -5,8 +5,6 @@ namespace WretchedWhispers.Api.Deployment;
 
 public static class StandaloneHost
 {
-    public const string DefaultModel = "gpt-4o";
-
     public static string DataDir { get; } = CreateDataDir();
     public static string SettingsPath => Path.Combine(DataDir, "settings.json");
 
@@ -15,7 +13,7 @@ public static class StandaloneHost
         var config = new Dictionary<string, string?>
         {
             ["Llm:Provider"] = "openai",
-            ["Llm:Model"] = DefaultModel,
+            ["Llm:Model"] = DesktopLlmOptions.DefaultModel,
         };
 
         // This layer is added AFTER the default environment-variable provider, so seeding the key

@@ -139,7 +139,6 @@ public sealed class EncounterTools(
 
     private static EncounterDto CreateEncounterDto(Encounter encounter) => new()
     {
-        Id = encounter.Id,
         Name = encounter.Name,
         Description = encounter.Description,
         Disposition = encounter.CurrentType.ToString(),
@@ -147,7 +146,6 @@ public sealed class EncounterTools(
         ReactionRoll = encounter.ReactionRoll,
         Adversaries = encounter.Adversaries.Select(e => new AdversaryDto
         {
-            Id = e.Id,
             Name = e.Name,
             CurrentHp = e.Hp.Current,
             MaxHp = e.Hp.Max,
@@ -165,7 +163,6 @@ public sealed class EncounterTools(
 
     private static AdversaryDto CreateAdversaryDto(Adversary adversary) => new()
     {
-        Id = adversary.Id,
         Name = adversary.Name,
         CurrentHp = adversary.Hp.Current,
         MaxHp = adversary.Hp.Max,

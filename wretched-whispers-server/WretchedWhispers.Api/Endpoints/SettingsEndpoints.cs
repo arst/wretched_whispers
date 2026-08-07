@@ -39,7 +39,7 @@ public static class SettingsEndpoints
             // change only the model or base URL without re-pasting (and re-exposing) their key.
             var current = opt.Snapshot();
             var key = string.IsNullOrWhiteSpace(req.ApiKey) ? current.ApiKey : req.ApiKey.Trim();
-            var model = string.IsNullOrWhiteSpace(req.Model) ? StandaloneHost.DefaultModel : req.Model.Trim();
+            var model = string.IsNullOrWhiteSpace(req.Model) ? DesktopLlmOptions.DefaultModel : req.Model.Trim();
 
             // Persist before publishing in memory: if the write fails, the process keeps running the
             // configuration that is actually on disk rather than one that dies at the next restart.

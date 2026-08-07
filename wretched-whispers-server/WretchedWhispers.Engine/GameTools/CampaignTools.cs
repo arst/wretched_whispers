@@ -88,7 +88,6 @@ public sealed class CampaignTools(
     }
 
     private static CampaignDto CreateCampaignDto(Campaign campaign) => new(
-        campaign.Id,
         campaign.Name,
         campaign.Description,
         campaign.CurrentDay,

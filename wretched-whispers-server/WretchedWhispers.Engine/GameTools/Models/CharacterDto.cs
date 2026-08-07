@@ -6,9 +6,6 @@ namespace WretchedWhispers.Engine.GameTools.Models;
 
 public class CharacterDto
 {
-    [Description("Unique identifier for the character")]
-    public Guid Id { get; set; }
-
     [Description("The character's name")]
     public string Name { get; set; } = string.Empty;
 

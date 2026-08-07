@@ -4,9 +4,6 @@ namespace WretchedWhispers.Engine.GameTools.Models;
 
 public class AdversaryDto
 {
-    [Description("Unique identifier for the adversary")]
-    public Guid Id { get; set; }
-
     [Description("The adversary's name")]
     public string Name { get; set; } = string.Empty;
 

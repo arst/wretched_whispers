@@ -88,10 +88,10 @@ public sealed class AgentExecutor(
                         // Capture name + args for the turn trace (offline error analysis). Args are the
                         // valuable part — e.g. which itemDescription or dice expr the model passed.
                         toolCalls.Add(new ToolCallTrace(call.Name, SerializeArgs(call.Arguments)));
-                        // Durable, greppable audit of every tool invocation (args + result below). This is
-                        // the only always-on record that a roll/round was actually resolved by the domain —
-                        // the DB stores narrative text only, and OTel spans need a collector attached.
-                        logger.LogInformation("Tool call: {Tool}({Args})", call.Name, call.Arguments);
+                        // Debug, not Information: args are model-generated and carry player-derived free
+                        // text, which must not land in central logs by default. The durable always-on
+                        // record of every invocation is the turn trace the coordinator persists.
+                        logger.LogDebug("Tool call: {Tool}({Args})", call.Name, call.Arguments);
                         break;
                     case FunctionResultContent result:
                         sawTool = true;
@@ -99,7 +99,7 @@ public sealed class AgentExecutor(
                             ? n
                             : "unknown";
                         toolResults.Add(new ToolResult(name, result.Result?.ToString() ?? ""));
-                        logger.LogInformation("Tool result: {Tool} -> {Result}", name, result.Result);
+                        logger.LogDebug("Tool result: {Tool} -> {Result}", name, result.Result);
                         break;
                 }
             }
