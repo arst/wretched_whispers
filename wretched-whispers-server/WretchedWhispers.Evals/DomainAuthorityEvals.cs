@@ -259,9 +259,10 @@ public class DomainAuthorityEvals
         Assert.Equal(1, calls.Count(c => c == "ResolveCombatRound"));
     }
 
-    // Scenarios stay single-turn as focused regression guards; multi-turn scenarios are viable now
-    // that tool results are deterministic (no ids in the DTOs, seeded eval dice) — every completion
-    // in a turn cache-hits, not just the first.
+    // Most scenarios stay single-turn as focused regression guards. Multi-turn scenarios are viable
+    // because tool results are deterministic (no ids in the DTOs, seeded eval dice) — every
+    // completion in a turn cache-hits, not just the first; Combat_FightingToTheDeath_DeathStaysFinal
+    // is the multi-turn proof.
 
     [Fact]
     public async Task Resolution_Loot_AddsItemViaTool()
@@ -302,6 +303,138 @@ public class DomainAuthorityEvals
             return context.DeriveStage();
         });
         Assert.Equal(SessionStage.Exploration, stage);
+    }
+
+    /// <summary>Loads the committed character through the session context — the domain's truth for
+    /// omen counts, HP, and death, independent of anything the model narrated.</summary>
+    private static Task<Character> LoadCharacterAsync(EvalHost host) =>
+        host.QueryAsync(async sp =>
+        {
+            var context = await sp.GetRequiredService<ISessionContextLoader>()
+                .LoadAsync(host.SessionId, CancellationToken.None);
+            var characterId = context.CharacterId
+                ?? throw new InvalidOperationException("No character in the eval session.");
+            return await sp.GetRequiredService<ICharactersRepository>().Get(characterId)
+                ?? throw new InvalidOperationException("Character not found.");
+        });
+
+    [Fact]
+    public async Task Combat_OmenSpend_SpendsARealOmen()
+    {
+        // The player explicitly spends an omen. ResolveCombatRound must carry the spend, and the
+        // DOMAIN's omen count is the witness: narrating "fate favors you" without the omenUse
+        // argument leaves the count at 2 and fails this eval. Dice-dependent (the round result embeds
+        // rolls) — writable since the eval dice were seeded.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Combat-OmenSpend-MaxDamage", [new ToolCallEvaluator(ordered: false)]);
+        await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient, omens: 2);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I spend an omen to guide my arm -- all my luck behind one blow -- and strike the priest with my staff!");
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new ToolCallsContext(["ResolveCombatRound"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
+        Assert.True(metric.Value,
+            $"Expected a ResolveCombatRound call; got [{string.Join(", ", outcome.ToolCalls)}].");
+        Assert.Equal(1, outcome.ToolCalls.Count(c => c == "ResolveCombatRound"));
+
+        var character = await LoadCharacterAsync(host);
+        Assert.True(character.Omens.Count == 1,
+            $"The player asked to spend an omen but the domain still holds {character.Omens.Count} of 2 — "
+            + "the round was resolved without the omenUse spend (or spent more than one).");
+    }
+
+    [Fact]
+    public async Task Exploration_OmenSpend_LowersChallengeDr()
+    {
+        // The exploration twin: an omen spent on an ability test must ride ChallengeCharacter's
+        // spendOmenToLowerDr flag, and again the committed omen count is the proof.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Exploration-OmenSpend-LowersDr", [new ToolCallEvaluator(ordered: false)]);
+        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient, omens: 2);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "The rotten rope bridge sways over the gorge. I dart across before it gives way -- "
+            + "and I spend an omen to steady my fate.");
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new ToolCallsContext(["ChallengeCharacter"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
+        Assert.True(metric.Value,
+            $"Expected a ChallengeCharacter call; got [{string.Join(", ", outcome.ToolCalls)}].");
+
+        var character = await LoadCharacterAsync(host);
+        Assert.True(character.Omens.Count == 1,
+            $"The player asked to spend an omen but the domain still holds {character.Omens.Count} of 2 — "
+            + "the challenge ran without spendOmenToLowerDr.");
+    }
+
+    [Fact]
+    public async Task Exploration_RiskyFeat_ResolvesViaChallenge()
+    {
+        // A risky action with real, uncertain stakes must be resolved by ChallengeCharacter — the
+        // domain rolls the test and applies the consequence. Regression guard against the GM
+        // narrating success (or harm) of a dangerous feat without any roll.
+        await AssertToolRequiredAsync(
+            "Exploration-RiskyFeat-CallsChallenge",
+            client => EvalHost.CreateExplorationAsync(client),
+            "I climb the sheer face of the bell tower in the driving rain, fingers on rotten mortar, "
+            + "up to the arrow-slit window above.",
+            "ChallengeCharacter",
+            "A risky feat must be resolved by ChallengeCharacter, never narrated success or failure.");
+    }
+
+    [Fact]
+    public async Task Combat_FightingToTheDeath_DeathStaysFinal()
+    {
+        // THE fabrication class this project exists to prevent: the domain kills the wretch (0 HP,
+        // then the broken d4 comes up death), and no narration may walk it back. Multi-turn: the
+        // player keeps swinging until the seeded dice kill them, then tries to fight on from beyond
+        // the grave — the reply must be a eulogy, not a revival. Only writable now that whole turns
+        // are cache-stable (id-free DTOs + seeded dice), so the round count is identical every run.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Combat-DeathFight-DeathIsFinal", [new NarrativeCheckEvaluator()]);
+        await using var host = await EvalHost.CreateDeathFightAsync(scenario.ChatClient);
+
+        const int maxRounds = 8;
+        var dead = false;
+        for (var round = 0; round < maxRounds && !dead; round++)
+        {
+            await host.CreateTurnRunner().RunTurnAsync(
+                "The Bell-Warden will fall or I will. I swing my staff at it with everything I have!");
+            dead = (await LoadCharacterAsync(host)).IsDead;
+        }
+
+        Assert.True(dead, $"The seeded death-fight must kill the character within {maxRounds} rounds.");
+        var stage = await host.QueryAsync(async sp =>
+        {
+            var context = await sp.GetRequiredService<ISessionContextLoader>()
+                .LoadAsync(host.SessionId, CancellationToken.None);
+            return context.DeriveStage();
+        });
+        Assert.Equal(SessionStage.Ended, stage);
+
+        // The wretch is dead and the stage is Ended: the agent is built with NO tools, so nothing can
+        // mutate the finished session — and the narration must hold the line too.
+        var postDeath = await host.CreateTurnRunner().RunTurnAsync(
+            "Death is not the end of me. I stand back up, take my staff, and keep fighting!");
+        Assert.Empty(postDeath.ToolCalls);
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: postDeath.Response,
+            additionalContext:
+            [
+                new NarrativeCheckContext(
+                    "The player character has died and the session is over. The narration must treat the "
+                    + "death as final -- a eulogy, an epitaph, or an in-world refusal all pass -- and must "
+                    + "NOT narrate the character standing up, surviving, being revived, or fighting on."),
+            ]);
+
+        var metric = result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName);
+        Assert.True(metric.Value, $"The dead must stay dead. Narrative: {postDeath.Narrative}");
     }
 
     [Fact]

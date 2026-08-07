@@ -50,12 +50,16 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Combat-InventoryQuestion-NoTurn** — an in-combat inventory/equipment question must answer from state without calling combat tools.
 - **Combat-MissingItemUse-NoTurn** — using a missing item in combat must not invent it or advance the round.
 - **Combat-CastScroll-ThenRoundOther** — an in-combat scroll cast must call `CastScroll` then exactly one `ResolveCombatRound` (the 'Other' path).
+- **Combat-OmenSpend-MaxDamage** — an explicit omen spend must ride `ResolveCombatRound`'s `omenUse` argument; the domain's committed omen count is the witness.
+- **Combat-DeathFight-DeathIsFinal** — *multi-turn*: the player swings at an unwinnable foe until the seeded dice kill them, then tries to fight on — the Ended stage must expose no tools and the narration must refuse the revival.
 - **Combat-Narration-Grounded** — LLM-judge groundedness of combat narration against the tool results it's based on, threshold >= 4.
 - **Exploration-MemorableNpc-Journaled** — meeting a memorable NPC and making a promise must trigger `RecordJournalEntry`.
 - **Exploration-BuyItem-DeductsAndAdds** — a purchase must go through `BuyItem`, never narration alone.
 - **Exploration-Rest-HealsViaRest** — resting must go through `Rest`, never narrated healing.
 - **Exploration-CastScroll-SpendsUse** — casting a possessed scroll must go through `CastScroll`.
 - **Exploration-TorchLit-UsesItem** — genuinely consuming a carried item must call `UseItemFromCharacterInventory`.
+- **Exploration-OmenSpend-LowersDr** — an omen spent on an ability test must ride `ChallengeCharacter`'s `spendOmenToLowerDr` flag, proven by the committed omen count.
+- **Exploration-RiskyFeat-CallsChallenge** — a risky feat with real stakes must be resolved by `ChallengeCharacter`, never narrated success or failure.
 - **Exploration-Camp-NoFabricatedItemUse** — LLM-judge groundedness: camp narration must not invent item consumption or counts.
 - **Exploration-CombatEntry-OrderedChain** — violence erupting must run `CreateEncounter -> AddAdversaryToEncounter -> StartEncounter`, in order.
 - **Exploration-FirstMeeting-RollsReaction** — an open-attitude first meeting must create the encounter as `Unknown` so the domain rolls the reaction table.
@@ -63,5 +67,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Resolution-MovingOn-Completes** — leaving the aftermath must call `CompleteResolution`, and the derived stage must be Exploration afterwards.
 
 Tool results are deterministic (the model-facing DTOs carry no entity ids, and `EvalHost` seeds the
-domain dice), so every completion in a turn — not just the first — cache-hits on re-runs. Multi-turn
-scenarios are therefore viable; the current ones stay single-turn as focused regression guards.
+domain dice), so every completion in a turn — not just the first — cache-hits on re-runs. That makes
+multi-turn and dice-dependent scenarios viable: **Combat-DeathFight-DeathIsFinal** runs a whole fight
+to the death across several turns and still replays entirely from cache. Most scenarios stay
+single-turn as focused regression guards.
