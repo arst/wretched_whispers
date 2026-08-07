@@ -12,13 +12,13 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
-    <PackageReference Include="OpenAI" Version="2.10.0" />
-    <PackageReference Include="Microsoft.Agents.AI" Version="1.9.0" />
-    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.9.0" />
+    <PackageReference Include="OpenAI" Version="2.12.0" />
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.17.0" />
+    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.17.0" />
     <!-- Explicit: Engine calls MEAI directly (UseFunctionInvocation); without this it floated at
-         whatever Microsoft.Agents.AI pulled (10.5.1) while Abstractions resolved 10.6.0. -->
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.6.0" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.18" />
+         whatever Microsoft.Agents.AI pulled while Abstractions resolved higher. -->
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.8.3" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
   </ItemGroup>
 
 </Project>

@@ -21,7 +21,7 @@ public class ToolCallEvaluatorTests
         var result = await evaluator.EvaluateAsync(
             messages: [],
             modelResponse: response,
-            additionalContext: [new ToolCallsContext(expected)]);
+            additionalContext: [new ToolCallsContext(expected)], cancellationToken: TestContext.Current.CancellationToken);
 
         return result.Get<BooleanMetric>(
             ordered ? ToolCallEvaluator.OrderedMetricName : ToolCallEvaluator.ContainsMetricName);
@@ -136,7 +136,7 @@ public class ToolCallEvaluatorTests
     public async Task MissingContext_ReportsIndeterminate()
     {
         var result = await new ToolCallEvaluator(ordered: true).EvaluateAsync(
-            messages: [], modelResponse: ResponseWithCalls("ChallengeCharacter"));
+            messages: [], modelResponse: ResponseWithCalls("ChallengeCharacter"), cancellationToken: TestContext.Current.CancellationToken);
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.Null(metric.Value);
     }

@@ -130,6 +130,7 @@ public sealed class ResolveRoundTests : TestBase
         var outcome = await CreateService().ResolveRound(
             encounter.Id, character.Id, PlayerRoundAction.Flee, null);
 
+        Assert.NotNull(outcome.FleeAttempt);
         Assert.False(outcome.FleeAttempt.IsSuccess);
         Assert.Single(outcome.Retaliations);
         Assert.False(encounter.IsEnded);
