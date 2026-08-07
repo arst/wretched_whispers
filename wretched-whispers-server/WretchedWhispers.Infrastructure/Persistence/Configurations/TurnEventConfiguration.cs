@@ -14,5 +14,7 @@ public sealed class TurnEventConfiguration : IEntityTypeConfiguration<TurnEventE
         builder.Property(x => x.EventType).IsRequired().HasMaxLength(64);
         builder.Property(x => x.Payload).IsRequired().HasColumnType("TEXT");
         builder.HasIndex(x => new { x.TurnId, x.Sequence }).IsUnique();
+        // The event log is the SSE source of truth: a turn has exactly one terminal event.
+        builder.HasIndex(x => x.TurnId).IsUnique().HasFilter("\"EventType\" IN ('done', 'error')");
     }
 }

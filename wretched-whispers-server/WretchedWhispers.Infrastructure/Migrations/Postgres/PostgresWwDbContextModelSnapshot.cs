@@ -327,6 +327,10 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
                     b.HasIndex("TurnId", "Sequence")
                         .IsUnique();
 
+                    b.HasIndex("TurnId")
+                        .IsUnique()
+                        .HasFilter("\"EventType\" IN ('done', 'error')");
+
                     b.ToTable("TurnEvents", (string)null);
                 });
 

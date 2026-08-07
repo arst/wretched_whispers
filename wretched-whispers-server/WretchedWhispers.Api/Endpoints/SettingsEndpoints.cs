@@ -14,6 +14,8 @@ namespace WretchedWhispers.Api.Endpoints;
 /// </summary>
 public static class SettingsEndpoints
 {
+    private static readonly SemaphoreSlim SettingsWrite = new(1, 1);
+
     public static RouteGroupBuilder MapSettingsEndpoints(
         this RouteGroupBuilder api, string settingsFilePath, bool readOnly = false)
     {
@@ -35,17 +37,25 @@ public static class SettingsEndpoints
             if (baseUrl.Length > 0 && !Uri.TryCreate(baseUrl, UriKind.Absolute, out _))
                 return ApiProblem.BadRequest("The base URL must be absolute, e.g. https://api.openai.com/v1.");
 
-            // A blank key on re-save means "keep the current key" — so the user can reopen settings to
-            // change only the model or base URL without re-pasting (and re-exposing) their key.
-            var current = opt.Snapshot();
-            var key = string.IsNullOrWhiteSpace(req.ApiKey) ? current.ApiKey : req.ApiKey.Trim();
-            var model = string.IsNullOrWhiteSpace(req.Model) ? DesktopLlmOptions.DefaultModel : req.Model.Trim();
+            await SettingsWrite.WaitAsync();
+            try
+            {
+                // A blank key on re-save means "keep the current key" — so the user can reopen settings to
+                // change only the model or base URL without re-pasting (and re-exposing) their key.
+                var current = opt.Snapshot();
+                var key = string.IsNullOrWhiteSpace(req.ApiKey) ? current.ApiKey : req.ApiKey.Trim();
+                var model = string.IsNullOrWhiteSpace(req.Model) ? DesktopLlmOptions.DefaultModel : req.Model.Trim();
 
-            // Persist before publishing in memory: if the write fails, the process keeps running the
-            // configuration that is actually on disk rather than one that dies at the next restart.
-            await WriteAtomically(
-                settingsFilePath, new StandaloneHost.PersistedSettings("openai", key, model, baseUrl));
-            opt.Update(key, model, baseUrl);
+                // Persist before publishing in memory: if the write fails, the process keeps running the
+                // configuration that is actually on disk rather than one that dies at the next restart.
+                await WriteAtomically(
+                    settingsFilePath, new StandaloneHost.PersistedSettings("openai", key, model, baseUrl));
+                opt.Update(key, model, baseUrl);
+            }
+            finally
+            {
+                SettingsWrite.Release();
+            }
 
             return TypedResults.Ok(Describe(opt));
         });
@@ -66,7 +76,7 @@ public static class SettingsEndpoints
     /// </summary>
     private static async Task WriteAtomically(string path, StandaloneHost.PersistedSettings settings)
     {
-        var temporaryPath = path + ".tmp";
+        var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         await File.WriteAllTextAsync(temporaryPath, JsonSerializer.Serialize(settings));
         File.Move(temporaryPath, path, overwrite: true);
     }
