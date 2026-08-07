@@ -62,6 +62,6 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Resolution-Loot-AddsItem** — Resolution-stage loot must go through `AddItemToCharacterInventory`.
 - **Resolution-MovingOn-Completes** — leaving the aftermath must call `CompleteResolution`, and the derived stage must be Exploration afterwards.
 
-Scenarios are deliberately single-turn: tool results embed per-run GUIDs, so completions after a
-tool result never cache-hit — a multi-turn scenario would re-run the model live on every execution
-and flake with sampling.
+Tool results are deterministic (the model-facing DTOs carry no entity ids, and `EvalHost` seeds the
+domain dice), so every completion in a turn — not just the first — cache-hits on re-runs. Multi-turn
+scenarios are therefore viable; the current ones stay single-turn as focused regression guards.

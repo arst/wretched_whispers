@@ -4,9 +4,6 @@ namespace WretchedWhispers.Engine.GameTools.Models;
 
 public class InventoryItemDto
 {
-    [Description("Unique identifier for the inventory item")]
-    public Guid Id { get; set; }
-
     [Description("Description of the item")]
     public string Description { get; set; } = string.Empty;
 

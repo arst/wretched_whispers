@@ -4,9 +4,6 @@ namespace WretchedWhispers.Engine.GameTools.Models;
 
 public class EncounterDto
 {
-    [Description("Unique identifier for the encounter")]
-    public Guid Id { get; set; }
-
     [Description("The encounter's name")]
     public string Name { get; set; } = string.Empty;
 

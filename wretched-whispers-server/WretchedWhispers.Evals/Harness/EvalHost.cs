@@ -59,6 +59,10 @@ public sealed class EvalHost : IAsyncDisposable
         services.AddDomainServices();
         services.AddGameAgentOrchestration();
         services.AddSingleton(chatClient);
+        // Deterministic dice (last registration wins over AddDomainServices' unseeded default):
+        // rolled values land in tool results, which land in model requests — unseeded dice would
+        // change the request hash every run and defeat the response cache.
+        services.AddSingleton<IRandomService>(new SeededRandomService(seed: 1));
 
         var provider = services.BuildServiceProvider();
 

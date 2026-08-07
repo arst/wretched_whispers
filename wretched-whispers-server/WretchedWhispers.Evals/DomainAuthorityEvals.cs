@@ -259,10 +259,9 @@ public class DomainAuthorityEvals
         Assert.Equal(1, calls.Count(c => c == "ResolveCombatRound"));
     }
 
-    // NOTE: these two Resolution scenarios are deliberately single-turn. Tool results embed fresh
-    // GUIDs (character/item ids differ per EvalHost), so any completion AFTER a tool result never
-    // cache-hits — a multi-turn scenario re-runs the model live on every execution and flakes with
-    // sampling. Single-turn scenarios assert on the FIRST completion, which is cache-stable.
+    // Scenarios stay single-turn as focused regression guards; multi-turn scenarios are viable now
+    // that tool results are deterministic (no ids in the DTOs, seeded eval dice) — every completion
+    // in a turn cache-hits, not just the first.
 
     [Fact]
     public async Task Resolution_Loot_AddsItemViaTool()

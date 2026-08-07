@@ -201,7 +201,6 @@ public sealed class CharacterTools(
 
     private static CharacterDto CreateCharacterDto(Character character) => new()
     {
-        Id = character.Id,
         Name = character.Name,
         Silver = character.Silver,
         FoodDays = character.FoodDays,
@@ -241,7 +240,6 @@ public sealed class CharacterTools(
             IsFull = character.Inventory.IsFull,
             Items = character.Inventory.InventoryItems.Select(i => new InventoryItemDto
             {
-                Id = i.Id,
                 Description = i.Description,
                 IsBulky = i.IsBulky,
                 IsOneTimeUse = i.IsOneTimeUse,

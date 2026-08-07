@@ -4,8 +4,6 @@ using WretchedWhispers.Core.Campaigns.World;
 namespace WretchedWhispers.Engine.GameTools.Models;
 
 public record CampaignDto(
-    [property: Description("Unique identifier for the campaign")]
-    Guid Id,
     [property: Description("The campaign's name")]
     string Name,
     [property: Description("Description of the campaign setting and context")]
