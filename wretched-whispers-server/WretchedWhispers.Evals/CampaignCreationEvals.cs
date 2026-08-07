@@ -19,12 +19,12 @@ public class CampaignCreationEvals
             Suite, "Opening-NarratesRolledWretch", [new ToolCallEvaluator(ordered: true)]);
         await using var host = await EvalHost.CreateOpeningAsync(
             scenario.ChatClient, "Halvard", CharacterClass.FangedDeserter);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("begin", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [],
             modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["ConfigureCampaign"])]);
+            additionalContext: [new ToolCallsContext(["ConfigureCampaign"])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.True(metric.Value,
@@ -42,14 +42,14 @@ public class CampaignCreationEvals
             Suite, "Opening-DoesNotReAsk", [new NarrativeCheckEvaluator()]);
         await using var host = await EvalHost.CreateOpeningAsync(
             scenario.ChatClient, "Ysolde", CharacterClass.OccultHerbmaster);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("begin");
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("begin", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [],
             modelResponse: outcome.Response,
             additionalContext: [new NarrativeCheckContext(
                 "The player already chose their character's name and class before this scene. The "
-                + "narration must NOT ask the player to provide, choose, or confirm a name or a class.")]);
+                + "narration must NOT ask the player to provide, choose, or confirm a name or a class.")], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName);
         Assert.True(metric.Value,
