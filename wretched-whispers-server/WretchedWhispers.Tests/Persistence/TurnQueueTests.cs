@@ -87,6 +87,23 @@ public class TurnQueueTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task Claim_ExhaustedExpiredLease_FailsTheTurn()
+    {
+        var queue = new TurnQueue(Db, TimeProvider.System);
+        var queued = await queue.EnqueueAsync(Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
+        var turn = queued.Turn!;
+        turn.Status = TurnStatus.Running;
+        turn.AttemptCount = 3;
+        turn.LeaseExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+        await Db.SaveChangesAsync();
+
+        var claimed = await queue.ClaimAsync("worker-b", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+
+        Assert.Equal(TurnStatus.Failed, claimed!.Status);
+        Assert.Equal("Turn exceeded retry limit.", claimed.TerminalError);
+    }
+
+    [Fact]
     public async Task Enqueue_SameRequestIdFromADifferentUser_IsItsOwnTurn()
     {
         var queue = new TurnQueue(Db, TimeProvider.System);

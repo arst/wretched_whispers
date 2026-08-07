@@ -55,9 +55,12 @@ public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
         if (candidate is null) return null;
         if (candidate.AttemptCount >= maxAttempts)
         {
-            await db.TurnRequests.Where(x => x.Id == candidate.Id && x.Status != TurnStatus.Completed).ExecuteUpdateAsync(s => s
+            var failed = await db.TurnRequests.Where(x => x.Id == candidate.Id && x.AttemptCount >= maxAttempts &&
+                    (x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now)))
+                .ExecuteUpdateAsync(s => s
                 .SetProperty(x => x.Status, TurnStatus.Failed).SetProperty(x => x.TerminalError, "Turn exceeded retry limit.")
                 .SetProperty(x => x.CompletedAt, now), ct);
+            if (failed == 0) return null;
             candidate.Status = TurnStatus.Failed;
             candidate.TerminalError = "Turn exceeded retry limit.";
             return candidate;
