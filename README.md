@@ -63,13 +63,13 @@ record.
 The default image is the single-user `StandaloneContainer` profile. No login, SQLite and settings in `/data`.
 
 ```bash
-docker run -p 8080:8080 -v ww-data:/data -e OPENAI_API_KEY=sk-... ghcr.io/arst/wretched-whispers
+docker run -p 127.0.0.1:8080:8080 -v ww-data:/data -e OPENAI_API_KEY=sk-... ghcr.io/arst/wretched-whispers
 ```
 
 Open <http://localhost:8080> and play. Or run with no key and paste it in the browser on first run:
 
 ```bash
-docker run -p 8080:8080 -v ww-data:/data ghcr.io/arst/wretched-whispers
+docker run -p 127.0.0.1:8080:8080 -v ww-data:/data ghcr.io/arst/wretched-whispers
 ```
 
 | Env var | Meaning | Default |
