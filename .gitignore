@@ -434,3 +434,7 @@ wretched-whispers-server/WretchedWhispers.Api/wwwroot/
 .superpowers/
 .playwright-mcp/
 .eval-results/
+.serena/
+
+# Claude Code: shared settings.json is committed, local overrides are not
+.claude/settings.local.json
