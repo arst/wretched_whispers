@@ -27,11 +27,11 @@ public class DomainAuthorityEvals
         await using var scenario = await EvalScenario.StartAsync(
             Suite, scenarioName, [new ToolCallEvaluator(ordered: false)]);
         await using var host = await createHost(scenario.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext([requiredTool])]);
+            additionalContext: [new ToolCallsContext([requiredTool])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
@@ -114,12 +114,12 @@ public class DomainAuthorityEvals
         await using var scenario = await EvalScenario.StartAsync(
             Suite, "Combat-InventoryQuestion-NoTurn", [new ToolCallEvaluator(ordered: true)]);
         await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("What do I have in my inventory and equipment?");
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("What do I have in my inventory and equipment?", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [],
             modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext([])]);
+            additionalContext: [new ToolCallsContext([])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.True(metric.Value, $"Expected no combat tools for an inventory question; got [{string.Join(", ", outcome.ToolCalls)}]");
@@ -132,7 +132,7 @@ public class DomainAuthorityEvals
         await using var scenario = await EvalScenario.StartAsync(
             Suite, "Combat-MissingItemUse-NoTurn", [new ToolCallEvaluator(ordered: true), new NarrativeCheckEvaluator()]);
         await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("I light my lantern and throw it at the priest.");
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("I light my lantern and throw it at the priest.", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [],
@@ -144,7 +144,7 @@ public class DomainAuthorityEvals
                     "The player tried to use a lantern their character does not possess. The narration "
                     + "must make clear the lantern is not available (in any wording), and must NOT "
                     + "narrate the lantern actually being lit, thrown, or otherwise used."),
-            ]);
+            ], cancellationToken: TestContext.Current.CancellationToken);
 
         var orderMetric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.True(orderMetric.Value,
@@ -165,11 +165,11 @@ public class DomainAuthorityEvals
             Suite, "Exploration-CombatEntry-OrderedChain", [new ToolCallEvaluator(ordered: false)]);
         await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
         var outcome = await host.CreateTurnRunner().RunTurnAsync(
-            "A lone grave-robber springs from the ditch, knife first, straight at me. I meet him with my staff — fight!");
+            "A lone grave-robber springs from the ditch, knife first, straight at me. I meet him with my staff — fight!", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["CreateEncounter", "AddAdversaryToEncounter", "StartEncounter"])]);
+            additionalContext: [new ToolCallsContext(["CreateEncounter", "AddAdversaryToEncounter", "StartEncounter"])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
@@ -195,11 +195,11 @@ public class DomainAuthorityEvals
             Suite, "Exploration-FirstMeeting-RollsReaction", [new ToolCallEvaluator(ordered: false)]);
         await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
         var outcome = await host.CreateTurnRunner().RunTurnAsync(
-            "A hooded figure waits at the crossroads shrine, face hidden, intent unknowable. I approach slowly and hail them.");
+            "A hooded figure waits at the crossroads shrine, face hidden, intent unknowable. I approach slowly and hail them.", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["CreateEncounter"])]);
+            additionalContext: [new ToolCallsContext(["CreateEncounter"])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
@@ -208,7 +208,7 @@ public class DomainAuthorityEvals
         var (reaction, reactionRoll) = await host.QueryAsync(async sp =>
         {
             var context = await sp.GetRequiredService<ISessionContextLoader>()
-                .LoadAsync(host.SessionId, CancellationToken.None);
+                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken);
             return (context.ActiveEncounter?.Reaction, context.ActiveEncounter?.ReactionRoll);
         });
         Assert.True(reactionRoll is not null && reaction is not null,
@@ -242,11 +242,11 @@ public class DomainAuthorityEvals
             scenario.ChatClient,
             scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
         var outcome = await host.CreateTurnRunner().RunTurnAsync(
-            "I unfurl Palms Open the Southern Gate and hurl its power at the priest!");
+            "I unfurl Palms Open the Southern Gate and hurl its power at the priest!", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["CastScroll", "ResolveCombatRound"])]);
+            additionalContext: [new ToolCallsContext(["CastScroll", "ResolveCombatRound"])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
@@ -286,11 +286,11 @@ public class DomainAuthorityEvals
             Suite, "Resolution-MovingOn-Completes", [new ToolCallEvaluator(ordered: false)]);
         await using var host = await EvalHost.CreateResolutionAsync(scenario.ChatClient);
         var outcome = await host.CreateTurnRunner().RunTurnAsync(
-            "The priest is dead and the road is quiet again. Nothing more holds me here — I shake the blood from my staff and walk on into the mist.");
+            "The priest is dead and the road is quiet again. Nothing more holds me here — I shake the blood from my staff and walk on into the mist.", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["CompleteResolution"])]);
+            additionalContext: [new ToolCallsContext(["CompleteResolution"])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
@@ -299,7 +299,7 @@ public class DomainAuthorityEvals
         var stage = await host.QueryAsync(async sp =>
         {
             var context = await sp.GetRequiredService<ISessionContextLoader>()
-                .LoadAsync(host.SessionId, CancellationToken.None);
+                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken);
             return context.DeriveStage();
         });
         Assert.Equal(SessionStage.Exploration, stage);
@@ -311,7 +311,7 @@ public class DomainAuthorityEvals
         host.QueryAsync(async sp =>
         {
             var context = await sp.GetRequiredService<ISessionContextLoader>()
-                .LoadAsync(host.SessionId, CancellationToken.None);
+                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken);
             var characterId = context.CharacterId
                 ?? throw new InvalidOperationException("No character in the eval session.");
             return await sp.GetRequiredService<ICharactersRepository>().Get(characterId)
@@ -329,11 +329,11 @@ public class DomainAuthorityEvals
             Suite, "Combat-OmenSpend-MaxDamage", [new ToolCallEvaluator(ordered: false)]);
         await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient, omens: 2);
         var outcome = await host.CreateTurnRunner().RunTurnAsync(
-            "I spend an omen to guide my arm -- all my luck behind one blow -- and strike the priest with my staff!");
+            "I spend an omen to guide my arm -- all my luck behind one blow -- and strike the priest with my staff!", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["ResolveCombatRound"])]);
+            additionalContext: [new ToolCallsContext(["ResolveCombatRound"])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
@@ -356,11 +356,11 @@ public class DomainAuthorityEvals
         await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient, omens: 2);
         var outcome = await host.CreateTurnRunner().RunTurnAsync(
             "The rotten rope bridge sways over the gorge. I dart across before it gives way -- "
-            + "and I spend an omen to steady my fate.");
+            + "and I spend an omen to steady my fate.", TestContext.Current.CancellationToken);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["ChallengeCharacter"])]);
+            additionalContext: [new ToolCallsContext(["ChallengeCharacter"])], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
         Assert.True(metric.Value,
@@ -404,7 +404,7 @@ public class DomainAuthorityEvals
         for (var round = 0; round < maxRounds && !dead; round++)
         {
             await host.CreateTurnRunner().RunTurnAsync(
-                "The Bell-Warden will fall or I will. I swing my staff at it with everything I have!");
+                "The Bell-Warden will fall or I will. I swing my staff at it with everything I have!", TestContext.Current.CancellationToken);
             dead = (await LoadCharacterAsync(host)).IsDead;
         }
 
@@ -412,7 +412,7 @@ public class DomainAuthorityEvals
         var stage = await host.QueryAsync(async sp =>
         {
             var context = await sp.GetRequiredService<ISessionContextLoader>()
-                .LoadAsync(host.SessionId, CancellationToken.None);
+                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken);
             return context.DeriveStage();
         });
         Assert.Equal(SessionStage.Ended, stage);
@@ -420,7 +420,7 @@ public class DomainAuthorityEvals
         // The wretch is dead and the stage is Ended: the agent is built with NO tools, so nothing can
         // mutate the finished session — and the narration must hold the line too.
         var postDeath = await host.CreateTurnRunner().RunTurnAsync(
-            "Death is not the end of me. I stand back up, take my staff, and keep fighting!");
+            "Death is not the end of me. I stand back up, take my staff, and keep fighting!", TestContext.Current.CancellationToken);
         Assert.Empty(postDeath.ToolCalls);
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(
@@ -431,7 +431,7 @@ public class DomainAuthorityEvals
                     "The player character has died and the session is over. The narration must treat the "
                     + "death as final -- a eulogy, an epitaph, or an in-world refusal all pass -- and must "
                     + "NOT narrate the character standing up, surviving, being revived, or fighting on."),
-            ]);
+            ], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName);
         Assert.True(metric.Value, $"The dead must stay dead. Narrative: {postDeath.Narrative}");
@@ -450,7 +450,7 @@ public class DomainAuthorityEvals
             scenario.ChatClient,
             [new InventoryItem(Guid.NewGuid(), "torches", isBulky: false, isOneTimeUse: true, quantity: 3)]);
         const string playerMessage = "We camp for the night. I sleep until dawn.";
-        var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, TestContext.Current.CancellationToken);
 
         var groundingContext =
             "Character inventory before the turn: torches x3. Inventory changes ONLY through a "
@@ -460,7 +460,7 @@ public class DomainAuthorityEvals
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [new ChatMessage(ChatRole.User, playerMessage)],
             modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
-            additionalContext: [new GroundednessEvaluatorContext(groundingContext)]);
+            additionalContext: [new GroundednessEvaluatorContext(groundingContext)], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
         Assert.NotNull(metric.Value);
@@ -476,7 +476,7 @@ public class DomainAuthorityEvals
         await using var scenario = await EvalScenario.StartAsync(
             Suite, "Combat-Narration-Grounded", [new GroundednessEvaluator()], stripSamplingOptions: true);
         await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!");
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", TestContext.Current.CancellationToken);
 
         var groundingContext = string.Join("\n",
             outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
@@ -484,7 +484,7 @@ public class DomainAuthorityEvals
         EvaluationResult result = await scenario.Run.EvaluateAsync(
             messages: [new ChatMessage(ChatRole.User, "I strike the plague priest with my staff!")],
             modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
-            additionalContext: [new GroundednessEvaluatorContext(groundingContext)]);
+            additionalContext: [new GroundednessEvaluatorContext(groundingContext)], cancellationToken: TestContext.Current.CancellationToken);
 
         var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
         Assert.NotNull(metric.Value);

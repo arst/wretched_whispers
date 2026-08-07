@@ -19,7 +19,7 @@ public class EvalTurnRunnerTests
         await using var host = await EvalHost.CreateAsync(client);
         var runner = host.CreateTurnRunner();
 
-        var outcome = await runner.RunTurnAsync("Grim");
+        var outcome = await runner.RunTurnAsync("Grim", TestContext.Current.CancellationToken);
 
         Assert.Equal(new[] { "CreateCharacter" }, outcome.ToolCalls);
         var packagedNames = outcome.Response.Messages
@@ -42,10 +42,10 @@ public class EvalTurnRunnerTests
 
         await using var host = await EvalHost.CreateAsync(client);
 
-        var turn1 = await host.CreateTurnRunner().RunTurnAsync("begin");
+        var turn1 = await host.CreateTurnRunner().RunTurnAsync("begin", TestContext.Current.CancellationToken);
         Assert.Empty(turn1.ToolCalls);
 
-        var turn2 = await host.CreateTurnRunner().RunTurnAsync("Grim");
+        var turn2 = await host.CreateTurnRunner().RunTurnAsync("Grim", TestContext.Current.CancellationToken);
         Assert.Equal(new[] { "CreateCharacter" }, turn2.ToolCalls);
     }
 }

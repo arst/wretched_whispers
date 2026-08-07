@@ -12,19 +12,19 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.18" />
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.18" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.18" />
-        <!-- EF Core Sqlite 9.0.18 pins SQLitePCLRaw 2.1.10, whose lib.e_sqlite3 carries GHSA-2m69-gcr7-jv3q.
-             Direct reference lifts the whole SQLitePCLRaw graph to the patched line; drop when EF catches up. -->
+        <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+        <!-- EF Core Sqlite 10.0.10 still pins SQLitePCLRaw 2.1.11, inside GHSA-2m69-gcr7-jv3q's
+             vulnerable range (< 2.1.12). Direct reference lifts the graph; drop when EF catches up. -->
         <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.18">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.6.0" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.*" />
+        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.8.3" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.*" />
     </ItemGroup>
 
 </Project>
