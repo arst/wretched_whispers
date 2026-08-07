@@ -165,15 +165,31 @@ public sealed class TurnCoordinator(
             foreach (var chunk in narrativeChunks)
                 fullResponse.Append(chunk.Text);
 
+            // A run that produced neither prose nor tool effects is a failed turn (empty model
+            // response, content filter), not a silent success: fail it and roll back so nothing is
+            // persisted and the player can simply retry. Without this the turn "completed" with no
+            // output and an empty assistant message polluted every later prompt.
+            if (fullResponse.Length == 0 && toolResults.Count == 0)
+            {
+                logger.LogWarning(
+                    "Empty agent response — no narrative and no tool calls. Session={SessionId}, Stage={Stage}",
+                    sessionId, stage);
+                writer.TryWrite(new TurnError("The narrator fell silent. Please try again."));
+                return; // uow disposal rolls back
+            }
+
             // Saved AFTER the agent run: the executor reloads history from this same DbContext and
             // appends the player message itself, so persisting it first would double it in the
             // conversation the model sees.
             await chatHistoryRepository.SaveMessage(
                 chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct, turnId);
-            await chatHistoryRepository.SaveMessage(
-                chatSessionId,
-                new ChatMessage(ChatRole.Assistant, fullResponse.ToString()) { AuthorName = "Game_Master" },
-                ct, turnId);
+            // Tools may legitimately finish a turn with no prose (the delta still tells the story);
+            // an EMPTY assistant message must never enter the history the model sees.
+            if (fullResponse.Length > 0)
+                await chatHistoryRepository.SaveMessage(
+                    chatSessionId,
+                    new ChatMessage(ChatRole.Assistant, fullResponse.ToString()) { AuthorName = "Game_Master" },
+                    ct, turnId);
 
             await uow.CommitAsync(ct);
 

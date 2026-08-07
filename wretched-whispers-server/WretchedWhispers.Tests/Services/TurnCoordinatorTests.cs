@@ -224,6 +224,56 @@ public class TurnCoordinatorTests
         Assert.True(delta!.IsNoOp);
     }
 
+    [Fact]
+    public async Task EmptyAgentResponse_ProducesTurnError_AndPersistsNothing()
+    {
+        // The model returned neither prose nor tool calls (empty response / content filter). The turn
+        // must FAIL — not complete silently — and nothing may be persisted, or an empty assistant
+        // message pollutes every later prompt.
+        ArrangeExplorationTurn();
+        SetupAgentExecutorStreaming(new AgentTrace([], SuppressedNarrative: null));
+
+        var coordinator = CreateCoordinator();
+
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "I explore", ct: CancellationToken.None))
+            events.Add(evt);
+
+        var error = events.OfType<TurnError>().Single();
+        Assert.Contains("narrator fell silent", error.Message);
+        Assert.DoesNotContain(events, e => e is TurnDone);
+        _chatHistoryRepo.Verify(
+            r => r.SaveMessage(It.IsAny<Guid>(), It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ToolOnlyTurn_Commits_ButNeverPersistsEmptyAssistantMessage()
+    {
+        // Tools ran but the model emitted no prose: the state change is real (commit, TurnDone), but an
+        // EMPTY assistant message must not enter the history the model sees on later turns.
+        ArrangeExplorationTurn();
+        SetupAgentExecutorStreaming(
+            new ToolResult("Rest", "{\"hpHealed\":2}"),
+            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null));
+
+        var coordinator = CreateCoordinator();
+
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in coordinator.ExecuteTurnAsync(_sessionId, "I rest", ct: CancellationToken.None))
+            events.Add(evt);
+
+        Assert.IsType<TurnDone>(events[^1]);
+        _chatHistoryRepo.Verify(
+            r => r.SaveMessage(_chatSessionId,
+                It.Is<ChatMessage>(m => m.Role == ChatRole.User), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()),
+            Times.Once);
+        _chatHistoryRepo.Verify(
+            r => r.SaveMessage(_chatSessionId,
+                It.Is<ChatMessage>(m => m.Role == ChatRole.Assistant), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()),
+            Times.Never);
+    }
+
     public static TheoryData<Exception, string> AgentFailures => new()
     {
         // Any unexpected failure becomes a generic error; a concurrency conflict (another turn

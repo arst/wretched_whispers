@@ -1,7 +1,10 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
+using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Evals.Evaluators;
 using WretchedWhispers.Evals.Harness;
 using Xunit;
@@ -42,7 +45,7 @@ public class DomainAuthorityEvals
     {
         var outcome = await AssertToolRequiredAsync(
             "Combat-PlayerAttack-OneRound",
-            EvalHost.CreateCombatAsync,
+            client => EvalHost.CreateCombatAsync(client),
             "I strike the plague priest with my staff!",
             "ResolveCombatRound");
 
@@ -150,6 +153,156 @@ public class DomainAuthorityEvals
         var narrativeMetric = result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName);
         Assert.True(narrativeMetric.Value,
             $"Expected the GM to refuse the missing lantern. Narrative: {outcome.Narrative}");
+    }
+
+    [Fact]
+    public async Task Exploration_ViolenceErupting_CreatesArmsAndStartsEncounter()
+    {
+        // The single most order-sensitive rule in the prompt: combat entry is
+        // CreateEncounter -> AddAdversaryToEncounter -> StartEncounter. Narrating a fight without a
+        // started encounter leaves the whole combat outside the domain.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Exploration-CombatEntry-OrderedChain", [new ToolCallEvaluator(ordered: false)]);
+        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "A lone grave-robber springs from the ditch, knife first, straight at me. I meet him with my staff — fight!");
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new ToolCallsContext(["CreateEncounter", "AddAdversaryToEncounter", "StartEncounter"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
+        Assert.True(metric.Value,
+            "Combat entry requires CreateEncounter + AddAdversaryToEncounter + StartEncounter; "
+            + $"got [{string.Join(", ", outcome.ToolCalls)}].");
+
+        // Contains-mode tolerates extras (journaling); the CHAIN itself must still be in order.
+        var calls = outcome.ToolCalls.ToList();
+        Assert.True(
+            calls.IndexOf("CreateEncounter") < calls.IndexOf("AddAdversaryToEncounter")
+            && calls.LastIndexOf("AddAdversaryToEncounter") < calls.IndexOf("StartEncounter"),
+            $"Combat entry chain out of order: [{string.Join(", ", calls)}].");
+    }
+
+    [Fact]
+    public async Task Exploration_OpenFirstMeeting_RollsReactionViaUnknownEncounter()
+    {
+        // A first meeting whose attitude the fiction leaves open must be CreateEncounter with type
+        // 'Unknown' so the DOMAIN rolls the Mörk Borg reaction table — the GM never decides the
+        // stranger's attitude itself. A pre-declared Hostile/Friendly stores no reaction roll, so the
+        // committed encounter is the deterministic witness of which path the model took.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Exploration-FirstMeeting-RollsReaction", [new ToolCallEvaluator(ordered: false)]);
+        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "A hooded figure waits at the crossroads shrine, face hidden, intent unknowable. I approach slowly and hail them.");
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new ToolCallsContext(["CreateEncounter"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
+        Assert.True(metric.Value,
+            $"An open first meeting must create an encounter; got [{string.Join(", ", outcome.ToolCalls)}].");
+
+        var (reaction, reactionRoll) = await host.QueryAsync(async sp =>
+        {
+            var context = await sp.GetRequiredService<ISessionContextLoader>()
+                .LoadAsync(host.SessionId, CancellationToken.None);
+            return (context.ActiveEncounter?.Reaction, context.ActiveEncounter?.ReactionRoll);
+        });
+        Assert.True(reactionRoll is not null && reaction is not null,
+            "The encounter carries no reaction roll — the GM pre-declared the attitude instead of "
+            + "creating the encounter as 'Unknown' and letting the domain roll the reaction table.");
+    }
+
+    [Fact]
+    public async Task Exploration_LightingTorch_ConsumesItemViaTool()
+    {
+        // The positive twin of the no-fabrication camp eval: when the fiction genuinely consumes a
+        // carried item, UseItemFromCharacterInventory must record it — never prose alone.
+        await AssertToolRequiredAsync(
+            "Exploration-TorchLit-UsesItem",
+            client => EvalHost.CreateExplorationAsync(
+                client,
+                [new InventoryItem(Guid.NewGuid(), "torches", isBulky: false, isOneTimeUse: true, quantity: 3)]),
+            "I take one of my torches, strike it alight, and descend into the black crypt beneath the chapel.",
+            "UseItemFromCharacterInventory",
+            "Consuming a carried item must go through UseItemFromCharacterInventory.");
+    }
+
+    [Fact]
+    public async Task Combat_CastingScroll_SpendsUseThenResolvesRoundAsOther()
+    {
+        // The in-combat 'Other' path: a scroll cast is resolved by CastScroll (spends the use), then
+        // ResolveCombatRound with the enemies responding — exactly one round, cast before round.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Combat-CastScroll-ThenRoundOther", [new ToolCallEvaluator(ordered: false)]);
+        await using var host = await EvalHost.CreateCombatAsync(
+            scenario.ChatClient,
+            scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I unfurl Palms Open the Southern Gate and hurl its power at the priest!");
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new ToolCallsContext(["CastScroll", "ResolveCombatRound"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
+        Assert.True(metric.Value,
+            "An in-combat cast must spend the scroll (CastScroll) and let the enemies respond "
+            + $"(ResolveCombatRound); got [{string.Join(", ", outcome.ToolCalls)}].");
+
+        var calls = outcome.ToolCalls.ToList();
+        Assert.True(calls.IndexOf("CastScroll") < calls.IndexOf("ResolveCombatRound"),
+            $"CastScroll must precede ResolveCombatRound: [{string.Join(", ", calls)}].");
+        Assert.Equal(1, calls.Count(c => c == "ResolveCombatRound"));
+    }
+
+    // NOTE: these two Resolution scenarios are deliberately single-turn. Tool results embed fresh
+    // GUIDs (character/item ids differ per EvalHost), so any completion AFTER a tool result never
+    // cache-hits — a multi-turn scenario re-runs the model live on every execution and flakes with
+    // sampling. Single-turn scenarios assert on the FIRST completion, which is cache-stable.
+
+    [Fact]
+    public async Task Resolution_Loot_AddsItemViaTool()
+    {
+        // Resolution-stage loot must land in inventory through the tool, never prose alone.
+        await AssertToolRequiredAsync(
+            "Resolution-Loot-AddsItem",
+            EvalHost.CreateResolutionAsync,
+            "I pry the brass crucible from the dead priest's fingers and stow it in my satchel.",
+            "AddItemToCharacterInventory",
+            "Loot must go through AddItemToCharacterInventory.");
+    }
+
+    [Fact]
+    public async Task Resolution_MovingOn_CompletesResolutionBackToExploration()
+    {
+        // Leaving the scene ends the aftermath: CompleteResolution must be called, and the DOMAIN's
+        // derived stage must be Exploration again afterwards — otherwise the session wedges in
+        // Resolution forever (the playtest failure this eval guards).
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Resolution-MovingOn-Completes", [new ToolCallEvaluator(ordered: false)]);
+        await using var host = await EvalHost.CreateResolutionAsync(scenario.ChatClient);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "The priest is dead and the road is quiet again. Nothing more holds me here — I shake the blood from my staff and walk on into the mist.");
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: outcome.Response,
+            additionalContext: [new ToolCallsContext(["CompleteResolution"])]);
+
+        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
+        Assert.True(metric.Value,
+            $"Leaving the aftermath must call CompleteResolution; got [{string.Join(", ", outcome.ToolCalls)}].");
+
+        var stage = await host.QueryAsync(async sp =>
+        {
+            var context = await sp.GetRequiredService<ISessionContextLoader>()
+                .LoadAsync(host.SessionId, CancellationToken.None);
+            return context.DeriveStage();
+        });
+        Assert.Equal(SessionStage.Exploration, stage);
     }
 
     [Fact]

@@ -32,24 +32,24 @@ public class ToolCallEvaluatorTests
     [Fact]
     public async Task Ordered_ExactMatch_Passes()
     {
-        var response = ResponseWithCalls("CreateCharacter", "ConfigureCampaign", "StartCampaign");
-        var metric = await EvaluateAsync(response, ["CreateCharacter", "ConfigureCampaign", "StartCampaign"], ordered: true);
+        var response = ResponseWithCalls("CreateEncounter", "AddAdversaryToEncounter", "StartEncounter");
+        var metric = await EvaluateAsync(response, ["CreateEncounter", "AddAdversaryToEncounter", "StartEncounter"], ordered: true);
         Assert.True(metric.Value);
     }
 
     [Fact]
     public async Task Ordered_WrongOrder_Fails()
     {
-        var response = ResponseWithCalls("ConfigureCampaign", "CreateCharacter", "StartCampaign");
-        var metric = await EvaluateAsync(response, ["CreateCharacter", "ConfigureCampaign", "StartCampaign"], ordered: true);
+        var response = ResponseWithCalls("AddAdversaryToEncounter", "CreateEncounter", "StartEncounter");
+        var metric = await EvaluateAsync(response, ["CreateEncounter", "AddAdversaryToEncounter", "StartEncounter"], ordered: true);
         Assert.False(metric.Value);
     }
 
     [Fact]
     public async Task Ordered_MissingTool_Fails()
     {
-        var response = ResponseWithCalls("CreateCharacter", "ConfigureCampaign");
-        var metric = await EvaluateAsync(response, ["CreateCharacter", "ConfigureCampaign", "StartCampaign"], ordered: true);
+        var response = ResponseWithCalls("CreateEncounter", "AddAdversaryToEncounter");
+        var metric = await EvaluateAsync(response, ["CreateEncounter", "AddAdversaryToEncounter", "StartEncounter"], ordered: true);
         Assert.False(metric.Value);
     }
 
@@ -63,7 +63,7 @@ public class ToolCallEvaluatorTests
     [Fact]
     public async Task Ordered_NoToolsExpected_ButOneCalled_Fails()
     {
-        var metric = await EvaluateAsync(ResponseWithCalls("CreateCharacter"), [], ordered: true);
+        var metric = await EvaluateAsync(ResponseWithCalls("ChallengeCharacter"), [], ordered: true);
         Assert.False(metric.Value);
     }
 
@@ -75,16 +75,16 @@ public class ToolCallEvaluatorTests
             new(ChatRole.Assistant, new List<AIContent>
             {
                 new TextContent("Working on it..."),
-                new FunctionCallContent("call_0", "CreateCharacter")
+                new FunctionCallContent("call_0", "CreateEncounter")
             }),
             new(ChatRole.Assistant, new List<AIContent>
             {
-                new FunctionCallContent("call_1", "ConfigureCampaign"),
+                new FunctionCallContent("call_1", "AddAdversaryToEncounter"),
                 new TextContent("done")
             })
         });
 
-        var metric = await EvaluateAsync(response, ["CreateCharacter", "ConfigureCampaign"], ordered: true);
+        var metric = await EvaluateAsync(response, ["CreateEncounter", "AddAdversaryToEncounter"], ordered: true);
         Assert.True(metric.Value);
     }
 
@@ -136,7 +136,7 @@ public class ToolCallEvaluatorTests
     public async Task MissingContext_ReportsIndeterminate()
     {
         var result = await new ToolCallEvaluator(ordered: true).EvaluateAsync(
-            messages: [], modelResponse: ResponseWithCalls("CreateCharacter"));
+            messages: [], modelResponse: ResponseWithCalls("ChallengeCharacter"));
         var metric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
         Assert.Null(metric.Value);
     }

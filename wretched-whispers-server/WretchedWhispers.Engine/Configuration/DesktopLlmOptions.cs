@@ -13,9 +13,12 @@ namespace WretchedWhispers.Engine.Configuration;
 /// </summary>
 public sealed class DesktopLlmOptions(string apiKey, string model, string baseUrl = "")
 {
+    /// <summary>The one fallback model for standalone/desktop when the user has not chosen one.</summary>
+    public const string DefaultModel = "gpt-4o";
+
     private readonly Lock _gate = new();
     private string _apiKey = apiKey;
-    private string _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o" : model;
+    private string _model = string.IsNullOrWhiteSpace(model) ? DefaultModel : model;
     private string _baseUrl = baseUrl ?? "";
 
     public bool HasKey
@@ -33,7 +36,7 @@ public sealed class DesktopLlmOptions(string apiKey, string model, string baseUr
         lock (_gate)
         {
             _apiKey = apiKey ?? "";
-            _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o" : model.Trim();
+            _model = string.IsNullOrWhiteSpace(model) ? DefaultModel : model.Trim();
             _baseUrl = baseUrl?.Trim() ?? "";
         }
     }
