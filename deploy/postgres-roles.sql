@@ -1,3 +1,6 @@
+-- The least-privilege roles the Server profile expects: ww_migrator owns the schema, ww_app only
+-- reads and writes rows. The container smoke test runs the app under ww_app, which is what keeps
+-- these grants honest. The private ops repo keeps an identical copy for its Azure bootstrap.
 \set ON_ERROR_STOP on
 
 SELECT format('CREATE ROLE ww_migrator LOGIN PASSWORD %L', :'migrator_password')

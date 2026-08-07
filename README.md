@@ -53,6 +53,10 @@ port 8080 — put Caddy/Traefik/nginx in front if you expose it beyond your mach
 All release profiles set `NEXT_PUBLIC_DEPLOYMENT_PROFILE` and bundle the static export into the
 ASP.NET app. Application endpoints live under `/api`; health probes remain at `/health`.
 
+Every commit on `main` publishes its `Server` image to
+`ghcr.io/arst/wretched-whispers-server:<commit-sha>`. The hosted deployment that consumes it is
+driven from a separate private repository, so nothing here needs cloud credentials.
+
 # Local development
 
 ```bash
