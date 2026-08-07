@@ -31,7 +31,7 @@ jobs:
           docker exec postgres pg_isready -U postgres
           docker exec -i postgres psql -U postgres -d wretched \
             -v database_name=wretched -v app_password=smokeapp -v migrator_password=smokemigrator \
-            < deploy/azure/bootstrap-database.sql
+            < deploy/postgres-roles.sql
           migration_connection='Host=postgres;Port=5432;Database=wretched;Username=ww_migrator;Password=smokemigrator'
           app_connection='Host=postgres;Port=5432;Database=wretched;Username=ww_app;Password=smokeapp'
           docker run --rm --network wretched-whispers-smoke \

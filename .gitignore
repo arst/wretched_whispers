@@ -7,8 +7,6 @@
 *.rsuser
 *.suo
 *.user
-deploy/azure/*.bicepparam
-!deploy/azure/*.bicepparam.example
 *.userosscache
 *.sln.docstates
 
