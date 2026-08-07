@@ -4,6 +4,9 @@
 
 An experiment in fusing AI Agents with an Expert System to emulate the doomed world of MÖRK BORG.
 
+In practice: a solo MÖRK BORG campaign in your browser, run by an AI game master that narrates but never cheats —
+one `docker run` and you're playing.
+
 The rules draw primarily from the MÖRK BORG core book, though some have been bent, broken, or simplified in the name of
 playability (for now). Treat this system as a tool, a toy, or a trap — use it at your own discretion.
 
@@ -12,6 +15,28 @@ body brings the apocalypse closer.
 
 Play with it, or play against it.
 Play if you dare.
+
+---
+
+# What playing it looks like
+
+You type what you do. The domain rolls the dice, takes your hit points, and charts the map; the narrator finds the
+words for it.
+
+![Gameplay — the narrator describes a turn, with the next moves offered](docs/screenshots/gameplay.png)
+
+Every turn ships with its receipt. Expand the tool calls under any narration and read the actual roll, the DR it
+failed against, the damage the domain applied. The prose cannot lie about what happened, because it didn't decide
+what happened.
+
+![Turn receipt — the dice roll and state changes behind the prose](docs/screenshots/turn-receipt.png)
+
+The character sheet, journal, and map are views over domain state, and returning to a session gets you a
+"previously on..." recap distilled from everything that actually occurred.
+
+| | |
+|---|---|
+| ![Character sheet](docs/screenshots/character-sheet.png) | ![Session recap](docs/screenshots/recap.png) |
 
 ---
 
