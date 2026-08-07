@@ -95,10 +95,11 @@ public sealed class EvalHost : IAsyncDisposable
     }
 
     /// <summary>Combat mid-fight: the priest stands, the encounter is started. Pass
-    /// <paramref name="scrolls"/> for scenarios that cast in combat (default keeps the shared seed
-    /// byte-identical so existing scenarios' cached responses stay valid).</summary>
+    /// <paramref name="scrolls"/> for scenarios that cast in combat, <paramref name="omens"/> for
+    /// scenarios that spend omens (defaults keep the shared seed byte-identical so existing
+    /// scenarios' cached responses stay valid — Tuck rolls with 0 omens).</summary>
     public static async Task<EvalHost> CreateCombatAsync(
-        IChatClient chatClient, IReadOnlyList<Scroll>? scrolls = null)
+        IChatClient chatClient, IReadOnlyList<Scroll>? scrolls = null, int omens = 0)
     {
         var host = await CreateAsync(chatClient);
 
@@ -115,6 +116,7 @@ public sealed class EvalHost : IAsyncDisposable
             ?? throw new InvalidOperationException("Seed campaign was not found.");
 
         var character = SeedTuck(dice, scrolls: scrolls?.ToList() ?? []);
+        if (omens > 0) character.Omens.Refill(omens);
         await charactersRepo.Save(character);
 
         var encounter = Encounter.Create("Chapel Duel", "A priest blocks the road.", EncounterType.Hostile, dice);
@@ -181,6 +183,52 @@ public sealed class EvalHost : IAsyncDisposable
     }
 
     /// <summary>
+    /// A fight the character can neither win nor outlast: the Bell-Warden has 30 HP behind heavy
+    /// armor (Tuck's staff barely scratches it), morale 12 (2d6 can never exceed it, so it never
+    /// breaks and never flees), and swings 2d6 against Tuck's 2 HP. With the seeded dice the only
+    /// possible ending is the player's death — the deterministic stage for death-authority scenarios.
+    /// </summary>
+    public static async Task<EvalHost> CreateDeathFightAsync(IChatClient chatClient)
+    {
+        var host = await CreateAsync(chatClient);
+
+        await using var scope = host._provider.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        SetEvalUser(sp);
+
+        var dice = sp.GetRequiredService<Dice>();
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var charactersRepo = sp.GetRequiredService<ICharactersRepository>();
+        var encountersRepo = sp.GetRequiredService<IEncountersRepository>();
+
+        var campaign = await campaignsRepo.Get(host.SessionId)
+            ?? throw new InvalidOperationException("Seed campaign was not found.");
+
+        var character = SeedTuck(dice, scrolls: []);
+        await charactersRepo.Save(character);
+
+        var encounter = Encounter.Create(
+            "The Bell-Warden",
+            "A towering warden of the sunken chapel swings its cracked iron bell.",
+            EncounterType.Hostile, dice);
+        encounter.AddAdversary(new Adversary(
+            "Bell-Warden",
+            new HitPoints(30, 30),
+            new Armor(ArmorTier.Heavy),
+            12,
+            new AttackProfile("Cracked iron bell", DiceExpr.Parse("2d6"))));
+        encounter.StartEncounter();
+        await encountersRepo.Save(encounter);
+
+        campaign.JoinGame(character.Id);
+        campaign.AddEncounter(encounter.Id);
+        campaign.Start();
+        await campaignsRepo.SaveCampaign(campaign);
+
+        return host;
+    }
+
+    /// <summary>
     /// The state a brand-new session is in the moment the create-session form has been submitted: the
     /// character is rolled and joined, the campaign is NOT yet configured, so <c>DeriveStage</c> gives
     /// <see cref="SessionStage.CampaignSetup"/> and the next turn is the opening narration. Mirrors
@@ -208,11 +256,12 @@ public sealed class EvalHost : IAsyncDisposable
     /// <summary>
     /// Same seed as <see cref="CreateCombatAsync"/> (character joined, campaign started) but with no
     /// encounter attached, so <c>DeriveStage</c> falls through to <see cref="SessionStage.Exploration"/>.
-    /// Pass <paramref name="extraGear"/> to seed inventory items a scenario needs (default keeps the
-    /// shared seed byte-identical so existing scenarios' cached responses stay valid).
+    /// Pass <paramref name="extraGear"/> to seed inventory items a scenario needs, <paramref name="omens"/>
+    /// for scenarios that spend omens (defaults keep the shared seed byte-identical so existing
+    /// scenarios' cached responses stay valid — Tuck rolls with 0 omens).
     /// </summary>
     public static async Task<EvalHost> CreateExplorationAsync(
-        IChatClient chatClient, IReadOnlyList<InventoryItem>? extraGear = null)
+        IChatClient chatClient, IReadOnlyList<InventoryItem>? extraGear = null, int omens = 0)
     {
         var host = await CreateAsync(chatClient);
 
@@ -232,6 +281,7 @@ public sealed class EvalHost : IAsyncDisposable
         var character = SeedTuck(
             dice, scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
         foreach (var item in extraGear ?? []) character.AddItem(item);
+        if (omens > 0) character.Omens.Refill(omens);
         await charactersRepo.Save(character);
 
         campaign.JoinGame(character.Id);
