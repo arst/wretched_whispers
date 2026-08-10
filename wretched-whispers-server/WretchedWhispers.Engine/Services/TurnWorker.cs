@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,10 +25,7 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                 var turn = await queue.ClaimAsync(_owner, Lease, 3, stoppingToken);
                 if (turn is null) { await Task.Delay(TimeSpan.FromMilliseconds(250), stoppingToken); continue; }
                 if (turn.Status == TurnStatus.Failed)
-                {
-                    await events.AppendTerminalAsync(turn.Id, "error", new { message = turn.TerminalError }, stoppingToken);
                     continue;
-                }
 
                 // A turn can outlive any fixed lease (a single model call runs minutes), so the lease
                 // is renewed while we work; expiry then means the owner actually died. Losing the
@@ -41,11 +36,9 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                 var renewal = RenewLeaseAsync(turn.Id, execution);
                 try
                 {
-                    var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-                    if (await db.ChatMessages.AnyAsync(x => x.TurnId == turn.Id && x.Role == ChatRole.Assistant.Value, execution.Token))
+                    if (await queue.WasCommittedAsync(turn.Id, execution.Token))
                     {
-                        await events.AppendTerminalAsync(turn.Id, "done", new { }, execution.Token);
-                        await queue.CompleteAsync(turn.Id, _owner, null, execution.Token);
+                        await queue.FinalizeAsync(turn.Id, _owner, null, execution.Token);
                         continue;
                     }
 
@@ -56,9 +49,7 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                         var coordinator = scope.ServiceProvider.GetRequiredService<TurnCoordinator>();
                         await foreach (var item in coordinator.ExecuteTurnAsync(turn.CampaignId, turn.PlayerMessage, turn.Id, execution.Token))
                         {
-                            if (item.EventType is "done" or "error")
-                                await events.AppendTerminalAsync(turn.Id, item.EventType, item, execution.Token);
-                            else
+                            if (item.EventType is not ("done" or "error"))
                                 await events.AppendAsync(turn.Id, item.EventType, item, execution.Token);
                             if (item is Models.TurnError turnError) error = turnError.Message;
                         }
@@ -72,9 +63,9 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                         // client tails keepalives while the lease cycle burns the attempts for minutes.
                         logger.LogError(ex, "Turn failed outside the coordinator — Turn={TurnId}", turn.Id);
                         error = "An error occurred while processing your action";
-                        await events.AppendTerminalAsync(turn.Id, "error", new { message = error }, execution.Token);
                     }
-                    await queue.CompleteAsync(turn.Id, _owner, error, execution.Token);
+                    if (!await queue.FinalizeAsync(turn.Id, _owner, error, execution.Token))
+                        logger.LogWarning("Lost the lease before finalizing turn {TurnId}", turn.Id);
                     failures = 0;
                 }
                 finally

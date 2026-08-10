@@ -163,6 +163,38 @@ public class TurnCoordinatorTests
     }
 
     [Fact]
+    public async Task SessionState_IsLoadedOnlyAfterTheTransactionLockIsAcquired()
+    {
+        SetupChatSession();
+        SetupToolsForExploration();
+        SetupAgentExecutorStreaming(new NarrativeChunk("The door opens."));
+
+        var transactionStarted = false;
+        var lockAcquired = false;
+        var scope = new Mock<IUnitOfWorkScope>();
+        scope.Setup(s => s.CommitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        scope.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
+        _unitOfWork.Setup(u => u.BeginAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => transactionStarted = true)
+            .ReturnsAsync(scope.Object);
+        _sessionLock.Setup(l => l.TryAcquireAsync(_sessionId, It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                Assert.True(transactionStarted);
+                lockAcquired = true;
+            })
+            .ReturnsAsync(Mock.Of<IAsyncDisposable>());
+        _contextLoader.Setup(l => l.LoadAsync(_sessionId, It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(lockAcquired))
+            .ReturnsAsync(MakeExplorationContext());
+
+        await foreach (var _ in CreateCoordinator().ExecuteTurnAsync(
+                           _sessionId, "I open the door", ct: CancellationToken.None)) { }
+
+        Assert.True(lockAcquired);
+    }
+
+    [Fact]
     public async Task HappyPath_ProducesNarrativeStateUpdateAndTurnDone()
     {
         // Arrange

@@ -65,7 +65,7 @@ public class TurnQueueTests : SqliteTestBase
     }
 
     [Fact]
-    public async Task Lease_RenewAndComplete_AreFencedByOwner()
+    public async Task Lease_RenewAndFinalize_AreFencedByOwner()
     {
         var queue = new TurnQueue(Db, TimeProvider.System);
         await queue.EnqueueAsync(Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
@@ -77,13 +77,15 @@ public class TurnQueueTests : SqliteTestBase
         Assert.True(await queue.RenewAsync(claimed!.Id, "worker-a", TimeSpan.FromMinutes(5), CancellationToken.None));
         Assert.False(await queue.RenewAsync(claimed.Id, "worker-b", TimeSpan.FromMinutes(5), CancellationToken.None));
 
-        await queue.CompleteAsync(claimed.Id, "worker-b", null, CancellationToken.None);
+        Assert.False(await queue.FinalizeAsync(claimed.Id, "worker-b", null, CancellationToken.None));
         var afterStale = await queue.GetOwnedAsync(claimed.Id, UserId, CancellationToken.None);
         Assert.Equal(TurnStatus.Running, afterStale!.Status);
+        Assert.Empty(Db.TurnEvents);
 
-        await queue.CompleteAsync(claimed.Id, "worker-a", null, CancellationToken.None);
+        Assert.True(await queue.FinalizeAsync(claimed.Id, "worker-a", null, CancellationToken.None));
         var afterOwner = await queue.GetOwnedAsync(claimed.Id, UserId, CancellationToken.None);
         Assert.Equal(TurnStatus.Completed, afterOwner!.Status);
+        Assert.Equal("done", Assert.Single(Db.TurnEvents).EventType);
     }
 
     [Fact]
@@ -101,6 +103,54 @@ public class TurnQueueTests : SqliteTestBase
 
         Assert.Equal(TurnStatus.Failed, claimed!.Status);
         Assert.Equal("Turn exceeded retry limit.", claimed.TerminalError);
+        var terminal = Assert.Single(Db.TurnEvents);
+        Assert.Equal("error", terminal.EventType);
+        Assert.Contains("Turn exceeded retry limit.", terminal.Payload);
+    }
+
+    [Fact]
+    public async Task Finalize_WhenTerminalWriteFails_RollsBackTheQueueStatus()
+    {
+        var queue = new TurnQueue(Db, TimeProvider.System);
+        var queued = await queue.EnqueueAsync(
+            Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
+        var claimed = await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+        Assert.NotNull(claimed);
+
+        Db.TurnEvents.Add(new TurnEventEntity
+        {
+            Id = Guid.NewGuid(), TurnId = queued.Turn!.Id, Sequence = 1,
+            EventType = "error", Payload = "{}", CreatedAt = DateTime.UtcNow
+        });
+        await Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(() =>
+            queue.FinalizeAsync(claimed!.Id, "worker-a", null, CancellationToken.None));
+
+        var turn = await queue.GetOwnedAsync(claimed!.Id, UserId, CancellationToken.None);
+        Assert.Equal(TurnStatus.Running, turn!.Status);
+        Assert.Null(turn.CompletedAt);
+    }
+
+    [Fact]
+    public async Task WasCommitted_AcceptsTheUserMarkerFromAToolOnlyTurn()
+    {
+        var turnId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        Db.ChatSessions.Add(new ChatSessionEntity
+        {
+            Id = sessionId, CampaignId = Guid.NewGuid(), StartedAt = DateTime.UtcNow
+        });
+        Db.ChatMessages.Add(new ChatMessageEntity
+        {
+            Id = Guid.NewGuid(), SessionId = sessionId, TurnId = turnId,
+            Role = "user", Content = "I rest.", Timestamp = DateTime.UtcNow
+        });
+        await Db.SaveChangesAsync();
+
+        var queue = new TurnQueue(Db, TimeProvider.System);
+
+        Assert.True(await queue.WasCommittedAsync(turnId, CancellationToken.None));
     }
 
     [Fact]

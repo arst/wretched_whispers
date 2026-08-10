@@ -37,8 +37,6 @@ public sealed class InMemorySessionLock : ISessionLock
 /// Scoped: must share the request's <see cref="WretchedWhispersDbContext"/> so the lock rides the
 /// open unit-of-work transaction.
 /// </summary>
-// ponytail: no automated Postgres coverage — CI runs windows-latest, no Linux containers. If a
-// Linux runner appears, add one Testcontainers test: two scopes, second TryAcquireAsync → null.
 public sealed class PostgresSessionLock(WretchedWhispersDbContext db) : ISessionLock
 {
     private sealed class NoopLease : IAsyncDisposable

@@ -81,49 +81,7 @@ public sealed class TurnCoordinator(
     {
         using var activity = AgentToolProvider.ActivitySource.StartActivity("TurnCoordinator.ExecuteTurnAsync");
         activity?.SetTag("session.id", sessionId.ToString());
-
-        // Resolve the chat session.
-        var chatSessions = await chatHistoryRepository.GetSessionsForCampaign(sessionId, ct);
-        var chatSessionId = chatSessions.FirstOrDefault();
-        if (chatSessionId == Guid.Empty)
-        {
-            writer.TryWrite(new TurnError("No chat session found for this campaign"));
-            return;
-        }
-
-        // Load context and derive the stage (locked for the whole turn).
-        var context = await contextLoader.LoadAsync(sessionId, ct);
-        if (context.Campaign is null)
-        {
-            writer.TryWrite(new TurnError("Session not found"));
-            return;
-        }
-
-        var stage = context.DeriveStage();
-
-        // Domain is final: a dead character or an ended world accepts no further actions. Do NOT run the
-        // narrator — with no tools it cannot mutate anything, but it could still fabricate a "revival" in
-        // prose (which is exactly what happened). Re-sync the client to the ended state and refuse the turn.
-        if (stage == SessionStage.Ended)
-        {
-            logger.LogInformation("Turn refused — session already ended. Session={SessionId}", sessionId);
-            writer.TryWrite(StateUpdateMapper.Map(context));
-            writer.TryWrite(new TurnError(context.DeriveStatus() == "fallen"
-                ? "The wretch has fallen. Roll a new one or abandon this world."
-                : "This story has ended. Begin a new character to continue."));
-            return;
-        }
-
-        var (tools, registeredFunctions) = toolProvider.GetToolsForStage(context, stage);
-        activity?.SetTag("session.stage", stage.ToString());
-        activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
-
-        // Snapshot the state the model sees as INPUT for this turn, frozen before any tool mutates the
-        // loaded aggregates (StateUpdate is an immutable record over copied values). Serves two roles:
-        // the "why did the model do X" context for error analysis, and the BEFORE side of the per-turn
-        // delta computed post-commit.
-        var preTurnState = StateUpdateMapper.Map(context);
-        var gameStateJson = JsonSerializer.Serialize(preTurnState, TraceJson);
+        SessionStage? stage = null;
 
         try
         {
@@ -138,6 +96,50 @@ public sealed class TurnCoordinator(
                 writer.TryWrite(new TurnError("The narrator is already responding to another action. Please wait."));
                 return; // uow disposal rolls back the empty transaction
             }
+
+            // Read only after taking the lock. Otherwise another instance can commit between this
+            // load and lock acquisition, leaving Character/Encounter aggregates stale and unversioned.
+            var chatSessions = await chatHistoryRepository.GetSessionsForCampaign(sessionId, ct);
+            var chatSessionId = chatSessions.FirstOrDefault();
+            if (chatSessionId == Guid.Empty)
+            {
+                writer.TryWrite(new TurnError("No chat session found for this campaign"));
+                return;
+            }
+
+            var context = await contextLoader.LoadAsync(sessionId, ct);
+            if (context.Campaign is null)
+            {
+                writer.TryWrite(new TurnError("Session not found"));
+                return;
+            }
+
+            var currentStage = context.DeriveStage();
+            stage = currentStage;
+
+            // Domain is final: a dead character or an ended world accepts no further actions. Do NOT run the
+            // narrator — with no tools it cannot mutate anything, but it could still fabricate a "revival" in
+            // prose (which is exactly what happened). Re-sync the client to the ended state and refuse the turn.
+            if (currentStage == SessionStage.Ended)
+            {
+                logger.LogInformation("Turn refused — session already ended. Session={SessionId}", sessionId);
+                writer.TryWrite(StateUpdateMapper.Map(context));
+                writer.TryWrite(new TurnError(context.DeriveStatus() == "fallen"
+                    ? "The wretch has fallen. Roll a new one or abandon this world."
+                    : "This story has ended. Begin a new character to continue."));
+                return;
+            }
+
+            var (tools, registeredFunctions) = toolProvider.GetToolsForStage(context, currentStage);
+            activity?.SetTag("session.stage", currentStage.ToString());
+            activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
+
+            // Snapshot the state the model sees as INPUT for this turn, frozen before any tool mutates the
+            // loaded aggregates (StateUpdate is an immutable record over copied values). Serves two roles:
+            // the "why did the model do X" context for error analysis, and the BEFORE side of the per-turn
+            // delta computed post-commit.
+            var preTurnState = StateUpdateMapper.Map(context);
+            var gameStateJson = JsonSerializer.Serialize(preTurnState, TraceJson);
 
             var narrativeChunks = new List<NarrativeChunk>();
             var toolResults = new List<ToolResult>();
@@ -173,7 +175,7 @@ public sealed class TurnCoordinator(
             {
                 logger.LogWarning(
                     "Empty agent response — no narrative and no tool calls. Session={SessionId}, Stage={Stage}",
-                    sessionId, stage);
+                    sessionId, currentStage);
                 writer.TryWrite(new TurnError("The narrator fell silent. Please try again."));
                 return; // uow disposal rolls back
             }
@@ -210,7 +212,7 @@ public sealed class TurnCoordinator(
             try
             {
                 await turnTraceRepository.Save(
-                    BuildTrace(sessionId, chatSessionId, stage, playerMessage, gameStateJson,
+                    BuildTrace(sessionId, chatSessionId, currentStage, playerMessage, gameStateJson,
                         agentTrace, toolResults, turnDelta, fullResponse.ToString()),
                     ct);
             }
@@ -218,7 +220,7 @@ public sealed class TurnCoordinator(
             {
                 logger.LogError(traceEx,
                     "Turn trace persistence failed (turn already committed) — Session={SessionId}, Stage={Stage}",
-                    sessionId, stage);
+                    sessionId, currentStage);
             }
 
             if (turnDelta is not null)
@@ -229,7 +231,7 @@ public sealed class TurnCoordinator(
 
             logger.LogInformation(
                 "Turn complete — Session={SessionId}, Stage={Stage}, NarrativeChunks={ChunkCount}, ToolResults={ToolCount}",
-                sessionId, stage, narrativeChunks.Count, toolResults.Count);
+                sessionId, currentStage, narrativeChunks.Count, toolResults.Count);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

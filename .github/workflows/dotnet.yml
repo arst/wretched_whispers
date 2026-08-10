@@ -9,6 +9,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wretched_tests
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wretched_tests"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      WW_POSTGRES_TEST_CONNECTION: Host=localhost;Port=5432;Database=wretched_tests;Username=postgres;Password=postgres
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
