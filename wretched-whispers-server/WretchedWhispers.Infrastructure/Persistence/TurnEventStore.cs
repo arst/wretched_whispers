@@ -34,27 +34,4 @@ public sealed class TurnEventStore(IServiceScopeFactory scopes, TimeProvider clo
         return await db.TurnEvents.AsNoTracking().Where(x => x.TurnId == turnId && x.Sequence > sequence)
             .OrderBy(x => x.Sequence).ToListAsync(ct);
     }
-
-    /// <summary>Appends only one terminal event per turn. The partial unique index is the concurrency
-    /// guard; the catch merely turns the losing writer into a no-op.</summary>
-    public async Task AppendTerminalAsync(Guid turnId, string eventType, object payload, CancellationToken ct)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-        for (var attempt = 0; ; attempt++)
-        {
-            var sequence = (await db.TurnEvents.Where(x => x.TurnId == turnId).MaxAsync(x => (long?)x.Sequence, ct) ?? 0) + 1;
-            var entity = new TurnEventEntity { Id = Guid.NewGuid(), TurnId = turnId, Sequence = sequence,
-                EventType = eventType, Payload = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web), CreatedAt = clock.GetUtcNow().UtcDateTime };
-            db.TurnEvents.Add(entity);
-            try { await db.SaveChangesAsync(ct); return; }
-            catch (DbUpdateException) when (attempt < 3)
-            {
-                db.Entry(entity).State = EntityState.Detached;
-                if (await db.TurnEvents.AnyAsync(
-                    x => x.TurnId == turnId && (x.EventType == "done" || x.EventType == "error"), ct))
-                    return;
-            }
-        }
-    }
 }
