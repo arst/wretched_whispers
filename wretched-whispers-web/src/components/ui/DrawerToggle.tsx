@@ -39,16 +39,16 @@ export default function DrawerToggle({
   return (
     <div
       className={`transition-opacity duration-200 ${
-        visible ? "opacity-100" : "opacity-0 pointer-events-none"
+        visible ? "opacity-100" : "pointer-events-none opacity-0"
       }`}
     >
       <button
         onClick={() => toggleDrawer(name)}
-        className="min-h-[44px] flex items-center gap-2 cursor-pointer"
+        className="flex min-h-[44px] cursor-pointer items-center gap-2"
         aria-label={`${open ? "Close" : "Open"} ${(ariaNoun ?? label).toLowerCase()}`}
       >
         {leading}
-        <span className="flex items-center gap-1.5 rounded border border-doom-yellow/30 bg-doom-yellow/10 px-2 py-1 text-xs font-bold uppercase text-doom-yellow hover:border-doom-yellow/60 transition-colors">
+        <span className="border-doom-yellow/30 bg-doom-yellow/10 text-doom-yellow hover:border-doom-yellow/60 flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-bold uppercase transition-colors">
           <span>{label}</span>
           {badge && <span className="text-doom-bone">{badge}</span>}
         </span>

@@ -11,8 +11,8 @@ export default function ThinkingIndicator() {
   if (!isStreaming || streamingText.length > 0) return null;
 
   return (
-    <div className="bg-doom-card border-l-2 border-doom-yellow rounded px-4 py-3 mb-3">
-      <p className="text-doom-ash text-xs uppercase tracking-widest mb-2 font-body">
+    <div className="bg-doom-card border-doom-yellow mb-3 rounded border-l-2 px-4 py-3">
+      <p className="text-doom-ash font-body mb-2 text-xs tracking-widest uppercase">
         Game Master
       </p>
       <div className="py-1">

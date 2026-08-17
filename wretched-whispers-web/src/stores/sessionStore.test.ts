@@ -18,7 +18,9 @@ describe("session store", () => {
   // Blanking the sheet on one would empty the drawer mid-session.
   it("keeps the last character sheet through a character-less update", () => {
     const store = useSessionStore.getState();
-    store.setStateUpdate(update({ characterName: "Grim", characterHp: 5, characterMaxHp: 8 }));
+    store.setStateUpdate(
+      update({ characterName: "Grim", characterHp: 5, characterMaxHp: 8 }),
+    );
     store.setStateUpdate(update({ currentDay: 2 }));
 
     const state = useSessionStore.getState();

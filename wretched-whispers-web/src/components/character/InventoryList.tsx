@@ -8,7 +8,7 @@ interface InventoryListProps {
 
 export default function InventoryList({ items }: InventoryListProps) {
   if (items.length === 0) {
-    return <p className="text-sm text-doom-ash italic">Empty</p>;
+    return <p className="text-doom-ash text-sm italic">Empty</p>;
   }
 
   // Items arrive one entry per UNIT (so turn deltas track quantity changes);
@@ -24,14 +24,12 @@ export default function InventoryList({ items }: InventoryListProps) {
         <li key={item} className="flex items-baseline gap-2 py-0.5">
           <span
             aria-hidden="true"
-            className="w-4 shrink-0 text-center text-sm text-doom-yellow"
+            className="text-doom-yellow w-4 shrink-0 text-center text-sm"
           >
             {itemGlyph(item)}
           </span>
-          <span className="text-sm text-doom-bone">{item}</span>
-          {count > 1 && (
-            <span className="text-xs text-doom-ash">×{count}</span>
-          )}
+          <span className="text-doom-bone text-sm">{item}</span>
+          {count > 1 && <span className="text-doom-ash text-xs">×{count}</span>}
         </li>
       ))}
     </ul>

@@ -15,14 +15,19 @@ export function hpTone(currentHp: number, maxHp: number): string {
   return "#8b0000";
 }
 
-export default function HpBar({ currentHp, maxHp, variant = "full" }: HpBarProps) {
+export default function HpBar({
+  currentHp,
+  maxHp,
+  variant = "full",
+}: HpBarProps) {
   const isMini = variant === "mini";
   const heightClass = isMini ? "h-2" : "h-4";
-  const fillPct = maxHp > 0 ? Math.max(0, Math.min(100, (currentHp / maxHp) * 100)) : 0;
+  const fillPct =
+    maxHp > 0 ? Math.max(0, Math.min(100, (currentHp / maxHp) * 100)) : 0;
 
   return (
     <div
-      className={`relative w-full ${heightClass} bg-doom-card rounded overflow-hidden`}
+      className={`relative w-full ${heightClass} bg-doom-card overflow-hidden rounded`}
       role="progressbar"
       aria-valuenow={currentHp}
       aria-valuemin={0}
@@ -31,10 +36,13 @@ export default function HpBar({ currentHp, maxHp, variant = "full" }: HpBarProps
     >
       <div
         className="absolute inset-y-0 left-0 rounded transition-all duration-300 ease-in-out"
-        style={{ width: `${fillPct}%`, backgroundColor: hpTone(currentHp, maxHp) }}
+        style={{
+          width: `${fillPct}%`,
+          backgroundColor: hpTone(currentHp, maxHp),
+        }}
       />
       {!isMini && (
-        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-doom-bone z-10">
+        <span className="text-doom-bone absolute inset-0 z-10 flex items-center justify-center text-xs font-bold">
           HP {currentHp}/{maxHp}
         </span>
       )}

@@ -33,59 +33,59 @@ export default function JournalDrawer() {
   }, [journalOpen, sessionId]);
 
   return (
-      <Drawer name="journal" title="JOURNAL" label="Campaign journal">
-        <div className="px-8 pt-6 pb-8 space-y-4">
-          {miseryPsalms.length > 0 && (
-            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-pink">
-              <span className="text-xs font-bold uppercase text-doom-ash">
-                MISERIES {miseryPsalms.length}/7
+    <Drawer name="journal" title="JOURNAL" label="Campaign journal">
+      <div className="space-y-4 px-8 pt-6 pb-8">
+        {miseryPsalms.length > 0 && (
+          <div className="bg-doom-card border-doom-pink rounded border-l-2 p-4">
+            <span className="text-doom-ash text-xs font-bold uppercase">
+              MISERIES {miseryPsalms.length}/7
+            </span>
+            <div className="mt-2 space-y-1">
+              {miseryPsalms.map((psalm) => (
+                <div key={psalm} className="text-doom-pink text-sm">
+                  {psalm}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {fallen.length > 0 && (
+          <div className="bg-doom-card border-doom-ash rounded border-l-2 p-4">
+            <span className="text-doom-ash text-xs font-bold uppercase">
+              GRAVEYARD
+            </span>
+            <div className="mt-2 space-y-1">
+              {fallen.map((f, i) => (
+                <div key={i} className="text-doom-bone text-sm">
+                  &#9760; {f.name} — died day {f.dayDied}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {entries === null && (
+          <p className="text-doom-ash text-sm">Loading...</p>
+        )}
+        {entries !== null && entries.length === 0 && (
+          <p className="text-doom-ash text-sm">Nothing recorded yet.</p>
+        )}
+        {entries?.map((entry, i) => (
+          <div
+            key={i}
+            className="bg-doom-card border-doom-yellow rounded border-l-2 p-4"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-doom-ash text-xs font-bold uppercase">
+                DAY {entry.day} {"·"} {entry.hour}:00
               </span>
-              <div className="mt-2 space-y-1">
-                {miseryPsalms.map((psalm) => (
-                  <div key={psalm} className="text-doom-pink text-sm">
-                    {psalm}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {fallen.length > 0 && (
-            <div className="bg-doom-card rounded p-4 border-l-2 border-doom-ash">
-              <span className="text-xs font-bold uppercase text-doom-ash">
-                GRAVEYARD
+              <span className="text-doom-yellow text-xs font-bold tracking-wider uppercase">
+                {entry.category}
               </span>
-              <div className="mt-2 space-y-1">
-                {fallen.map((f, i) => (
-                  <div key={i} className="text-doom-bone text-sm">
-                    &#9760; {f.name} — died day {f.dayDied}
-                  </div>
-                ))}
-              </div>
             </div>
-          )}
-          {entries === null && (
-            <p className="text-doom-ash text-sm">Loading...</p>
-          )}
-          {entries !== null && entries.length === 0 && (
-            <p className="text-doom-ash text-sm">Nothing recorded yet.</p>
-          )}
-          {entries?.map((entry, i) => (
-            <div
-              key={i}
-              className="bg-doom-card rounded p-4 border-l-2 border-doom-yellow"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase text-doom-ash">
-                  DAY {entry.day} {"·"} {entry.hour}:00
-                </span>
-                <span className="text-doom-yellow text-xs font-bold uppercase tracking-wider">
-                  {entry.category}
-                </span>
-              </div>
-              <p className="mt-2 text-doom-bone text-sm">{entry.text}</p>
-            </div>
-          ))}
-        </div>
-      </Drawer>
+            <p className="text-doom-bone mt-2 text-sm">{entry.text}</p>
+          </div>
+        ))}
+      </div>
+    </Drawer>
   );
 }

@@ -10,6 +10,10 @@ indent_size = 4
 [*.{csproj,props,targets,json,yml,yaml,xml}]
 indent_size = 2
 
+# Web client (prettier reads this for tab width too)
+[*.{ts,tsx,js,jsx,mjs,mts,css,md}]
+indent_size = 2
+
 [*.cs]
 # Usings
 dotnet_sort_system_directives_first = true

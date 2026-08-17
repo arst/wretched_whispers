@@ -55,7 +55,7 @@ export default function RegisterPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "The abyss spits you back. Try again."
+          : "The abyss spits you back. Try again.",
       );
     } finally {
       setLoading(false);
@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <h1 className="font-display text-doom-yellow text-3xl tracking-wider text-center">
+      <h1 className="font-display text-doom-yellow text-center text-3xl tracking-wider">
         FORGE YOUR SOUL
       </h1>
 
@@ -98,20 +98,15 @@ export default function RegisterPage() {
         autoComplete="new-password"
       />
 
-      {error && (
-        <p className="text-doom-pink text-sm text-center">{error}</p>
-      )}
+      {error && <p className="text-doom-pink text-center text-sm">{error}</p>}
 
       <Button type="submit" variant="primary" loading={loading}>
         Enter the Abyss
       </Button>
 
-      <p className="text-doom-ash text-sm text-center">
+      <p className="text-doom-ash text-center text-sm">
         Already damned?{" "}
-        <Link
-          href="/login"
-          className="text-doom-yellow hover:underline"
-        >
+        <Link href="/login" className="text-doom-yellow hover:underline">
           Sign in
         </Link>
       </p>

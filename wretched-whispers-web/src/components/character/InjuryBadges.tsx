@@ -20,8 +20,8 @@ export default function InjuryBadges({
     <div className="grid grid-cols-2 gap-2">
       {INJURIES.filter((i) => characterData[i.key]).map((injury) => (
         <div key={injury.key} className="flex items-center gap-1.5">
-          <span className="text-[#ff1493] text-sm">{injury.glyph}</span>
-          <span className="text-[#ff1493] text-xs font-bold uppercase tracking-wider">
+          <span className="text-sm text-[#ff1493]">{injury.glyph}</span>
+          <span className="text-xs font-bold tracking-wider text-[#ff1493] uppercase">
             {injury.label}
           </span>
         </div>

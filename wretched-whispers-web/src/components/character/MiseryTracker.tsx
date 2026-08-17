@@ -14,13 +14,11 @@ export default function MiseryTracker({ count }: MiseryTrackerProps) {
       {Array.from({ length: 7 }, (_, i) => (
         <span
           key={`${i}-${i < count}`}
-          className={`w-2 h-2 rounded-full ${
+          className={`h-2 w-2 rounded-full ${
             i < count ? "bg-[#ff1493]" : "bg-[#8a8a8a]/40"
           }`}
           style={
-            i < count
-              ? { animation: "doom-pulse 0.6s ease-in-out" }
-              : undefined
+            i < count ? { animation: "doom-pulse 0.6s ease-in-out" } : undefined
           }
         />
       ))}

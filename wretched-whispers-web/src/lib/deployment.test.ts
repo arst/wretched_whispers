@@ -17,7 +17,7 @@ describe("deployment profile", () => {
 
   it("rejects an invalid profile", () => {
     expect(() => parseDeploymentProfile("Other")).toThrow(
-      "Invalid NEXT_PUBLIC_DEPLOYMENT_PROFILE"
+      "Invalid NEXT_PUBLIC_DEPLOYMENT_PROFILE",
     );
   });
 });

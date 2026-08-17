@@ -43,15 +43,17 @@ export default function Drawer({
       }}
       className={`fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full ${width} bg-doom-dark text-doom-bone overflow-y-auto backdrop:bg-[#0a0a0a]/60`}
     >
-      <div className="px-8 pt-8 pb-0 flex items-start justify-between">
+      <div className="flex items-start justify-between px-8 pt-8 pb-0">
         <div>
-          <h2 className="font-display text-lg font-bold text-doom-yellow">{title}</h2>
+          <h2 className="font-display text-doom-yellow text-lg font-bold">
+            {title}
+          </h2>
           {subtitle}
         </div>
         <button
           onClick={() => toggleDrawer(name)}
           aria-label={`Close ${label.toLowerCase()}`}
-          className="text-doom-ash hover:text-doom-bone text-xl cursor-pointer"
+          className="text-doom-ash hover:text-doom-bone cursor-pointer text-xl"
         >
           {"×"}
         </button>

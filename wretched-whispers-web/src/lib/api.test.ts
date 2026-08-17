@@ -10,7 +10,8 @@ describe("apiFetch", () => {
   });
 
   it("adds cookie credentials and antiforgery to unsafe requests", async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ token: "csrf" })))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -26,7 +27,10 @@ describe("apiFetch", () => {
   });
 
   it("clears authentication after a 401", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    );
 
     await apiFetch("/sessions");
 

@@ -7,7 +7,7 @@ const deploymentProfiles = [
 export type DeploymentProfile = (typeof deploymentProfiles)[number];
 
 export function parseDeploymentProfile(
-  value: string | undefined
+  value: string | undefined,
 ): DeploymentProfile | null {
   if (value === undefined || value === "") return null;
   if (deploymentProfiles.includes(value as DeploymentProfile))
@@ -20,5 +20,5 @@ export function isStandaloneProfile(profile: DeploymentProfile | null) {
 }
 
 export const isStandalone = isStandaloneProfile(
-  parseDeploymentProfile(process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE)
+  parseDeploymentProfile(process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE),
 );

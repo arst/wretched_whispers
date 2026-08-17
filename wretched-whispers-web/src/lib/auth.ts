@@ -8,10 +8,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
  * Cookie auth (?useCookies=true), so writes must carry an antiforgery token —
  * see apiFetch. Bearer tokens can read but not mutate.
  */
-export async function login(
-  email: string,
-  password: string
-): Promise<void> {
+export async function login(email: string, password: string): Promise<void> {
   const response = await fetch(`${API_URL}/api/auth/login?useCookies=true`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -23,7 +20,7 @@ export async function login(
     throw new Error(
       response.status === 401
         ? "Invalid email or password"
-        : `Login failed (${response.status})`
+        : `Login failed (${response.status})`,
     );
   }
 
@@ -35,10 +32,7 @@ export async function login(
  * Register a new account with email and password.
  * Does not automatically log in -- caller should call login() after.
  */
-export async function register(
-  email: string,
-  password: string
-): Promise<void> {
+export async function register(email: string, password: string): Promise<void> {
   const response = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

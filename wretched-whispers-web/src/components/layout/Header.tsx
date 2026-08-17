@@ -15,10 +15,10 @@ export default function Header() {
   const openSettings = useDesktopSettingsStore((s) => s.setOpen);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-doom-dark border-b border-doom-card flex items-center px-4">
+    <header className="bg-doom-dark border-doom-card fixed top-0 right-0 left-0 z-40 flex h-14 items-center border-b px-4">
       <Link
         href="/"
-        className="font-display text-doom-yellow text-lg tracking-wider hover:brightness-110 transition-all"
+        className="font-display text-doom-yellow text-lg tracking-wider transition-all hover:brightness-110"
       >
         WRETCHED WHISPERS
       </Link>
@@ -26,7 +26,7 @@ export default function Header() {
       <nav className="ml-auto flex items-center gap-4">
         {!isHydrated ? (
           /* Skeleton placeholder while store hydrates */
-          <div className="w-20 h-4 bg-doom-card animate-pulse rounded" />
+          <div className="bg-doom-card h-4 w-20 animate-pulse rounded" />
         ) : isAuthenticated ? (
           <>
             <CharacterDrawerToggle />
@@ -34,7 +34,7 @@ export default function Header() {
             <MapDrawerToggle />
             <Link
               href="/sessions"
-              className="text-doom-bone text-sm uppercase tracking-wider hover:text-doom-yellow transition-colors"
+              className="text-doom-bone hover:text-doom-yellow text-sm tracking-wider uppercase transition-colors"
             >
               Sessions
             </Link>
@@ -43,14 +43,14 @@ export default function Header() {
                 onClick={() => openSettings(true)}
                 aria-label="Settings"
                 title="Settings"
-                className="text-doom-ash text-lg hover:text-doom-yellow transition-colors cursor-pointer leading-none"
+                className="text-doom-ash hover:text-doom-yellow cursor-pointer text-lg leading-none transition-colors"
               >
                 ⚙
               </button>
             ) : (
               <button
                 onClick={() => void logout()}
-                className="text-doom-ash text-sm uppercase tracking-wider hover:text-doom-pink transition-colors cursor-pointer"
+                className="text-doom-ash hover:text-doom-pink cursor-pointer text-sm tracking-wider uppercase transition-colors"
               >
                 Logout
               </button>
@@ -59,7 +59,7 @@ export default function Header() {
         ) : (
           <Link
             href="/login"
-            className="text-doom-bone text-sm uppercase tracking-wider hover:text-doom-yellow transition-colors"
+            className="text-doom-bone hover:text-doom-yellow text-sm tracking-wider uppercase transition-colors"
           >
             Login
           </Link>
