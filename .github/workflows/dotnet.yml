@@ -36,10 +36,6 @@ jobs:
         run: dotnet restore wretched-whispers-server/WretchedWhispers.slnx
       - name: Verify formatting
         run: dotnet format wretched-whispers-server/WretchedWhispers.slnx --verify-no-changes --no-restore
-      - name: Check for vulnerable packages
-        run: |
-          dotnet list wretched-whispers-server/WretchedWhispers.slnx package --vulnerable --include-transitive | tee vulnerable.txt
-          ! grep -q "has the following vulnerable packages" vulnerable.txt
       - name: Build
         run: dotnet build wretched-whispers-server/WretchedWhispers.slnx --no-restore --configuration Release
       - name: Test

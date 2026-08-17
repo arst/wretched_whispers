@@ -7,6 +7,9 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Audit transitive packages too; NU19xx warnings become errors via TreatWarningsAsErrors,
+         so a known CVE anywhere in the graph fails restore locally and in CI. -->
+    <NuGetAuditMode>all</NuGetAuditMode>
   </PropertyGroup>
 
 </Project>
