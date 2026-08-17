@@ -438,3 +438,6 @@ wretched-whispers-server/WretchedWhispers.Api/wwwroot/
 
 # Claude Code: shared settings.json is committed, local overrides are not
 .claude/settings.local.json
+
+# dotnet ef design-time builds can emit a literal "bin\Debug" dir on Linux
+[Bb]in\\[Dd]ebug/

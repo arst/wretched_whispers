@@ -46,6 +46,14 @@ jobs:
         # Whole solution: includes the Evals project's deterministic tests (harness + evaluators);
         # live LLM evals skip cleanly when no Azure OpenAI credentials are configured.
         run: dotnet test wretched-whispers-server/WretchedWhispers.slnx --no-build --configuration Release --logger "trx"
+      - name: Check migrations match the model
+        # Model changes need dual migrations (SQLite + Postgres); this fails when either
+        # context has drifted from its latest migration.
+        working-directory: wretched-whispers-server
+        run: |
+          dotnet tool restore
+          dotnet ef migrations has-pending-model-changes --project WretchedWhispers.Infrastructure --context WretchedWhispersDbContext
+          dotnet ef migrations has-pending-model-changes --project WretchedWhispers.Infrastructure --context PostgresWwDbContext
       - name: Compile deployment profiles
         run: |
           dotnet build wretched-whispers-server/WretchedWhispers.Api/WretchedWhispers.Api.csproj --configuration Release -p:DeploymentProfile=Server
