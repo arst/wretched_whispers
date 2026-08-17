@@ -1,4 +1,5 @@
 # ---- Stage 1: static-export the SPA (same recipe as build-desktop.sh) ----
+# Keep the major in sync with wretched-whispers-web/.nvmrc (FROM can't read it).
 FROM node:22-alpine AS web
 ARG DEPLOYMENT_PROFILE=StandaloneContainer
 WORKDIR /src/web
