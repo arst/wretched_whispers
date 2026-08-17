@@ -33,19 +33,19 @@ jobs:
         with:
           dotnet-version: "10.0.x"
       - name: Restore dependencies
-        run: dotnet restore wretched-whispers-server/WretchedWhispers.sln
+        run: dotnet restore wretched-whispers-server/WretchedWhispers.slnx
       - name: Verify formatting
-        run: dotnet format wretched-whispers-server/WretchedWhispers.sln --verify-no-changes --no-restore
+        run: dotnet format wretched-whispers-server/WretchedWhispers.slnx --verify-no-changes --no-restore
       - name: Check for vulnerable packages
         run: |
-          dotnet list wretched-whispers-server/WretchedWhispers.sln package --vulnerable --include-transitive | tee vulnerable.txt
+          dotnet list wretched-whispers-server/WretchedWhispers.slnx package --vulnerable --include-transitive | tee vulnerable.txt
           ! grep -q "has the following vulnerable packages" vulnerable.txt
       - name: Build
-        run: dotnet build wretched-whispers-server/WretchedWhispers.sln --no-restore --configuration Release
+        run: dotnet build wretched-whispers-server/WretchedWhispers.slnx --no-restore --configuration Release
       - name: Test
         # Whole solution: includes the Evals project's deterministic tests (harness + evaluators);
         # live LLM evals skip cleanly when no Azure OpenAI credentials are configured.
-        run: dotnet test wretched-whispers-server/WretchedWhispers.sln --no-build --configuration Release --logger "trx"
+        run: dotnet test wretched-whispers-server/WretchedWhispers.slnx --no-build --configuration Release --logger "trx"
       - name: Compile deployment profiles
         run: |
           dotnet build wretched-whispers-server/WretchedWhispers.Api/WretchedWhispers.Api.csproj --configuration Release -p:DeploymentProfile=Server
