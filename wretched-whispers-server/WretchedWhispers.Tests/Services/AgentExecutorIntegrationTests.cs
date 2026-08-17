@@ -3,14 +3,14 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using WretchedWhispers.Engine.Models;
-using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools;
+using WretchedWhispers.Engine.Models;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 

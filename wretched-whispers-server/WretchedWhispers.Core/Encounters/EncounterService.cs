@@ -92,23 +92,23 @@ public class EncounterService(
         switch (action)
         {
             case PlayerRoundAction.Attack:
-            {
-                var living = ActiveAdversaries(encounter);
-                if (living.Count == 0)
-                    throw new InvalidOperationException("No living adversaries remain.");
-                var target = living.FirstOrDefault(a =>
-                        a.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
-                    ?? living[0];
-                // No settings => MORK BORG RAW, the strictest reading. Only the forgiving presets
-                // floor a landed blow, and only for the player's own swing.
-                var outcome = character.Attack(target.Armor, dice,
-                    spendOmenForMaxDamage: omenUse is CombatOmenUse.MaxDamage,
-                    minimumOneDamage: settings?.PlayerHitsAlwaysDamage ?? false);
-                encounter.ProcessPlayerAttackOutcome(outcome, target.Id, dice);
-                playerAttack = outcome;
-                attackedName = target.Name;
-                break;
-            }
+                {
+                    var living = ActiveAdversaries(encounter);
+                    if (living.Count == 0)
+                        throw new InvalidOperationException("No living adversaries remain.");
+                    var target = living.FirstOrDefault(a =>
+                            a.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                        ?? living[0];
+                    // No settings => MORK BORG RAW, the strictest reading. Only the forgiving presets
+                    // floor a landed blow, and only for the player's own swing.
+                    var outcome = character.Attack(target.Armor, dice,
+                        spendOmenForMaxDamage: omenUse is CombatOmenUse.MaxDamage,
+                        minimumOneDamage: settings?.PlayerHitsAlwaysDamage ?? false);
+                    encounter.ProcessPlayerAttackOutcome(outcome, target.Id, dice);
+                    playerAttack = outcome;
+                    attackedName = target.Name;
+                    break;
+                }
             case PlayerRoundAction.Flee:
                 fleeAttempt = character.AttemptFlee(dice);
                 playerFled = fleeAttempt.IsSuccess;

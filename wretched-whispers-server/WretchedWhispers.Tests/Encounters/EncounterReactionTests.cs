@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Xunit;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Combat;
@@ -8,6 +7,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
+using Xunit;
 
 namespace WretchedWhispers.Tests.Encounters;
 

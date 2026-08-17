@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters.Combat;
+namespace WretchedWhispers.Core.Characters.Combat;
 
 public readonly record struct DefenceOutcome(
     int DamageDealt,

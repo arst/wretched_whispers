@@ -1,4 +1,3 @@
-using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
@@ -8,6 +7,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure;
 using Xunit;
 

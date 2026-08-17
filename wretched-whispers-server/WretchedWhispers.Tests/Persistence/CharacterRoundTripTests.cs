@@ -1,4 +1,3 @@
-using Xunit;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Create;
@@ -6,6 +5,7 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Infrastructure.Persistence.Repositories;
+using Xunit;
 
 namespace WretchedWhispers.Tests.Persistence;
 

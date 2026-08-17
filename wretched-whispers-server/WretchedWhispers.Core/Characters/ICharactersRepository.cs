@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters;
+namespace WretchedWhispers.Core.Characters;
 
 public interface ICharactersRepository
 {

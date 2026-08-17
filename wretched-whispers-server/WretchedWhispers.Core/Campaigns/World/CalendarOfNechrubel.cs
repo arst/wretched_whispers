@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Campaigns.World;

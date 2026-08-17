@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Create;
@@ -7,7 +8,6 @@ using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Repositories;
-using WretchedWhispers.Core;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
 
 namespace WretchedWhispers.Infrastructure;

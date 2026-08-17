@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Dices;
+namespace WretchedWhispers.Core.Dices;
 
 public readonly record struct DiceExpr(int Count, int Sides, int Constant = 0)
 {

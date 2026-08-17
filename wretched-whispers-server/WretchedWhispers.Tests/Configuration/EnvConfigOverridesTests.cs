@@ -55,7 +55,7 @@ public sealed class EnvConfigOverridesTests
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
-                { ["Llm:ApiKey"] = "sk-from-settings", ["Llm:Model"] = "gpt-4o" })
+            { ["Llm:ApiKey"] = "sk-from-settings", ["Llm:Model"] = "gpt-4o" })
             .AddInMemoryCollection(EnvConfigOverrides.Map(n => n == "OPENAI_MODEL" ? "gpt-5-mini" : null))
             .Build();
 

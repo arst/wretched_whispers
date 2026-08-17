@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters;
+namespace WretchedWhispers.Core.Characters;
 
 public readonly record struct HitPoints(int Current, int Max)
 {

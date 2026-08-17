@@ -1,4 +1,4 @@
-﻿using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 

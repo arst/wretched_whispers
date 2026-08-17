@@ -1,4 +1,4 @@
-﻿using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Infrastructure;
 

@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Engine.Services;
 
 namespace WretchedWhispers.Engine.GameTools;
 

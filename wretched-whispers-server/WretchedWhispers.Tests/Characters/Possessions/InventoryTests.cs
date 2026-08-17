@@ -228,7 +228,7 @@ public class InventoryTests
         var normalItem = new InventoryItem(Guid.NewGuid(), "Rope", false, false);
         var bulkyItem = new InventoryItem(Guid.NewGuid(), "Heavy Armor", true, false);
         var consumableItem = new InventoryItem(Guid.NewGuid(), "Health Potion", false, true, 3);
-        
+
         inventory.AddItem(normalItem); // 1 slot
         inventory.AddItem(bulkyItem);  // 2 slots
         inventory.AddItem(consumableItem); // 1 slot
@@ -254,7 +254,7 @@ public class InventoryTests
         // Arrange
         var inventory = new Inventory("Backpack", 20, []);
         var strength = new AbilityScore(strengthModifier);
-        
+
         // Add items to reach desired occupied slots
         var slotsToAdd = occupiedSlots;
         while (slotsToAdd > 0)

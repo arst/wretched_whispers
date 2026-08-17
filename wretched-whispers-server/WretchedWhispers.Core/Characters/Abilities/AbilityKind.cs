@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters.Abilities;
+namespace WretchedWhispers.Core.Characters.Abilities;
 
 public enum AbilityKind
 {

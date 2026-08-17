@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters.Possessions.Weapons;
+namespace WretchedWhispers.Core.Characters.Possessions.Weapons;
 
 public enum WeaponKind
 {
