@@ -26,7 +26,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <!-- EF Core Sqlite 10.0.10 still pins SQLitePCLRaw 2.1.11, inside GHSA-2m69-gcr7-jv3q's
          vulnerable range (< 2.1.12). Direct reference lifts the graph; drop when EF catches up. -->
-    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
 
     <!-- Microsoft.Extensions -->
