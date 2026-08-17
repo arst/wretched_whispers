@@ -29,13 +29,7 @@ export default function Button({
   return (
     <button
       disabled={isDisabled}
-      className={`
-        px-6 py-3 text-sm font-display uppercase tracking-wider
-        transition-all duration-150 cursor-pointer
-        disabled:opacity-50 disabled:cursor-not-allowed
-        ${variantStyles[variant]}
-        ${className}
-      `}
+      className={`font-display cursor-pointer px-6 py-3 text-sm tracking-wider uppercase transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${variantStyles[variant]} ${className} `}
       {...props}
     >
       {loading ? "..." : children}

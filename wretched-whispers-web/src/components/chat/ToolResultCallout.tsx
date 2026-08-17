@@ -42,14 +42,12 @@ export default function ToolResultCallout({
   if (hasStructuredDice) {
     const diceData = toolResult.result as DiceRollData;
     return (
-      <div className="border border-doom-yellow/60 bg-doom-dark rounded px-3 py-2">
-        <p className="text-doom-yellow text-xs font-bold uppercase tracking-wider mb-1">
+      <div className="border-doom-yellow/60 bg-doom-dark rounded border px-3 py-2">
+        <p className="text-doom-yellow mb-1 text-xs font-bold tracking-wider uppercase">
           FATE DECIDES
         </p>
-        <p className="text-[#8a8a8a] text-xs font-mono">
-          {diceData.formula}
-        </p>
-        <p className="text-[#ffe000] font-bold text-lg font-display">
+        <p className="font-mono text-xs text-[#8a8a8a]">{diceData.formula}</p>
+        <p className="font-display text-lg font-bold text-[#ffe000]">
           = {diceData.result}
         </p>
       </div>
@@ -59,8 +57,8 @@ export default function ToolResultCallout({
   const resultText = formatResult(toolResult.result);
 
   return (
-    <div className="border border-doom-yellow/60 bg-doom-dark rounded px-3 py-2">
-      <p className="text-doom-yellow text-xs font-bold uppercase tracking-wider mb-1">
+    <div className="border-doom-yellow/60 bg-doom-dark rounded border px-3 py-2">
+      <p className="text-doom-yellow mb-1 text-xs font-bold tracking-wider uppercase">
         {isDice ? "FATE DECIDES" : toolResult.function}
       </p>
       <p

@@ -27,7 +27,7 @@ async function getCsrfToken() {
  */
 export async function apiFetch(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> {
   const method = options.method?.toUpperCase() ?? "GET";
   const headers = new Headers(options.headers);
@@ -54,8 +54,10 @@ export async function apiFetch(
  */
 export async function apiErrorMessage(
   response: Response,
-  fallback: string
+  fallback: string,
 ): Promise<string> {
   const problem = await response.json().catch(() => null);
-  return problem?.detail ?? problem?.title ?? `${fallback} (${response.status})`;
+  return (
+    problem?.detail ?? problem?.title ?? `${fallback} (${response.status})`
+  );
 }

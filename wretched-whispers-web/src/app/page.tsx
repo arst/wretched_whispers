@@ -9,22 +9,22 @@ export default function Home() {
   const beginHref = isAuthenticated ? "/sessions" : "/login";
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen px-4">
-      <h1 className="font-display text-doom-yellow text-6xl md:text-8xl tracking-wider mb-6 text-center">
+    <main className="flex min-h-screen flex-col items-center justify-center px-4">
+      <h1 className="font-display text-doom-yellow mb-6 text-center text-6xl tracking-wider md:text-8xl">
         WRETCHED WHISPERS
       </h1>
-      <p className="text-doom-ash text-lg md:text-xl text-center max-w-2xl mb-12 italic">
+      <p className="text-doom-ash mb-12 max-w-2xl text-center text-lg italic md:text-xl">
         The world is dying. You are nothing. Play anyway.
       </p>
       <Link
         href={beginHref}
-        className="bg-doom-yellow text-doom-black hover:brightness-110 active:brightness-90 px-10 py-4 text-lg font-display uppercase tracking-wider transition-all duration-150"
+        className="bg-doom-yellow text-doom-black font-display px-10 py-4 text-lg tracking-wider uppercase transition-all duration-150 hover:brightness-110 active:brightness-90"
       >
         BEGIN
       </Link>
       <Link
         href="/login"
-        className="mt-6 text-doom-ash text-sm hover:text-doom-yellow transition-colors"
+        className="text-doom-ash hover:text-doom-yellow mt-6 text-sm transition-colors"
       >
         Already doomed? Sign in
       </Link>

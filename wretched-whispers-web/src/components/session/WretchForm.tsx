@@ -10,22 +10,76 @@ import ClassGlyph from "@/components/session/ClassGlyph";
 // Difficulty — the blurbs are for the player, and are deliberately not the narrator notes in
 // ClassPresets, which are written for the model.
 // A null key is "let the dice decide": the request omits the class and the domain rolls it.
-const CLASSES: { key: CharacterClass | null; label: string; blurb: string }[] = [
-  { key: "FangedDeserter", label: "Fanged Deserter", blurb: "Strong, tusked, and running from a war nobody won. Fights with its teeth, and cannot read a word." },
-  { key: "GutterbornScum", label: "Gutterborn Scum", blurb: "Raised in the runoff. Weak, overlooked, and impossible to keep an eye on." },
-  { key: "EsotericHermit", label: "Esoteric Hermit", blurb: "Frail, far too well read, and starts with a scroll it should not have." },
-  { key: "OccultHerbmaster", label: "Occult Herbmaster", blurb: "A poisoner with manners. Reads rot and root like scripture." },
-  { key: "HereticalPriest", label: "Heretical Priest", blurb: "Ordained, then cast out for preaching the wrong end of the world." },
-  { key: "CursedSkinwalker", label: "Cursed Skinwalker", blurb: "Wears a beast's hide that never came off. Something under it is awake." },
-  { key: "Classless", label: "Classless Scum", blurb: "Nothing but a name, raw hunger, and terrible luck." },
-  { key: null, label: "Let the dice decide", blurb: "Take whatever manner of ruin you were made for." },
-];
+const CLASSES: { key: CharacterClass | null; label: string; blurb: string }[] =
+  [
+    {
+      key: "FangedDeserter",
+      label: "Fanged Deserter",
+      blurb:
+        "Strong, tusked, and running from a war nobody won. Fights with its teeth, and cannot read a word.",
+    },
+    {
+      key: "GutterbornScum",
+      label: "Gutterborn Scum",
+      blurb:
+        "Raised in the runoff. Weak, overlooked, and impossible to keep an eye on.",
+    },
+    {
+      key: "EsotericHermit",
+      label: "Esoteric Hermit",
+      blurb:
+        "Frail, far too well read, and starts with a scroll it should not have.",
+    },
+    {
+      key: "OccultHerbmaster",
+      label: "Occult Herbmaster",
+      blurb: "A poisoner with manners. Reads rot and root like scripture.",
+    },
+    {
+      key: "HereticalPriest",
+      label: "Heretical Priest",
+      blurb:
+        "Ordained, then cast out for preaching the wrong end of the world.",
+    },
+    {
+      key: "CursedSkinwalker",
+      label: "Cursed Skinwalker",
+      blurb:
+        "Wears a beast's hide that never came off. Something under it is awake.",
+    },
+    {
+      key: "Classless",
+      label: "Classless Scum",
+      blurb: "Nothing but a name, raw hunger, and terrible luck.",
+    },
+    {
+      key: null,
+      label: "Let the dice decide",
+      blurb: "Take whatever manner of ruin you were made for.",
+    },
+  ];
 
 const LEVELS: { key: Difficulty; label: string; blurb: string }[] = [
-  { key: "StoryMode", label: "Story Mode", blurb: "Experience the world. Death is rare; wounds are shallow." },
-  { key: "Grim", label: "Grim", blurb: "Measured danger. Bleak, but survivable if you're careful." },
-  { key: "Doomed", label: "Doomed", blurb: "True MORK BORG. Unfair, brutal, and often fatal." },
-  { key: "Hardcore", label: "Hardcore", blurb: "The world wants you dead. It usually gets its way." },
+  {
+    key: "StoryMode",
+    label: "Story Mode",
+    blurb: "Experience the world. Death is rare; wounds are shallow.",
+  },
+  {
+    key: "Grim",
+    label: "Grim",
+    blurb: "Measured danger. Bleak, but survivable if you're careful.",
+  },
+  {
+    key: "Doomed",
+    label: "Doomed",
+    blurb: "True MORK BORG. Unfair, brutal, and often fatal.",
+  },
+  {
+    key: "Hardcore",
+    label: "Hardcore",
+    blurb: "The world wants you dead. It usually gets its way.",
+  },
 ];
 
 function OptionButton({
@@ -46,7 +100,7 @@ function OptionButton({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex items-start gap-2.5 text-left p-2.5 border transition-colors cursor-pointer ${
+      className={`flex cursor-pointer items-start gap-2.5 border p-2.5 text-left transition-colors ${
         selected
           ? "border-doom-yellow bg-doom-yellow/10"
           : "border-doom-card hover:border-doom-yellow/30"
@@ -54,7 +108,7 @@ function OptionButton({
     >
       {icon && (
         <span
-          className={`shrink-0 mt-0.5 transition-colors ${
+          className={`mt-0.5 shrink-0 transition-colors ${
             selected ? "text-doom-yellow" : "text-doom-ash"
           }`}
         >
@@ -62,10 +116,12 @@ function OptionButton({
         </span>
       )}
       <span className="min-w-0">
-        <span className="block font-display text-doom-bone text-sm uppercase tracking-wider">
+        <span className="font-display text-doom-bone block text-sm tracking-wider uppercase">
           {label}
         </span>
-        <span className="block text-doom-ash text-xs mt-1 leading-snug">{blurb}</span>
+        <span className="text-doom-ash mt-1 block text-xs leading-snug">
+          {blurb}
+        </span>
       </span>
     </button>
   );
@@ -101,7 +157,9 @@ export default function WretchForm({
   onCancel,
 }: WretchFormProps) {
   const [name, setName] = useState("");
-  const [characterClass, setCharacterClass] = useState<CharacterClass | null>(null);
+  const [characterClass, setCharacterClass] = useState<CharacterClass | null>(
+    null,
+  );
   const [difficulty, setDifficulty] = useState<Difficulty>("Grim");
   const [nameError, setNameError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
@@ -130,19 +188,22 @@ export default function WretchForm({
     <dialog
       ref={dialog}
       aria-label={title}
-      onCancel={(event) => { event.preventDefault(); onCancel(); }}
-      className="m-auto w-full max-w-none bg-transparent p-4 text-doom-bone backdrop:bg-[#0a0a0a]/70"
+      onCancel={(event) => {
+        event.preventDefault();
+        onCancel();
+      }}
+      className="text-doom-bone m-auto w-full max-w-none bg-transparent p-4 backdrop:bg-[#0a0a0a]/70"
     >
       {/* Header and footer are pinned; only the options scroll, so the confirm button is always reachable. */}
-      <div
-        className="mx-auto w-full max-w-5xl max-h-[calc(100vh_-_2rem)] flex flex-col bg-doom-dark border border-doom-card"
-      >
-        <div className="px-6 pt-6 pb-4 border-b border-doom-card">
-          <h2 className="font-display text-doom-yellow text-xl tracking-wider mb-1">{title}</h2>
+      <div className="bg-doom-dark border-doom-card mx-auto flex max-h-[calc(100vh_-_2rem)] w-full max-w-5xl flex-col border">
+        <div className="border-doom-card border-b px-6 pt-6 pb-4">
+          <h2 className="font-display text-doom-yellow mb-1 text-xl tracking-wider">
+            {title}
+          </h2>
           {intro && <p className="text-doom-ash text-sm">{intro}</p>}
         </div>
 
-        <div className="px-6 py-5 overflow-y-auto flex flex-col gap-5">
+        <div className="flex flex-col gap-5 overflow-y-auto px-6 py-5">
           <Input
             label="What name is carved into your wretched hide?"
             placeholder="Speak, wretch..."
@@ -157,16 +218,18 @@ export default function WretchForm({
           />
 
           <fieldset>
-            <legend className="text-doom-ash text-xs uppercase tracking-wider mb-2">
+            <legend className="text-doom-ash mb-2 text-xs tracking-wider uppercase">
               And what are you?
             </legend>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {CLASSES.map((cls) => (
                 <OptionButton
                   key={String(cls.key)}
                   label={cls.label}
                   blurb={cls.blurb}
-                  icon={<ClassGlyph characterClass={cls.key} className="w-6 h-6" />}
+                  icon={
+                    <ClassGlyph characterClass={cls.key} className="h-6 w-6" />
+                  }
                   selected={characterClass === cls.key}
                   onClick={() => setCharacterClass(cls.key)}
                 />
@@ -176,10 +239,10 @@ export default function WretchForm({
 
           {withDifficulty && (
             <fieldset>
-              <legend className="text-doom-ash text-xs uppercase tracking-wider mb-2">
+              <legend className="text-doom-ash mb-2 text-xs tracking-wider uppercase">
                 Choose your doom
               </legend>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {LEVELS.map((lvl) => (
                   <OptionButton
                     key={lvl.key}
@@ -194,8 +257,8 @@ export default function WretchForm({
           )}
         </div>
 
-        <div className="px-6 pb-6 pt-4 border-t border-doom-card flex items-center justify-end gap-3">
-          {error && <p className="text-doom-pink text-sm mr-auto">{error}</p>}
+        <div className="border-doom-card flex items-center justify-end gap-3 border-t px-6 pt-4 pb-6">
+          {error && <p className="text-doom-pink mr-auto text-sm">{error}</p>}
           <Button variant="secondary" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>

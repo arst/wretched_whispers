@@ -1,0 +1,5 @@
+.next/
+.next-export/
+out/
+coverage/
+package-lock.json

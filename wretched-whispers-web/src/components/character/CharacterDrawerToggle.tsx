@@ -20,12 +20,15 @@ export default function CharacterDrawerToggle() {
       label="Character"
       ariaNoun="character sheet"
       visible={
-        (status === "in-progress" || status === "ended") && characterData !== null
+        (status === "in-progress" || status === "ended") &&
+        characterData !== null
       }
-      badge={silver !== null && silver !== undefined ? `${silver} silver` : undefined}
+      badge={
+        silver !== null && silver !== undefined ? `${silver} silver` : undefined
+      }
       leading={
         <span
-          className={`flex items-center gap-1.5 rounded border border-doom-card bg-doom-card/60 px-2 py-1 text-xs font-bold ${
+          className={`border-doom-card bg-doom-card/60 flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-bold ${
             characterData ? "" : "text-doom-ash"
           }`}
           style={characterData ? { color: hpTone(hp, maxHp) } : undefined}
@@ -36,7 +39,7 @@ export default function CharacterDrawerToggle() {
       }
     >
       {characterData && (
-        <div className="hidden sm:block w-16">
+        <div className="hidden w-16 sm:block">
           <HpBar currentHp={hp} maxHp={maxHp} variant="mini" />
         </div>
       )}

@@ -36,7 +36,7 @@ export default function LoginPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "The darkness rejects you. Check your credentials."
+          : "The darkness rejects you. Check your credentials.",
       );
     } finally {
       setLoading(false);
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <h1 className="font-display text-doom-yellow text-3xl tracking-wider text-center">
+      <h1 className="font-display text-doom-yellow text-center text-3xl tracking-wider">
         SIGN IN, WRETCH
       </h1>
 
@@ -69,20 +69,15 @@ export default function LoginPage() {
         autoComplete="current-password"
       />
 
-      {error && (
-        <p className="text-doom-pink text-sm text-center">{error}</p>
-      )}
+      {error && <p className="text-doom-pink text-center text-sm">{error}</p>}
 
       <Button type="submit" variant="primary" loading={loading}>
         Enter the Darkness
       </Button>
 
-      <p className="text-doom-ash text-sm text-center">
+      <p className="text-doom-ash text-center text-sm">
         No soul yet?{" "}
-        <Link
-          href="/register"
-          className="text-doom-yellow hover:underline"
-        >
+        <Link href="/register" className="text-doom-yellow hover:underline">
           Create one
         </Link>
       </p>

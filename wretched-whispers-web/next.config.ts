@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import { parseDeploymentProfile } from "./src/lib/deployment";
 
 const deploymentProfile = parseDeploymentProfile(
-  process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE
+  process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE,
 );
 
 const nextConfig: NextConfig = {

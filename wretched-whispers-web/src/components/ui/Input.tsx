@@ -21,21 +21,14 @@ export default function Input({
       {label && (
         <label
           htmlFor={inputId}
-          className="text-doom-ash text-xs uppercase tracking-wider"
+          className="text-doom-ash text-xs tracking-wider uppercase"
         >
           {label}
         </label>
       )}
       <input
         id={inputId}
-        className={`
-          bg-doom-dark text-doom-bone placeholder:text-doom-ash/50
-          border border-doom-card px-4 py-3
-          focus:outline-none focus:ring-1 focus:ring-doom-yellow/50 focus:border-doom-yellow/50
-          transition-colors duration-150
-          ${error ? "border-doom-pink ring-1 ring-doom-pink/50" : ""}
-          ${className}
-        `}
+        className={`bg-doom-dark text-doom-bone placeholder:text-doom-ash/50 border-doom-card focus:ring-doom-yellow/50 focus:border-doom-yellow/50 border px-4 py-3 transition-colors duration-150 focus:ring-1 focus:outline-none ${error ? "border-doom-pink ring-doom-pink/50 ring-1" : ""} ${className} `}
         {...props}
       />
       {error && <p className="text-doom-pink text-xs">{error}</p>}

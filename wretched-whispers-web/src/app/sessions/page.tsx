@@ -6,7 +6,9 @@ import { apiFetch, apiErrorMessage } from "@/lib/api";
 import type { SessionPreviewDto, CreateSessionResponse } from "@/types/api";
 import SessionCard from "@/components/session/SessionCard";
 import Button from "@/components/ui/Button";
-import WretchForm, { type WretchChoices } from "@/components/session/WretchForm";
+import WretchForm, {
+  type WretchChoices,
+} from "@/components/session/WretchForm";
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<SessionPreviewDto[]>([]);
@@ -31,12 +33,16 @@ export default function SessionsPage() {
         if (!a.lastPlayed && !b.lastPlayed) return 0;
         if (!a.lastPlayed) return 1;
         if (!b.lastPlayed) return -1;
-        return new Date(b.lastPlayed).getTime() - new Date(a.lastPlayed).getTime();
+        return (
+          new Date(b.lastPlayed).getTime() - new Date(a.lastPlayed).getTime()
+        );
       });
       setSessions(data);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "The void swallowed your sessions."
+        err instanceof Error
+          ? err.message
+          : "The void swallowed your sessions.",
       );
     } finally {
       setLoading(false);
@@ -47,7 +53,11 @@ export default function SessionsPage() {
     loadSessions();
   }, [loadSessions]);
 
-  async function handleCreateSession({ characterName, characterClass, difficulty }: WretchChoices) {
+  async function handleCreateSession({
+    characterName,
+    characterClass,
+    difficulty,
+  }: WretchChoices) {
     setCreating(true);
     setError("");
 
@@ -62,12 +72,13 @@ export default function SessionsPage() {
           ...(characterClass ? { characterClass } : {}),
         }),
       });
-      if (!res.ok) throw new Error(await apiErrorMessage(res, "Failed to create session"));
+      if (!res.ok)
+        throw new Error(await apiErrorMessage(res, "Failed to create session"));
       const data: CreateSessionResponse = await res.json();
       router.push(`/sessions/play?id=${data.sessionId}`);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "The abyss refused your offering."
+        err instanceof Error ? err.message : "The abyss refused your offering.",
       );
       setCreating(false);
       setPickerOpen(false);
@@ -75,21 +86,18 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-20 pb-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="mx-auto max-w-2xl px-4 pt-20 pb-8">
+      <div className="mb-8 flex items-center justify-between">
         <h1 className="font-display text-doom-yellow text-2xl tracking-wider">
           YOUR SESSIONS
         </h1>
-        <Button
-          variant="primary"
-          onClick={() => setPickerOpen(true)}
-        >
+        <Button variant="primary" onClick={() => setPickerOpen(true)}>
           New Session
         </Button>
       </div>
 
       {error && (
-        <p className="text-doom-pink text-sm text-center mb-6">{error}</p>
+        <p className="text-doom-pink mb-6 text-center text-sm">{error}</p>
       )}
 
       {loading ? (
@@ -97,12 +105,12 @@ export default function SessionsPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="bg-doom-card border border-doom-card h-28 animate-pulse"
+              className="bg-doom-card border-doom-card h-28 animate-pulse border"
             />
           ))}
         </div>
       ) : sessions.length === 0 ? (
-        <p className="text-doom-ash text-center py-16">
+        <p className="text-doom-ash py-16 text-center">
           No sessions yet. The void awaits.
         </p>
       ) : (

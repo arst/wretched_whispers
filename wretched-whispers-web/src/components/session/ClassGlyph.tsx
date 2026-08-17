@@ -21,7 +21,11 @@ function glyphFor(characterClass: CharacterClass | null): ReactNode {
         <>
           <path d="M3 9C3 5 7 3 12 3s9 2 9 6c0 6-4.5 12-9 12S3 15 3 9Z" />
           <path d="M7.4 8 L9.2 15 L11 8 Z" fill="currentColor" stroke="none" />
-          <path d="M13 8 L14.8 15 L16.6 8 Z" fill="currentColor" stroke="none" />
+          <path
+            d="M13 8 L14.8 15 L16.6 8 Z"
+            fill="currentColor"
+            stroke="none"
+          />
         </>
       );
     // A shiv: blade, crossguard, grip.
@@ -73,8 +77,20 @@ function glyphFor(characterClass: CharacterClass | null): ReactNode {
       return (
         <>
           <path d="M12 2.5c4.7 0 7.5 3.2 7.5 7.3 0 2.6-1 4.2-2 5.2v3.5H6.5v-3.5c-1-1-2-2.6-2-5.2C4.5 5.7 7.3 2.5 12 2.5Z" />
-          <circle cx="9.2" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
-          <circle cx="14.8" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+          <circle
+            cx="9.2"
+            cy="10.5"
+            r="1.5"
+            fill="currentColor"
+            stroke="none"
+          />
+          <circle
+            cx="14.8"
+            cy="10.5"
+            r="1.5"
+            fill="currentColor"
+            stroke="none"
+          />
           <path d="M12 13 L10.7 15.5 H13.3 Z" />
         </>
       );

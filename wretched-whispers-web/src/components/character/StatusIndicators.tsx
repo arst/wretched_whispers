@@ -3,8 +3,20 @@
 import type { StateUpdateEvent } from "@/types/api";
 
 const STATUSES = [
-  { key: "isInfected", glyph: "☣", label: "INFECTED", color: "text-[#ff1493]", hint: "" },
-  { key: "isDizzyFromMagic", glyph: "✨", label: "ARCANE DAZE", color: "text-[#ffe000]", hint: "" },
+  {
+    key: "isInfected",
+    glyph: "☣",
+    label: "INFECTED",
+    color: "text-[#ff1493]",
+    hint: "",
+  },
+  {
+    key: "isDizzyFromMagic",
+    glyph: "✨",
+    label: "ARCANE DAZE",
+    color: "text-[#ffe000]",
+    hint: "",
+  },
   {
     key: "isEncumbered",
     glyph: "⚓",
@@ -25,12 +37,16 @@ export default function StatusIndicators({
         <div key={status.key}>
           <div className="flex items-center gap-1.5">
             <span className={`${status.color} text-sm`}>{status.glyph}</span>
-            <span className={`${status.color} text-xs font-bold uppercase tracking-wider`}>
+            <span
+              className={`${status.color} text-xs font-bold tracking-wider uppercase`}
+            >
               {status.label}
             </span>
           </div>
           {status.hint && (
-            <p className="text-[#8a8a8a] text-[11px] leading-snug ml-5">{status.hint}</p>
+            <p className="ml-5 text-[11px] leading-snug text-[#8a8a8a]">
+              {status.hint}
+            </p>
           )}
         </div>
       ))}

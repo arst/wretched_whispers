@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import type { ChatMessageDto, ToolResultEvent, TurnDeltaEvent, StateUpdateEvent } from "@/types/api";
+import type {
+  ChatMessageDto,
+  ToolResultEvent,
+  TurnDeltaEvent,
+  StateUpdateEvent,
+} from "@/types/api";
 
 export interface Message {
   id: string;
@@ -34,7 +39,12 @@ interface SessionState {
   miseryPsalms: string[];
 
   // Actions
-  setSession: (sessionId: string, status: string, messages: ChatMessageDto[], totalMessages?: number) => void;
+  setSession: (
+    sessionId: string,
+    status: string,
+    messages: ChatMessageDto[],
+    totalMessages?: number,
+  ) => void;
   addPlayerMessage: (content: string) => void;
   startStreaming: () => void;
   appendNarrativeChunk: (text: string) => void;
@@ -54,7 +64,7 @@ interface SessionState {
 function message(
   role: Message["role"],
   content: string,
-  authorName: string | null = null
+  authorName: string | null = null,
 ): Message {
   return {
     id: crypto.randomUUID(),
@@ -94,13 +104,17 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       ...initialState,
       sessionId,
       status,
-      messages: dtos.map((dto) => message(dto.role, dto.content ?? "", dto.authorName)),
+      messages: dtos.map((dto) =>
+        message(dto.role, dto.content ?? "", dto.authorName),
+      ),
       totalMessages,
       hasMoreMessages: dtos.length < totalMessages,
     }),
 
   addPlayerMessage: (content) =>
-    set((state) => ({ messages: [...state.messages, message("user", content)] })),
+    set((state) => ({
+      messages: [...state.messages, message("user", content)],
+    })),
 
   startStreaming: () => {
     const placeholder = message("assistant", "", "Game Master");
@@ -125,7 +139,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       messages: state.messages.map((msg) =>
         msg.id === streamingMessageId
           ? { ...msg, toolResults: [...msg.toolResults, result] }
-          : msg
+          : msg,
       ),
     }));
   },
@@ -135,7 +149,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     if (!streamingMessageId) return;
     set((state) => ({
       messages: state.messages.map((msg) =>
-        msg.id === streamingMessageId ? { ...msg, turnDelta: delta } : msg
+        msg.id === streamingMessageId ? { ...msg, turnDelta: delta } : msg,
       ),
     }));
   },
@@ -167,7 +181,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       messages: state.messages.map((msg) =>
         msg.id === streamingMessageId
           ? { ...msg, content: streamingText }
-          : msg
+          : msg,
       ),
     }));
   },
@@ -191,30 +205,34 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
                   streamingText.trim() === "" &&
                   m.toolResults.length === 0 &&
                   !m.turnDelta
-                )
+                ),
             )
             .map((m) =>
-              m.id === streamingMessageId ? { ...m, content: streamingText } : m
+              m.id === streamingMessageId
+                ? { ...m, content: streamingText }
+                : m,
             )
         : state.messages,
     }));
   },
 
-  setError: (message) =>
-    set({ error: message }),
+  setError: (message) => set({ error: message }),
 
-  clearError: () =>
-    set({ error: null }),
+  clearError: () => set({ error: null }),
 
   reset: () => set(initialState),
 
   toggleDrawer: (drawer) =>
-    set((state) => ({ activeDrawer: state.activeDrawer === drawer ? null : drawer })),
+    set((state) => ({
+      activeDrawer: state.activeDrawer === drawer ? null : drawer,
+    })),
 
   prependMessages: (msgs, total) =>
     set((state) => ({
       messages: [
-        ...msgs.map((dto) => message(dto.role, dto.content ?? "", dto.authorName)),
+        ...msgs.map((dto) =>
+          message(dto.role, dto.content ?? "", dto.authorName),
+        ),
         ...state.messages,
       ],
       totalMessages: total,

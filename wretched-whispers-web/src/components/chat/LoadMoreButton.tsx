@@ -28,7 +28,8 @@ export default function LoadMoreButton({
   // Initialize page ref: calculate the page number just before the currently loaded messages
   if (nextPageRef.current === null && totalMessages > 0) {
     const olderCount = totalMessages - messages.length;
-    nextPageRef.current = olderCount > 0 ? Math.ceil(olderCount / PAGE_SIZE) : 0;
+    nextPageRef.current =
+      olderCount > 0 ? Math.ceil(olderCount / PAGE_SIZE) : 0;
   }
 
   if (!hasMoreMessages) return null;
@@ -42,7 +43,7 @@ export default function LoadMoreButton({
 
     try {
       const res = await apiFetch(
-        `/sessions/${sessionId}/messages?page=${nextPageRef.current}&pageSize=${PAGE_SIZE}`
+        `/sessions/${sessionId}/messages?page=${nextPageRef.current}&pageSize=${PAGE_SIZE}`,
       );
       if (!res.ok) throw new Error("Failed to load messages");
 
@@ -62,7 +63,7 @@ export default function LoadMoreButton({
         onClick={handleLoadMore}
         disabled={loadingMore}
         aria-busy={loadingMore}
-        className="min-h-[44px] text-doom-ash hover:text-doom-yellow transition-colors text-xs uppercase tracking-wider disabled:opacity-50"
+        className="text-doom-ash hover:text-doom-yellow min-h-[44px] text-xs tracking-wider uppercase transition-colors disabled:opacity-50"
       >
         {loadingMore ? (
           <span className="animate-pulse">Loading...</span>

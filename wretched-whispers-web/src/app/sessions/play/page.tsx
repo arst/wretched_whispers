@@ -22,7 +22,7 @@ import type { SessionDetailDto, SessionResumeDto } from "@/types/api";
 // static-exports cleanly for the desktop build (Next's output:export has no runtime dynamic routes).
 function LoadingDots() {
   return (
-    <div className="flex items-center justify-center min-h-screen">
+    <div className="flex min-h-screen items-center justify-center">
       <Dots />
     </div>
   );
@@ -48,7 +48,9 @@ function GameSession({ id }: { id: string }) {
   // chunk, so React batches them and the buffer is never rendered non-empty — keying the splash on
   // the buffer alone left it covering the opening message forever.
   const hasNarration = useSessionStore(
-    (s) => s.streamingText.length > 0 || s.messages.some((m) => m.content.length > 0)
+    (s) =>
+      s.streamingText.length > 0 ||
+      s.messages.some((m) => m.content.length > 0),
   );
   const reset = useSessionStore((s) => s.reset);
   const miseryCount = useSessionStore((s) => s.miseryCount);
@@ -108,21 +110,38 @@ function GameSession({ id }: { id: string }) {
         // so the user sees the most recent messages first
         if (data.totalMessages > data.pageSize) {
           const lastPage = Math.ceil(data.totalMessages / data.pageSize);
-          const latestRes = await apiFetch(`/sessions/${id}?page=${lastPage}&pageSize=${data.pageSize}`);
+          const latestRes = await apiFetch(
+            `/sessions/${id}?page=${lastPage}&pageSize=${data.pageSize}`,
+          );
           if (cancelled) return;
 
           if (latestRes.ok) {
             const latestData: SessionDetailDto = await latestRes.json();
-            store.setSession(latestData.sessionId, latestData.status, latestData.messages, latestData.totalMessages);
+            store.setSession(
+              latestData.sessionId,
+              latestData.status,
+              latestData.messages,
+              latestData.totalMessages,
+            );
             store.setStateUpdate(latestData.state);
           } else {
             // Fallback to first page if last page request fails
-            store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+            store.setSession(
+              data.sessionId,
+              data.status,
+              data.messages,
+              data.totalMessages,
+            );
             store.setStateUpdate(data.state);
           }
         } else {
           // Session fits in one page, use as-is
-          store.setSession(data.sessionId, data.status, data.messages, data.totalMessages);
+          store.setSession(
+            data.sessionId,
+            data.status,
+            data.messages,
+            data.totalMessages,
+          );
           store.setStateUpdate(data.state);
         }
 
@@ -164,9 +183,7 @@ function GameSession({ id }: { id: string }) {
         useSessionStore
           .getState()
           .setError(
-            err instanceof Error
-              ? err.message
-              : "Failed to load session."
+            err instanceof Error ? err.message : "Failed to load session.",
           );
         setLoading(false);
       }
@@ -194,7 +211,7 @@ function GameSession({ id }: { id: string }) {
     (message: string) => {
       sendAction(message);
     },
-    [sendAction]
+    [sendAction],
   );
 
   // 404 state
@@ -208,13 +225,10 @@ function GameSession({ id }: { id: string }) {
   }
 
   return (
-    <div className="flex flex-col h-screen pt-14">
+    <div className="flex h-screen flex-col pt-14">
       {/* Splash screen for new character creation sessions */}
       {!splashDismissed && (
-        <SplashScreen
-          show={showSplash}
-          onTransition={handleSplashTransition}
-        />
+        <SplashScreen show={showSplash} onTransition={handleSplashTransition} />
       )}
 
       <RecapModal
@@ -228,14 +242,14 @@ function GameSession({ id }: { id: string }) {
       />
 
       {error && (
-        <div className="bg-doom-pink/20 border-b border-doom-pink text-doom-pink text-sm py-2 px-4 text-center">
+        <div className="bg-doom-pink/20 border-doom-pink text-doom-pink border-b px-4 py-2 text-center text-sm">
           {error}
         </div>
       )}
 
       {/* Session status indicator */}
       {status === "character-creation" && (
-        <div className="bg-doom-card border-b border-doom-yellow/30 text-doom-yellow text-xs text-center py-1.5 px-4 uppercase tracking-widest">
+        <div className="bg-doom-card border-doom-yellow/30 text-doom-yellow border-b px-4 py-1.5 text-center text-xs tracking-widest uppercase">
           Character Creation
         </div>
       )}
@@ -254,7 +268,10 @@ function GameSession({ id }: { id: string }) {
 
       {/* Input bar */}
       {showDeathPanel ? (
-        <DeathPanel sessionId={id} characterName={characterData?.characterName ?? null} />
+        <DeathPanel
+          sessionId={id}
+          characterName={characterData?.characterName ?? null}
+        />
       ) : (
         <ChatInput onSend={handleSend} disabled={isStreaming} status={status} />
       )}
@@ -280,16 +297,16 @@ function GameSessionFromQuery() {
 
 function SessionNotFound() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4">
-      <h1 className="font-display text-doom-yellow text-3xl mb-4">
+    <div className="flex min-h-screen flex-col items-center justify-center px-4">
+      <h1 className="font-display text-doom-yellow mb-4 text-3xl">
         Session Not Found
       </h1>
-      <p className="text-doom-ash text-sm mb-8">
+      <p className="text-doom-ash mb-8 text-sm">
         This session has been consumed by the void.
       </p>
       <Link
         href="/sessions"
-        className="text-doom-yellow text-sm uppercase tracking-wider hover:brightness-110 transition-all"
+        className="text-doom-yellow text-sm tracking-wider uppercase transition-all hover:brightness-110"
       >
         Return to Sessions
       </Link>

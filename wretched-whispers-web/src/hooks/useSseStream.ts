@@ -41,13 +41,11 @@ export function parseSseMessage(raw: string): SseMessage | null {
 export async function readSse(
   response: Response,
   onMessage: (message: SseMessage) => "done" | "error" | undefined,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Promise<"done" | "error" | "eof"> {
   if (!response.body) throw new Error("SSE response has no body");
 
-  const reader = response.body
-    .pipeThrough(new TextDecoderStream())
-    .getReader();
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
 
   while (!signal.aborted) {
@@ -162,14 +160,19 @@ export function useSseStream(sessionId: string) {
               : undefined,
             signal: ctrl.signal,
           });
-          if (!stream.ok) throw new Error(`SSE connection failed (${stream.status})`);
-          outcome = await readSse(stream, (event) => {
-            if (event.id !== undefined) {
-              if (event.id <= lastEventIdRef.current) return;
-              lastEventIdRef.current = event.id;
-            }
-            return handleMessage(event);
-          }, ctrl.signal);
+          if (!stream.ok)
+            throw new Error(`SSE connection failed (${stream.status})`);
+          outcome = await readSse(
+            stream,
+            (event) => {
+              if (event.id !== undefined) {
+                if (event.id <= lastEventIdRef.current) return;
+                lastEventIdRef.current = event.id;
+              }
+              return handleMessage(event);
+            },
+            ctrl.signal,
+          );
         }
 
         if (outcome === "eof") {
@@ -186,7 +189,7 @@ export function useSseStream(sessionId: string) {
         }
       }
     },
-    [sessionId]
+    [sessionId],
   );
 
   return { sendAction };

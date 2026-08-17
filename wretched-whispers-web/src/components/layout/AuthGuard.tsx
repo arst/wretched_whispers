@@ -21,8 +21,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   if (!isHydrated) {
     return (
-      <div className="min-h-screen bg-doom-black flex items-center justify-center">
-        <div className="w-64 h-8 bg-doom-card animate-pulse rounded" />
+      <div className="bg-doom-black flex min-h-screen items-center justify-center">
+        <div className="bg-doom-card h-8 w-64 animate-pulse rounded" />
       </div>
     );
   }

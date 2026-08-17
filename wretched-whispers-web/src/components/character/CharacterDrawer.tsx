@@ -20,9 +20,11 @@ function Section({
 }) {
   return (
     <div className="px-8 pt-6 last:pb-8">
-      <div className={`bg-doom-card rounded p-4 border-l-2 ${accent}`}>
+      <div className={`bg-doom-card rounded border-l-2 p-4 ${accent}`}>
         {title && (
-          <span className="text-xs font-bold uppercase text-doom-ash">{title}</span>
+          <span className="text-doom-ash text-xs font-bold uppercase">
+            {title}
+          </span>
         )}
         <div className="mt-2">{children}</div>
       </div>
@@ -62,8 +64,11 @@ export default function CharacterDrawer() {
       title={characterData.characterName ?? ""}
       subtitle={
         characterClass && (
-          <p className="flex items-center gap-1.5 font-body text-xs uppercase tracking-wide text-doom-ash">
-            <ClassGlyph characterClass={characterClass} className="w-4 h-4 shrink-0" />
+          <p className="font-body text-doom-ash flex items-center gap-1.5 text-xs tracking-wide uppercase">
+            <ClassGlyph
+              characterClass={characterClass}
+              className="h-4 w-4 shrink-0"
+            />
             {characterClass}
           </p>
         )
@@ -92,9 +97,14 @@ export default function CharacterDrawer() {
       <Section title="ABILITIES">
         <div className="grid grid-cols-2 gap-2">
           {abilities.map(([name, score]) => (
-            <div key={name} className="flex flex-col items-center p-2 bg-doom-card rounded">
-              <span className="text-xs font-bold uppercase text-doom-ash">{name}</span>
-              <span className="text-sm text-doom-bone">
+            <div
+              key={name}
+              className="bg-doom-card flex flex-col items-center rounded p-2"
+            >
+              <span className="text-doom-ash text-xs font-bold uppercase">
+                {name}
+              </span>
+              <span className="text-doom-bone text-sm">
                 {score > 0 ? `+${score}` : score}
               </span>
             </div>
@@ -104,11 +114,16 @@ export default function CharacterDrawer() {
 
       <Section title="EQUIPMENT">
         <div className="space-y-1">
-          <EquipmentSlot label="WEAPON" value={characterData.characterWeapon ?? null} />
+          <EquipmentSlot
+            label="WEAPON"
+            value={characterData.characterWeapon ?? null}
+          />
           <EquipmentSlot
             label="ARMOR"
             value={characterData.characterArmor ?? null}
-            tier={characterData.armorTier as "none" | "light" | "medium" | "heavy"}
+            tier={
+              characterData.armorTier as "none" | "light" | "medium" | "heavy"
+            }
           />
           {characterData.hasShield && (
             <EquipmentSlot

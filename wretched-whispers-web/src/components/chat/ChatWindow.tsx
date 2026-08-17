@@ -37,16 +37,14 @@ export default function ChatWindow() {
     const container = containerRef.current;
     if (!container) return;
     requestAnimationFrame(() => {
-      container.scrollTop += container.scrollHeight - prevScrollHeightRef.current;
+      container.scrollTop +=
+        container.scrollHeight - prevScrollHeightRef.current;
     });
   }, [containerRef]);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto px-4 pb-24 pt-4"
-    >
-      <div className="mx-auto w-full md:w-[80vw] max-w-6xl">
+    <div ref={containerRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-24">
+      <div className="mx-auto w-full max-w-6xl md:w-[80vw]">
         {sessionId && hasMoreMessages && (
           <LoadMoreButton
             sessionId={sessionId}
@@ -79,7 +77,7 @@ export default function ChatWindow() {
             return (
               <p
                 key={msg.id}
-                className="text-doom-ash text-sm text-center italic mb-4 py-1"
+                className="text-doom-ash mb-4 py-1 text-center text-sm italic"
               >
                 {msg.content}
               </p>
