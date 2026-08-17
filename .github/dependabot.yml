@@ -4,3 +4,7 @@ updates:
     directory: /wretched-whispers-web
     schedule:
       interval: weekly
+  - package-ecosystem: nuget
+    directory: /wretched-whispers-server
+    schedule:
+      interval: weekly
