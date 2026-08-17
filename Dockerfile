@@ -12,6 +12,8 @@ RUN npm run build
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS api
 ARG DEPLOYMENT_PROFILE=StandaloneContainer
 WORKDIR /src
+# Honor the repo's SDK pin instead of floating on whatever the base image ships.
+COPY global.json ./
 COPY wretched-whispers-server/ wretched-whispers-server/
 RUN dotnet publish wretched-whispers-server/WretchedWhispers.Migrations/WretchedWhispers.Migrations.csproj \
     -c Release -o /app/publish \
