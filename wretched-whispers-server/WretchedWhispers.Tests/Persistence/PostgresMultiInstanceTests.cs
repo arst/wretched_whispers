@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Infrastructure.Persistence;
@@ -76,7 +77,10 @@ public sealed class PostgresMultiInstanceTests
 
 public sealed class PostgresFactAttribute : FactAttribute
 {
-    public PostgresFactAttribute()
+    public PostgresFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WW_POSTGRES_TEST_CONNECTION")) &&
             !string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
