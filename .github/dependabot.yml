@@ -4,7 +4,15 @@ updates:
     directory: /wretched-whispers-web
     schedule:
       interval: weekly
+    groups:
+      npm-patch-minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
   - package-ecosystem: nuget
     directory: /wretched-whispers-server
     schedule:
       interval: weekly
+    groups:
+      nuget-patch-minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
