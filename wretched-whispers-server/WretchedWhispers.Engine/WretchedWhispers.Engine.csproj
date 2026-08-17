@@ -1,24 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\WretchedWhispers.Infrastructure\WretchedWhispers.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
-    <PackageReference Include="OpenAI" Version="2.12.0" />
-    <PackageReference Include="Microsoft.Agents.AI" Version="1.17.0" />
-    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.17.0" />
-    <!-- Explicit: Engine calls MEAI directly (UseFunctionInvocation); without this it floated at
-         whatever Microsoft.Agents.AI pulled while Abstractions resolved higher. -->
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.8.3" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
+    <PackageReference Include="Azure.AI.OpenAI" />
+    <PackageReference Include="OpenAI" />
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Agents.AI.OpenAI" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
 </Project>
