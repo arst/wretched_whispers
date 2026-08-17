@@ -41,7 +41,7 @@ jobs:
       - name: Test
         # Whole solution: includes the Evals project's deterministic tests (harness + evaluators);
         # live LLM evals skip cleanly when no Azure OpenAI credentials are configured.
-        run: dotnet test wretched-whispers-server/WretchedWhispers.slnx --no-build --configuration Release --logger "trx"
+        run: dotnet test --solution wretched-whispers-server/WretchedWhispers.slnx --no-build --configuration Release
       - name: Check migrations match the model
         # Model changes need dual migrations (SQLite + Postgres); this fails when either
         # context has drifted from its latest migration.
