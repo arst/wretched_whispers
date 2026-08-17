@@ -135,7 +135,7 @@ readable message. Thematically appropriate, practically useless.
 **Tests:**
 
 ```bash
-dotnet test wretched-whispers-server/WretchedWhispers.sln   # domain, engine, endpoints, migrations
+dotnet test wretched-whispers-server/WretchedWhispers.slnx  # domain, engine, endpoints, migrations
 cd wretched-whispers-web && npm test                        # vitest, jsdom
 ```
 

@@ -42,7 +42,7 @@ public static class EvalSupport
             return overridePath;
 
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "WretchedWhispers.sln")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "WretchedWhispers.slnx")))
             dir = dir.Parent;
 
         return Path.Combine(dir?.FullName ?? AppContext.BaseDirectory, ".eval-results");

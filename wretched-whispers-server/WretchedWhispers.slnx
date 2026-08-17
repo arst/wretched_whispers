@@ -1,0 +1,14 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="WretchedWhispers.Api/WretchedWhispers.Api.csproj" />
+  <Project Path="WretchedWhispers.Core/WretchedWhispers.Core.csproj" />
+  <Project Path="WretchedWhispers.Engine/WretchedWhispers.Engine.csproj" />
+  <Project Path="WretchedWhispers.Evals/WretchedWhispers.Evals.csproj" />
+  <Project Path="WretchedWhispers.Infrastructure/WretchedWhispers.Infrastructure.csproj" />
+  <Project Path="WretchedWhispers.Migrations/WretchedWhispers.Migrations.csproj" />
+  <Project Path="WretchedWhispers.Tests/WretchedWhispers.Tests.csproj" />
+</Solution>
