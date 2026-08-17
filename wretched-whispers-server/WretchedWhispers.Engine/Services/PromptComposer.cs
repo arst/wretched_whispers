@@ -1,6 +1,6 @@
-using WretchedWhispers.Engine.Prompts;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Classes;
+using WretchedWhispers.Engine.Prompts;
 
 namespace WretchedWhispers.Engine.Services;
 

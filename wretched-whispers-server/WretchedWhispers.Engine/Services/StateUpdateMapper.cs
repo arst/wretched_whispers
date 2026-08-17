@@ -1,7 +1,7 @@
-using WretchedWhispers.Engine.Models;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Engine.Models;
 
 namespace WretchedWhispers.Engine.Services;
 

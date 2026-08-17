@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Characters.Cast;
+namespace WretchedWhispers.Core.Characters.Cast;
 
 public readonly record struct CastOutcome(bool Succeeded, string Reason, string? PowerKey, int HpLost)
 {

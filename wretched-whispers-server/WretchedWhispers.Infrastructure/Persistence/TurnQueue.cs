@@ -22,8 +22,15 @@ public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
         if (existing is not null)
             return Replay(existing, campaignId, message);
 
-        var turn = new TurnRequestEntity { Id = Guid.NewGuid(), CampaignId = campaignId, UserId = userId,
-            ClientRequestId = clientRequestId, PlayerMessage = message, CreatedAt = clock.GetUtcNow().UtcDateTime };
+        var turn = new TurnRequestEntity
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaignId,
+            UserId = userId,
+            ClientRequestId = clientRequestId,
+            PlayerMessage = message,
+            CreatedAt = clock.GetUtcNow().UtcDateTime
+        };
         db.TurnRequests.Add(turn);
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)

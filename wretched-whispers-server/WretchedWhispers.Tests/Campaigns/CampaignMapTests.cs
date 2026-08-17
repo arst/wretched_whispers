@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Xunit;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
+using Xunit;
 
 namespace WretchedWhispers.Tests.Campaigns;
 

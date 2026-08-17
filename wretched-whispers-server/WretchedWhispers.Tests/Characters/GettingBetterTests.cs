@@ -1,8 +1,8 @@
 using System.Linq;
 using Moq;
-using Xunit;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using Xunit;
 
 namespace WretchedWhispers.Tests.Characters;
 

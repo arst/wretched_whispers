@@ -1,4 +1,4 @@
-﻿using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Abilities;
 
 namespace WretchedWhispers.Core.Characters.Combat;
 

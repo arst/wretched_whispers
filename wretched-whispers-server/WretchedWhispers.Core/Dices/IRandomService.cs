@@ -1,4 +1,4 @@
-﻿namespace WretchedWhispers.Core.Dices;
+namespace WretchedWhispers.Core.Dices;
 
 public interface IRandomService
 {

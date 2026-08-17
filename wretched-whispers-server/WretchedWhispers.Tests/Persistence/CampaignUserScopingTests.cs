@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 using WretchedWhispers.Core;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence.Repositories;
+using Xunit;
 
 namespace WretchedWhispers.Tests.Persistence;
 

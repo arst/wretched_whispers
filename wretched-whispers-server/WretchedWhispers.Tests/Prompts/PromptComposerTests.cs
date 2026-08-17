@@ -1,6 +1,3 @@
-using Xunit;
-using WretchedWhispers.Engine.Prompts;
-using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
@@ -12,6 +9,9 @@ using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Engine.Prompts;
+using WretchedWhispers.Engine.Services;
+using Xunit;
 
 namespace WretchedWhispers.Tests.Prompts;
 

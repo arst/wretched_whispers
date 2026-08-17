@@ -1,8 +1,8 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using WretchedWhispers.Infrastructure.Persistence.Entities;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Infrastructure.Persistence.Repositories;
 
@@ -136,7 +136,8 @@ public class SqliteChatHistoryRepository(WretchedWhispersDbContext db, TimeProvi
             MetadataJson = SerializeMetadata(message.AdditionalProperties),
             Timestamp = clock.GetUtcNow().UtcDateTime,
             OrderIndex = orderIndex
-            ,TurnId = turnId
+            ,
+            TurnId = turnId
         };
 
         db.ChatMessages.Add(entity);

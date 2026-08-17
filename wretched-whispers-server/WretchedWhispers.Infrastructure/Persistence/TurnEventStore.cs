@@ -16,8 +16,15 @@ public sealed class TurnEventStore(IServiceScopeFactory scopes, TimeProvider clo
         for (var attempt = 0; ; attempt++)
         {
             var sequence = (await db.TurnEvents.Where(x => x.TurnId == turnId).MaxAsync(x => (long?)x.Sequence, ct) ?? 0) + 1;
-            var entity = new TurnEventEntity { Id = Guid.NewGuid(), TurnId = turnId, Sequence = sequence,
-                EventType = eventType, Payload = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web), CreatedAt = clock.GetUtcNow().UtcDateTime };
+            var entity = new TurnEventEntity
+            {
+                Id = Guid.NewGuid(),
+                TurnId = turnId,
+                Sequence = sequence,
+                EventType = eventType,
+                Payload = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web),
+                CreatedAt = clock.GetUtcNow().UtcDateTime
+            };
             db.TurnEvents.Add(entity);
             try { await db.SaveChangesAsync(ct); return; }
             catch (DbUpdateException) when (attempt < 3)

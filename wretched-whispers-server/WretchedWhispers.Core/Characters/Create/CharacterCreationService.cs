@@ -101,21 +101,21 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         switch (characterClass)
         {
             case CharacterClass.GutterbornScum:
-            {
-                var kit = new List<InventoryItem>();
-                var count = dice.Roll(DiceExpr.D4);
-                for (var i = 0; i < count; i++)
-                    kit.Add(new InventoryItem(Guid.NewGuid(), RollTrinket(), false, false));
-                return kit;
-            }
+                {
+                    var kit = new List<InventoryItem>();
+                    var count = dice.Roll(DiceExpr.D4);
+                    for (var i = 0; i < count; i++)
+                        kit.Add(new InventoryItem(Guid.NewGuid(), RollTrinket(), false, false));
+                    return kit;
+                }
             case CharacterClass.OccultHerbmaster:
-            {
-                var kit = new List<InventoryItem> { new(Guid.NewGuid(), "herb pouch & pestle", false, false) };
-                var count = dice.Roll(DiceExpr.D4);
-                for (var i = 0; i < count; i++)
-                    kit.Add(new InventoryItem(Guid.NewGuid(), RollHerb(), false, true));
-                return kit;
-            }
+                {
+                    var kit = new List<InventoryItem> { new(Guid.NewGuid(), "herb pouch & pestle", false, false) };
+                    var count = dice.Roll(DiceExpr.D4);
+                    for (var i = 0; i < count; i++)
+                        kit.Add(new InventoryItem(Guid.NewGuid(), RollHerb(), false, true));
+                    return kit;
+                }
             default:
                 return null;
         }

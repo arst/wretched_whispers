@@ -1,12 +1,12 @@
 using Moq;
-using WretchedWhispers.Engine.Services;
+using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
-using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Engine.Services;
 using Xunit;
 
 namespace WretchedWhispers.Tests.StateMachine;

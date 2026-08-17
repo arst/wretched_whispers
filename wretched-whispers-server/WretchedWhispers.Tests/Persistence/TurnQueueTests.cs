@@ -119,8 +119,12 @@ public class TurnQueueTests : SqliteTestBase
 
         Db.TurnEvents.Add(new TurnEventEntity
         {
-            Id = Guid.NewGuid(), TurnId = queued.Turn!.Id, Sequence = 1,
-            EventType = "error", Payload = "{}", CreatedAt = DateTime.UtcNow
+            Id = Guid.NewGuid(),
+            TurnId = queued.Turn!.Id,
+            Sequence = 1,
+            EventType = "error",
+            Payload = "{}",
+            CreatedAt = DateTime.UtcNow
         });
         await Db.SaveChangesAsync();
 
@@ -139,12 +143,18 @@ public class TurnQueueTests : SqliteTestBase
         var sessionId = Guid.NewGuid();
         Db.ChatSessions.Add(new ChatSessionEntity
         {
-            Id = sessionId, CampaignId = Guid.NewGuid(), StartedAt = DateTime.UtcNow
+            Id = sessionId,
+            CampaignId = Guid.NewGuid(),
+            StartedAt = DateTime.UtcNow
         });
         Db.ChatMessages.Add(new ChatMessageEntity
         {
-            Id = Guid.NewGuid(), SessionId = sessionId, TurnId = turnId,
-            Role = "user", Content = "I rest.", Timestamp = DateTime.UtcNow
+            Id = Guid.NewGuid(),
+            SessionId = sessionId,
+            TurnId = turnId,
+            Role = "user",
+            Content = "I rest.",
+            Timestamp = DateTime.UtcNow
         });
         await Db.SaveChangesAsync();
 

@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using WretchedWhispers.Engine.GameTools.Models;
-using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
@@ -8,6 +6,8 @@ using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Engine.GameTools.Models;
+using WretchedWhispers.Engine.Services;
 
 namespace WretchedWhispers.Engine.GameTools;
 

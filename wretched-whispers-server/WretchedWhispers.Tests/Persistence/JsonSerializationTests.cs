@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Xunit;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
@@ -16,6 +15,7 @@ using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
+using Xunit;
 
 namespace WretchedWhispers.Tests.Persistence;
 
@@ -202,7 +202,7 @@ public class JsonSerializationTests : TestBase
         var campaign = Campaign.Create(Difficulty.Grim, "DoomCampaign", "The end is nigh");
         var charId = Guid.NewGuid();
         campaign.JoinGame(charId);
-        campaign.Configure( "DoomCampaign", "The end is nigh");
+        campaign.Configure("DoomCampaign", "The end is nigh");
 
         var json = JsonSerializer.Serialize(campaign, _options);
         var deserialized = JsonSerializer.Deserialize<Campaign>(json, _options)!;

@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Engine.Services;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Services;

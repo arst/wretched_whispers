@@ -12,13 +12,23 @@ public class TurnEventStoreTests : SqliteTestBase
         var turnId = Guid.NewGuid();
         Db.TurnEvents.Add(new TurnEventEntity
         {
-            Id = Guid.NewGuid(), TurnId = turnId, Sequence = 1, EventType = "done", Payload = "{}", CreatedAt = DateTime.UtcNow
+            Id = Guid.NewGuid(),
+            TurnId = turnId,
+            Sequence = 1,
+            EventType = "done",
+            Payload = "{}",
+            CreatedAt = DateTime.UtcNow
         });
         await Db.SaveChangesAsync();
 
         Db.TurnEvents.Add(new TurnEventEntity
         {
-            Id = Guid.NewGuid(), TurnId = turnId, Sequence = 2, EventType = "error", Payload = "{}", CreatedAt = DateTime.UtcNow
+            Id = Guid.NewGuid(),
+            TurnId = turnId,
+            Sequence = 2,
+            EventType = "error",
+            Payload = "{}",
+            CreatedAt = DateTime.UtcNow
         });
 
         await Assert.ThrowsAsync<DbUpdateException>(() => Db.SaveChangesAsync());

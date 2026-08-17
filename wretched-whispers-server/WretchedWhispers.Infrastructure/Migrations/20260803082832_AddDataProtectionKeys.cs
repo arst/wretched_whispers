@@ -1,35 +1,34 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace WretchedWhispers.Infrastructure.Migrations
+namespace WretchedWhispers.Infrastructure.Migrations;
+
+/// <inheritdoc />
+public partial class AddDataProtectionKeys : Migration
 {
     /// <inheritdoc />
-    public partial class AddDataProtectionKeys : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.CreateTable(
-                name: "DataProtectionKeys",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    FriendlyName = table.Column<string>(type: "TEXT", nullable: true),
-                    Xml = table.Column<string>(type: "TEXT", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_DataProtectionKeys", x => x.Id);
-                });
-        }
+        migrationBuilder.CreateTable(
+            name: "DataProtectionKeys",
+            columns: table => new
+            {
+                Id = table.Column<int>(type: "INTEGER", nullable: false)
+                    .Annotation("Sqlite:Autoincrement", true),
+                FriendlyName = table.Column<string>(type: "TEXT", nullable: true),
+                Xml = table.Column<string>(type: "TEXT", nullable: true)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_DataProtectionKeys", x => x.Id);
+            });
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropTable(
-                name: "DataProtectionKeys");
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable(
+            name: "DataProtectionKeys");
     }
 }
