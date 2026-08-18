@@ -1,0 +1,5 @@
+# Normalize line endings to LF in the repo; checkout as-is.
+* text=auto
+
+# Binary assets
+*.png binary
