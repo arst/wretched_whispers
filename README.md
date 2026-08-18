@@ -291,6 +291,13 @@ so nothing here needs cloud credentials. Tagged `v*` releases publish the multi-
 
 ---
 
+# License
+
+The code in this repository is licensed under [Apache-2.0](LICENSE). Mörk Borg-related content (rules terminology,
+setting names) is used under the MÖRK BORG Third Party License — see the disclaimer below.
+
+---
+
 # DISCLAIMER
 
 Wretched Whispers is an independent production by Artem Startsev and is not affiliated with Ockult Örtmästare Games or
