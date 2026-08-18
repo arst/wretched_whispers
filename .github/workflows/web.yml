@@ -1,5 +1,13 @@
 name: Web Build and Test
 
+permissions:
+  contents: read
+
+# Supersede in-flight runs on PR updates; never cancel main pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 on:
   push:
     branches: [main]

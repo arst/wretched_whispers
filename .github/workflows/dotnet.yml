@@ -1,5 +1,13 @@
 name: .NET Build and Test
 
+permissions:
+  contents: read
+
+# Supersede in-flight runs on PR updates; never cancel main pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 on:
   push:
     branches: [ main ]
@@ -31,7 +39,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "10.0.x"
+          global-json-file: global.json
       - name: Restore dependencies
         run: dotnet restore wretched-whispers-server/WretchedWhispers.slnx
       - name: Verify formatting
