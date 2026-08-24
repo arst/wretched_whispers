@@ -144,6 +144,9 @@ public class SqliteChatHistoryRepository(WretchedWhispersDbContext db, TimeProvi
         await db.SaveChangesAsync(ct);
     }
 
+    public Task<bool> HasMessagesForTurn(Guid turnId, CancellationToken ct = default) =>
+        db.ChatMessages.AnyAsync(m => m.TurnId == turnId, ct);
+
     public async Task<IReadOnlyList<ChatMessage>?> LoadSession(Guid sessionId, CancellationToken ct = default)
     {
         var sessionExists = await db.ChatSessions

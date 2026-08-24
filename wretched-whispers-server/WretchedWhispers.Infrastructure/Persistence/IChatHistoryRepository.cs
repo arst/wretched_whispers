@@ -19,6 +19,12 @@ public interface IChatHistoryRepository
         Guid sessionId, int skip, int take, CancellationToken ct = default);
 
     Task SaveMessage(Guid sessionId, ChatMessage message, CancellationToken ct = default, Guid? turnId = null);
+
+    /// <summary>The turn transaction always writes its player message, including tool-only turns,
+    /// so any message carrying this turn id is a durable proof that the domain commit succeeded.
+    /// Lives here because this repository is what writes messages with turn ids — the proof and
+    /// the invariant it relies on stay in one place.</summary>
+    Task<bool> HasMessagesForTurn(Guid turnId, CancellationToken ct = default);
     Task<Guid> CreateSession(Guid campaignId, CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetSessionsForCampaign(Guid campaignId, CancellationToken ct = default);
 

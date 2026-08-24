@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Entities;
 using Xunit;
@@ -86,6 +87,11 @@ public class TurnQueueTests : SqliteTestBase
         var afterOwner = await queue.GetOwnedAsync(claimed.Id, UserId, CancellationToken.None);
         Assert.Equal(TurnStatus.Completed, afterOwner!.Status);
         Assert.Equal("done", Assert.Single(Db.TurnEvents).EventType);
+
+        // A second finalize by the same owner is fenced too — the turn is no longer Running, so
+        // it reports false instead of attempting (and colliding on) a second terminal event.
+        Assert.False(await queue.FinalizeAsync(claimed.Id, "worker-a", null, CancellationToken.None));
+        Assert.Single(Db.TurnEvents);
     }
 
     [Fact]
@@ -109,8 +115,11 @@ public class TurnQueueTests : SqliteTestBase
     }
 
     [Fact]
-    public async Task Finalize_WhenTerminalWriteFails_RollsBackTheQueueStatus()
+    public async Task Finalize_WithAPreexistingTerminalEvent_CompletesWithoutADuplicate()
     {
+        // A pre-atomic writer could crash between appending its terminal event and updating the
+        // row; finalization must adopt the existing event instead of colliding with the unique
+        // terminal index on every attempt — that turn would head-of-line-block the whole queue.
         var queue = new TurnQueue(Db, TimeProvider.System);
         var queued = await queue.EnqueueAsync(
             Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
@@ -128,39 +137,51 @@ public class TurnQueueTests : SqliteTestBase
         });
         await Db.SaveChangesAsync();
 
-        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(() =>
-            queue.FinalizeAsync(claimed!.Id, "worker-a", null, CancellationToken.None));
+        Assert.True(await queue.FinalizeAsync(claimed!.Id, "worker-a", null, CancellationToken.None));
 
         var turn = await queue.GetOwnedAsync(claimed!.Id, UserId, CancellationToken.None);
-        Assert.Equal(TurnStatus.Running, turn!.Status);
-        Assert.Null(turn.CompletedAt);
+        Assert.Equal(TurnStatus.Completed, turn!.Status);
+        Assert.Single(Db.TurnEvents.Where(x => x.TurnId == queued.Turn!.Id));
     }
 
     [Fact]
-    public async Task WasCommitted_AcceptsTheUserMarkerFromAToolOnlyTurn()
+    public async Task Finalize_WithLeftoverTrackedEntitiesFromAFailedTurn_FlushesOnlyTheTerminalEvent()
     {
-        var turnId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
-        Db.ChatSessions.Add(new ChatSessionEntity
-        {
-            Id = sessionId,
-            CampaignId = Guid.NewGuid(),
-            StartedAt = DateTime.UtcNow
-        });
-        Db.ChatMessages.Add(new ChatMessageEntity
+        var queue = new TurnQueue(Db, TimeProvider.System);
+        var queued = await queue.EnqueueAsync(
+            Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
+        var claimed = await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+        Assert.NotNull(claimed);
+
+        // A failed turn's rolled-back writes stay tracked on the shared scoped context. This
+        // pending duplicate of an already-committed (TurnId, Sequence) row can never be saved;
+        // finalization must drop it rather than fail on it forever or commit it.
+        var otherTurnId = Guid.NewGuid();
+        Db.TurnEvents.Add(new TurnEventEntity
         {
             Id = Guid.NewGuid(),
-            SessionId = sessionId,
-            TurnId = turnId,
-            Role = "user",
-            Content = "I rest.",
-            Timestamp = DateTime.UtcNow
+            TurnId = otherTurnId,
+            Sequence = 1,
+            EventType = "narrative",
+            Payload = "{}",
+            CreatedAt = DateTime.UtcNow
         });
         await Db.SaveChangesAsync();
+        Db.TurnEvents.Add(new TurnEventEntity
+        {
+            Id = Guid.NewGuid(),
+            TurnId = otherTurnId,
+            Sequence = 1,
+            EventType = "narrative",
+            Payload = "{}",
+            CreatedAt = DateTime.UtcNow
+        });
 
-        var queue = new TurnQueue(Db, TimeProvider.System);
+        Assert.True(await queue.FinalizeAsync(claimed!.Id, "worker-a", null, CancellationToken.None));
 
-        Assert.True(await queue.WasCommittedAsync(turnId, CancellationToken.None));
+        var turn = await queue.GetOwnedAsync(claimed!.Id, UserId, CancellationToken.None);
+        Assert.Equal(TurnStatus.Completed, turn!.Status);
+        Assert.Equal(1, await Db.TurnEvents.CountAsync(x => x.TurnId == otherTurnId));
     }
 
     [Fact]
