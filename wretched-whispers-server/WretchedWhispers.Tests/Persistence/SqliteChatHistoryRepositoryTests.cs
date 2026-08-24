@@ -27,6 +27,22 @@ public sealed class SqliteChatHistoryRepositoryTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task HasMessagesForTurn_FlipsOnlyWhenAMessageCarriesTheTurnId()
+    {
+        var turnId = Guid.NewGuid();
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+
+        // The false branch matters most: a false positive would let the worker mark a reclaimed
+        // turn "done" without ever producing output.
+        Assert.False(await _repo.HasMessagesForTurn(turnId));
+
+        // The user marker from a tool-only turn (no assistant prose) is proof enough.
+        await _repo.SaveMessage(sessionId, new ChatMessage(ChatRole.User, "I rest."), turnId: turnId);
+
+        Assert.True(await _repo.HasMessagesForTurn(turnId));
+    }
+
+    [Fact]
     public async Task GetLastActivityForCampaigns_TracksMessagesAndFallsBackToSessionStart()
     {
         var campaignId = Guid.NewGuid();

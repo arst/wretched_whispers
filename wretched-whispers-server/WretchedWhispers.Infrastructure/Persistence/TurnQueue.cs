@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WretchedWhispers.Infrastructure.Persistence.Entities;
 
@@ -54,11 +53,6 @@ public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
 
     public Task<TurnRequestEntity?> GetOwnedAsync(Guid id, string userId, CancellationToken ct) =>
         db.TurnRequests.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct);
-
-    /// <summary>The turn transaction always writes its player message, including tool-only turns,
-    /// so any message carrying this id is a durable proof that the domain commit succeeded.</summary>
-    public Task<bool> WasCommittedAsync(Guid id, CancellationToken ct) =>
-        db.ChatMessages.AnyAsync(x => x.TurnId == id, ct);
 
     public async Task<TurnRequestEntity?> ClaimAsync(string owner, TimeSpan lease, int maxAttempts, CancellationToken ct)
     {
@@ -118,28 +112,28 @@ public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
         Func<CancellationToken, Task<int>> transition,
         CancellationToken ct)
     {
+        // Finalization must flush exactly the terminal event: a failed turn can leave its rolled-back
+        // domain writes tracked on this shared scoped context, and SaveChanges would either re-commit
+        // them or fail on them forever.
+        db.ChangeTracker.Clear();
         for (var attempt = 0; ; attempt++)
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             if (await transition(ct) == 0)
                 return false;
 
-            var sequence = (await db.TurnEvents
-                .Where(x => x.TurnId == id)
-                .MaxAsync(x => (long?)x.Sequence, ct) ?? 0) + 1;
-            var terminal = new TurnEventEntity
+            // A terminal event may already exist: a pre-atomic writer crashed between its two
+            // commits, or another instance appended one after losing its lease mid-stream. Commit
+            // the status transition alone instead of colliding with the unique terminal index forever.
+            if (await db.TurnEvents.AnyAsync(x => x.TurnId == id && (x.EventType == "done" || x.EventType == "error"), ct))
             {
-                Id = Guid.NewGuid(),
-                TurnId = id,
-                Sequence = sequence,
-                EventType = error is null ? "done" : "error",
-                Payload = error is null
-                    ? "{}"
-                    : JsonSerializer.Serialize(new { message = error }, JsonSerializerOptions.Web),
-                CreatedAt = clock.GetUtcNow().UtcDateTime
-            };
-            db.TurnEvents.Add(terminal);
+                await transaction.CommitAsync(ct);
+                return true;
+            }
 
+            var terminal = await TurnEventStore.AddNextAsync(db, id,
+                error is null ? "done" : "error",
+                error is null ? new { } : (object)new { message = error }, clock, ct);
             try
             {
                 await db.SaveChangesAsync(ct);

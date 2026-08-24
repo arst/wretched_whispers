@@ -36,7 +36,8 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                 var renewal = RenewLeaseAsync(turn.Id, execution);
                 try
                 {
-                    if (await queue.WasCommittedAsync(turn.Id, execution.Token))
+                    var chatHistory = scope.ServiceProvider.GetRequiredService<IChatHistoryRepository>();
+                    if (await chatHistory.HasMessagesForTurn(turn.Id, execution.Token))
                     {
                         await queue.FinalizeAsync(turn.Id, _owner, null, execution.Token);
                         continue;
