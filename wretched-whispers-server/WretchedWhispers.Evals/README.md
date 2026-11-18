@@ -58,6 +58,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Combat-PlayerAttack-OneRound** — a player attack must call `ResolveCombatRound` exactly once (journaling a notable event alongside it is permitted).
 - **Combat-InventoryQuestion-NoTurn** — an in-combat inventory/equipment question must answer from state without calling combat tools.
 - **Combat-MissingItemUse-NoTurn** — using a missing item in combat must not invent it or advance the round.
+- **Combat-DoubleAction-OneRound** — a player message describing two attacks is still one round: exactly one `ResolveCombatRound` call (code also rejects a second call in the same turn).
 - **Combat-TwoAdversaries-TargetsByName** — with two named adversaries in the fight, a player attack on one "by description" must call `ResolveCombatRound` with that adversary's name as `targetAdversaryName`.
 - **Combat-CastScroll-ThenRoundOther** — an in-combat scroll cast must call `CastScroll` then exactly one `ResolveCombatRound` (the 'Other' path).
 - **Combat-OmenSpend-MaxDamage** — an explicit omen spend must ride `ResolveCombatRound`'s `omenUse` argument; the domain's committed omen count is the witness.

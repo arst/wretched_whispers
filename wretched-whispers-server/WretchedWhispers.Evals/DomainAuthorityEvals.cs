@@ -389,6 +389,20 @@ public class DomainAuthorityEvals
     }
 
     [Fact]
+    public async Task Combat_DoubleAction_ResolvesExactlyOneRound()
+    {
+        // The player describes two attacks in one message. One message is one round: the model must
+        // call ResolveCombatRound once (code now rejects a second call, but the model should not try).
+        var outcome = await AssertToolRequiredAsync(
+            "Combat-DoubleAction-OneRound",
+            client => EvalHost.CreateCombatAsync(client),
+            "I smash the priest with my staff, then spin and smash him again before he can recover!",
+            "ResolveCombatRound");
+
+        Assert.Equal(1, outcome.ToolCalls.Count(c => c == "ResolveCombatRound"));
+    }
+
+    [Fact]
     public async Task Combat_TwoAdversaries_TargetsTheOneThePlayerMeans()
     {
         // Tool results never enter the chat history, so the model can only fill targetAdversaryName
