@@ -13,7 +13,7 @@ namespace WretchedWhispers.Evals.Harness;
 /// The captured result of one eval turn.
 /// <list type="bullet">
 /// <item><see cref="Calls"/>: the tool calls the model made, in order, with their JSON arguments — read
-/// from the turn trace the coordinator persisted. Empty when the turn did not commit (no trace).</item>
+/// from the turn trace the coordinator persisted, whether or not the turn committed.</item>
 /// <item><see cref="ToolResults"/>: the tool-result events the turn emitted.</item>
 /// <item><see cref="Delta"/>: the committed per-turn delta (null before a character exists, or on failure).</item>
 /// <item><see cref="Error"/>: the <see cref="TurnError"/> message when the coordinator failed or refused the turn.</item>
@@ -46,14 +46,13 @@ public sealed class EvalTurnRunner(
 {
     public async Task<TurnOutcome> RunTurnAsync(string playerMessage, CancellationToken ct = default)
     {
-        var tracesBefore = await CountTracesAsync(ct);
-
+        var turnId = Guid.NewGuid();
         var toolResults = new List<ToolResult>();
         var narrative = new System.Text.StringBuilder();
         TurnDelta? delta = null;
         string? error = null;
 
-        await foreach (var evt in coordinator.ExecuteTurnAsync(sessionId, playerMessage, Guid.NewGuid(), ct))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(sessionId, playerMessage, turnId, ct))
         {
             switch (evt)
             {
@@ -72,31 +71,20 @@ public sealed class EvalTurnRunner(
             }
         }
 
-        // The coordinator persists a trace only for a committed turn, so a new row exists exactly when
-        // this turn committed — and it is the newest one for the session.
-        var calls = await ReadCallsFromNewTraceAsync(tracesBefore, ct);
+        var calls = await ReadCallsFromTraceAsync(turnId, ct);
 
         var text = narrative.ToString();
         return new TurnOutcome(calls, toolResults, BuildToolCallResponse(calls, text), text, delta, error);
     }
 
-    private async Task<int> CountTracesAsync(CancellationToken ct)
+    // The coordinator traces every turn that got as far as deriving its stage, committed or not, keyed
+    // by the turn id we passed. No trace (e.g. no chat session) means no calls.
+    private async Task<IReadOnlyList<ToolCallTrace>> ReadCallsFromTraceAsync(Guid turnId, CancellationToken ct)
     {
         await using var queryScope = scopeFactory.CreateAsyncScope();
         var db = queryScope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-        return await db.TurnTraces.CountAsync(t => t.CampaignId == sessionId, ct);
-    }
-
-    private async Task<IReadOnlyList<ToolCallTrace>> ReadCallsFromNewTraceAsync(int tracesBefore, CancellationToken ct)
-    {
-        await using var queryScope = scopeFactory.CreateAsyncScope();
-        var db = queryScope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
-        var traces = db.TurnTraces.AsNoTracking().Where(t => t.CampaignId == sessionId);
-        if (await traces.CountAsync(ct) <= tracesBefore)
-            return [];
-
-        var trace = await traces.OrderByDescending(t => t.OrderIndex).FirstAsync(ct);
-        return ParseCalls(trace.ToolCallsJson);
+        var trace = await db.TurnTraces.AsNoTracking().SingleOrDefaultAsync(t => t.TurnId == turnId, ct);
+        return trace is null ? [] : ParseCalls(trace.ToolCallsJson);
     }
 
     // ToolCallsJson is the coordinator's [{ name, arguments }] array, arguments embedded as a JSON object.

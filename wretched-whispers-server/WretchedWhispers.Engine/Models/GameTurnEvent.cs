@@ -105,4 +105,11 @@ public record ToolCallTrace(string Name, string? Arguments);
 /// </summary>
 public record AgentTrace(
     IReadOnlyList<ToolCallTrace> ToolCalls,
-    string? SuppressedNarrative) : GameTurnEvent("agent_trace");
+    string? SuppressedNarrative,
+    // Comparability: which model and prompt produced the turn, what it cost, and how many model
+    // requests it took. Optional so the many existing two-argument call sites keep compiling.
+    string? ModelId = null,
+    string? PromptHash = null,
+    long? InputTokens = null,
+    long? OutputTokens = null,
+    int Iterations = 0) : GameTurnEvent("agent_trace");

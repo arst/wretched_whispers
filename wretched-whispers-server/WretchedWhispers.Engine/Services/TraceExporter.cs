@@ -44,7 +44,18 @@ public static class TraceExporter
                     ["toolResults"] = Parse(t.ToolResultsJson),
                     ["turnDelta"] = Parse(t.TurnDeltaJson),
                     ["suppressedNarrative"] = t.SuppressedNarrative,
-                    ["narrative"] = t.Narrative
+                    ["narrative"] = t.Narrative,
+                    ["turnId"] = t.TurnId?.ToString(),
+                    ["attempt"] = t.Attempt,
+                    ["outcome"] = t.Outcome,
+                    ["error"] = t.Error,
+                    ["modelId"] = t.ModelId,
+                    ["promptHash"] = t.PromptHash,
+                    ["toolsOffered"] = Parse(t.ToolsOffered),
+                    ["inputTokens"] = t.InputTokens,
+                    ["outputTokens"] = t.OutputTokens,
+                    ["durationMs"] = t.DurationMs,
+                    ["iterations"] = t.Iterations
                 });
 
             sessions.Add(new JsonObject

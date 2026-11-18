@@ -48,7 +48,8 @@ public sealed class TurnWorker(IServiceScopeFactory scopes, TurnEventStore event
                     try
                     {
                         var coordinator = scope.ServiceProvider.GetRequiredService<TurnCoordinator>();
-                        await foreach (var item in coordinator.ExecuteTurnAsync(turn.CampaignId, turn.PlayerMessage, turn.Id, execution.Token))
+                        await foreach (var item in coordinator.ExecuteTurnAsync(
+                            turn.CampaignId, turn.PlayerMessage, turn.Id, execution.Token, turn.AttemptCount))
                         {
                             if (item.EventType is not ("done" or "error"))
                                 await events.AppendAsync(turn.Id, item.EventType, item, execution.Token);

@@ -17,7 +17,7 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.18")
+                .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -324,12 +324,12 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TurnId", "Sequence")
-                        .IsUnique();
-
                     b.HasIndex("TurnId")
                         .IsUnique()
                         .HasFilter("\"EventType\" IN ('done', 'error')");
+
+                    b.HasIndex("TurnId", "Sequence")
+                        .IsUnique();
 
                     b.ToTable("TurnEvents", (string)null);
                 });
@@ -392,14 +392,32 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("Attempt")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("CampaignId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ChatSessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<long?>("DurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("GameStateJson")
                         .HasColumnType("TEXT");
+
+                    b.Property<long?>("InputTokens")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("Iterations")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelId")
+                        .HasColumnType("text");
 
                     b.Property<string>("Narrative")
                         .IsRequired()
@@ -408,9 +426,18 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
                     b.Property<int>("OrderIndex")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Outcome")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("OutputTokens")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("PlayerMessage")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("PromptHash")
+                        .HasColumnType("text");
 
                     b.Property<string>("Stage")
                         .IsRequired()
@@ -430,14 +457,22 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ToolsOffered")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TurnDeltaJson")
                         .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("TurnId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CampaignId");
 
                     b.HasIndex("ChatSessionId");
+
+                    b.HasIndex("TurnId");
 
                     b.ToTable("TurnTraces", (string)null);
                 });

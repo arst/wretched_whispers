@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using WretchedWhispers.Engine.Models;
@@ -50,7 +51,17 @@ public class TurnCoordinatorTests
             _unitOfWork.Object,
             _sessionLock.Object,
             TimeProvider.System,
+            DetachedScopes(),
             NullLogger<TurnCoordinator>.Instance);
+
+    /// <summary>The fresh scopes a non-committed turn's trace is written through: they resolve the same
+    /// trace repository mock, so tests can see every trace regardless of outcome.</summary>
+    private IServiceScopeFactory DetachedScopes()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped(_ => _turnTraceRepo.Object);
+        return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    }
 
     private SessionContext MakeExplorationContext()
     {
@@ -295,6 +306,139 @@ public class TurnCoordinatorTests
         Assert.Equal("An error occurred while processing your action", Assert.IsType<TurnError>(error).Message);
     }
 
+    // ---- Trace coverage: every outcome after the stage is known leaves a comparable trace ----
+
+    private readonly List<string> _sequence = [];
+
+    /// <summary>Records saved traces, and the order of rollback (uow disposal) vs. trace save.</summary>
+    private List<TurnTraceEntity> CaptureTraces(Exception? commitThrows = null)
+    {
+        var scope = new Mock<IUnitOfWorkScope>();
+        var commit = scope.Setup(s => s.CommitAsync(It.IsAny<CancellationToken>()));
+        if (commitThrows is null) commit.Returns(Task.CompletedTask);
+        else commit.ThrowsAsync(commitThrows);
+        scope.Setup(s => s.DisposeAsync()).Callback(() => _sequence.Add("uow-disposed")).Returns(ValueTask.CompletedTask);
+        _unitOfWork.Setup(u => u.BeginAsync(It.IsAny<CancellationToken>())).ReturnsAsync(scope.Object);
+
+        var saved = new List<TurnTraceEntity>();
+        _turnTraceRepo
+            .Setup(r => r.Save(It.IsAny<TurnTraceEntity>(), It.IsAny<CancellationToken>()))
+            .Callback<TurnTraceEntity, CancellationToken>((t, _) => { saved.Add(t); _sequence.Add("trace-saved"); })
+            .Returns(Task.CompletedTask);
+        return saved;
+    }
+
+    private void OfferTools(params string[] names)
+    {
+        IReadOnlyList<AIFunction> tools = names.Select(n => AIFunctionFactory.Create(() => "ok", n)).ToList();
+        _toolProvider
+            .Setup(f => f.GetToolsForStage(It.IsAny<SessionContext>(), It.IsAny<SessionStage>()))
+            .Returns((tools, names));
+    }
+
+    private async Task<List<GameTurnEvent>> RunTurnAsync(Guid? turnId = null, int? attempt = null)
+    {
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in CreateCoordinator().ExecuteTurnAsync(
+                           _sessionId, "I explore", turnId, CancellationToken.None, attempt))
+            events.Add(evt);
+        return events;
+    }
+
+    [Fact]
+    public async Task ExecutorThrows_WritesFailedTrace_AfterRollback_AndPersistsNoChat()
+    {
+        ArrangeExplorationTurn();
+        OfferTools("Rest", "Roll");
+        var saved = CaptureTraces();
+        _agentExecutor
+            .Setup(a => a.ExecuteAsync(It.IsAny<IReadOnlyList<AIFunction>>(), It.IsAny<SessionContext>(),
+                _chatSessionId, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(ThrowingAsyncEnumerable(new InvalidOperationException("LLM exploded")));
+        var turnId = Guid.NewGuid();
+
+        await RunTurnAsync(turnId, attempt: 2);
+
+        var trace = Assert.Single(saved);
+        Assert.Equal(TurnTraceOutcome.Failed, trace.Outcome);
+        Assert.Equal("InvalidOperationException: LLM exploded", trace.Error);
+        Assert.Equal(turnId, trace.TurnId);
+        Assert.Equal(2, trace.Attempt);
+        Assert.Equal("[\"Rest\",\"Roll\"]", trace.ToolsOffered);
+        Assert.Equal("Exploration", trace.Stage);
+        Assert.NotNull(trace.DurationMs);
+        Assert.Equal(new[] { "uow-disposed", "trace-saved" }, _sequence);
+        _chatHistoryRepo.Verify(
+            r => r.SaveMessage(It.IsAny<Guid>(), It.IsAny<ChatMessage>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task EmptyResponse_WritesEmptyTrace()
+    {
+        ArrangeExplorationTurn();
+        var saved = CaptureTraces();
+        SetupAgentExecutorStreaming(new AgentTrace([], SuppressedNarrative: null, ModelId: "gpt-test", Iterations: 2));
+
+        await RunTurnAsync();
+
+        var trace = Assert.Single(saved);
+        Assert.Equal(TurnTraceOutcome.Empty, trace.Outcome);
+        Assert.Equal("gpt-test", trace.ModelId);
+        Assert.Equal(2, trace.Iterations);
+        Assert.Equal(new[] { "uow-disposed", "trace-saved" }, _sequence);
+    }
+
+    [Fact]
+    public async Task CommitConflict_WritesConflictTrace_WithTheRunsToolCalls()
+    {
+        ArrangeExplorationTurn();
+        var saved = CaptureTraces(commitThrows: new DbUpdateConcurrencyException("row version changed"));
+        SetupAgentExecutorStreaming(
+            new NarrativeChunk("You rest."),
+            new ToolResult("Rest", "{\"hpHealed\":2}"),
+            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null));
+
+        var events = await RunTurnAsync();
+
+        Assert.IsType<TurnError>(Assert.Single(events));
+        var trace = Assert.Single(saved);
+        Assert.Equal(TurnTraceOutcome.Conflict, trace.Outcome);
+        Assert.Contains("row version changed", trace.Error);
+        Assert.Contains("Rest", trace.ToolCallsJson);
+        Assert.Equal("You rest.", trace.Narrative);
+        Assert.Equal(new[] { "uow-disposed", "trace-saved" }, _sequence);
+    }
+
+    [Fact]
+    public async Task CommittedTrace_CarriesModelPromptToolsAndUsage()
+    {
+        ArrangeExplorationTurn();
+        OfferTools("Rest");
+        var saved = CaptureTraces();
+        SetupAgentExecutorStreaming(
+            new NarrativeChunk("You rest."),
+            new ToolResult("Rest", "{\"hpHealed\":2}"),
+            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null,
+                ModelId: "gpt-test", PromptHash: "abc123", InputTokens: 1200, OutputTokens: 85, Iterations: 2));
+        var turnId = Guid.NewGuid();
+
+        await RunTurnAsync(turnId, attempt: 1);
+
+        var trace = Assert.Single(saved);
+        Assert.Equal(TurnTraceOutcome.Committed, trace.Outcome);
+        Assert.Null(trace.Error);
+        Assert.Equal(turnId, trace.TurnId);
+        Assert.Equal(1, trace.Attempt);
+        Assert.Equal("gpt-test", trace.ModelId);
+        Assert.Equal("abc123", trace.PromptHash);
+        Assert.Equal("[\"Rest\"]", trace.ToolsOffered);
+        Assert.Equal(1200, trace.InputTokens);
+        Assert.Equal(85, trace.OutputTokens);
+        Assert.Equal(2, trace.Iterations);
+        Assert.NotNull(trace.DurationMs);
+    }
+
     [Fact]
     public async Task Trace_PersistsTurnDelta_SoEvalsCanSeeWhatActuallyChanged()
     {
@@ -484,9 +628,15 @@ public class TurnCoordinatorTests
         Assert.DoesNotContain(events, e => e is NarrativeChunk);
         Assert.DoesNotContain(events, e => e is TurnDone);
 
-        // A refused turn produced no trace (the transaction never opened).
+        // A refused turn leaves a trace that says so, with nothing offered or called.
         _turnTraceRepo.Verify(
-            r => r.Save(It.IsAny<TurnTraceEntity>(), It.IsAny<CancellationToken>()), Times.Never);
+            r => r.Save(It.Is<TurnTraceEntity>(t =>
+                    t.Outcome == TurnTraceOutcome.Refused
+                    && t.Error == "This story has ended. Begin a new character to continue."
+                    && t.ToolsOffered == "[]"
+                    && t.ToolCallsJson == "[]"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
 
         // Domain authority: the narrator is NEVER invoked on a finished game.
         _agentExecutor.Verify(
