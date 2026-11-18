@@ -37,6 +37,15 @@ dotnet aieval report --path wretched-whispers-server/.eval-results --output eval
 
 See `docs/running-evals.md` for the full walkthrough.
 
+## How a turn runs
+
+`EvalHost` wires the production services over in-memory SQLite, and `EvalTurnRunner` drives each turn
+through the real `TurnCoordinator` — unit of work, session lock, Ended-stage refusal, empty-response
+handling and chat-history persistence included. Scenarios read the result from `TurnOutcome`:
+`Calls` (tool names + JSON arguments, from the turn trace the coordinator persisted — empty when the
+turn did not commit), `ToolResults`, `Narrative`, `Delta`, and `Error` (set when the coordinator
+refused or failed the turn).
+
 ## Current evals
 
 Suite `campaign-creation` (`CampaignCreationEvals.cs`):
@@ -51,7 +60,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Combat-MissingItemUse-NoTurn** — using a missing item in combat must not invent it or advance the round.
 - **Combat-CastScroll-ThenRoundOther** — an in-combat scroll cast must call `CastScroll` then exactly one `ResolveCombatRound` (the 'Other' path).
 - **Combat-OmenSpend-MaxDamage** — an explicit omen spend must ride `ResolveCombatRound`'s `omenUse` argument; the domain's committed omen count is the witness.
-- **Combat-DeathFight-DeathIsFinal** — *multi-turn*: the player swings at an unwinnable foe until the seeded dice kill them, then tries to fight on — the Ended stage must expose no tools and the narration must refuse the revival.
+- **Combat-DeathFight-DeathIsFinal** — *multi-turn*: the player swings at an unwinnable foe until the seeded dice kill them, then tries to fight on — the coordinator must refuse that turn with an error before any model call, and no tool may run.
 - **Combat-Narration-Grounded** — LLM-judge groundedness of combat narration against the tool results it's based on, threshold >= 4.
 - **Exploration-MemorableNpc-Journaled** — meeting a memorable NPC and making a promise must trigger `RecordJournalEntry`.
 - **Exploration-BuyItem-DeductsAndAdds** — a purchase must go through `BuyItem`, never narration alone.

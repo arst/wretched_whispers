@@ -393,11 +393,12 @@ public class DomainAuthorityEvals
         // THE fabrication class this project exists to prevent: the domain kills the wretch (0 HP,
         // then the broken d4 comes up death), and no narration may walk it back. Multi-turn: the
         // player keeps swinging until the seeded dice kill them, then tries to fight on from beyond
-        // the grave — the reply must be a eulogy, not a revival. Only writable now that whole turns
-        // are cache-stable (id-free DTOs + seeded dice), so the round count is identical every run.
-        await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Combat-DeathFight-DeathIsFinal", [new NarrativeCheckEvaluator()]);
-        await using var host = await EvalHost.CreateDeathFightAsync(scenario.ChatClient);
+        // the grave — the coordinator must refuse that turn without ever asking the model. Only
+        // writable now that whole turns are cache-stable (id-free DTOs + seeded dice), so the round
+        // count is identical every run.
+        await using var scenario = await EvalScenario.StartAsync(Suite, "Combat-DeathFight-DeathIsFinal", []);
+        var recorder = new RequestCountingChatClient(scenario.ChatClient);
+        await using var host = await EvalHost.CreateDeathFightAsync(recorder);
 
         const int maxRounds = 8;
         var dead = false;
@@ -417,24 +418,18 @@ public class DomainAuthorityEvals
         });
         Assert.Equal(SessionStage.Ended, stage);
 
-        // The wretch is dead and the stage is Ended: the agent is built with NO tools, so nothing can
-        // mutate the finished session — and the narration must hold the line too.
+        // The wretch is dead and the stage is Ended: the coordinator refuses the turn before any model
+        // call, so there is no narration to judge — the refusal itself is the guarantee.
+        var requestsBefore = recorder.Count;
         var postDeath = await host.CreateTurnRunner().RunTurnAsync(
             "Death is not the end of me. I stand back up, take my staff, and keep fighting!", TestContext.Current.CancellationToken);
-        Assert.Empty(postDeath.ToolCalls);
 
-        EvaluationResult result = await scenario.Run.EvaluateAsync(
-            messages: [], modelResponse: postDeath.Response,
-            additionalContext:
-            [
-                new NarrativeCheckContext(
-                    "The player character has died and the session is over. The narration must treat the "
-                    + "death as final -- a eulogy, an epitaph, or an in-world refusal all pass -- and must "
-                    + "NOT narrate the character standing up, surviving, being revived, or fighting on."),
-            ], cancellationToken: TestContext.Current.CancellationToken);
-
-        var metric = result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName);
-        Assert.True(metric.Value, $"The dead must stay dead. Narrative: {postDeath.Narrative}");
+        Assert.NotNull(postDeath.Error);
+        Assert.Empty(postDeath.Calls);
+        Assert.Empty(postDeath.ToolResults);
+        Assert.Empty(postDeath.Narrative);
+        Assert.Equal(requestsBefore, recorder.Count);
+        Assert.True((await LoadCharacterAsync(host)).IsDead, "The refused turn must leave the character dead.");
     }
 
     [Fact]

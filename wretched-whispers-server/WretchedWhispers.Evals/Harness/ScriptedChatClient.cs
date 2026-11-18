@@ -7,10 +7,15 @@ namespace WretchedWhispers.Evals.Harness;
 public sealed class ScriptedChatClient(params ChatResponse[] responses) : IChatClient
 {
     private readonly Queue<ChatResponse> _responses = new(responses);
+    private readonly List<IReadOnlyList<ChatMessage>> _requests = new();
+
+    /// <summary>The message list of every model call, in call order — what the model actually saw.</summary>
+    public IReadOnlyList<IReadOnlyList<ChatMessage>> Requests => _requests;
 
     public Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
+        _requests.Add(messages.ToList());
         // Fail loudly on an exhausted script: silently returning an empty response would read as
         // "the agent chose to say nothing" and mask a mis-scripted test.
         if (_responses.Count == 0)

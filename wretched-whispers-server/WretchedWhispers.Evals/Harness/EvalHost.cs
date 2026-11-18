@@ -58,6 +58,10 @@ public sealed class EvalHost : IAsyncDisposable
         services.AddDbContext<WretchedWhispersDbContext>(o => o.UseSqlite(connection));
         services.AddDomainServices();
         services.AddGameAgentOrchestration();
+        // The rest of what TurnCoordinator needs: AddDomainServices supplies IUnitOfWork,
+        // ITurnTraceRepository and TimeProvider; the session lock is host-chosen in production
+        // (Program.cs), and SQLite deployments use the in-memory one.
+        services.AddSingleton<ISessionLock, InMemorySessionLock>();
         services.AddSingleton(chatClient);
         // Deterministic dice (last registration wins over AddDomainServices' unseeded default):
         // rolled values land in tool results, which land in model requests — unseeded dice would
@@ -326,12 +330,9 @@ public sealed class EvalHost : IAsyncDisposable
 
         var runner = new EvalTurnRunner(
             scope,
-            sp.GetRequiredService<ISessionContextLoader>(),
-            sp.GetRequiredService<IAgentToolProvider>(),
-            sp.GetRequiredService<IAgentExecutor>(),
-            sp.GetRequiredService<IChatHistoryRepository>(),
-            SessionId,
-            ChatSessionId);
+            sp.GetRequiredService<TurnCoordinator>(),
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            SessionId);
         _runners.Add(runner);
         return runner;
     }
