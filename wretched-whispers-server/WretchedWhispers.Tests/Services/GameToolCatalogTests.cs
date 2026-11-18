@@ -17,6 +17,29 @@ public class GameToolCatalogTests
             .OrderBy(x => x)
             .ToArray();
 
+    [Fact]
+    public void PerTurnCallLimits_ArePinned()
+    {
+        // One combat action = one round; one ritual, one resolution, one encounter start per turn.
+        var limited = new[] { SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution }
+            .SelectMany(GameToolCatalog.ForStage)
+            .Where(d => d.MaxCallsPerTurn > 0)
+            .Select(d => $"{d.Group}.{d.Name}={d.MaxCallsPerTurn}")
+            .Distinct()
+            .OrderBy(x => x)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "Character.GettingBetter=1",
+                "Encounter.CompleteResolution=1",
+                "Encounter.ResolveCombatRound=1",
+                "Encounter.StartEncounter=1"
+            },
+            limited);
+    }
+
     /// <summary>Characters are made by the create-session and successor forms, never by the narrator, so a
     /// session cannot start without one and this stage is an unreachable fallback. It gets no tools at all:
     /// there is nothing it should be able to do, least of all conjure a character.</summary>

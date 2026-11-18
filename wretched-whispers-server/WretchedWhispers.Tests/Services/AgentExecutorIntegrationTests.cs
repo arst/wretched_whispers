@@ -146,6 +146,94 @@ public class AgentExecutorIntegrationTests
         Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateEncounter");
     }
 
+    private static async Task<List<GameTurnEvent>> RunAsync(AgentExecutor executor, IReadOnlyList<AIFunction> tools,
+        SessionContext ctx, string playerMessage)
+    {
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in executor.ExecuteAsync(tools, ctx, Guid.NewGuid(), playerMessage, CancellationToken.None))
+            events.Add(evt);
+        return events;
+    }
+
+    [Fact]
+    public async Task ProseBetweenToolRounds_IsSuppressed_OnlyTheFinalSegmentSurfaces()
+    {
+        // text -> tool -> text -> tool -> text. The middle prose was written after the first result but
+        // before the second, so it could not know the second outcome: only the last segment is trusted.
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new ScriptedChatClient(
+            ChatResponses.TextThenToolCall("FIRST: the fight is won.", "call_1", "CreateEncounter", new()
+            {
+                ["name"] = "Grim",
+                ["description"] = "Something moves in the muck",
+                ["initialEncounterType"] = "Hostile"
+            }),
+            ChatResponses.TextThenToolCall("SECOND: you roll a six.", "call_2", "Roll", new()
+            {
+                ["diceExpression"] = "d6"
+            }),
+            ChatResponses.Text("FINAL: the muck parts."));
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "Grim");
+
+        var narrative = string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text));
+        Assert.Equal("FINAL: the muck parts.", narrative);
+        Assert.Equal(new[] { "CreateEncounter", "Roll" }, events.OfType<ToolResult>().Select(t => t.Function));
+        var trace = events.OfType<AgentTrace>().Single();
+        Assert.Contains("FIRST", trace.SuppressedNarrative);
+        Assert.Contains("SECOND", trace.SuppressedNarrative);
+    }
+
+    [Fact]
+    public async Task EmptyResponseWithNoToolCall_IsRetriedOnce()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new ScriptedChatClient(
+            ChatResponses.Text(""),
+            ChatResponses.Text("The bell tolls. What now, wretch?"));
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "hello");
+
+        Assert.Equal(2, client.Calls);
+        Assert.Equal("The bell tolls. What now, wretch?",
+            string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text)));
+    }
+
+    [Fact]
+    public async Task EmptyResponseTwice_IsRetriedOnlyOnce_AndYieldsNothing()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new ScriptedChatClient(ChatResponses.Text(""), ChatResponses.Text(""));
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "hello");
+
+        Assert.Equal(2, client.Calls);
+        Assert.Empty(events.OfType<NarrativeChunk>());
+        Assert.Empty(events.OfType<ToolResult>());
+    }
+
+    [Fact]
+    public async Task EmptyResponseAfterAToolRan_IsNotRetried()
+    {
+        // A tool already changed state: re-running the loop could apply it twice.
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new ScriptedChatClient(
+            ChatResponses.ToolCall("call_1", "CreateEncounter", new()
+            {
+                ["name"] = "Grim",
+                ["description"] = "Something moves in the muck",
+                ["initialEncounterType"] = "Hostile"
+            }),
+            ChatResponses.Text(""),
+            ChatResponses.Text("SHOULD NOT BE REACHED"));
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "Grim");
+
+        Assert.Equal(2, client.Calls);
+        Assert.Empty(events.OfType<NarrativeChunk>());
+        Assert.Single(events.OfType<ToolResult>(), t => t.Function == "CreateEncounter");
+    }
+
     [Fact]
     public async Task GuidSplitAcrossStreamedChunks_IsStillScrubbed()
     {
@@ -219,9 +307,13 @@ public class AgentExecutorIntegrationTests
     {
         private readonly Queue<ChatResponse> _responses = new(responses);
 
+        /// <summary>How many model calls were made.</summary>
+        public int Calls { get; private set; }
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
         {
+            Calls++;
             var response = _responses.Count > 0
                 ? _responses.Dequeue()
                 : new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Empty));

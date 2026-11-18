@@ -71,10 +71,14 @@ public sealed class AgentToolProvider(
                 continue;
             }
 
-            tools.Add(AIFunctionFactory.Create(descriptor.Method, instance, new AIFunctionFactoryOptions
+            var function = AIFunctionFactory.Create(descriptor.Method, instance, new AIFunctionFactoryOptions
             {
                 Name = descriptor.Name
-            }));
+            });
+            // A fresh wrapper per call of this method = per turn, so the count starts at zero each turn.
+            tools.Add(descriptor.MaxCallsPerTurn > 0
+                ? new PerTurnCallLimit(function, descriptor.MaxCallsPerTurn)
+                : function);
             registeredFunctions.Add($"{descriptor.Group}.{descriptor.Name}");
         }
 
@@ -83,5 +87,28 @@ public sealed class AgentToolProvider(
             stage, result.Length, string.Join(", ", result));
 
         return (tools, result);
+    }
+}
+
+/// <summary>
+/// Enforces a tool's <see cref="GameToolAttribute.MaxCallsPerTurn"/>. Only calls that complete count,
+/// so a call rejected by validation (a bad target name, say) can be retried with corrected arguments.
+/// Once the limit is reached, further calls throw before reaching the domain; the function-invocation
+/// loop hands the message back to the model (IncludeDetailedErrors).
+/// </summary>
+internal sealed class PerTurnCallLimit(AIFunction inner, int maxCalls) : DelegatingAIFunction(inner)
+{
+    private int _completed;
+
+    protected override async ValueTask<object?> InvokeCoreAsync(
+        AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        if (Volatile.Read(ref _completed) >= maxCalls)
+            throw new InvalidOperationException(
+                $"{Name} was already called this turn; narrate its result and stop.");
+
+        var result = await base.InvokeCoreAsync(arguments, cancellationToken);
+        Interlocked.Increment(ref _completed);
+        return result;
     }
 }

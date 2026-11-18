@@ -13,4 +13,11 @@ namespace WretchedWhispers.Engine.GameTools;
 public sealed class GameToolAttribute(params SessionStage[] stages) : Attribute
 {
     public IReadOnlyList<SessionStage> Stages { get; } = stages;
+
+    /// <summary>
+    /// How many times the tool may complete successfully in one turn; 0 = unlimited. Enforced in code
+    /// (see <see cref="Services.AgentToolProvider"/>), not just requested in the prompt: a further call
+    /// fails with a model-readable error before it reaches the domain.
+    /// </summary>
+    public int MaxCallsPerTurn { get; init; }
 }

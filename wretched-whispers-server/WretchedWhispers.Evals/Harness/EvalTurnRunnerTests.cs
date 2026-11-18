@@ -123,6 +123,32 @@ public class EvalTurnRunnerTests
     }
 
     [Fact]
+    public async Task SecondResolveCombatRoundInATurn_IsRejected_ThroughTheRealPipeline()
+    {
+        // Plumbing for Combat-DoubleAction-OneRound: a model that asks for two rounds in one turn gets
+        // the second rejected with a readable error, and the outcome still records both attempts.
+        var attack = new Dictionary<string, object?> { ["action"] = "Attack", ["targetAdversaryName"] = "Priest" };
+        var client = new ScriptedChatClient(
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, new List<AIContent>
+            {
+                new FunctionCallContent("call_1", "ResolveCombatRound", attack),
+                new FunctionCallContent("call_2", "ResolveCombatRound", attack),
+            })),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "Your staff finds the priest's skull.")));
+
+        await using var host = await EvalHost.CreateCombatAsync(client);
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I smash the priest twice!", TestContext.Current.CancellationToken);
+
+        Assert.Null(outcome.Error);
+        Assert.Equal(new[] { "ResolveCombatRound", "ResolveCombatRound" }, outcome.ToolCalls);
+        Assert.Equal(2, outcome.ToolResults.Count);
+        Assert.DoesNotContain("already called this turn", outcome.ToolResults[0].Result.ToString());
+        Assert.Contains("ResolveCombatRound was already called this turn", outcome.ToolResults[1].Result.ToString());
+    }
+
+    [Fact]
     public async Task TwoTurns_ShareState_AcrossSeparateScopes()
     {
         // Turn 1: the model asks for a name, no tools (1 response).

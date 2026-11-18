@@ -57,7 +57,7 @@ public sealed class CharacterTools(
     }
 
     [Description("MORK BORG 'Getting Better': the post-adventure improvement ritual and the ONLY leveling mechanic. Call ONLY when the fiction concludes a genuine adventure or scenario -- a quest completed, a dungeon survived, a nemesis dead -- never after a routine fight. Requires a full night's rest since the last ritual (fails otherwise). The domain rolls everything: 6d10 vs max HP (max grows by d6 on success) and a d6 against each ability (improve, or on harder difficulties worsen). Narrate the returned result.")]
-    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 1)]
     public async Task<GettingBetterOutcomeDto> GettingBetter()
     {
         var settings = DifficultyPresets.For(sessionContext.Campaign?.Difficulty ?? Difficulty.Grim);
@@ -105,9 +105,9 @@ public sealed class CharacterTools(
     [GameTool(SessionStage.Resolution)]
     public async Task<CharacterDto> ImproveCharacterAbility(
         [Description("The ability to improve: 'Strength', 'Agility', 'Presence', 'Toughness'")] AbilityKind abilityKind,
-        [Description("The positive amount to improve the ability by")] int delta)
+        [Description("How much to improve the ability by: 1 or 2")] int delta)
     {
-        ToolGuard.Positive(delta, nameof(delta), "e.g. 1 or 2");
+        ToolGuard.InRange(delta, 1, 2, nameof(delta), "an ability moves by 1 or 2 at a time");
         var character = await RequireCharacter();
         character.Improve(abilityKind, delta);
         await charactersRepository.Save(character);
@@ -118,9 +118,9 @@ public sealed class CharacterTools(
     [GameTool(SessionStage.Resolution)]
     public async Task<CharacterDto> DegradeCharacterAbility(
         [Description("The ability to degrade: 'Strength', 'Agility', 'Presence', 'Toughness'")] AbilityKind abilityKind,
-        [Description("The negative amount to degrade the ability by")] int delta)
+        [Description("How much to degrade the ability by, as a negative number: -1 or -2")] int delta)
     {
-        ToolGuard.Negative(delta, nameof(delta), "e.g. -1");
+        ToolGuard.InRange(delta, -2, -1, nameof(delta), "an ability drops by 1 or 2 at a time");
         var character = await RequireCharacter();
         character.Degrade(abilityKind, delta);
         await charactersRepository.Save(character);

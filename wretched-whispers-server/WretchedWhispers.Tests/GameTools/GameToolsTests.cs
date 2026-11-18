@@ -74,6 +74,8 @@ public class GameToolsTests
     [Theory]
     [InlineData("ImproveAbility_ZeroDelta")]
     [InlineData("DegradeAbility_PositiveDelta")]
+    [InlineData("ImproveAbility_AboveTwo")]
+    [InlineData("DegradeAbility_BelowMinusTwo")]
     [InlineData("BuyItem_NegativeSilverCost")]
     [InlineData("AddItem_QuantityBelowOne")]
     [InlineData("Challenge_OutOfRangeDr")]
@@ -86,6 +88,8 @@ public class GameToolsTests
         {
             "ImproveAbility_ZeroDelta" => () => tools.ImproveCharacterAbility(AbilityKind.Strength, 0),
             "DegradeAbility_PositiveDelta" => () => tools.DegradeCharacterAbility(AbilityKind.Strength, 1),
+            "ImproveAbility_AboveTwo" => () => tools.ImproveCharacterAbility(AbilityKind.Strength, 3),
+            "DegradeAbility_BelowMinusTwo" => () => tools.DegradeCharacterAbility(AbilityKind.Strength, -3),
             "BuyItem_NegativeSilverCost" => () => tools.BuyItem("rusty knife", silverCost: -5),
             "AddItem_QuantityBelowOne" => () => tools.AddItemToCharacterInventory("a bone", quantity: 0),
             "Challenge_OutOfRangeDr" => () => tools.ChallengeCharacter(99, AbilityKind.Agility),

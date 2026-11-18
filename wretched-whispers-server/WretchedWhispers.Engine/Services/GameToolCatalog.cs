@@ -4,8 +4,10 @@ using WretchedWhispers.Engine.GameTools;
 
 namespace WretchedWhispers.Engine.Services;
 
-/// <summary>One game tool: the bound method, its model-facing name, and its telemetry group.</summary>
-public sealed record GameToolDescriptor(string Name, string Group, Type DeclaringType, MethodInfo Method);
+/// <summary>One game tool: the bound method, its model-facing name, its telemetry group, and its per-turn
+/// call limit (0 = unlimited).</summary>
+public sealed record GameToolDescriptor(
+    string Name, string Group, Type DeclaringType, MethodInfo Method, int MaxCallsPerTurn = 0);
 
 /// <summary>
 /// Single source of truth for which game tools exist and in which stage each is exposed. Built once
@@ -46,7 +48,7 @@ public static class GameToolCatalog
                 var attribute = method.GetCustomAttribute<GameToolAttribute>();
                 if (attribute is null) continue;
 
-                var descriptor = new GameToolDescriptor(method.Name, group, type, method);
+                var descriptor = new GameToolDescriptor(method.Name, group, type, method, attribute.MaxCallsPerTurn);
                 foreach (var stage in attribute.Stages)
                 {
                     if (!byStage.TryGetValue(stage, out var list))

@@ -85,7 +85,7 @@ public sealed class EncounterTools(
     }
 
     [Description("Start the current encounter")]
-    [GameTool(SessionStage.Exploration)]
+    [GameTool(SessionStage.Exploration, MaxCallsPerTurn = 1)]
     public async Task<EncounterDto> StartEncounter()
     {
         var encounter = await encounterService.StartEncounter(RequireEncounterId());
@@ -101,7 +101,7 @@ public sealed class EncounterTools(
     }
 
     [Description("Resolve EXACTLY ONE combat round from the player's action: resolves the player's attack or flee attempt, then every living adversary's retaliation, morale, and ends the encounter automatically when the fight is over. Call it once per player combat action — never more.")]
-    [GameTool(SessionStage.Combat)]
+    [GameTool(SessionStage.Combat, MaxCallsPerTurn = 1)]
     public async Task<CombatRoundOutcomeDto> ResolveCombatRound(
         [Description("The player's action this round: 'Attack' (strike an adversary), 'Flee' (attempt to escape), or 'Other' (the player's action was already resolved with another tool this turn - enemies still respond)")]
         PlayerRoundAction action,
@@ -123,7 +123,7 @@ public sealed class EncounterTools(
     }
 
     [Description("Complete the resolution of the current encounter and return to exploration")]
-    [GameTool(SessionStage.Resolution)]
+    [GameTool(SessionStage.Resolution, MaxCallsPerTurn = 1)]
     public async Task CompleteResolution()
     {
         if (sessionContext.ActiveEncounterId is null)

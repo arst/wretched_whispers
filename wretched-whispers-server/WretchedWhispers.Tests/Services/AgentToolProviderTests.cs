@@ -1,7 +1,11 @@
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.Services;
@@ -19,12 +23,13 @@ namespace WretchedWhispers.Tests.Services;
 public class AgentToolProviderTests
 {
     private readonly AgentToolProvider _provider;
+    private readonly Mock<IEncountersRepository> _encountersRepo = new();
 
     public AgentToolProviderTests()
     {
         var charsRepo = new Mock<ICharactersRepository>().Object;
         var campsRepo = new Mock<ICampaignsRepository>().Object;
-        var encsRepo = new Mock<IEncountersRepository>().Object;
+        var encsRepo = _encountersRepo.Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
 
         _provider = new AgentToolProvider(
@@ -53,6 +58,85 @@ public class AgentToolProviderTests
         var expected = GameToolCatalog.ForStage(stage);
         Assert.Equal(expected.Count, tools.Count);
         Assert.Equal(expected.Select(d => $"{d.Group}.{d.Name}").ToArray(), registered);
+    }
+
+    // CompleteResolution is limited to one call per turn; it needs only an active encounter id and the
+    // encounters repository, so it is the lightest limited tool to drive end to end.
+    private AIFunction CompleteResolutionTool(SessionContext ctx) =>
+        _provider.GetToolsForStage(ctx, SessionStage.Resolution).Tools.Single(t => t.Name == "CompleteResolution");
+
+    private SessionContext ResolutionContextWithEncounter()
+    {
+        // Each load returns a fresh ended (unresolved) fight, so every call that reaches the domain
+        // can resolve it — a second Resolve() on the same instance would throw for its own reasons.
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var encounterId = Guid.NewGuid();
+        _encountersRepo.Setup(r => r.Get(encounterId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => EndedEncounter());
+        ctx.SetActiveEncounterId(encounterId);
+        return ctx;
+    }
+
+    private static Encounter EndedEncounter()
+    {
+        var encounter = Encounter.Create("Chapel Duel", "Aftermath", EncounterType.Hostile,
+            new Dice(new Mock<IRandomService>().Object));
+        var priest = new Adversary("Priest", new HitPoints(4, 4), new Armor(ArmorTier.Light), 7,
+            new AttackProfile("Brass crucible", DiceExpr.D4));
+        encounter.AddAdversary(priest);
+        encounter.StartEncounter();
+        priest.ReceiveDamage(4);
+        encounter.EndEncounter();
+        return encounter;
+    }
+
+    [Fact]
+    public async Task LimitedTool_SecondCallInATurn_FailsWithoutReachingTheDomain()
+    {
+        var ctx = ResolutionContextWithEncounter();
+        var tool = CompleteResolutionTool(ctx);
+        var encounterId = ctx.ActiveEncounterId!.Value;
+
+        await tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+        ctx.SetActiveEncounterId(encounterId); // so a second call WOULD succeed if it reached the domain
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Equal("CompleteResolution was already called this turn; narrate its result and stop.", ex.Message);
+        _encountersRepo.Verify(r => r.Save(It.IsAny<Encounter>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LimitedTool_CounterResetsOnTheNextTurnsProviderCall()
+    {
+        var ctx = ResolutionContextWithEncounter();
+        var encounterId = ctx.ActiveEncounterId!.Value;
+
+        await CompleteResolutionTool(ctx).InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+        ctx.SetActiveEncounterId(encounterId);
+        await CompleteResolutionTool(ctx).InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        _encountersRepo.Verify(r => r.Save(It.IsAny<Encounter>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task LimitedTool_FailedCallDoesNotCount_SoTheModelCanRetry()
+    {
+        var ctx = ResolutionContextWithEncounter();
+        var encounterId = ctx.ActiveEncounterId!.Value;
+        ctx.ClearActiveEncounter();
+        var tool = CompleteResolutionTool(ctx);
+
+        // Rejected by the tool's own validation: it never completed, so it must not use up the budget.
+        var first = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken).AsTask());
+        Assert.Equal("No encounter to resolve.", first.Message);
+
+        ctx.SetActiveEncounterId(encounterId);
+        await tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        _encountersRepo.Verify(r => r.Save(It.IsAny<Encounter>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
