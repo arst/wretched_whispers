@@ -21,5 +21,8 @@ public class TurnTraceConfiguration : IEntityTypeConfiguration<TurnTraceEntity>
         builder.Property(e => e.TurnDeltaJson).HasColumnType("TEXT");
         builder.Property(e => e.SuppressedNarrative).HasColumnType("TEXT");
         builder.Property(e => e.Narrative).HasColumnType("TEXT");
+        builder.HasIndex(e => e.TurnId);
+        builder.Property(e => e.Error).HasColumnType("TEXT");
+        builder.Property(e => e.ToolsOffered).HasColumnType("TEXT");
     }
 }

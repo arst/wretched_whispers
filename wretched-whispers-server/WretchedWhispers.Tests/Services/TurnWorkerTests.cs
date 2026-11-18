@@ -241,15 +241,17 @@ public sealed class TurnWorkerTests : IDisposable
         services.AddSingleton<TurnEventStore>();
         services.AddSingleton<IUserContext>(new WorkerUserContext());
         services.AddSingleton(_chatHistory.Object);
-        services.AddScoped(_ => new TurnCoordinator(
+        services.AddSingleton(Mock.Of<ITurnTraceRepository>());
+        services.AddScoped(sp => new TurnCoordinator(
             contextLoader ?? Mock.Of<ISessionContextLoader>(),
             toolProvider.Object,
             _agentExecutor.Object,
             _chatHistory.Object,
-            Mock.Of<ITurnTraceRepository>(),
+            sp.GetRequiredService<ITurnTraceRepository>(),
             unitOfWork,
             sessionLock.Object,
             TimeProvider.System,
+            sp.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<TurnCoordinator>.Instance));
         return services.BuildServiceProvider();
     }

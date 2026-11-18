@@ -37,7 +37,13 @@ public sealed class AgentExecutor(
     // Drive function calling ourselves so we can surface tool-validation messages back to the model:
     // IncludeDetailedErrors lets the model see WHY a tool call failed (e.g. "quantity must be >= 1")
     // and retry with corrected arguments instead of failing the whole turn.
-    private readonly IChatClient _functionInvokingClient = chatClient
+    private readonly ModelCallMetrics _metrics = new();
+
+    private IChatClient? _functionInvokingClient;
+
+    // Built lazily so the metrics capture can sit BELOW function invocation: it then sees each model
+    // request exactly once (one per tool round), with the provider's own model id and usage.
+    private IChatClient FunctionInvokingClient => _functionInvokingClient ??= chatClient
         .AsBuilder()
         .UseFunctionInvocation(configure: c =>
         {
@@ -46,6 +52,7 @@ public sealed class AgentExecutor(
             // Hard ceiling on tool-call iterations per turn — bounds a runaway (but non-erroring) loop.
             c.MaximumIterationsPerRequest = 15;
         })
+        .Use(inner => new MetricsCapturingChatClient(inner, _metrics))
         .Build();
     public async IAsyncEnumerable<GameTurnEvent> ExecuteAsync(
         IReadOnlyList<AIFunction> tools,
@@ -60,8 +67,10 @@ public sealed class AgentExecutor(
         var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
         // Bound the model's context on long sessions (summarize older messages).
         history = await historyReducer.ReduceAsync(chatSessionId, history, ct);
-        var agent = CreateAgent(tools, sessionContext);
+        var instructions = promptComposer.Compose(sessionContext);
+        var agent = CreateAgent(tools, instructions);
         var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
+        _metrics.Reset();
 
         var run = await RunOnceAsync(agent, messages, ct);
         if (run.IsEmpty)
@@ -98,8 +107,19 @@ public sealed class AgentExecutor(
         // Out-of-band trace (last): carries the tool-call args and suppressed prose the player-facing
         // events don't expose, so the TurnCoordinator can persist a complete turn trace. Not streamed.
         var suppressed = suppressedSegments.Count > 0 ? string.Join("\n\n", suppressedSegments) : null;
-        yield return new AgentTrace(run.ToolCalls, suppressed);
+        yield return new AgentTrace(
+            run.ToolCalls, suppressed,
+            ModelId: _metrics.ModelId,
+            PromptHash: HashPrompt(instructions),
+            InputTokens: _metrics.InputTokens,
+            OutputTokens: _metrics.OutputTokens,
+            Iterations: _metrics.Requests);
     }
+
+    /// <summary>SHA-256 of the composed instructions: equal hashes mean the model saw the same prompt.</summary>
+    public static string HashPrompt(string instructions) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(instructions)));
 
     /// <summary>What one agent run produced. <see cref="Segments"/> always has at least one entry: the
     /// narration before the first tool call, then one more per tool call.</summary>
@@ -171,9 +191,9 @@ public sealed class AgentExecutor(
         }
     }
 
-    private AIAgent CreateAgent(IReadOnlyList<AIFunction> tools, SessionContext sessionContext)
+    private AIAgent CreateAgent(IReadOnlyList<AIFunction> tools, string instructions)
     {
-        var agent = new ChatClientAgent(_functionInvokingClient, new ChatClientAgentOptions
+        var agent = new ChatClientAgent(FunctionInvokingClient, new ChatClientAgentOptions
         {
             Name = "Game_Master",
             // We already wrapped the client with function invocation above; don't let the agent
@@ -181,11 +201,67 @@ public sealed class AgentExecutor(
             UseProvidedChatClientAsIs = true,
             ChatOptions = new ChatOptions
             {
-                Instructions = promptComposer.Compose(sessionContext),
+                Instructions = instructions,
                 Tools = tools.Cast<AITool>().ToList()
             }
         });
 
         return agent;
+    }
+}
+
+/// <summary>Per-turn model-request metrics, filled by <see cref="MetricsCapturingChatClient"/>.</summary>
+internal sealed class ModelCallMetrics
+{
+    public int Requests { get; private set; }
+    public string? ModelId { get; private set; }
+    public long? InputTokens { get; private set; }
+    public long? OutputTokens { get; private set; }
+
+    public void Reset()
+    {
+        Requests = 0;
+        ModelId = null;
+        InputTokens = null;
+        OutputTokens = null;
+    }
+
+    public void CountRequest() => Requests++;
+
+    public void Observe(ChatResponseUpdate update)
+    {
+        if (!string.IsNullOrEmpty(update.ModelId))
+            ModelId = update.ModelId;
+        foreach (var usage in update.Contents.OfType<UsageContent>())
+        {
+            if (usage.Details.InputTokenCount is { } input) InputTokens = (InputTokens ?? 0) + input;
+            if (usage.Details.OutputTokenCount is { } output) OutputTokens = (OutputTokens ?? 0) + output;
+        }
+    }
+}
+
+/// <summary>Records each model request's model id and token usage as it streams past.</summary>
+internal sealed class MetricsCapturingChatClient(IChatClient inner, ModelCallMetrics metrics) : DelegatingChatClient(inner)
+{
+    public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        metrics.CountRequest();
+        await foreach (var update in base.GetStreamingResponseAsync(messages, options, cancellationToken))
+        {
+            metrics.Observe(update);
+            yield return update;
+        }
+    }
+
+    public override async Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        metrics.CountRequest();
+        var response = await base.GetResponseAsync(messages, options, cancellationToken);
+        foreach (var update in response.ToChatResponseUpdates())
+            metrics.Observe(update);
+        return response;
     }
 }

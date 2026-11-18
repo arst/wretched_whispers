@@ -235,6 +235,34 @@ public class AgentExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task Trace_CarriesModelIdUsageIterationsAndPromptHash()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new UpdateScriptChatClient(
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("call_1", "Roll", new Dictionary<string, object?> { ["diceExpression"] = "d6" })])
+                    { ModelId = "gpt-test" },
+                new ChatResponseUpdate(ChatRole.Assistant,
+                    [new UsageContent(new UsageDetails { InputTokenCount = 100, OutputTokenCount = 10 })]),
+            ],
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, "The die clatters.") { ModelId = "gpt-test" },
+                new ChatResponseUpdate(ChatRole.Assistant,
+                    [new UsageContent(new UsageDetails { InputTokenCount = 200, OutputTokenCount = 20 })]),
+            ]);
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "I roll");
+
+        var trace = events.OfType<AgentTrace>().Single();
+        Assert.Equal("gpt-test", trace.ModelId);
+        Assert.Equal(300, trace.InputTokens);
+        Assert.Equal(30, trace.OutputTokens);
+        Assert.Equal(2, trace.Iterations);
+        Assert.Equal(AgentExecutor.HashPrompt(new PromptComposer().Compose(ctx)), trace.PromptHash);
+        Assert.Matches("^[0-9a-f]{64}$", trace.PromptHash!);
+    }
+
+    [Fact]
     public async Task GuidSplitAcrossStreamedChunks_IsStillScrubbed()
     {
         var (tools, ctx) = ExplorationToolsAndContext();
@@ -348,6 +376,29 @@ public class AgentExecutorIntegrationTests
         {
             foreach (var chunk in chunks)
                 yield return new ChatResponseUpdate(ChatRole.Assistant, chunk);
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+    }
+
+    /// <summary>Streams a fixed list of raw updates per model call — for model ids and usage content.</summary>
+    private sealed class UpdateScriptChatClient(params ChatResponseUpdate[][] calls) : IChatClient
+    {
+        private readonly Queue<ChatResponseUpdate[]> _calls = new(calls);
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var update in _calls.Dequeue())
+                yield return update;
             await Task.CompletedTask;
         }
 

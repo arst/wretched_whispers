@@ -42,8 +42,8 @@ See `docs/running-evals.md` for the full walkthrough.
 `EvalHost` wires the production services over in-memory SQLite, and `EvalTurnRunner` drives each turn
 through the real `TurnCoordinator` — unit of work, session lock, Ended-stage refusal, empty-response
 handling and chat-history persistence included. Scenarios read the result from `TurnOutcome`:
-`Calls` (tool names + JSON arguments, from the turn trace the coordinator persisted — empty when the
-turn did not commit), `ToolResults`, `Narrative`, `Delta`, and `Error` (set when the coordinator
+`Calls` (tool names + JSON arguments, from the turn trace the coordinator persisted for that turn id,
+committed or not), `ToolResults`, `Narrative`, `Delta`, and `Error` (set when the coordinator
 refused or failed the turn).
 
 ## Current evals
