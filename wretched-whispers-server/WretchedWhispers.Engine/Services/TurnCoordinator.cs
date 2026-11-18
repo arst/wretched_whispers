@@ -15,7 +15,9 @@ namespace WretchedWhispers.Engine.Services;
 /// <summary>
 /// Orchestrates one game-master turn: resolve the chat session, load context and derive the stage,
 /// run the stage-scoped agent inside a single atomic unit of work, persist the exchange, and stream
-/// the resulting events. Transaction mechanics live behind <see cref="IUnitOfWork"/>.
+/// the resulting events. Player-visible outcome events (narrative, tool results) are emitted only
+/// after the unit of work commits; a turn that fails emits only its <see cref="TurnError"/>.
+/// Transaction mechanics live behind <see cref="IUnitOfWork"/>.
 /// </summary>
 public sealed class TurnCoordinator(
     ISessionContextLoader contextLoader,
@@ -143,6 +145,9 @@ public sealed class TurnCoordinator(
 
             var narrativeChunks = new List<NarrativeChunk>();
             var toolResults = new List<ToolResult>();
+            // The player-visible outcome, held back until the turn commits (see below), in the order
+            // the executor produced it.
+            var outcomeEvents = new List<GameTurnEvent>();
             AgentTrace? agentTrace = null;
 
             // Every stage — including Combat — runs one agent turn per player message.
@@ -155,7 +160,7 @@ public sealed class TurnCoordinator(
                     continue;
                 }
 
-                writer.TryWrite(evt);
+                outcomeEvents.Add(evt);
 
                 if (evt is NarrativeChunk chunk)
                     narrativeChunks.Add(chunk);
@@ -194,6 +199,13 @@ public sealed class TurnCoordinator(
                     ct, turnId);
 
             await uow.CommitAsync(ct);
+
+            // Only now is the outcome real. Emitting it earlier let the TurnWorker persist narrative and
+            // tool results that a failed save/commit (or a crash) then rolled back: the player read an
+            // outcome that never happened, and a reclaimed retry replayed a second narrative beside it.
+            // Error paths above emit only their TurnError, so a failed attempt leaves nothing behind.
+            foreach (var evt in outcomeEvents)
+                writer.TryWrite(evt);
 
             // Reload post-commit so the client sees committed state.
             var postTurnContext = await contextLoader.LoadAsync(sessionId, ct);
