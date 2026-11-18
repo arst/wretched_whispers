@@ -3,6 +3,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Encounters;
 
 namespace WretchedWhispers.Engine.Services;
@@ -129,11 +130,18 @@ public sealed class SessionContext
                 sb.AppendLine($"    - {item.Description} x{item.Quantity}");
             foreach (var scroll in Character.Scrolls)
                 sb.AppendLine($"    - Scroll: {scroll.Description} ({scroll.School})");
+            // Each omitted when empty, so a character without injuries or dizziness renders exactly as
+            // before. Without these the model only learns of an injury from the prose of the turn that
+            // dealt it, and forgets it once that turn is summarized away.
+            var injuries = FormatInjuries(Character);
+            if (injuries.Length > 0) sb.AppendLine($"  Injuries: {injuries}");
             // Named with its cost: the +2 DR is applied silently inside Challenge, so without this the
             // model cannot explain a miss and invents a reason instead.
             if (Character.IsEncumbered)
                 sb.AppendLine("  Status: ENCUMBERED (over carry limit: +2 DR on all Strength and Agility tests)");
             if (Character.IsInfected) sb.AppendLine("  Status: INFECTED");
+            if (Character.IsDizzyFromMagic)
+                sb.AppendLine("  Status: DIZZY FROM MAGIC (a failed casting; no scroll can be cast until a new day)");
             if (Character.IsDead) sb.AppendLine("  Status: DEAD");
         }
 
@@ -176,10 +184,33 @@ public sealed class SessionContext
                 + (ActiveEncounter.Reaction is null
                     ? ""
                     : $" (reaction roll {ActiveEncounter.ReactionRoll} — {ActiveEncounter.Reaction})"));
-            sb.AppendLine($"  Living Adversaries: {ActiveEncounter.LivingAdversaries.Count}");
-            sb.AppendLine($"  Dead Adversaries: {ActiveEncounter.DeadAdversaries.Count}");
+            // Listed by name: tool results are not in the chat history, so without this the model must
+            // recall adversary names from its own earlier prose to fill ResolveCombatRound's target.
+            if (ActiveEncounter.Adversaries.Count > 0)
+            {
+                sb.AppendLine("  Adversaries:");
+                foreach (var adversary in ActiveEncounter.Adversaries)
+                    sb.AppendLine($"    - {adversary.Name} — HP {Math.Max(adversary.Hp.Current, 0)}/{adversary.Hp.Max}, "
+                        + $"armor: {adversary.Armor.Tier.DisplayName()}, {AdversaryStatus(adversary)}");
+            }
         }
 
         return sb.ToString();
     }
+
+    private static string AdversaryStatus(Core.Adversaries.Adversary adversary) =>
+        adversary.IsDead ? "dead" : adversary.IsFled ? "fled" : "alive";
+
+    private static readonly (InjuryKind Kind, string Name)[] InjuryNames =
+    [
+        (InjuryKind.LostEye, "lost eye"),
+        (InjuryKind.StabbedLung, "stabbed lung"),
+        (InjuryKind.BrokenHand, "broken hand"),
+        (InjuryKind.CrushedFoot, "crushed foot"),
+        (InjuryKind.SeveredArm, "severed arm"),
+        (InjuryKind.SmashedFace, "smashed face"),
+    ];
+
+    private static string FormatInjuries(Character character) =>
+        string.Join(", ", InjuryNames.Where(i => character.Injuries.Has(i.Kind)).Select(i => i.Name));
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
@@ -385,6 +386,26 @@ public class DomainAuthorityEvals
             + "up to the arrow-slit window above.",
             "ChallengeCharacter",
             "A risky feat must be resolved by ChallengeCharacter, never narrated success or failure.");
+    }
+
+    [Fact]
+    public async Task Combat_TwoAdversaries_TargetsTheOneThePlayerMeans()
+    {
+        // Tool results never enter the chat history, so the model can only fill targetAdversaryName
+        // correctly from the Game State snapshot's adversary list. The player names the target by
+        // description, not by its stat-block name.
+        var outcome = await AssertToolRequiredAsync(
+            "Combat-TwoAdversaries-TargetsByName",
+            client => EvalHost.CreateTwoAdversaryCombatAsync(client),
+            "I ignore the priest and bring my staff down on the snarling dog!",
+            "ResolveCombatRound");
+
+        var round = Assert.Single(outcome.Calls, c => c.Name == "ResolveCombatRound");
+        Assert.NotNull(round.Arguments);
+        using var args = JsonDocument.Parse(round.Arguments);
+        Assert.True(args.RootElement.TryGetProperty("targetAdversaryName", out var target),
+            $"ResolveCombatRound was called without a target: {round.Arguments}");
+        Assert.Equal("Grave Hound", target.GetString(), ignoreCase: true);
     }
 
     [Fact]

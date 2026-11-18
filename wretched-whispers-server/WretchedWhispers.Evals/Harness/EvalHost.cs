@@ -142,6 +142,57 @@ public sealed class EvalHost : IAsyncDisposable
     }
 
     /// <summary>
+    /// Combat against two differently named, differently described adversaries, for scenarios that
+    /// check the model targets the one the player means. Its own seed, so the shared
+    /// <see cref="CreateCombatAsync"/> scenarios keep their cached responses.
+    /// </summary>
+    public static async Task<EvalHost> CreateTwoAdversaryCombatAsync(IChatClient chatClient)
+    {
+        var host = await CreateAsync(chatClient);
+
+        await using var scope = host._provider.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        SetEvalUser(sp);
+
+        var dice = sp.GetRequiredService<Dice>();
+        var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
+        var charactersRepo = sp.GetRequiredService<ICharactersRepository>();
+        var encountersRepo = sp.GetRequiredService<IEncountersRepository>();
+
+        var campaign = await campaignsRepo.Get(host.SessionId)
+            ?? throw new InvalidOperationException("Seed campaign was not found.");
+
+        var character = SeedTuck(dice, scrolls: []);
+        await charactersRepo.Save(character);
+
+        var encounter = Encounter.Create(
+            "Chapel Road",
+            "A plague priest swinging a brass crucible, and a mangy grave hound snarling at his heel.",
+            EncounterType.Hostile, dice);
+        encounter.AddAdversary(new Adversary(
+            "Plague Priest",
+            new HitPoints(4, 4),
+            new Armor(ArmorTier.Light),
+            7,
+            new AttackProfile("Brass crucible", DiceExpr.Parse("1d4"))));
+        encounter.AddAdversary(new Adversary(
+            "Grave Hound",
+            new HitPoints(3, 3),
+            new Armor(ArmorTier.None),
+            7,
+            new AttackProfile("Rotten teeth", DiceExpr.Parse("1d4"))));
+        encounter.StartEncounter();
+        await encountersRepo.Save(encounter);
+
+        campaign.JoinGame(character.Id);
+        campaign.AddEncounter(encounter.Id);
+        campaign.Start();
+        await campaignsRepo.SaveCampaign(campaign);
+
+        return host;
+    }
+
+    /// <summary>
     /// The combat aftermath: same fight as <see cref="CreateCombatAsync"/> but the priest already
     /// slain and the encounter ended (not resolved), so <c>DeriveStage</c> gives
     /// <see cref="SessionStage.Resolution"/> and the Resolution-only tools are in play.

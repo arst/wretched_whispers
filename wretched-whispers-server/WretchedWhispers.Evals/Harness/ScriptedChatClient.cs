@@ -9,13 +9,19 @@ public sealed class ScriptedChatClient(params ChatResponse[] responses) : IChatC
     private readonly Queue<ChatResponse> _responses = new(responses);
     private readonly List<IReadOnlyList<ChatMessage>> _requests = new();
 
+    private readonly List<string?> _instructions = new();
+
     /// <summary>The message list of every model call, in call order — what the model actually saw.</summary>
     public IReadOnlyList<IReadOnlyList<ChatMessage>> Requests => _requests;
+
+    /// <summary>The system instructions of every model call, in call order.</summary>
+    public IReadOnlyList<string?> Instructions => _instructions;
 
     public Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
         _requests.Add(messages.ToList());
+        _instructions.Add(options?.Instructions);
         // Fail loudly on an exhausted script: silently returning an empty response would read as
         // "the agent chose to say nothing" and mask a mis-scripted test.
         if (_responses.Count == 0)

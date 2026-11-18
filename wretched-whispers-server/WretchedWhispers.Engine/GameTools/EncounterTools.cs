@@ -29,19 +29,20 @@ public sealed class EncounterTools(
 
     private Guid RequireCharacterId() =>
         sessionContext.CharacterId
-        ?? throw new InvalidOperationException("No character exists yet -- call CreateCharacter first.");
+        ?? throw new InvalidOperationException("No character exists for this session.");
 
     [Description("Create a new encounter with the specified name, description, and initial type")]
     [GameTool(SessionStage.Exploration)]
     public async Task<EncounterDto> CreateEncounter(
         [Description("The name of the encounter")] string name,
         [Description("A description of the encounter setting or narrative context")] string description,
-        [Description("Initial type. 'Unknown' = the domain rolls the Mörk Borg reaction table and returns the result — the DEFAULT for any first meeting whose attitude the fiction leaves open. Pre-declare 'Hostile' or 'Friendly' ONLY when the fiction predetermines the attitude (an ambush, a sworn enemy, a hired guide).")] string initialEncounterType)
+        [Description("Initial type. 'Unknown' = the domain rolls the Mörk Borg reaction table and returns the result — the DEFAULT for any first meeting whose attitude the fiction leaves open. Pre-declare 'Hostile' or 'Friendly' ONLY when the fiction predetermines the attitude (an ambush, a sworn enemy, a hired guide).")] EncounterType initialEncounterType)
     {
-        if (!Enum.TryParse(initialEncounterType, ignoreCase: true, out EncounterType type)
-            || !Enum.IsDefined(type))
+        // The schema constrains the value to the enum names, but the JSON binder still accepts integers.
+        if (!Enum.IsDefined(initialEncounterType))
             throw new ArgumentException(
                 $"Encounter type {initialEncounterType} is not valid. Expected one of: Friendly, Hostile, Unknown.");
+        var type = initialEncounterType;
 
         var encounter = await encounterService.CreateEncounter(name, description, type);
         sessionContext.SetActiveEncounterId(encounter.Id);
@@ -103,15 +104,17 @@ public sealed class EncounterTools(
     [GameTool(SessionStage.Combat)]
     public async Task<CombatRoundOutcomeDto> ResolveCombatRound(
         [Description("The player's action this round: 'Attack' (strike an adversary), 'Flee' (attempt to escape), or 'Other' (the player's action was already resolved with another tool this turn - enemies still respond)")]
-        string action,
+        PlayerRoundAction action,
         [Description("Name of the adversary to attack (Attack only; defaults to the nearest living adversary)")]
         string? targetAdversaryName = null,
         [Description("Optional omen spend - COSTS one of the player's omens (see Omens in Game State). 'MaxDamage': the player's attack this round deals its weapon's maximum damage. 'ReduceDamageTaken': the first hit the player suffers this round is reduced by d6. Fails if no omens remain. Only use when the player asks to spend an omen, or at a truly dramatic moment.")]
         CombatOmenUse omenUse = CombatOmenUse.None)
     {
-        if (!Enum.TryParse<PlayerRoundAction>(action, ignoreCase: true, out var roundAction))
+        // The schema constrains the value to the enum names, but the JSON binder still accepts integers.
+        if (!Enum.IsDefined(action))
             throw new ArgumentException(
                 $"Action '{action}' is not valid. Expected one of: Attack, Flee, Other.");
+        var roundAction = action;
 
         var outcome = await encounterService.ResolveRound(
             RequireEncounterId(), RequireCharacterId(), roundAction, targetAdversaryName, omenUse,
