@@ -93,6 +93,36 @@ public class EvalTurnRunnerTests
     }
 
     [Fact]
+    public async Task TwoAdversaryCombat_PromptListsBothByName_AndTargetArgumentIsCaptured()
+    {
+        // Plumbing for Combat-TwoAdversaries-TargetsByName: the model must SEE both adversary names in
+        // Game State, and the target it picks must reach the scenario through TurnOutcome.Calls.
+        var client = new ScriptedChatClient(
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, new List<AIContent>
+            {
+                new FunctionCallContent("call_1", "ResolveCombatRound", new Dictionary<string, object?>
+                {
+                    ["action"] = "Attack",
+                    ["targetAdversaryName"] = "Grave Hound",
+                })
+            })),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "Your staff cracks across the hound's spine.")));
+
+        await using var host = await EvalHost.CreateTwoAdversaryCombatAsync(client);
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I bring my staff down on the snarling dog!", TestContext.Current.CancellationToken);
+
+        Assert.Null(outcome.Error);
+        Assert.Contains("Plague Priest — HP 4/", client.Instructions[0]);
+        Assert.Contains("Grave Hound — HP 3/", client.Instructions[0]);
+        var round = Assert.Single(outcome.Calls);
+        Assert.Equal("ResolveCombatRound", round.Name);
+        using var args = JsonDocument.Parse(round.Arguments!);
+        Assert.Equal("Grave Hound", args.RootElement.GetProperty("targetAdversaryName").GetString());
+    }
+
+    [Fact]
     public async Task TwoTurns_ShareState_AcrossSeparateScopes()
     {
         // Turn 1: the model asks for a name, no tools (1 response).

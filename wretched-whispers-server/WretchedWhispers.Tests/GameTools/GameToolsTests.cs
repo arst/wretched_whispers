@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.Extensions.AI;
 using Moq;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
@@ -145,7 +147,7 @@ public class GameToolsTests
             .Callback<Encounter, CancellationToken>((e, _) => saved = e)
             .Returns(Task.CompletedTask);
 
-        await EncounterTools().CreateEncounter("Goblins", "A goblin ambush", "Hostile");
+        await EncounterTools().CreateEncounter("Goblins", "A goblin ambush", EncounterType.Hostile);
 
         Assert.NotNull(saved);
         Assert.Equal(saved!.Id, _context.ActiveEncounterId);
@@ -160,7 +162,7 @@ public class GameToolsTests
         mock.Setup(x => x.GenerateRandomRoll(It.IsAny<int>())).Returns(() => queue.Dequeue());
         var dice = new Dice(mock.Object);
 
-        var result = await EncounterTools(dice).CreateEncounter("Strangers", "Figures in the fog", "Unknown");
+        var result = await EncounterTools(dice).CreateEncounter("Strangers", "Figures in the fog", EncounterType.Unknown);
 
         Assert.Equal("Friendly", result.Disposition);
         Assert.Equal("Indifferent", result.Reaction);
@@ -170,7 +172,7 @@ public class GameToolsTests
     [Fact]
     public async Task CreateEncounter_Hostile_ReportsHostileDispositionWithoutReaction()
     {
-        var result = await EncounterTools().CreateEncounter("Ambush", "Bandits leap out", "Hostile");
+        var result = await EncounterTools().CreateEncounter("Ambush", "Bandits leap out", EncounterType.Hostile);
 
         Assert.Equal("Hostile", result.Disposition);
         Assert.Null(result.Reaction);
@@ -181,7 +183,77 @@ public class GameToolsTests
     public async Task CreateEncounter_NumericType_Throws()
     {
         await Assert.ThrowsAsync<ArgumentException>(
-            () => EncounterTools().CreateEncounter("Strangers", "Figures in the fog", "5"));
+            () => EncounterTools().CreateEncounter("Strangers", "Figures in the fog", (EncounterType)5));
+    }
+
+    // -- Model-facing binding (the AIFunction the agent actually calls) --
+
+    private AIFunction EncounterFunction(string name, Dice? dice = null) =>
+        AIFunctionFactory.Create(typeof(EncounterTools).GetMethod(name)!, EncounterTools(dice));
+
+    [Theory]
+    [InlineData(nameof(Engine.GameTools.EncounterTools.CreateEncounter), "initialEncounterType", new[] { "Friendly", "Hostile", "Unknown" })]
+    [InlineData(nameof(Engine.GameTools.EncounterTools.ResolveCombatRound), "action", new[] { "Attack", "Flee", "Other" })]
+    public void EnumParameters_AreConstrainedInTheToolSchema(string tool, string parameter, string[] expected)
+    {
+        var schema = EncounterFunction(tool).JsonSchema;
+
+        var values = schema.GetProperty("properties").GetProperty(parameter).GetProperty("enum")
+            .EnumerateArray().Select(v => v.GetString()).ToArray();
+        Assert.Equal(expected, values);
+    }
+
+    // Model arguments arrive as JsonElements parsed from the provider's tool-call JSON.
+    private static AIFunctionArguments ModelArgs(object args) =>
+        new(JsonSerializer.SerializeToElement(args).EnumerateObject()
+            .ToDictionary(p => p.Name, p => (object?)p.Value.Clone()));
+
+    [Fact]
+    public async Task CreateEncounter_BindsEnumNameFromModelArguments()
+    {
+        var result = await EncounterFunction(nameof(Engine.GameTools.EncounterTools.CreateEncounter)).InvokeAsync(
+            ModelArgs(new { name = "Ambush", description = "Bandits leap out", initialEncounterType = "Hostile" }),
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(_context.ActiveEncounterId);
+        Assert.Contains("Hostile", JsonSerializer.Serialize(result));
+    }
+
+    [Fact]
+    public async Task CreateEncounter_UndefinedNumericTypeFromModel_FailsWithReadableError()
+    {
+        // The string-enum binder accepts integers, which the schema cannot rule out.
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            EncounterFunction(nameof(Engine.GameTools.EncounterTools.CreateEncounter)).InvokeAsync(
+                ModelArgs(new { name = "Strangers", description = "Figures in the fog", initialEncounterType = 5 }),
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains("Expected one of: Friendly, Hostile, Unknown", ex.Message);
+        Assert.Null(_context.ActiveEncounterId);
+    }
+
+    [Fact]
+    public async Task CreateEncounter_UnknownNameFromModel_FailsBeforeTheDomainRuns()
+    {
+        // Outside the schema's enum: the binder rejects it, naming the expected type.
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() =>
+            EncounterFunction(nameof(Engine.GameTools.EncounterTools.CreateEncounter)).InvokeAsync(
+                ModelArgs(new { name = "Strangers", description = "Figures in the fog", initialEncounterType = "Bogus" }),
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains("EncounterType", ex.Message);
+        Assert.Null(_context.ActiveEncounterId);
+    }
+
+    [Fact]
+    public async Task ResolveCombatRound_UndefinedActionFromModel_FailsWithReadableError()
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            EncounterFunction(nameof(Engine.GameTools.EncounterTools.ResolveCombatRound)).InvokeAsync(
+                ModelArgs(new { action = 7 }),
+                TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains("Expected one of: Attack, Flee, Other", ex.Message);
     }
 
     [Fact]
@@ -225,7 +297,7 @@ public class GameToolsTests
         // d20 -> 15 (hit, no crit), d6 -> 4 (sword damage).
         var hitDice = ScriptedDice(14, 3);
 
-        var result = await EncounterTools(hitDice).ResolveCombatRound("Attack", "Ragged Bandit");
+        var result = await EncounterTools(hitDice).ResolveCombatRound(PlayerRoundAction.Attack, "Ragged Bandit");
 
         Assert.NotNull(result.PlayerAttack);
         Assert.True(result.PlayerAttack.Hit);
@@ -248,7 +320,7 @@ public class GameToolsTests
         _context.SetActiveEncounterId(encounter.Id);
         _encountersRepo.Setup(r => r.Get(encounter.Id)).ReturnsAsync(encounter);
 
-        var result = await EncounterTools().ResolveCombatRound("Other");
+        var result = await EncounterTools().ResolveCombatRound(PlayerRoundAction.Other);
 
         Assert.Null(result.PlayerAttack);
         Assert.Single(result.Retaliations);

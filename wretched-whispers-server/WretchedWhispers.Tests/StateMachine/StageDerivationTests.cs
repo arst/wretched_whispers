@@ -1,9 +1,12 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Moq;
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.Services;
@@ -314,6 +317,94 @@ public class StageDerivationTests : TestBase
 
         Assert.Contains("Fallen wretches", snapshot);
         Assert.Contains("Grimnir", snapshot);
+    }
+
+    [Fact]
+    public void FormatSnapshot_ListsEachAdversaryByName_WithHpArmorAndStatus()
+    {
+        var encounter = Encounter.Create("Chapel Duel", "Two foes block the road.", EncounterType.Hostile, Dice);
+        var priest = new Adversary("Plague Priest", new HitPoints(6, 6), new Armor(ArmorTier.Light), morale: 7,
+            new AttackProfile("Brass crucible", DiceExpr.D4));
+        var hound = new Adversary("Grave Hound", new HitPoints(4, 4), new Armor(ArmorTier.None), morale: 7,
+            new AttackProfile("Bite", DiceExpr.D6));
+        var acolyte = new Adversary("Acolyte", new HitPoints(3, 3), new Armor(ArmorTier.None), morale: 7,
+            new AttackProfile("Knife", DiceExpr.D4));
+        encounter.AddAdversary(priest);
+        encounter.AddAdversary(hound);
+        encounter.AddAdversary(acolyte);
+        encounter.StartEncounter();
+        priest.ReceiveDamage(2);
+        KillAdversary(hound);
+        acolyte.Retreat();
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.ActiveEncounter = encounter;
+
+        var snapshot = ctx.FormatSnapshot();
+
+        Assert.Contains("Plague Priest — HP 4/6, armor: Light Armor, alive", snapshot);
+        Assert.Contains("Grave Hound — HP 0/4, armor: None, dead", snapshot);
+        Assert.Contains("Acolyte — HP 3/3, armor: None, fled", snapshot);
+        Assert.DoesNotContain("Living Adversaries", snapshot);
+    }
+
+    [Fact]
+    public void FormatSnapshot_ShowsInjuriesAndDizziness()
+    {
+        var character = WithStatus(
+            TestCharacters.Create(Dice),
+            InjuryKind.LostEye | InjuryKind.BrokenHand,
+            dizzyFromMagic: true);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCharacterId(character.Id);
+        ctx.Character = character;
+
+        var snapshot = ctx.FormatSnapshot();
+
+        Assert.Contains("  Injuries: lost eye, broken hand", snapshot);
+        Assert.Contains("DIZZY FROM MAGIC", snapshot);
+    }
+
+    [Fact]
+    public void FormatSnapshot_UninjuredCharacter_RendersAsBefore()
+    {
+        // The injury and dizziness lines are omitted when empty, so an unharmed character's snapshot is
+        // byte-identical to the format the eval response cache was recorded against.
+        var character = TestCharacters.Create(Dice, maxHp: 10);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCharacterId(character.Id);
+        ctx.Character = character;
+
+        var snapshot = ctx.FormatSnapshot();
+
+        Assert.Equal(
+            """
+            Character: TestHero
+              HP: 10/10
+              Strength: 0, Agility: 0
+              Presence: 0, Toughness: 0
+              Weapon: Sword (d6)
+              Armor: None
+              Shield: none
+              Silver: 10
+              Food: 3 days
+              Omens: 0
+              Inventory (16/16 slots free):
+
+            """.ReplaceLineEndings(Environment.NewLine),
+            snapshot);
+    }
+
+    /// <summary>Rehydrates a character with the given injuries and dizziness through the aggregate's own
+    /// JSON shape — the same path the repository uses to load one.</summary>
+    private static Character WithStatus(Character character, InjuryKind injuries, bool dizzyFromMagic)
+    {
+        var options = Infrastructure.Persistence.Serialization.AggregateJsonOptions.Create();
+        var node = JsonSerializer.SerializeToNode(character, options)!.AsObject();
+        Assert.True(node.ContainsKey("injuries") && node.ContainsKey("isDizzyFromMagic"));
+        node["injuries"] = JsonSerializer.SerializeToNode(new InjurySet(injuries), options);
+        node["isDizzyFromMagic"] = dizzyFromMagic;
+        return node.Deserialize<Character>(options)!;
     }
 
     private static Campaign CreateTestCampaign()

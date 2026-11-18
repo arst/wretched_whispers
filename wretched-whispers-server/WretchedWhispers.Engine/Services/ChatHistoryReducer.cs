@@ -26,14 +26,19 @@ public sealed class ChatHistoryReducer(
     private const string SummarizationInstructions =
         """
         Summarize this MORK BORG game session so far. The summary replaces older messages, so it
-        must let the Game Master continue seamlessly. Preserve:
+        must let the Game Master continue seamlessly.
 
-        ESSENTIAL GAME STATE:
-        - Character names, current hit points, abilities, scars/injuries, infection, and omens
-        - Current campaign location and time of day; misery/dawn progress toward the world's end
-        - Active or recent encounters (adversaries, their status, ongoing combat)
-        - Important NPCs met and their relationships
-        - Key items, weapons, scrolls, and silver in possession
+        Mechanical state (hit points, abilities, injuries, infection, omens, inventory, silver, time
+        of day, miseries, adversary stats) is supplied separately and current on every turn. Do NOT
+        restate any of it: a number written here goes stale and then contradicts the live state.
+
+        Preserve:
+
+        THE STORY SO FAR:
+        - Character names and what they have done
+        - Places visited and where the party is now
+        - Recent encounters: who was fought or met, and how it ended
+        - Important NPCs met and their relationships; promises, debts, and grudges
         - Current goals, quests, or destinations and unresolved plot hooks
 
         PRESERVE THE ATMOSPHERE:
@@ -41,7 +46,7 @@ public sealed class ChatHistoryReducer(
         - Any omens, prophecies, or signs of the coming end; grim humour
 
         Discard repetitive description, resolved trivial beats, and rules chatter. Write the summary
-        as terse narrative prose that clearly states the current game state.
+        as terse narrative prose.
         """;
 
     private const string EpitaphInstructions =
