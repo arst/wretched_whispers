@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Engine.Models;
@@ -6,68 +9,117 @@ using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Evals.Harness;
 
-/// <summary>The captured result of one eval turn: the ordered tool calls and results, plus a ChatResponse that
-/// packages those calls as FunctionCallContent for the evaluator.</summary>
+/// <summary>
+/// The captured result of one eval turn.
+/// <list type="bullet">
+/// <item><see cref="Calls"/>: the tool calls the model made, in order, with their JSON arguments — read
+/// from the turn trace the coordinator persisted. Empty when the turn did not commit (no trace).</item>
+/// <item><see cref="ToolResults"/>: the tool-result events the turn emitted.</item>
+/// <item><see cref="Delta"/>: the committed per-turn delta (null before a character exists, or on failure).</item>
+/// <item><see cref="Error"/>: the <see cref="TurnError"/> message when the coordinator failed or refused the turn.</item>
+/// <item><see cref="Response"/>: <see cref="Calls"/> + narrative packaged as a ChatResponse for the evaluators.</item>
+/// </list>
+/// </summary>
 public sealed record TurnOutcome(
-    IReadOnlyList<string> ToolCalls,
+    IReadOnlyList<ToolCallTrace> Calls,
     IReadOnlyList<ToolResult> ToolResults,
     ChatResponse Response,
-    string Narrative);
+    string Narrative,
+    TurnDelta? Delta,
+    string? Error)
+{
+    /// <summary>The names of <see cref="Calls"/>, in call order.</summary>
+    public IReadOnlyList<string> ToolCalls { get; } = Calls.Select(c => c.Name).ToList();
+}
 
 /// <summary>
-/// Runs one CharacterCreation turn through the real AgentExecutor and captures the tool calls. Mirrors
-/// TurnCoordinator's per-turn steps minus the transaction/SSE layer.
+/// Runs one player turn through the production <see cref="TurnCoordinator"/> — unit of work, session
+/// lock, Ended-stage refusal, empty-response handling and chat-history persistence included — and
+/// captures what it emitted. The runner adds nothing of its own to the chat history: the coordinator
+/// owns that, exactly as in production.
 /// </summary>
 public sealed class EvalTurnRunner(
     AsyncServiceScope scope,
-    ISessionContextLoader contextLoader,
-    IAgentToolProvider toolProvider,
-    IAgentExecutor agentExecutor,
-    IChatHistoryRepository chatHistoryRepository,
-    Guid sessionId,
-    Guid chatSessionId) : IAsyncDisposable
+    TurnCoordinator coordinator,
+    IServiceScopeFactory scopeFactory,
+    Guid sessionId) : IAsyncDisposable
 {
     public async Task<TurnOutcome> RunTurnAsync(string playerMessage, CancellationToken ct = default)
     {
-        var context = await contextLoader.LoadAsync(sessionId, ct);
-        var stage = context.DeriveStage();
-        var (tools, _) = toolProvider.GetToolsForStage(context, stage);
+        var tracesBefore = await CountTracesAsync(ct);
 
-        await chatHistoryRepository.SaveMessage(chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct);
-
-        var toolCalls = new List<string>();
         var toolResults = new List<ToolResult>();
         var narrative = new System.Text.StringBuilder();
+        TurnDelta? delta = null;
+        string? error = null;
 
-        await foreach (var evt in agentExecutor.ExecuteAsync(tools, context, chatSessionId, playerMessage, ct))
+        await foreach (var evt in coordinator.ExecuteTurnAsync(sessionId, playerMessage, Guid.NewGuid(), ct))
         {
-            if (evt is ToolResult tr)
+            switch (evt)
             {
-                toolCalls.Add(tr.Function);
-                toolResults.Add(tr);
+                case NarrativeChunk chunk:
+                    narrative.Append(chunk.Text);
+                    break;
+                case ToolResult result:
+                    toolResults.Add(result);
+                    break;
+                case TurnDelta d:
+                    delta = d;
+                    break;
+                case TurnError e:
+                    error = e.Message;
+                    break;
             }
-            else if (evt is NarrativeChunk chunk)
-                narrative.Append(chunk.Text);
         }
 
-        await chatHistoryRepository.SaveMessage(
-            chatSessionId,
-            new ChatMessage(ChatRole.Assistant, narrative.ToString()) { AuthorName = "Game_Master" },
-            ct);
+        // The coordinator persists a trace only for a committed turn, so a new row exists exactly when
+        // this turn committed — and it is the newest one for the session.
+        var calls = await ReadCallsFromNewTraceAsync(tracesBefore, ct);
 
-        var response = BuildToolCallResponse(toolCalls, narrative.ToString());
-        return new TurnOutcome(toolCalls, toolResults, response, narrative.ToString());
+        var text = narrative.ToString();
+        return new TurnOutcome(calls, toolResults, BuildToolCallResponse(calls, text), text, delta, error);
     }
 
-    private static ChatResponse BuildToolCallResponse(IReadOnlyList<string> toolCalls, string narrative)
+    private async Task<int> CountTracesAsync(CancellationToken ct)
+    {
+        await using var queryScope = scopeFactory.CreateAsyncScope();
+        var db = queryScope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
+        return await db.TurnTraces.CountAsync(t => t.CampaignId == sessionId, ct);
+    }
+
+    private async Task<IReadOnlyList<ToolCallTrace>> ReadCallsFromNewTraceAsync(int tracesBefore, CancellationToken ct)
+    {
+        await using var queryScope = scopeFactory.CreateAsyncScope();
+        var db = queryScope.ServiceProvider.GetRequiredService<WretchedWhispersDbContext>();
+        var traces = db.TurnTraces.AsNoTracking().Where(t => t.CampaignId == sessionId);
+        if (await traces.CountAsync(ct) <= tracesBefore)
+            return [];
+
+        var trace = await traces.OrderByDescending(t => t.OrderIndex).FirstAsync(ct);
+        return ParseCalls(trace.ToolCallsJson);
+    }
+
+    // ToolCallsJson is the coordinator's [{ name, arguments }] array, arguments embedded as a JSON object.
+    private static List<ToolCallTrace> ParseCalls(string toolCallsJson) =>
+        (JsonNode.Parse(toolCallsJson)?.AsArray() ?? [])
+            .Select(node => new ToolCallTrace(
+                node!["name"]!.GetValue<string>(),
+                node["arguments"]?.ToJsonString()))
+            .ToList();
+
+    private static ChatResponse BuildToolCallResponse(IReadOnlyList<ToolCallTrace> calls, string narrative)
     {
         var contents = new List<AIContent>();
-        for (int i = 0; i < toolCalls.Count; i++)
-            contents.Add(new FunctionCallContent($"call_{i}", toolCalls[i]));
+        for (int i = 0; i < calls.Count; i++)
+            contents.Add(new FunctionCallContent($"call_{i}", calls[i].Name, ParseArguments(calls[i].Arguments)));
         if (!string.IsNullOrEmpty(narrative))
             contents.Add(new TextContent(narrative));
         return new ChatResponse(new ChatMessage(ChatRole.Assistant, contents));
     }
+
+    // Values come back as JsonElement — the same shape the model client hands FunctionCallContent.
+    private static Dictionary<string, object?>? ParseArguments(string? arguments) =>
+        arguments is null ? null : JsonSerializer.Deserialize<Dictionary<string, object?>>(arguments);
 
     public ValueTask DisposeAsync() => scope.DisposeAsync();
 }
