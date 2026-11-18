@@ -228,6 +228,74 @@ public class TurnCoordinatorTests
     }
 
     [Fact]
+    public async Task HappyPath_EmitsOutcomeAfterCommit_InOrder()
+    {
+        // Narrative and tool results are held until the commit succeeds, then emitted in the order the
+        // executor produced them, followed by the delta, the committed state, and done.
+        ArrangeExplorationTurn();
+        SetupAgentExecutorStreaming(
+            new NarrativeChunk("You rest by the embers."),
+            new ToolResult("Rest", "{\"hpHealed\":2}"),
+            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null));
+
+        var commitCount = 0;
+        var eventsSeenAtCommit = -1;
+        var eventsCountSnapshot = 0;
+        var events = new List<GameTurnEvent>();
+        var scope = new Mock<IUnitOfWorkScope>();
+        scope.Setup(s => s.CommitAsync(It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                // Give the reader time to drain anything already written, so an early emit is observed.
+                await Task.Delay(200);
+                commitCount++;
+                eventsSeenAtCommit = Volatile.Read(ref eventsCountSnapshot);
+            });
+        scope.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
+        _unitOfWork.Setup(u => u.BeginAsync(It.IsAny<CancellationToken>())).ReturnsAsync(scope.Object);
+
+        await foreach (var evt in CreateCoordinator().ExecuteTurnAsync(_sessionId, "I rest", ct: CancellationToken.None))
+        {
+            events.Add(evt);
+            Volatile.Write(ref eventsCountSnapshot, events.Count);
+        }
+
+        Assert.Equal(1, commitCount);
+        Assert.Equal(0, eventsSeenAtCommit);
+        Assert.Collection(events,
+            e => Assert.Equal("You rest by the embers.", Assert.IsType<NarrativeChunk>(e).Text),
+            e => Assert.Equal("Rest", Assert.IsType<ToolResult>(e).Function),
+            e => Assert.IsType<TurnDelta>(e),
+            e => Assert.IsType<StateUpdate>(e),
+            e => Assert.IsType<TurnDone>(e));
+    }
+
+    [Fact]
+    public async Task CommitThrows_EmitsOnlyTurnError_NoNarrativeOrToolResult()
+    {
+        // The commit is where the turn becomes real. If it fails, the player must not have been shown
+        // (and the worker must not have persisted) an outcome that was rolled back.
+        ArrangeExplorationTurn();
+        SetupAgentExecutorStreaming(
+            new NarrativeChunk("The crone takes your silver."),
+            new ToolResult("BuyItem", "{\"silverSpent\":10}"),
+            new AgentTrace([new ToolCallTrace("BuyItem", null)], SuppressedNarrative: null));
+
+        var scope = new Mock<IUnitOfWorkScope>();
+        scope.Setup(s => s.CommitAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("database went away"));
+        scope.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
+        _unitOfWork.Setup(u => u.BeginAsync(It.IsAny<CancellationToken>())).ReturnsAsync(scope.Object);
+
+        var events = new List<GameTurnEvent>();
+        await foreach (var evt in CreateCoordinator().ExecuteTurnAsync(_sessionId, "I buy the map", ct: CancellationToken.None))
+            events.Add(evt);
+
+        var error = Assert.Single(events);
+        Assert.Equal("An error occurred while processing your action", Assert.IsType<TurnError>(error).Message);
+    }
+
+    [Fact]
     public async Task Trace_PersistsTurnDelta_SoEvalsCanSeeWhatActuallyChanged()
     {
         // The turn trace must carry the authoritative delta, not just the narrative — that is what lets
