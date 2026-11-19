@@ -15,6 +15,9 @@ namespace WretchedWhispers.Evals.Harness;
 /// <item><see cref="Calls"/>: the tool calls the model made, in order, with their JSON arguments — read
 /// from the turn trace the coordinator persisted, whether or not the turn committed.</item>
 /// <item><see cref="ToolResults"/>: the tool-result events the turn emitted.</item>
+/// <item><see cref="Narrative"/>: everything the player was shown, in order.
+/// <see cref="NarrativeBeforeTools"/> is the part written before the first tool result arrived (empty
+/// when no tool ran) — prose that cannot know any outcome yet.</item>
 /// <item><see cref="Delta"/>: the committed per-turn delta (null before a character exists, or on failure).</item>
 /// <item><see cref="Error"/>: the <see cref="TurnError"/> message when the coordinator failed or refused the turn.</item>
 /// <item><see cref="Response"/>: <see cref="Calls"/> + narrative packaged as a ChatResponse for the evaluators.</item>
@@ -25,6 +28,7 @@ public sealed record TurnOutcome(
     IReadOnlyList<ToolResult> ToolResults,
     ChatResponse Response,
     string Narrative,
+    string NarrativeBeforeTools,
     TurnDelta? Delta,
     string? Error)
 {
@@ -49,6 +53,7 @@ public sealed class EvalTurnRunner(
         var turnId = Guid.NewGuid();
         var toolResults = new List<ToolResult>();
         var narrative = new System.Text.StringBuilder();
+        string? beforeTools = null;
         TurnDelta? delta = null;
         string? error = null;
 
@@ -60,6 +65,8 @@ public sealed class EvalTurnRunner(
                     narrative.Append(chunk.Text);
                     break;
                 case ToolResult result:
+                    // Events arrive in the order things happened, so this is the prose/outcome boundary.
+                    beforeTools ??= narrative.ToString();
                     toolResults.Add(result);
                     break;
                 case TurnDelta d:
@@ -74,7 +81,8 @@ public sealed class EvalTurnRunner(
         var calls = await ReadCallsFromTraceAsync(turnId, ct);
 
         var text = narrative.ToString();
-        return new TurnOutcome(calls, toolResults, BuildToolCallResponse(calls, text), text, delta, error);
+        return new TurnOutcome(
+            calls, toolResults, BuildToolCallResponse(calls, text), text, beforeTools ?? "", delta, error);
     }
 
     // The coordinator traces every turn that got as far as deriving its stage, committed or not, keyed

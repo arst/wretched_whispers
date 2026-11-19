@@ -16,8 +16,15 @@ namespace WretchedWhispers.Engine.Services;
 /// <summary>
 /// Orchestrates one game-master turn: resolve the chat session, load context and derive the stage,
 /// run the stage-scoped agent inside a single atomic unit of work, persist the exchange, and stream
-/// the resulting events. Player-visible outcome events (narrative, tool results) are emitted only
-/// after the unit of work commits; a turn that fails emits only its <see cref="TurnError"/>.
+/// the resulting events.
+///
+/// Narration and tool results are emitted AS THE RUN PRODUCES THEM, before the unit of work commits,
+/// so the player reads along instead of waiting for the whole turn. They are therefore provisional:
+/// a turn that then fails ends with a <see cref="TurnError"/> and rolls back, and whoever shows the
+/// events must discard what that attempt streamed (the web client does so on the error event; the
+/// <see cref="TurnWorker"/> marks a new attempt's start with a reset event). What IS only ever
+/// emitted after a successful commit is the authoritative part: <see cref="TurnDelta"/>, the
+/// committed <see cref="StateUpdate"/>, and <see cref="TurnDone"/>.
 /// Transaction mechanics live behind <see cref="IUnitOfWork"/>.
 /// </summary>
 public sealed class TurnCoordinator(
@@ -164,11 +171,8 @@ public sealed class TurnCoordinator(
             // delta computed post-commit.
             var preTurnState = StateUpdateMapper.Map(context);
 
-            var narrativeChunks = new List<NarrativeChunk>();
             var toolResults = draft.ToolResults;
-            // The player-visible outcome, held back until the turn commits (see below), in the order
-            // the executor produced it.
-            var outcomeEvents = new List<GameTurnEvent>();
+            var fullResponse = draft.Narrative;
             AgentTrace? agentTrace = null;
 
             // Every stage — including Combat — runs one agent turn per player message.
@@ -181,18 +185,14 @@ public sealed class TurnCoordinator(
                     continue;
                 }
 
-                outcomeEvents.Add(evt);
+                // Straight to the player — provisional until the commit below (see the class comment).
+                writer.TryWrite(evt);
 
                 if (evt is NarrativeChunk chunk)
-                    narrativeChunks.Add(chunk);
+                    fullResponse.Append(chunk.Text);
                 else if (evt is ToolResult tool)
                     toolResults.Add(tool);
             }
-
-            var fullResponse = new StringBuilder();
-            foreach (var chunk in narrativeChunks)
-                fullResponse.Append(chunk.Text);
-            draft.Narrative = fullResponse.ToString();
 
             // A run that produced neither prose nor tool effects is a failed turn (empty model
             // response, content filter), not a silent success: fail it and roll back so nothing is
@@ -224,13 +224,6 @@ public sealed class TurnCoordinator(
 
             await uow.CommitAsync(ct);
             committed = true;
-
-            // Only now is the outcome real. Emitting it earlier let the TurnWorker persist narrative and
-            // tool results that a failed save/commit (or a crash) then rolled back: the player read an
-            // outcome that never happened, and a reclaimed retry replayed a second narrative beside it.
-            // Error paths above emit only their TurnError, so a failed attempt leaves nothing behind.
-            foreach (var evt in outcomeEvents)
-                writer.TryWrite(evt);
 
             // Reload post-commit so the client sees committed state.
             var postTurnContext = await contextLoader.LoadAsync(sessionId, ct);
@@ -264,8 +257,8 @@ public sealed class TurnCoordinator(
             writer.TryWrite(new TurnDone());
 
             logger.LogInformation(
-                "Turn complete — Session={SessionId}, Stage={Stage}, NarrativeChunks={ChunkCount}, ToolResults={ToolCount}",
-                sessionId, currentStage, narrativeChunks.Count, toolResults.Count);
+                "Turn complete — Session={SessionId}, Stage={Stage}, NarrativeChars={Chars}, ToolResults={ToolCount}",
+                sessionId, currentStage, fullResponse.Length, toolResults.Count);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -364,7 +357,7 @@ public sealed class TurnCoordinator(
         public IReadOnlyList<string>? ToolsOffered { get; set; }
         public AgentTrace? AgentTrace { get; set; }
         public List<ToolResult> ToolResults { get; } = [];
-        public string Narrative { get; set; } = string.Empty;
+        public StringBuilder Narrative { get; } = new();
     }
 
     // Assembles one turn trace row. Tool-call arguments and tool results are stored as embedded JSON
@@ -396,8 +389,7 @@ public sealed class TurnCoordinator(
             ToolCallsJson = callsArray.ToJsonString(),
             ToolResultsJson = toolResultsJson,
             TurnDeltaJson = turnDelta is null ? null : JsonSerializer.Serialize(turnDelta, TraceJson),
-            SuppressedNarrative = agentTrace?.SuppressedNarrative,
-            Narrative = draft.Narrative,
+            Narrative = draft.Narrative.ToString(),
             TurnId = draft.TurnId,
             Attempt = draft.Attempt,
             Outcome = outcome,

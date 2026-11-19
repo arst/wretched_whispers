@@ -183,10 +183,14 @@ Strictly one direction. Nothing downstream leaks upstream.
    single unit of work.
 4. `AgentToolProvider` builds the agent with *only* the tools that stage allows. `PromptComposer` assembles the persona,
    the stage prompt, and a formatted state snapshot.
-5. `AgentExecutor` streams the run on Microsoft Agent Framework, mapping model output to `GameTurnEvent`s — narration
-   plus tool results.
+5. `AgentExecutor` streams the run on Microsoft Agent Framework, mapping model output to `GameTurnEvent`s as it
+   happens — narration in small pieces while the model writes, each tool result when its tool finishes. Nothing the
+   model writes is withheld; prose is colour, and the turn's truth is the delta computed from committed state.
 6. Events are appended to a store, and the client tails them over SSE at `GET /api/turns/{id}/events`, resuming from
-   `Last-Event-ID`. Close the laptop mid-turn; reopen it and the corpse is still warm.
+   `Last-Event-ID`. Close the laptop mid-turn; reopen it and the corpse is still warm. Narration reaches the player
+   *before* the turn commits, so it is provisional: a turn that fails ends with an `error` event and the client drops
+   what streamed, and a retried attempt opens with a `reset` event that voids the earlier attempt's text. Only the
+   delta, the committed state and `done` are emitted after the commit.
 7. A turn does not run forever. Each attempt has an overall deadline (`GameSession:TurnDeadlineSeconds`, default 300),
    and `POST /api/turns/{id}/cancel` asks to stop it: a turn nobody has started is cancelled on the spot, a running
    one is stopped by its worker within about a second. Either way the outcome arrives on the event stream — and a turn

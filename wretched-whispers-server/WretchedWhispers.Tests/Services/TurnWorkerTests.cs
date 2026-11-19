@@ -90,22 +90,18 @@ public sealed class TurnWorkerTests : IDisposable
     }
 
     [Fact]
-    public async Task AttemptThatDiesBeforeCommit_ThenReclaimedRetry_LeavesExactlyOneNarrative()
+    public async Task AttemptThatDiesBeforeCommit_ThenReclaimedRetry_VoidsItsNarrationWithAReset()
     {
-        // Attempt 1 runs the agent but its worker dies while committing; the lease then expires and
-        // attempt 2 (another worker) completes the turn. Because outcome events are emitted only after
-        // commit, attempt 1 must leave nothing in the event store, so the replay shows ONE narrative.
+        // Attempt 1 streams its narration, then its worker dies while committing; the lease expires and
+        // attempt 2 (another worker) completes the turn. The event log is append-only, so attempt 1's
+        // narration is still in it — followed by a reset. Reading the log the way a client does (a
+        // reset discards everything before it) must show exactly ONE narration.
         var turnId = await EnqueueAsync();
-        _chatHistory
-            .Setup(r => r.GetSessionsForCampaign(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Guid> { Guid.NewGuid() });
-        _agentExecutor
-            .Setup(a => a.ExecuteAsync(
-                It.IsAny<IReadOnlyList<AIFunction>>(), It.IsAny<SessionContext>(), It.IsAny<Guid>(),
-                It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(() => Stream(
-                new NarrativeChunk("The door groans open."),
-                new AgentTrace([], SuppressedNarrative: null)));
+        ArrangeRunnableTurn();
+        var attempts = 0;
+        SetupExecutor(_ => Stream(
+            new NarrativeChunk($"The door groans open (attempt {Interlocked.Increment(ref attempts)})."),
+            new AgentTrace([])));
 
         var commitReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var commits = 0;
@@ -128,31 +124,29 @@ public sealed class TurnWorkerTests : IDisposable
         var first = CreateWorker(provider);
         await first.StartAsync(CancellationToken.None);
         await commitReached.Task.WaitAsync(TimeSpan.FromSeconds(15));
-        // Give the worker time to persist anything the coordinator already emitted (as it would have
-        // before a real crash), so an event leaked ahead of the commit is observed rather than cancelled.
-        await WaitForEventsAsync(turnId, TimeSpan.FromSeconds(1));
+        await WaitForEventsAsync(turnId, TimeSpan.FromSeconds(5));
         await first.StopAsync(CancellationToken.None);
 
-        await using (var db = CreateContext())
-        {
-            var turn = await db.TurnRequests.SingleAsync(x => x.Id == turnId);
-            Assert.Equal(TurnStatus.Running, turn.Status); // never finalized: the worker "died"
-            Assert.Empty(await db.TurnEvents.Where(x => x.TurnId == turnId).ToListAsync());
-        }
+        var (afterCrash, crashEvents) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Running, afterCrash.Status); // never finalized: the worker "died"
+        Assert.Equal("narrative", Assert.Single(crashEvents).EventType); // streamed before the commit
 
         clock.Advance(TimeSpan.FromMinutes(10)); // past the 5-minute lease: the turn is reclaimable
         await RunWorkerUntilTerminalAsync(turnId, provider);
 
-        await using (var db = CreateContext())
-        {
-            var turn = await db.TurnRequests.SingleAsync(x => x.Id == turnId);
-            Assert.Equal(TurnStatus.Completed, turn.Status);
-            Assert.Equal(2, turn.AttemptCount);
-            var events = await db.TurnEvents.Where(x => x.TurnId == turnId).OrderBy(x => x.Sequence).ToListAsync();
-            Assert.Single(events, e => e.EventType == "narrative");
-            Assert.Equal("done", events[^1].EventType);
-        }
+        var (turn, events) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Equal(2, turn.AttemptCount);
+        Assert.Equal(
+            new[] { "narrative", "reset", "narrative", "turn_delta", "state_update", "done" },
+            events.Select(e => e.EventType));
+        var shown = Assert.Single(AsAClientSeesThem(events), e => e.EventType == "narrative");
+        Assert.Contains("attempt 2", shown.Payload);
     }
+
+    /// <summary>What a client is left with after reading the log: a reset discards all before it.</summary>
+    private static List<TurnEventEntity> AsAClientSeesThem(List<TurnEventEntity> events) =>
+        events.Skip(events.FindLastIndex(e => e.EventType == TurnWorker.ResetEvent) + 1).ToList();
 
     // ---- Deadline, cancel, transient retry ----
 
@@ -273,7 +267,7 @@ public sealed class TurnWorkerTests : IDisposable
         var calls = 0;
         SetupExecutor(_ => Interlocked.Increment(ref calls) == 1
             ? Throw(new HttpRequestException("503 from upstream"))
-            : Stream(new NarrativeChunk("The door groans open."), new AgentTrace([], SuppressedNarrative: null)));
+            : Stream(new NarrativeChunk("The door groans open."), new AgentTrace([])));
 
         await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
         await RunWorkerUntilTerminalAsync(turnId, provider, FastOptions);
@@ -281,8 +275,33 @@ public sealed class TurnWorkerTests : IDisposable
         var (turn, events) = await LoadAsync(turnId);
         Assert.Equal(TurnStatus.Completed, turn.Status);
         Assert.Equal(2, turn.AttemptCount);
-        Assert.Single(events, e => e.EventType == "narrative");
-        Assert.Equal("done", events[^1].EventType);
+        Assert.Equal(
+            new[] { "reset", "narrative", "turn_delta", "state_update", "done" }, events.Select(e => e.EventType));
+    }
+
+    [Fact]
+    public async Task FailedTurn_KeepsItsStreamedNarrationInTheLog_EndingWithTheError()
+    {
+        // The narration streamed, then the run failed. The log ends with the error, which is the
+        // client's signal to discard the attempt's text.
+        var turnId = await EnqueueAsync();
+        ArrangeRunnableTurn();
+        SetupExecutor(_ => StreamThenThrow(
+            new NarrativeChunk("You reach for the latch—"), new InvalidOperationException("a bug")));
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        await RunWorkerUntilTerminalAsync(turnId, provider, FastOptions);
+
+        var (turn, events) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        Assert.Equal(new[] { "narrative", "error" }, events.Select(e => e.EventType));
+    }
+
+    private static async IAsyncEnumerable<GameTurnEvent> StreamThenThrow(GameTurnEvent first, Exception ex)
+    {
+        yield return first;
+        await Task.CompletedTask;
+        throw ex;
     }
 
     [Fact]
@@ -305,7 +324,7 @@ public sealed class TurnWorkerTests : IDisposable
         Assert.Equal("An error occurred while processing your action", turn.TerminalError);
         Assert.Equal(2, turn.AttemptCount);
         Assert.Equal(2, calls);
-        Assert.Equal("error", Assert.Single(events).EventType);
+        Assert.Equal(new[] { "reset", "error" }, events.Select(e => e.EventType));
     }
 
     [Fact]

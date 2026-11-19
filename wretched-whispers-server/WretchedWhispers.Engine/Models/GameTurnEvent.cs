@@ -100,16 +100,15 @@ public record ToolCallTrace(string Name, string? Arguments);
 
 /// <summary>
 /// Out-of-band capture event emitted LAST by <see cref="Services.AgentExecutor"/> so the
-/// <see cref="Services.TurnCoordinator"/> can persist a full turn trace (tool-call arguments + the
-/// suppressed pre-tool prose — neither of which is exposed by the player-facing events). Deliberately
-/// NOT registered as a <c>[JsonDerivedType]</c>: it must never be written to the SSE stream. The
+/// <see cref="Services.TurnCoordinator"/> can persist a full turn trace (tool-call arguments, model,
+/// prompt and usage — none of which is exposed by the player-facing events). Deliberately NOT
+/// registered as a <c>[JsonDerivedType]</c>: it must never be written to the SSE stream. The
 /// TurnCoordinator captures it and drops it; other consumers ignore it.
 /// </summary>
 public record AgentTrace(
     IReadOnlyList<ToolCallTrace> ToolCalls,
-    string? SuppressedNarrative,
     // Comparability: which model and prompt produced the turn, what it cost, and how many model
-    // requests it took. Optional so the many existing two-argument call sites keep compiling.
+    // requests it took.
     string? ModelId = null,
     string? PromptHash = null,
     long? InputTokens = null,

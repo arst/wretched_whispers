@@ -42,8 +42,9 @@ See `docs/running-evals.md` for the full walkthrough.
 `EvalHost` wires the production services over in-memory SQLite, and `EvalTurnRunner` drives each turn
 through the real `TurnCoordinator` — unit of work, session lock, Ended-stage refusal, empty-response
 handling and chat-history persistence included. Scenarios read the result from `TurnOutcome`:
-`Calls` (tool names + JSON arguments, from the turn trace the coordinator persisted for that turn id,
-committed or not), `ToolResults`, `Narrative`, `Delta`, and `Error` (set when the coordinator
+`Narrative` (everything shown, in order) and `NarrativeBeforeTools` (the prose written before the first
+tool result), `Calls` (tool names + JSON arguments, from the turn trace the coordinator persisted for that turn id,
+committed or not), `ToolResults`, `Delta`, and `Error` (set when the coordinator
 refused or failed the turn).
 
 ## Current evals
@@ -58,6 +59,8 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Combat-PlayerAttack-OneRound** — a player attack must call `ResolveCombatRound` exactly once (journaling a notable event alongside it is permitted).
 - **Combat-InventoryQuestion-NoTurn** — an in-combat inventory/equipment question must answer from state without calling combat tools.
 - **Combat-MissingItemUse-NoTurn** — using a missing item in combat must not invent it or advance the round.
+- **Combat-NoOutcomeBeforeTheRoll** — all narration is shown as it is written, so prose written before `ResolveCombatRound` returns must not state the attack's result (LLM judge over the pre-tool text; calling the tool first passes outright).
+- **Exploration-ClaimedLoot-NeedsStateChange** — taking an item either really changes the inventory (the turn delta shows it) or is not narrated as taken (LLM judge when the delta shows no item).
 - **Combat-DoubleAction-OneRound** — a player message describing two attacks is still one round: exactly one `ResolveCombatRound` call (code also rejects a second call in the same turn).
 - **Combat-TwoAdversaries-TargetsByName** — with two named adversaries in the fight, a player attack on one "by description" must call `ResolveCombatRound` with that adversary's name as `targetAdversaryName`.
 - **Combat-CastScroll-ThenRoundOther** — an in-combat scroll cast must call `CastScroll` then exactly one `ResolveCombatRound` (the 'Other' path).

@@ -53,6 +53,8 @@ interface SessionState {
   setStateUpdate: (update: StateUpdateEvent) => void;
   finishStreaming: () => void;
   failStreaming: () => void;
+  resetStreaming: () => void;
+  discardStreaming: () => void;
   setError: (message: string) => void;
   clearError: () => void;
   reset: () => void;
@@ -186,7 +188,34 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }));
   },
 
-  // A turn failed (429, dropped connection, server error). Drop the empty assistant placeholder the
+  // The server started a new attempt at the turn (a `reset` event): whatever the earlier attempt
+  // streamed was rolled back. Keep the placeholder — the new attempt streams into it.
+  resetStreaming: () => {
+    const { streamingMessageId } = get();
+    set((state) => ({
+      streamingText: "",
+      messages: state.messages.map((m) =>
+        m.id === streamingMessageId
+          ? { ...m, toolResults: [], turnDelta: null }
+          : m,
+      ),
+    }));
+  },
+
+  // The server ended the turn with an error: it rolled the turn back, so narration and tool results
+  // that streamed before the failure never happened. Drop them, placeholder and all.
+  discardStreaming: () => {
+    const { streamingMessageId } = get();
+    set((state) => ({
+      isStreaming: false,
+      streamingMessageId: null,
+      streamingText: "",
+      messages: state.messages.filter((m) => m.id !== streamingMessageId),
+    }));
+  },
+
+  // The connection failed (429, dropped connection) — the turn's fate is unknown, so keep what it
+  // managed to stream; the next load shows what the server actually committed. Drop the empty assistant placeholder the
   // failed turn left behind (keep it only if it managed to stream real text or a tool/delta) so the
   // chat shows just the player's message + the error banner. The backend rolls the turn back, so
   // nothing was persisted server-side.

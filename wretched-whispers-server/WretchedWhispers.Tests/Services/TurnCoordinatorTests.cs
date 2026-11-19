@@ -214,7 +214,7 @@ public class TurnCoordinatorTests
         SetupAgentExecutorStreaming(
             new NarrativeChunk("The dungeon echoes..."),
             new NarrativeChunk(" You see a shadow."),
-            new AgentTrace([new ToolCallTrace("Dice.Roll", "{\"expr\":\"d20\"}")], SuppressedNarrative: null));
+            new AgentTrace([new ToolCallTrace("Dice.Roll", "{\"expr\":\"d20\"}")]));
 
         var coordinator = CreateCoordinator();
 
@@ -239,15 +239,15 @@ public class TurnCoordinatorTests
     }
 
     [Fact]
-    public async Task HappyPath_EmitsOutcomeAfterCommit_InOrder()
+    public async Task HappyPath_StreamsTheRunBeforeCommit_AndTheAuthoritativeEventsAfter()
     {
-        // Narrative and tool results are held until the commit succeeds, then emitted in the order the
-        // executor produced them, followed by the delta, the committed state, and done.
+        // Narration and tool results reach the player as the run produces them — before the commit.
+        // The delta, the committed state and done are only ever emitted once the commit succeeded.
         ArrangeExplorationTurn();
         SetupAgentExecutorStreaming(
             new NarrativeChunk("You rest by the embers."),
             new ToolResult("Rest", "{\"hpHealed\":2}"),
-            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null));
+            new AgentTrace([new ToolCallTrace("Rest", null)]));
 
         var commitCount = 0;
         var eventsSeenAtCommit = -1;
@@ -272,7 +272,7 @@ public class TurnCoordinatorTests
         }
 
         Assert.Equal(1, commitCount);
-        Assert.Equal(0, eventsSeenAtCommit);
+        Assert.Equal(2, eventsSeenAtCommit);
         Assert.Collection(events,
             e => Assert.Equal("You rest by the embers.", Assert.IsType<NarrativeChunk>(e).Text),
             e => Assert.Equal("Rest", Assert.IsType<ToolResult>(e).Function),
@@ -282,15 +282,15 @@ public class TurnCoordinatorTests
     }
 
     [Fact]
-    public async Task CommitThrows_EmitsOnlyTurnError_NoNarrativeOrToolResult()
+    public async Task CommitThrows_EndsWithTurnError_AndNothingAuthoritative()
     {
-        // The commit is where the turn becomes real. If it fails, the player must not have been shown
-        // (and the worker must not have persisted) an outcome that was rolled back.
+        // The run streamed, then the commit failed. The stream must END with the error — the signal to
+        // discard what this attempt showed — and must never carry a delta, a state update or done.
         ArrangeExplorationTurn();
         SetupAgentExecutorStreaming(
             new NarrativeChunk("The crone takes your silver."),
             new ToolResult("BuyItem", "{\"silverSpent\":10}"),
-            new AgentTrace([new ToolCallTrace("BuyItem", null)], SuppressedNarrative: null));
+            new AgentTrace([new ToolCallTrace("BuyItem", null)]));
 
         var scope = new Mock<IUnitOfWorkScope>();
         scope.Setup(s => s.CommitAsync(It.IsAny<CancellationToken>()))
@@ -302,8 +302,10 @@ public class TurnCoordinatorTests
         await foreach (var evt in CreateCoordinator().ExecuteTurnAsync(_sessionId, "I buy the map", ct: CancellationToken.None))
             events.Add(evt);
 
-        var error = Assert.Single(events);
-        Assert.Equal("An error occurred while processing your action", Assert.IsType<TurnError>(error).Message);
+        Assert.Collection(events,
+            e => Assert.IsType<NarrativeChunk>(e),
+            e => Assert.IsType<ToolResult>(e),
+            e => Assert.Equal("An error occurred while processing your action", Assert.IsType<TurnError>(e).Message));
     }
 
     // ---- Trace coverage: every outcome after the stage is known leaves a comparable trace ----
@@ -378,7 +380,7 @@ public class TurnCoordinatorTests
     {
         ArrangeExplorationTurn();
         var saved = CaptureTraces();
-        SetupAgentExecutorStreaming(new AgentTrace([], SuppressedNarrative: null, ModelId: "gpt-test", Iterations: 2));
+        SetupAgentExecutorStreaming(new AgentTrace([], ModelId: "gpt-test", Iterations: 2));
 
         await RunTurnAsync();
 
@@ -397,11 +399,12 @@ public class TurnCoordinatorTests
         SetupAgentExecutorStreaming(
             new NarrativeChunk("You rest."),
             new ToolResult("Rest", "{\"hpHealed\":2}"),
-            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null));
+            new AgentTrace([new ToolCallTrace("Rest", null)]));
 
         var events = await RunTurnAsync();
 
-        Assert.IsType<TurnError>(Assert.Single(events));
+        Assert.IsType<TurnError>(events[^1]);
+        Assert.DoesNotContain(events, e => e is TurnDelta or StateUpdate or TurnDone);
         var trace = Assert.Single(saved);
         Assert.Equal(TurnTraceOutcome.Conflict, trace.Outcome);
         Assert.Contains("row version changed", trace.Error);
@@ -419,7 +422,7 @@ public class TurnCoordinatorTests
         SetupAgentExecutorStreaming(
             new NarrativeChunk("You rest."),
             new ToolResult("Rest", "{\"hpHealed\":2}"),
-            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null,
+            new AgentTrace([new ToolCallTrace("Rest", null)],
                 ModelId: "gpt-test", PromptHash: "abc123", InputTokens: 1200, OutputTokens: 85, Iterations: 2));
         var turnId = Guid.NewGuid();
 
@@ -540,7 +543,7 @@ public class TurnCoordinatorTests
         ArrangeExplorationTurn();
         SetupAgentExecutorStreaming(
             new NarrativeChunk("You haggle, but the crone waves you off."),
-            new AgentTrace([], SuppressedNarrative: null));
+            new AgentTrace([]));
 
         TurnTraceEntity? saved = null;
         _turnTraceRepo
@@ -566,7 +569,7 @@ public class TurnCoordinatorTests
         // must FAIL — not complete silently — and nothing may be persisted, or an empty assistant
         // message pollutes every later prompt.
         ArrangeExplorationTurn();
-        SetupAgentExecutorStreaming(new AgentTrace([], SuppressedNarrative: null));
+        SetupAgentExecutorStreaming(new AgentTrace([]));
 
         var coordinator = CreateCoordinator();
 
@@ -590,7 +593,7 @@ public class TurnCoordinatorTests
         ArrangeExplorationTurn();
         SetupAgentExecutorStreaming(
             new ToolResult("Rest", "{\"hpHealed\":2}"),
-            new AgentTrace([new ToolCallTrace("Rest", null)], SuppressedNarrative: null));
+            new AgentTrace([new ToolCallTrace("Rest", null)]));
 
         var coordinator = CreateCoordinator();
 

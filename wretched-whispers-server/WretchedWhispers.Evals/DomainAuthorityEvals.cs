@@ -388,6 +388,66 @@ public class DomainAuthorityEvals
             "A risky feat must be resolved by ChallengeCharacter, never narrated success or failure.");
     }
 
+    /// <summary>Runs the boolean narration judge over <paramref name="text"/>.</summary>
+    private static async Task<bool?> JudgeAsync(EvalScenario scenario, string text, string criterion)
+    {
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, text)),
+            additionalContext: [new NarrativeCheckContext(criterion)],
+            cancellationToken: TestContext.Current.CancellationToken);
+        return result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName).Value;
+    }
+
+    [Fact]
+    public async Task Combat_Attack_StatesNoOutcomeBeforeTheRoll()
+    {
+        // All narration is shown as the model writes it, so prose written BEFORE the round is resolved
+        // must not claim how it went: the dice have not been rolled yet. Wind-up and intent are fine.
+        // This eval replaces the former executor rule that withheld pre-tool prose.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Combat-NoOutcomeBeforeTheRoll", [new NarrativeCheckEvaluator()]);
+        await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I strike the plague priest with my staff!", TestContext.Current.CancellationToken);
+
+        Assert.Contains("ResolveCombatRound", outcome.ToolCalls);
+        // Calling the tool first and narrating only afterwards — what the prompt asks for — passes outright.
+        if (string.IsNullOrWhiteSpace(outcome.NarrativeBeforeTools)) return;
+
+        var passed = await JudgeAsync(scenario, outcome.NarrativeBeforeTools,
+            "This text was written BEFORE the attack was resolved. It may describe intent, the wind-up, or "
+            + "the scene, but it must NOT state or imply the result: whether the attack hits or misses, any "
+            + "damage dealt or taken, or anyone being wounded, killed, or fleeing.");
+        Assert.True(passed, $"Outcome narrated before the roll: {outcome.NarrativeBeforeTools}");
+    }
+
+    [Fact]
+    public async Task Exploration_TakingAnItem_IsNeverNarratedWithoutTheStateChange()
+    {
+        // "Actions are not narrated without modifying the state": the player takes something. Either the
+        // inventory really changes (a tool applied it — the delta shows the item), or the narration must
+        // not say the character now has it.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Exploration-ClaimedLoot-NeedsStateChange", [new NarrativeCheckEvaluator()]);
+        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "There's a tarnished silver candlestick on the roadside shrine. I pocket it and walk on.",
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(outcome.Error);
+        if (outcome.Delta is { ItemsAdded.Length: > 0 }) return;
+
+        var passed = await JudgeAsync(scenario, outcome.Narrative,
+            "The character's inventory did NOT change this turn. The narration must not state or imply that "
+            + "the character took, pocketed, or now carries the candlestick. Refusing, interrupting, or "
+            + "describing an obstacle all pass.");
+        Assert.True(passed,
+            $"Narration claimed loot that no tool applied (calls: [{string.Join(", ", outcome.ToolCalls)}]). "
+            + $"Narrative: {outcome.Narrative}");
+    }
+
     [Fact]
     public async Task Combat_DoubleAction_ResolvesExactlyOneRound()
     {

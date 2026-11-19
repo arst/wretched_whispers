@@ -26,6 +26,9 @@ public sealed class TurnWorker(
     IServiceScopeFactory scopes, TurnEventStore events, ILogger<TurnWorker> logger,
     TurnWorkerOptions? options = null) : BackgroundService
 {
+    /// <summary>Event type telling clients to discard what the turn has streamed so far.</summary>
+    public const string ResetEvent = "reset";
+
     public const string DeadlineMessage = "The narrator took too long. Please try again.";
 
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(5);
@@ -76,6 +79,11 @@ public sealed class TurnWorker(
                     try
                     {
                         var ended = false;
+                        // An earlier attempt may have streamed narration before it failed or its worker
+                        // died. The log is append-only, so mark the boundary: everything before this
+                        // event is void, for a live client and for one replaying the stream later.
+                        if (turn.AttemptCount > 1)
+                            await events.AppendAsync(turn.Id, ResetEvent, new { }, execution.Token);
                         var coordinator = scope.ServiceProvider.GetRequiredService<TurnCoordinator>();
                         await foreach (var item in coordinator.ExecuteTurnAsync(
                             turn.CampaignId, turn.PlayerMessage, turn.Id, run.Token, turn.AttemptCount))
