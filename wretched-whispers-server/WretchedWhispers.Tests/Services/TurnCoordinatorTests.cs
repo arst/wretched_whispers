@@ -439,6 +439,97 @@ public class TurnCoordinatorTests
         Assert.NotNull(trace.DurationMs);
     }
 
+    // ---- Retryable failures and cancellation ----
+
+    private void SetupExecutor(Func<IReadOnlyList<AIFunction>, CancellationToken, IAsyncEnumerable<GameTurnEvent>> run) =>
+        _agentExecutor
+            .Setup(a => a.ExecuteAsync(It.IsAny<IReadOnlyList<AIFunction>>(), It.IsAny<SessionContext>(),
+                _chatSessionId, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((IReadOnlyList<AIFunction> tools, SessionContext _, Guid _, string _, CancellationToken ct) =>
+                run(tools, ct));
+
+    private static async IAsyncEnumerable<GameTurnEvent> InvokeFirstToolThenThrow(
+        IReadOnlyList<AIFunction> tools, Exception ex)
+    {
+        await tools[0].InvokeAsync(new AIFunctionArguments());
+        if (tools.Count >= 0) throw ex;
+        yield break;
+    }
+
+    [Fact]
+    public async Task TransientFailureBeforeAnyTool_IsMarkedRetryable()
+    {
+        ArrangeExplorationTurn();
+        OfferTools("Rest");
+        SetupExecutor((_, _) => ThrowingAsyncEnumerable(new HttpRequestException("503 from upstream")));
+
+        var error = Assert.IsType<TurnError>(Assert.Single(await RunTurnAsync()));
+
+        Assert.True(error.Retryable);
+    }
+
+    [Fact]
+    public async Task TransientFailureAfterAToolStarted_IsNotRetryable()
+    {
+        ArrangeExplorationTurn();
+        OfferTools("Rest");
+        SetupExecutor((tools, _) => InvokeFirstToolThenThrow(tools, new HttpRequestException("503 from upstream")));
+
+        var error = Assert.IsType<TurnError>(Assert.Single(await RunTurnAsync()));
+
+        Assert.False(error.Retryable);
+    }
+
+    [Fact]
+    public async Task NonTransientFailure_IsNotRetryable()
+    {
+        ArrangeExplorationTurn();
+        SetupExecutor((_, _) => ThrowingAsyncEnumerable(new InvalidOperationException("a bug")));
+
+        var error = Assert.IsType<TurnError>(Assert.Single(await RunTurnAsync()));
+
+        Assert.False(error.Retryable);
+    }
+
+    [Fact]
+    public void RetryableFlag_IsNeverSerializedToTheClient()
+    {
+        var json = JsonSerializer.Serialize<GameTurnEvent>(new TurnError("boom", Retryable: true), JsonSerializerOptions.Web);
+
+        Assert.DoesNotContain("retryable", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelledRun_WritesCancelledTrace_AfterRollback_AndEmitsNothing()
+    {
+        ArrangeExplorationTurn();
+        var saved = CaptureTraces();
+        using var cts = new CancellationTokenSource();
+        SetupExecutor((_, ct) => CancelThenWait(cts, ct));
+
+        var events = new List<GameTurnEvent>();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var evt in CreateCoordinator().ExecuteTurnAsync(_sessionId, "I explore", ct: cts.Token))
+                events.Add(evt);
+        });
+
+        Assert.Empty(events);
+        // The reader is cancelled at once; the producer finishes its rollback and trace just after.
+        for (var i = 0; i < 100 && saved.Count == 0; i++) await Task.Delay(20);
+        var trace = Assert.Single(saved);
+        Assert.Equal(TurnTraceOutcome.Cancelled, trace.Outcome);
+        Assert.Equal(new[] { "uow-disposed", "trace-saved" }, _sequence);
+    }
+
+    private static async IAsyncEnumerable<GameTurnEvent> CancelThenWait(
+        CancellationTokenSource cts, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await cts.CancelAsync();
+        await Task.Delay(Timeout.Infinite, ct);
+        yield break;
+    }
+
     [Fact]
     public async Task Trace_PersistsTurnDelta_SoEvalsCanSeeWhatActuallyChanged()
     {

@@ -19,8 +19,24 @@ public static class TurnEndpoints
         api.MapPost("/sessions/{sessionId:guid}/turns", Submit)
             .RequireRateLimiting(RateLimitPolicies.Turns);
         api.MapGet("/turns/{turnId:guid}/events", Events);
+        api.MapPost("/turns/{turnId:guid}/cancel", Cancel);
         return api;
     }
+
+    /// <summary>
+    /// Asks to cancel the caller's own turn. Idempotent. A running turn is not cancelled by this call
+    /// itself: its worker stops the run within about a second and ends the event stream, which stays
+    /// the single place the client learns the outcome.
+    /// </summary>
+    private static async Task<Results<Ok<TurnCancelResponse>, NotFound>> Cancel(
+        Guid turnId, IUserContext user, TurnQueue queue, CancellationToken ct) =>
+        await queue.RequestCancelAsync(turnId, user.UserId, ct) switch
+        {
+            TurnCancelResult.Cancelled => TypedResults.Ok(new TurnCancelResponse("cancelled")),
+            TurnCancelResult.Requested => TypedResults.Ok(new TurnCancelResponse("cancelling")),
+            TurnCancelResult.AlreadyFinished => TypedResults.Ok(new TurnCancelResponse("finished")),
+            _ => TypedResults.NotFound()
+        };
 
     private static async Task<Results<Accepted<TurnResponse>, NotFound, ProblemHttpResult>> Submit(
         Guid sessionId, SubmitTurnRequest request,

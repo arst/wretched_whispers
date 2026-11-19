@@ -48,7 +48,7 @@ public class TurnTraceEntity
     /// <summary>Which attempt at the turn produced this trace (1 = first). A reclaimed turn has several.</summary>
     public int? Attempt { get; set; }
 
-    /// <summary>How the turn ended: committed, failed, empty, refused, or conflict (see <see cref="TurnTraceOutcome"/>).</summary>
+    /// <summary>How the turn ended: committed, failed, empty, refused, conflict, or cancelled (see <see cref="TurnTraceOutcome"/>).</summary>
     public string? Outcome { get; set; }
 
     /// <summary>Why a non-committed turn ended (exception type and message, or the refusal reason).</summary>
@@ -81,4 +81,5 @@ public static class TurnTraceOutcome
     public const string Empty = "empty";
     public const string Refused = "refused";
     public const string Conflict = "conflict";
+    public const string Cancelled = "cancelled";
 }

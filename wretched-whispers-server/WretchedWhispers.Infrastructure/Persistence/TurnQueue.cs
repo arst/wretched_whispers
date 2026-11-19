@@ -7,8 +7,15 @@ namespace WretchedWhispers.Infrastructure.Persistence;
 /// for a different campaign or message — a client bug, not a transient fault.</summary>
 public readonly record struct TurnEnqueueResult(TurnRequestEntity? Turn, bool Created);
 
+/// <summary>What a cancel request did. Only a turn that had not started is cancelled on the spot; a
+/// running one is asked to stop, and a finished one is left alone.</summary>
+public enum TurnCancelResult { NotFound, Cancelled, Requested, AlreadyFinished }
+
 public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
 {
+    /// <summary>The terminal error of a turn the player cancelled.</summary>
+    public const string CancelledMessage = "Turn cancelled.";
+
     /// <summary>
     /// Idempotent on (user, client request id): replaying the same submission returns the original
     /// turn. Reusing that id for a different action is reported through the result rather than an
@@ -60,11 +67,15 @@ public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
         var candidate = await db.TurnRequests.AsNoTracking().Where(x => x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now))
             .OrderBy(x => x.CreatedAt).FirstOrDefaultAsync(ct);
         if (candidate is null) return null;
-        if (candidate.AttemptCount >= maxAttempts)
+        // A cancel requested while the turn waited (requeued, or its owner died) is honoured here,
+        // before another attempt is spent on it.
+        var cancelled = candidate.CancelRequestedAt is not null;
+        if (cancelled || candidate.AttemptCount >= maxAttempts)
         {
-            const string error = "Turn exceeded retry limit.";
+            var error = cancelled ? CancelledMessage : "Turn exceeded retry limit.";
             var failed = await CommitTerminalAsync(candidate.Id, error, token =>
-                db.TurnRequests.Where(x => x.Id == candidate.Id && x.AttemptCount >= maxAttempts &&
+                db.TurnRequests.Where(x => x.Id == candidate.Id &&
+                        (x.CancelRequestedAt != null || x.AttemptCount >= maxAttempts) &&
                         (x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now)))
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(x => x.Status, TurnStatus.Failed)
@@ -89,6 +100,50 @@ public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
         return await db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner && x.Status == TurnStatus.Running)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.LeaseExpiresAt, expires), ct) == 1;
     }
+
+    /// <summary>
+    /// Hands a running turn back to the queue for another attempt (a transient failure that changed
+    /// nothing). Fenced by owner like finalization; the attempt count is kept, so the retry limit
+    /// still applies. False means the lease is no longer ours.
+    /// </summary>
+    public async Task<bool> RequeueAsync(Guid id, string owner, CancellationToken ct) =>
+        await db.TurnRequests.Where(x => x.Id == id && x.LeaseOwner == owner && x.Status == TurnStatus.Running)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, TurnStatus.Pending)
+                .SetProperty(x => x.LeaseOwner, (string?)null)
+                .SetProperty(x => x.LeaseExpiresAt, (DateTime?)null), ct) == 1;
+
+    /// <summary>
+    /// The player asks to cancel their turn. A turn no worker has started is failed here and now. A
+    /// running turn is only MARKED: its lease owner stops the run and finalizes it, so there is still
+    /// exactly one decider of a running turn's outcome (a turn that already committed completes).
+    /// </summary>
+    public async Task<TurnCancelResult> RequestCancelAsync(Guid id, string userId, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow().UtcDateTime;
+        var cancelledPending = await CommitTerminalAsync(id, CancelledMessage, token =>
+            db.TurnRequests.Where(x => x.Id == id && x.UserId == userId && x.Status == TurnStatus.Pending)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.Status, TurnStatus.Failed)
+                    .SetProperty(x => x.TerminalError, CancelledMessage)
+                    .SetProperty(x => x.CancelRequestedAt, now)
+                    .SetProperty(x => x.CompletedAt, now), token), ct);
+        if (cancelledPending) return TurnCancelResult.Cancelled;
+
+        var marked = await db.TurnRequests
+            .Where(x => x.Id == id && x.UserId == userId && x.Status == TurnStatus.Running)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.CancelRequestedAt, x => x.CancelRequestedAt ?? now), ct);
+        if (marked == 1) return TurnCancelResult.Requested;
+
+        // Neither pending nor running: finished (possibly in the instant between the two updates —
+        // a pending turn that was claimed in that instant is caught by the second update).
+        return await db.TurnRequests.AnyAsync(x => x.Id == id && x.UserId == userId, ct)
+            ? TurnCancelResult.AlreadyFinished
+            : TurnCancelResult.NotFound;
+    }
+
+    public Task<bool> IsCancelRequestedAsync(Guid id, CancellationToken ct) =>
+        db.TurnRequests.AnyAsync(x => x.Id == id && x.CancelRequestedAt != null, ct);
 
     /// <summary>Atomically records both sources of terminal truth. The owner predicate fences a
     /// worker that lost its lease; false means the reclaiming worker now decides the outcome.</summary>

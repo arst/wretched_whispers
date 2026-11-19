@@ -154,6 +154,181 @@ public sealed class TurnWorkerTests : IDisposable
         }
     }
 
+    // ---- Deadline, cancel, transient retry ----
+
+    private static readonly TurnWorkerOptions FastOptions = new()
+    {
+        CancelPollInterval = TimeSpan.FromMilliseconds(50),
+        RetryBackoff = TimeSpan.FromMilliseconds(10),
+    };
+
+    private void ArrangeRunnableTurn() =>
+        _chatHistory
+            .Setup(r => r.GetSessionsForCampaign(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Guid> { Guid.NewGuid() });
+
+    private void SetupExecutor(Func<CancellationToken, IAsyncEnumerable<GameTurnEvent>> run) =>
+        _agentExecutor
+            .Setup(a => a.ExecuteAsync(
+                It.IsAny<IReadOnlyList<AIFunction>>(), It.IsAny<SessionContext>(), It.IsAny<Guid>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((IReadOnlyList<AIFunction> _, SessionContext _, Guid _, string _, CancellationToken ct) => run(ct));
+
+    private static async IAsyncEnumerable<GameTurnEvent> Hang(
+        TaskCompletionSource started, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        started.TrySetResult();
+        await Task.Delay(Timeout.Infinite, ct);
+        yield break;
+    }
+
+    private static async IAsyncEnumerable<GameTurnEvent> Throw(Exception ex)
+    {
+        await Task.CompletedTask;
+        if (ex is not null) throw ex;
+        yield break;
+    }
+
+    private async Task<(TurnRequestEntity Turn, List<TurnEventEntity> Events)> LoadAsync(Guid turnId)
+    {
+        await using var db = CreateContext();
+        return (await db.TurnRequests.SingleAsync(x => x.Id == turnId),
+            await db.TurnEvents.Where(x => x.TurnId == turnId).OrderBy(x => x.Sequence).ToListAsync());
+    }
+
+    [Fact]
+    public async Task TurnPastItsDeadline_FailsWithTheDeadlineMessage()
+    {
+        var turnId = await EnqueueAsync();
+        ArrangeRunnableTurn();
+        SetupExecutor(ct => Hang(new TaskCompletionSource(), ct));
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        await RunWorkerUntilTerminalAsync(turnId, provider, FastOptions with { Deadline = TimeSpan.FromMilliseconds(300) });
+
+        var (turn, events) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        Assert.Equal(TurnWorker.DeadlineMessage, turn.TerminalError);
+        Assert.Equal(1, turn.AttemptCount);
+        Assert.Equal("error", Assert.Single(events).EventType);
+    }
+
+    [Fact]
+    public async Task CancelRequestedWhileRunning_StopsTheRun_AndFailsAsCancelled()
+    {
+        var turnId = await EnqueueAsync();
+        ArrangeRunnableTurn();
+        var running = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        SetupExecutor(ct => Hang(running, ct));
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        var worker = CreateWorker(provider, FastOptions);
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            await running.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            await using (var db = CreateContext())
+                Assert.Equal(TurnCancelResult.Requested,
+                    await new TurnQueue(db, TimeProvider.System).RequestCancelAsync(turnId, UserId, CancellationToken.None));
+            await WaitUntilTerminalAsync(turnId);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+
+        var (turn, events) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        Assert.Equal(TurnQueue.CancelledMessage, turn.TerminalError);
+        Assert.Equal("error", Assert.Single(events).EventType);
+    }
+
+    [Fact]
+    public async Task RunStoppedAfterItsCommitLanded_CompletesTheTurn()
+    {
+        // The deadline (or a cancel) fired, but the turn's messages are in the chronicle: the commit won
+        // the race. The turn happened, so it must complete, never be reported as failed.
+        var turnId = await EnqueueAsync();
+        ArrangeRunnableTurn();
+        _chatHistory
+            .SetupSequence(r => r.HasMessagesForTurn(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false)  // the pre-run duplicate check
+            .ReturnsAsync(true);  // the check after the run was stopped
+        SetupExecutor(ct => Hang(new TaskCompletionSource(), ct));
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        await RunWorkerUntilTerminalAsync(turnId, provider, FastOptions with { Deadline = TimeSpan.FromMilliseconds(300) });
+
+        var (turn, events) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Null(turn.TerminalError);
+        Assert.Equal("done", Assert.Single(events).EventType);
+    }
+
+    [Fact]
+    public async Task TransientFailure_IsRequeued_AndTheSecondAttemptCompletes()
+    {
+        var turnId = await EnqueueAsync();
+        ArrangeRunnableTurn();
+        var calls = 0;
+        SetupExecutor(_ => Interlocked.Increment(ref calls) == 1
+            ? Throw(new HttpRequestException("503 from upstream"))
+            : Stream(new NarrativeChunk("The door groans open."), new AgentTrace([], SuppressedNarrative: null)));
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        await RunWorkerUntilTerminalAsync(turnId, provider, FastOptions);
+
+        var (turn, events) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Equal(2, turn.AttemptCount);
+        Assert.Single(events, e => e.EventType == "narrative");
+        Assert.Equal("done", events[^1].EventType);
+    }
+
+    [Fact]
+    public async Task TransientFailure_OnTheLastAllowedAttempt_FailsWithItsOwnError()
+    {
+        var turnId = await EnqueueAsync();
+        ArrangeRunnableTurn();
+        var calls = 0;
+        SetupExecutor(_ =>
+        {
+            Interlocked.Increment(ref calls);
+            return Throw(new HttpRequestException("503 from upstream"));
+        });
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        await RunWorkerUntilTerminalAsync(turnId, provider, FastOptions with { MaxAttempts = 2 });
+
+        var (turn, events) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        Assert.Equal("An error occurred while processing your action", turn.TerminalError);
+        Assert.Equal(2, turn.AttemptCount);
+        Assert.Equal(2, calls);
+        Assert.Equal("error", Assert.Single(events).EventType);
+    }
+
+    [Fact]
+    public async Task NonTransientFailure_IsNotRetried()
+    {
+        var turnId = await EnqueueAsync();
+        ArrangeRunnableTurn();
+        var calls = 0;
+        SetupExecutor(_ =>
+        {
+            Interlocked.Increment(ref calls);
+            return Throw(new InvalidOperationException("a bug"));
+        });
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        await RunWorkerUntilTerminalAsync(turnId, provider, FastOptions);
+
+        var (turn, _) = await LoadAsync(turnId);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        Assert.Equal(1, turn.AttemptCount);
+        Assert.Equal(1, calls);
+    }
+
     private WretchedWhispersDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<WretchedWhispersDbContext>()
             .UseSqlite($"DataSource={_dbPath}")
@@ -185,14 +360,29 @@ public sealed class TurnWorkerTests : IDisposable
         }
     }
 
-    private static TurnWorker CreateWorker(ServiceProvider provider) =>
+    private static TurnWorker CreateWorker(ServiceProvider provider, TurnWorkerOptions? options = null) =>
         new(provider.GetRequiredService<IServiceScopeFactory>(),
             provider.GetRequiredService<TurnEventStore>(),
-            NullLogger<TurnWorker>.Instance);
+            NullLogger<TurnWorker>.Instance,
+            options);
 
-    private async Task RunWorkerUntilTerminalAsync(Guid turnId, ServiceProvider provider)
+    private async Task WaitUntilTerminalAsync(Guid turnId)
     {
-        var worker = CreateWorker(provider);
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (true)
+        {
+            await using var db = CreateContext();
+            var status = await db.TurnRequests.Where(x => x.Id == turnId).Select(x => x.Status).SingleAsync();
+            if (status is TurnStatus.Completed or TurnStatus.Failed) return;
+            Assert.True(DateTime.UtcNow < deadline, "worker did not finalize the turn in time");
+            await Task.Delay(50);
+        }
+    }
+
+    private async Task RunWorkerUntilTerminalAsync(
+        Guid turnId, ServiceProvider provider, TurnWorkerOptions? options = null)
+    {
+        var worker = CreateWorker(provider, options);
         await worker.StartAsync(CancellationToken.None);
         try
         {

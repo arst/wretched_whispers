@@ -96,6 +96,7 @@ public sealed class TurnCoordinator(
         TraceDraft? draft = null;
         TurnTraceEntity? detachedTrace = null;
         var committed = false;
+        var toolRan = new ToolRunFlag();
 
         try
         {
@@ -151,6 +152,9 @@ public sealed class TurnCoordinator(
 
             var (tools, registeredFunctions) = toolProvider.GetToolsForStage(context, currentStage);
             draft.ToolsOffered = tools.Select(t => t.Name).ToList();
+            // Note when any tool starts, so a transient failure can tell "nothing happened yet" from
+            // "the run was already under way" (see the catch below).
+            tools = tools.Select(AIFunction (t) => new ToolRunObserver(t, toolRan)).ToList();
             activity?.SetTag("session.stage", currentStage.ToString());
             activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
 
@@ -265,6 +269,8 @@ public sealed class TurnCoordinator(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            if (draft is not null && !committed)
+                detachedTrace = BuildTrace(draft, TurnTraceOutcome.Cancelled, error: null, started);
             // uow disposal rolled back. No TurnError: the reader shares this token, so nothing
             // written here would ever be surfaced. An OCE thrown WITHOUT our token cancelled
             // (e.g. a dependency's internal timeout) falls through to the generic handler instead
@@ -284,7 +290,12 @@ public sealed class TurnCoordinator(
         catch (Exception ex)
         {
             logger.LogError(ex, "Turn failed — Session={SessionId}, Stage={Stage}", sessionId, stage);
-            writer.TryWrite(new TurnError("An error occurred while processing your action"));
+            // Worth another attempt only when the provider hiccupped before anything happened: the run
+            // had started (draft), nothing committed, and no tool had begun. The rollback would undo a
+            // tool's writes anyway; stopping at "no tool ran" keeps the retry to turns where the model
+            // had not yet been told any outcome.
+            var retryable = draft is not null && !committed && !toolRan.Value && TransientFailure.IsTransient(ex);
+            writer.TryWrite(new TurnError("An error occurred while processing your action", retryable));
             // After a commit the turn's own trace is (or failed to be) written above; a later failure
             // must not add a second row claiming the committed turn failed.
             if (draft is not null && !committed)
@@ -295,6 +306,23 @@ public sealed class TurnCoordinator(
             // The uow (declared inside the try) has been disposed — rolled back — by the time we get here.
             if (detachedTrace is not null)
                 await SaveDetachedTraceAsync(detachedTrace);
+        }
+    }
+
+    private sealed class ToolRunFlag
+    {
+        private volatile bool _value;
+        public bool Value => _value;
+        public void Set() => _value = true;
+    }
+
+    private sealed class ToolRunObserver(AIFunction inner, ToolRunFlag flag) : DelegatingAIFunction(inner)
+    {
+        protected override ValueTask<object?> InvokeCoreAsync(
+            AIFunctionArguments arguments, CancellationToken cancellationToken)
+        {
+            flag.Set();
+            return base.InvokeCoreAsync(arguments, cancellationToken);
         }
     }
 

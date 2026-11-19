@@ -187,6 +187,11 @@ Strictly one direction. Nothing downstream leaks upstream.
    plus tool results.
 6. Events are appended to a store, and the client tails them over SSE at `GET /api/turns/{id}/events`, resuming from
    `Last-Event-ID`. Close the laptop mid-turn; reopen it and the corpse is still warm.
+7. A turn does not run forever. Each attempt has an overall deadline (`GameSession:TurnDeadlineSeconds`, default 300),
+   and `POST /api/turns/{id}/cancel` asks to stop it: a turn nobody has started is cancelled on the spot, a running
+   one is stopped by its worker within about a second. Either way the outcome arrives on the event stream — and a turn
+   that had already committed still completes. A transient provider failure before any tool has run puts the turn back
+   on the queue for another attempt (three at most) instead of failing it.
 
 ## The stage machine
 

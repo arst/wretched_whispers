@@ -94,6 +94,105 @@ public class TurnQueueTests : SqliteTestBase
         Assert.Single(Db.TurnEvents);
     }
 
+    private async Task<(TurnQueue Queue, Guid TurnId)> EnqueueOneAsync()
+    {
+        var queue = new TurnQueue(Db, TimeProvider.System);
+        var queued = await queue.EnqueueAsync(
+            Guid.NewGuid(), UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None);
+        return (queue, queued.Turn!.Id);
+    }
+
+    [Fact]
+    public async Task RequestCancel_PendingTurn_FailsItOnTheSpot()
+    {
+        var (queue, turnId) = await EnqueueOneAsync();
+
+        Assert.Equal(TurnCancelResult.Cancelled, await queue.RequestCancelAsync(turnId, UserId, CancellationToken.None));
+
+        var turn = await queue.GetOwnedAsync(turnId, UserId, CancellationToken.None);
+        Assert.Equal(TurnStatus.Failed, turn!.Status);
+        Assert.Equal(TurnQueue.CancelledMessage, turn.TerminalError);
+        var terminal = Assert.Single(Db.TurnEvents);
+        Assert.Equal("error", terminal.EventType);
+        Assert.Contains(TurnQueue.CancelledMessage, terminal.Payload);
+        // No worker will ever pick it up.
+        Assert.Null(await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RequestCancel_RunningTurn_OnlyMarksIt_TheOwnerDecidesTheOutcome()
+    {
+        var (queue, turnId) = await EnqueueOneAsync();
+        await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+        Assert.False(await queue.IsCancelRequestedAsync(turnId, CancellationToken.None));
+
+        Assert.Equal(TurnCancelResult.Requested, await queue.RequestCancelAsync(turnId, UserId, CancellationToken.None));
+        // Idempotent.
+        Assert.Equal(TurnCancelResult.Requested, await queue.RequestCancelAsync(turnId, UserId, CancellationToken.None));
+
+        Assert.True(await queue.IsCancelRequestedAsync(turnId, CancellationToken.None));
+        var turn = await queue.GetOwnedAsync(turnId, UserId, CancellationToken.None);
+        Assert.Equal(TurnStatus.Running, turn!.Status);
+        Assert.Empty(Db.TurnEvents);
+        // The owner can still finalize either way — e.g. as completed when the commit won the race.
+        Assert.True(await queue.FinalizeAsync(turnId, "worker-a", null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RequestCancel_FinishedOrForeignTurn_ChangesNothing()
+    {
+        var (queue, turnId) = await EnqueueOneAsync();
+        await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+        await queue.FinalizeAsync(turnId, "worker-a", null, CancellationToken.None);
+
+        Assert.Equal(TurnCancelResult.AlreadyFinished,
+            await queue.RequestCancelAsync(turnId, UserId, CancellationToken.None));
+        Assert.Equal(TurnCancelResult.NotFound,
+            await queue.RequestCancelAsync(turnId, "someone-else", CancellationToken.None));
+        Assert.Equal(TurnCancelResult.NotFound,
+            await queue.RequestCancelAsync(Guid.NewGuid(), UserId, CancellationToken.None));
+
+        var turn = await queue.GetOwnedAsync(turnId, UserId, CancellationToken.None);
+        Assert.Equal(TurnStatus.Completed, turn!.Status);
+        Assert.Equal("done", Assert.Single(Db.TurnEvents).EventType);
+    }
+
+    [Fact]
+    public async Task Requeue_IsFencedByOwner_AndKeepsTheAttemptCount()
+    {
+        var (queue, turnId) = await EnqueueOneAsync();
+        await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+
+        Assert.False(await queue.RequeueAsync(turnId, "worker-b", CancellationToken.None));
+        Assert.True(await queue.RequeueAsync(turnId, "worker-a", CancellationToken.None));
+
+        var requeued = await queue.GetOwnedAsync(turnId, UserId, CancellationToken.None);
+        Assert.Equal(TurnStatus.Pending, requeued!.Status);
+        Assert.Equal(1, requeued.AttemptCount);
+        Assert.Empty(Db.TurnEvents);
+
+        var reclaimed = await queue.ClaimAsync("worker-b", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+        Assert.Equal(turnId, reclaimed!.Id);
+        Assert.Equal(2, reclaimed.AttemptCount);
+    }
+
+    [Fact]
+    public async Task Claim_RequeuedTurnWithACancelRequest_FailsItAsCancelled()
+    {
+        // The player cancelled while the turn was running; it was then requeued (or its owner died).
+        // The next claim must honour the cancel, not spend another attempt.
+        var (queue, turnId) = await EnqueueOneAsync();
+        await queue.ClaimAsync("worker-a", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+        await queue.RequestCancelAsync(turnId, UserId, CancellationToken.None);
+        await queue.RequeueAsync(turnId, "worker-a", CancellationToken.None);
+
+        var claimed = await queue.ClaimAsync("worker-b", TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+
+        Assert.Equal(TurnStatus.Failed, claimed!.Status);
+        Assert.Equal(TurnQueue.CancelledMessage, claimed.TerminalError);
+        Assert.Equal("error", Assert.Single(Db.TurnEvents).EventType);
+    }
+
     [Fact]
     public async Task Claim_ExhaustedExpiredLease_FailsTheTurn()
     {
