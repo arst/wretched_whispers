@@ -78,7 +78,7 @@ export async function readSse(
   return "eof";
 }
 
-function handleMessage(ev: SseMessage): "done" | "error" | undefined {
+export function handleMessage(ev: SseMessage): "done" | "error" | undefined {
   const s = useSessionStore.getState();
 
   switch (ev.event) {
@@ -105,10 +105,13 @@ function handleMessage(ev: SseMessage): "done" | "error" | undefined {
     case "done":
       s.finishStreaming();
       return "done";
+    case "reset":
+      s.resetStreaming();
+      break;
     case "error": {
       const data: SseErrorEvent = JSON.parse(ev.data);
       s.setError(data.message);
-      s.failStreaming();
+      s.discardStreaming();
       return "error";
     }
   }

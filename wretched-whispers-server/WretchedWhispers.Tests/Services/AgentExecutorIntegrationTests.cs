@@ -115,14 +115,15 @@ public class AgentExecutorIntegrationTests
     }
 
     [Fact]
-    public async Task PreToolFabrication_IsSuppressed_PostToolNarrationSurvives()
+    public async Task ProseBeforeATool_IsShown_InOrder_AheadOfTheToolResult()
     {
         var (tools, ctx) = ExplorationToolsAndContext();
 
-        // The model fabricates an outcome BEFORE calling the tool, then narrates after.
+        // The model writes, calls a tool, then writes again. Nothing is withheld: the player reads the
+        // first passage while the tool runs, and the events arrive in the order things happened.
         var client = new ScriptedChatClient(
             ChatResponses.TextThenToolCall(
-                "FABRICATED: you have already triumphed!", "call_1", "CreateEncounter",
+                "Something stirs in the muck.", "call_1", "CreateEncounter",
                 new()
                 {
                     ["name"] = "Grim",
@@ -131,19 +132,13 @@ public class AgentExecutorIntegrationTests
                 }),
             ChatResponses.Text("Grim claws free of the muck, doomed already."));
 
-        var executor = CreateExecutor(client);
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "Grim");
 
-        var events = new List<GameTurnEvent>();
-        await foreach (var evt in executor.ExecuteAsync(tools, ctx, Guid.NewGuid(), "Grim", CancellationToken.None))
-            events.Add(evt);
-
-        var narrative = string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text));
-
-        // Pre-tool fabrication is dropped; only the post-tool narration reaches the player.
-        Assert.DoesNotContain("FABRICATED", narrative);
-        Assert.Contains("Grim claws free", narrative);
-        // The tool still ran.
-        Assert.Contains(events.OfType<ToolResult>(), t => t.Function == "CreateEncounter");
+        Assert.Collection(events,
+            e => Assert.Equal("Something stirs in the muck.", Assert.IsType<NarrativeChunk>(e).Text),
+            e => Assert.Equal("CreateEncounter", Assert.IsType<ToolResult>(e).Function),
+            e => Assert.Equal("\n\nGrim claws free of the muck, doomed already.", Assert.IsType<NarrativeChunk>(e).Text),
+            e => Assert.IsType<AgentTrace>(e));
     }
 
     private static async Task<List<GameTurnEvent>> RunAsync(AgentExecutor executor, IReadOnlyList<AIFunction> tools,
@@ -156,32 +151,42 @@ public class AgentExecutorIntegrationTests
     }
 
     [Fact]
-    public async Task ProseBetweenToolRounds_IsSuppressed_OnlyTheFinalSegmentSurfaces()
+    public async Task ProseAroundSeveralToolRounds_AllSurfaces_AsSeparateParagraphs()
     {
-        // text -> tool -> text -> tool -> text. The middle prose was written after the first result but
-        // before the second, so it could not know the second outcome: only the last segment is trusted.
         var (tools, ctx) = ExplorationToolsAndContext();
         var client = new ScriptedChatClient(
-            ChatResponses.TextThenToolCall("FIRST: the fight is won.", "call_1", "CreateEncounter", new()
+            ChatResponses.TextThenToolCall("FIRST passage.", "call_1", "CreateEncounter", new()
             {
                 ["name"] = "Grim",
                 ["description"] = "Something moves in the muck",
                 ["initialEncounterType"] = "Hostile"
             }),
-            ChatResponses.TextThenToolCall("SECOND: you roll a six.", "call_2", "Roll", new()
+            ChatResponses.TextThenToolCall("SECOND passage.", "call_2", "Roll", new()
             {
                 ["diceExpression"] = "d6"
             }),
-            ChatResponses.Text("FINAL: the muck parts."));
+            ChatResponses.Text("FINAL passage."));
 
         var events = await RunAsync(CreateExecutor(client), tools, ctx, "Grim");
 
         var narrative = string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text));
-        Assert.Equal("FINAL: the muck parts.", narrative);
+        Assert.Equal("FIRST passage.\n\nSECOND passage.\n\nFINAL passage.", narrative);
         Assert.Equal(new[] { "CreateEncounter", "Roll" }, events.OfType<ToolResult>().Select(t => t.Function));
-        var trace = events.OfType<AgentTrace>().Single();
-        Assert.Contains("FIRST", trace.SuppressedNarrative);
-        Assert.Contains("SECOND", trace.SuppressedNarrative);
+    }
+
+    [Fact]
+    public async Task LongNarration_ArrivesInSeveralPieces_ThatJoinToTheOriginal()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var words = Enumerable.Range(0, 60).Select(i => $"word{i} ").ToArray();
+        var client = new ChunkedTextChatClient(words);
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "hello");
+
+        var chunks = events.OfType<NarrativeChunk>().Select(c => c.Text).ToList();
+        Assert.True(chunks.Count > 3, $"expected the narration in several pieces, got {chunks.Count}");
+        Assert.True(chunks.Count < words.Length / 2, "pieces should be coalesced, not one per model token");
+        Assert.Equal(string.Concat(words), string.Concat(chunks));
     }
 
     [Fact]

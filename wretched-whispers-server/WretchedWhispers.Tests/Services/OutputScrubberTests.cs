@@ -55,4 +55,65 @@ public class OutputScrubberTests
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", result);
         Assert.Contains("crawl from the dark.", result);
     }
+
+    // ---- StreamingScrubber: the same result, however the text is cut into pieces ----
+
+    private static string Stream(IEnumerable<string> pieces)
+    {
+        var scrubber = new StreamingScrubber();
+        var output = new System.Text.StringBuilder();
+        foreach (var piece in pieces)
+            output.Append(scrubber.Append(piece));
+        return output.Append(scrubber.Flush()).ToString();
+    }
+
+    public static TheoryData<string> StreamedTexts => new()
+    {
+        "The sludge rat 7504b8e9-3c59-47b6-b38b-96c0bb5f30bd lunges at you from the dark of the cellar.",
+        "You face the priest (id: 7504b8e9-3c59-47b6-b38b-96c0bb5f30bd) across the nave, and he laughs.",
+        "Two of them: 7504b8e9-3c59-47b6-b38b-96c0bb5f30bd and (11111111-2222-3333-4444-555555555555) wait.",
+        "No ids here at all — only a bad, faded cafe facade and a dead-end road (so they say) to Galgenbeck.",
+        "A decade of dread: 1234-5678 is no id, nor is deadbeef-dead-beef, nor a lone ( in the text.",
+    };
+
+    [Theory]
+    [MemberData(nameof(StreamedTexts))]
+    public void Streaming_OneCharacterAtATime_MatchesScrubbingTheWholeText(string text)
+    {
+        var expected = OutputScrubber.RedactGuids(text, out _);
+
+        Assert.Equal(expected, Stream(text.Select(c => c.ToString())));
+    }
+
+    [Theory]
+    [MemberData(nameof(StreamedTexts))]
+    public void Streaming_SplitAnywhere_MatchesScrubbingTheWholeText(string text)
+    {
+        var expected = OutputScrubber.RedactGuids(text, out _);
+
+        for (var cut = 0; cut <= text.Length; cut++)
+            Assert.Equal(expected, Stream([text[..cut], text[cut..]]));
+    }
+
+    [Fact]
+    public void Streaming_NeverReleasesAnyPartOfAGuid_BeforeItIsComplete()
+    {
+        const string text = "The sludge rat 7504b8e9-3c59-47b6-b38b-96c0bb5f30bd lunges at you from the dark.";
+        var scrubber = new StreamingScrubber();
+
+        foreach (var c in text)
+            Assert.DoesNotContain("7504", scrubber.Append(c.ToString()));
+
+        Assert.True(scrubber.Redacted);
+    }
+
+    [Fact]
+    public void Streaming_ReleasesPlainProseWithoutWaitingForTheEnd()
+    {
+        var scrubber = new StreamingScrubber();
+
+        var released = scrubber.Append("The chapel door hangs open, and the wind carries the smell of old smoke. ");
+
+        Assert.StartsWith("The chapel door hangs open", released);
+    }
 }

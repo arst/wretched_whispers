@@ -10,22 +10,21 @@ namespace WretchedWhispers.Engine.Services;
 
 /// <summary>
 /// Drives a single game-master turn on Microsoft Agent Framework: loads prior history, builds a
-/// <see cref="ChatClientAgent"/> scoped to the stage's tools, streams the run, and maps streamed
-/// content to <see cref="GameTurnEvent"/>s (narrative text + tool results).
+/// <see cref="ChatClientAgent"/> scoped to the stage's tools, and streams the run as
+/// <see cref="GameTurnEvent"/>s AS IT HAPPENS: narration in order as the model writes it (in small
+/// pieces, with leaked ids scrubbed), and each tool result when its tool finishes.
 ///
-/// Tools-authoritative guardrail (no fabricated outcomes): narration is split into segments, a new
-/// segment starting at every tool call. Only the LAST segment — written after every tool result was
-/// known — is surfaced to the player. Earlier segments described outcomes the model could not yet
-/// have known and are recorded as suppressed narrative in the turn trace. Turns with no tool calls
-/// are conversational: one segment, passed through unchanged.
+/// Nothing the model writes is withheld. Prose is not the source of truth: state changes only through
+/// tools, and the turn's authoritative outcome is the delta computed from committed state. Whether the
+/// model narrates outcomes it has not resolved is measured by the evals, not filtered here.
 ///
 /// Resilience note: a run that has executed a tool is never retried here. The function-invocation
 /// loop executes tools that mutate domain state inside the turn's open transaction, so re-running the
 /// loop would double-apply them (e.g. charge for an item twice). Transient HTTP retries are the
 /// transport's job — the Azure OpenAI client retries an individual model request without re-executing
 /// any tools whose results are already in the conversation. The one executor-level retry is for a run
-/// that produced NOTHING — no tool call and no text (an empty completion): no state changed, so
-/// running it once more is safe, and it saves the player from a failed turn.
+/// that produced NOTHING — no tool call and no text (an empty completion): no state changed and
+/// nothing was shown, so running it once more is safe, and it saves the player from a failed turn.
 /// </summary>
 public sealed class AgentExecutor(
     IChatClient chatClient,
@@ -72,43 +71,27 @@ public sealed class AgentExecutor(
         var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
         _metrics.Reset();
 
-        var run = await RunOnceAsync(agent, messages, ct);
+        var run = new RunState();
+        await foreach (var evt in RunOnceAsync(agent, messages, run, ct))
+            yield return evt;
+
         if (run.IsEmpty)
         {
             // Nothing ran and nothing was said: no state changed, so one more attempt is safe.
             logger.LogWarning("Empty model response with no tool calls; retrying the run once");
-            run = await RunOnceAsync(agent, messages, ct);
+            run = new RunState();
+            await foreach (var evt in RunOnceAsync(agent, messages, run, ct))
+                yield return evt;
         }
 
-        // Tools-authoritative: surface only the narration written after the last tool call.
-        var narrative = run.Segments[^1];
-        var suppressedSegments = run.Segments.Take(run.Segments.Count - 1).Where(t => t.Length > 0).ToList();
-
-        if (suppressedSegments.Count > 0)
-            logger.LogWarning(
-                "Suppressed {Count} narrative segment(s) written before a tool result was known",
-                suppressedSegments.Count);
-
-        // Output guardrail: strip any raw entity GUIDs the model leaked into the prose. The narrative
-        // is already buffered for the fabrication guardrail, so scrub the joined text (a leaked GUID
-        // is split across streamed sub-word chunks and would not match within a single chunk).
-        var scrubbed = OutputScrubber.RedactGuids(narrative, out var redacted);
-
         logger.LogInformation(
-            "Agent execution complete — {SegmentCount} narrative segments ({Suppressed} suppressed), {ToolCount} tool results, ids redacted: {Redacted}",
-            run.Segments.Count, suppressedSegments.Count, run.ToolResults.Count, redacted);
+            "Agent execution complete — {Chars} narrative chars, {ToolCount} tool results, ids redacted: {Redacted}",
+            run.NarrativeChars, run.ToolResults, run.Redacted);
 
-        if (scrubbed.Length > 0)
-            yield return new NarrativeChunk(scrubbed);
-
-        foreach (var toolResult in run.ToolResults)
-            yield return toolResult;
-
-        // Out-of-band trace (last): carries the tool-call args and suppressed prose the player-facing
-        // events don't expose, so the TurnCoordinator can persist a complete turn trace. Not streamed.
-        var suppressed = suppressedSegments.Count > 0 ? string.Join("\n\n", suppressedSegments) : null;
+        // Out-of-band trace (last): carries what the player-facing events don't expose, so the
+        // TurnCoordinator can persist a complete turn trace. Not streamed.
         yield return new AgentTrace(
-            run.ToolCalls, suppressed,
+            run.ToolCalls,
             ModelId: _metrics.ModelId,
             PromptHash: HashPrompt(instructions),
             InputTokens: _metrics.InputTokens,
@@ -121,20 +104,35 @@ public sealed class AgentExecutor(
         Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(instructions)));
 
-    /// <summary>What one agent run produced. <see cref="Segments"/> always has at least one entry: the
-    /// narration before the first tool call, then one more per tool call.</summary>
-    private sealed record RunResult(
-        IReadOnlyList<string> Segments, IReadOnlyList<ToolCallTrace> ToolCalls, IReadOnlyList<ToolResult> ToolResults)
+    /// <summary>What one agent run has produced so far.</summary>
+    private sealed class RunState
     {
-        public bool IsEmpty => ToolCalls.Count == 0 && ToolResults.Count == 0 && Segments.All(t => t.Length == 0);
+        public List<ToolCallTrace> ToolCalls { get; } = [];
+        public int ToolResults { get; set; }
+        public int NarrativeChars { get; set; }
+        public bool Redacted { get; set; }
+        public bool IsEmpty => ToolCalls.Count == 0 && ToolResults == 0 && NarrativeChars == 0;
     }
 
-    private async Task<RunResult> RunOnceAsync(AIAgent agent, List<ChatMessage> messages, CancellationToken ct)
+    private async IAsyncEnumerable<GameTurnEvent> RunOnceAsync(
+        AIAgent agent, List<ChatMessage> messages, RunState run, [EnumeratorCancellation] CancellationToken ct)
     {
-        var segments = new List<System.Text.StringBuilder> { new() };
-        var toolResults = new List<ToolResult>();
-        var toolCalls = new List<ToolCallTrace>();
+        var scrubber = new StreamingScrubber();
         var callNames = new Dictionary<string, string>();
+        // Prose on either side of a tool round is separate paragraphs, however the model spaced it.
+        var breakBeforeNextText = false;
+
+        NarrativeChunk? Narrate(string text)
+        {
+            if (text.Length == 0) return null;
+            if (breakBeforeNextText)
+            {
+                text = "\n\n" + text.TrimStart();
+                breakBeforeNextText = false;
+            }
+            run.NarrativeChars += text.Length;
+            return new NarrativeChunk(text);
+        }
 
         // Stateless run: we own the full conversation (loaded + summarized from our own store and
         // passed in `messages`), so we pass no MAF session/thread rather than calling CreateSessionAsync
@@ -146,16 +144,18 @@ public sealed class AgentExecutor(
                 switch (content)
                 {
                     case TextContent text when !string.IsNullOrEmpty(text.Text):
-                        segments[^1].Append(text.Text);
+                        if (Narrate(scrubber.Append(text.Text)) is { } chunk)
+                            yield return chunk;
                         break;
                     case FunctionCallContent call:
-                        // Anything written from here on may know this call's result; anything before
-                        // could not.
-                        segments.Add(new System.Text.StringBuilder());
+                        // The model stops writing while its tool runs: show what it has written so far.
+                        if (Narrate(scrubber.Flush()) is { } beforeTool)
+                            yield return beforeTool;
+                        breakBeforeNextText = run.NarrativeChars > 0;
                         if (call.CallId is not null) callNames[call.CallId] = call.Name;
                         // Capture name + args for the turn trace (offline error analysis). Args are the
                         // valuable part — e.g. which itemDescription or dice expr the model passed.
-                        toolCalls.Add(new ToolCallTrace(call.Name, SerializeArgs(call.Arguments)));
+                        run.ToolCalls.Add(new ToolCallTrace(call.Name, SerializeArgs(call.Arguments)));
                         // Debug, not Information: args are model-generated and carry player-derived free
                         // text, which must not land in central logs by default. The durable always-on
                         // record of every invocation is the turn trace the coordinator persists.
@@ -165,14 +165,17 @@ public sealed class AgentExecutor(
                         var name = result.CallId is not null && callNames.TryGetValue(result.CallId, out var n)
                             ? n
                             : "unknown";
-                        toolResults.Add(new ToolResult(name, result.Result?.ToString() ?? ""));
+                        run.ToolResults++;
                         logger.LogDebug("Tool result: {Tool} -> {Result}", name, result.Result);
+                        yield return new ToolResult(name, result.Result?.ToString() ?? "");
                         break;
                 }
             }
         }
 
-        return new RunResult(segments.Select(b => b.ToString()).ToList(), toolCalls, toolResults);
+        if (Narrate(scrubber.Flush()) is { } rest)
+            yield return rest;
+        run.Redacted = scrubber.Redacted;
     }
 
     private static string? SerializeArgs(IDictionary<string, object?>? arguments)

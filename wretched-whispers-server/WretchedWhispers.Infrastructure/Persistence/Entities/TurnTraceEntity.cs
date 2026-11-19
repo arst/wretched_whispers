@@ -33,10 +33,12 @@ public class TurnTraceEntity
     /// </summary>
     public string? TurnDeltaJson { get; set; }
 
-    /// <summary>Pre-tool prose the fabrication guardrail suppressed (the model's attempted fabrication), if any.</summary>
+    /// <summary>Legacy: prose a former guardrail withheld from the player. No longer written — all
+    /// narration is shown and lands in <see cref="Narrative"/> — but older rows still carry it.</summary>
     public string? SuppressedNarrative { get; set; }
 
-    /// <summary>The narrative actually shown to the player.</summary>
+    /// <summary>The narrative shown to the player (for a turn that did not commit: what had streamed
+    /// before it stopped, which the client then discarded).</summary>
     public string Narrative { get; set; } = string.Empty;
 
     // ---- Coverage and comparability. All nullable: rows written before these columns existed have

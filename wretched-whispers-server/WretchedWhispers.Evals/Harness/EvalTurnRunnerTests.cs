@@ -149,6 +149,47 @@ public class EvalTurnRunnerTests
     }
 
     [Fact]
+    public async Task Narrative_IsEverythingShown_AndTheProseBeforeTheToolIsSeparable()
+    {
+        // Plumbing for Combat-NoOutcomeBeforeTheRoll: nothing the model writes is withheld, and the
+        // part it wrote before any tool result is available to judge by itself.
+        var client = new ScriptedChatClient(
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, new List<AIContent>
+            {
+                new TextContent("You raise your staff."),
+                new FunctionCallContent("call_1", "ResolveCombatRound", new Dictionary<string, object?>
+                {
+                    ["action"] = "Attack",
+                    ["targetAdversaryName"] = "Priest",
+                })
+            })),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "The blow lands true.")));
+
+        await using var host = await EvalHost.CreateCombatAsync(client);
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I strike the priest!", TestContext.Current.CancellationToken);
+
+        Assert.Null(outcome.Error);
+        Assert.Equal("You raise your staff.", outcome.NarrativeBeforeTools);
+        Assert.Equal("You raise your staff.\n\nThe blow lands true.", outcome.Narrative);
+    }
+
+    [Fact]
+    public async Task NoToolTurn_HasNoNarrativeBeforeTools()
+    {
+        var client = new ScriptedChatClient(
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "The priest watches you, unblinking.")));
+
+        await using var host = await EvalHost.CreateCombatAsync(client);
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync("I wait.", TestContext.Current.CancellationToken);
+
+        Assert.Equal("", outcome.NarrativeBeforeTools);
+        Assert.Equal("The priest watches you, unblinking.", outcome.Narrative);
+    }
+
+    [Fact]
     public async Task TwoTurns_ShareState_AcrossSeparateScopes()
     {
         // Turn 1: the model asks for a name, no tools (1 response).
