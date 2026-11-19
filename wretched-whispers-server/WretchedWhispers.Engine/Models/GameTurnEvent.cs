@@ -89,7 +89,9 @@ public record TurnDelta(
         ToughnessChange == 0 && MiseryChange == 0 && NewAfflictions.Length == 0 && !Died && !WorldEnded;
 }
 
-public record TurnError(string Message) : GameTurnEvent("error");
+/// <summary><paramref name="Retryable"/>: the failure was transient and the turn changed nothing, so
+/// running it again is safe. A hint for the <see cref="Services.TurnWorker"/>; never sent to the client.</summary>
+public record TurnError(string Message, [property: JsonIgnore] bool Retryable = false) : GameTurnEvent("error");
 
 public record TurnDone() : GameTurnEvent("done");
 

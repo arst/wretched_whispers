@@ -39,6 +39,11 @@ public sealed record SessionMessagesDto(
 
 public sealed record TurnResponse(Guid TurnId, string? Error);
 
+/// <summary><c>cancelled</c>: the turn had not started and is now failed. <c>cancelling</c>: it is
+/// running and has been asked to stop — its event stream ends with the real outcome (an error, or
+/// <c>done</c> if it had already committed). <c>finished</c>: it had already ended; nothing changed.</summary>
+public sealed record TurnCancelResponse(string Status);
+
 public sealed record CsrfTokenDto(string Token);
 
 public sealed record CurrentUserDto(string UserId);

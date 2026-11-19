@@ -178,6 +178,18 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // Cancelling real turns is TurnQueueTests' and TurnWorkerTests' business, for the same reason as
+    // below; here only the route, auth scope and the not-found mapping.
+    [Fact]
+    public async Task CancelTurn_UnknownTurn_ReturnsNotFound()
+    {
+        var user = await RegisterAndLogin($"turn-cancel-{Guid.NewGuid():N}@test.com");
+
+        var response = await user.Post($"/api/turns/{Guid.NewGuid()}/cancel", new { });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     // Idempotency and request-id reuse are TurnQueueTests' business — exercising them here would
     // enqueue real rows for the hosted TurnWorker to claim out from under the other tests.
     [Theory]

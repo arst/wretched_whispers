@@ -336,6 +336,9 @@ namespace WretchedWhispers.Infrastructure.Migrations
                     b.Property<Guid>("CampaignId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("CancelRequestedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("ClientRequestId")
                         .HasColumnType("TEXT");
 

@@ -345,6 +345,9 @@ namespace WretchedWhispers.Infrastructure.Migrations.Postgres
                     b.Property<Guid>("CampaignId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CancelRequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("ClientRequestId")
                         .HasColumnType("uuid");
 

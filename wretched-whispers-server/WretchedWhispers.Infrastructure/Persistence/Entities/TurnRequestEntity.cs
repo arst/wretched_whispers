@@ -18,4 +18,8 @@ public sealed class TurnRequestEntity
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? TerminalError { get; set; }
+
+    /// <summary>Set when the player asks to cancel a RUNNING turn. The lease owner sees it, stops the
+    /// run and decides the outcome — a cancel request never finalizes a running turn by itself.</summary>
+    public DateTime? CancelRequestedAt { get; set; }
 }

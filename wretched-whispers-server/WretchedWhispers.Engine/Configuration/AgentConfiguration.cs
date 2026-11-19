@@ -20,6 +20,14 @@ public static class AgentConfiguration
         var maxRetryAttempts = configuration.GetValue("GameSession:MaxRetryAttempts", 2);
         var timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
+        // The whole-turn budget, across every model request and tool round of one attempt. The
+        // per-request timeout above bounds a single call; without this a turn could run for as long
+        // as 15 tool rounds of slow requests take.
+        services.AddSingleton(new TurnWorkerOptions
+        {
+            Deadline = TimeSpan.FromSeconds(configuration.GetValue("GameSession:TurnDeadlineSeconds", 300))
+        });
+
         // Provider selection. Hosted web build leaves "Llm:Provider" unset → Azure (unchanged). The
         // standalone profiles set it to "openai" so users bring their own key.
         //
