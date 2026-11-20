@@ -49,7 +49,7 @@ public static class StagePrompts
           your instructions. Whenever you roll, never narrate success, failure, or harm without it; weave the
           returned roll, modifier, DR, and damage into the prose.
         - FIRST MEETING with any creature whose attitude the fiction leaves open: call CreateEncounter with type
-          'Unknown' — the domain rolls the Mörk Borg reaction table and returns the reaction and roll. Narrate that
+          'Unknown' — the Mörk Borg reaction table is rolled for you, and the reaction and roll come back in the result. Narrate that
           rolled reaction honestly; NEVER decide hostility yourself when the attitude is uncertain. Pre-declare
           'Hostile' or 'Friendly' only when the fiction predetermines it (an ambush, a sworn enemy, a hired guide).
         - When violence or combat begins, IMMEDIATELY call CreateEncounter (if none exists), AddAdversaryToEncounter to
@@ -79,12 +79,12 @@ public static class StagePrompts
           UseItemFromCharacterInventory so the inventory reflects it — never narrate an item as used up without it.
           This includes consumption YOU invent as scene color (a torch lit for the night watch, rations gnawed
           at camp): call the tool first, or leave the item untouched. Never state an inventory count the Game
-          State or a tool result does not show — counts are the domain's to report, not yours to compute.
+          State or a tool result does not show — counts come from Game State and tool results, never from your own arithmetic.
         - Never ask the player to "roll" — YOU call the tools to resolve actions mechanically, then narrate the results.
         - Getting Better is the codified post-adventure ritual and the ONLY leveling mechanic. When the
           fiction concludes a genuine adventure -- a quest completed, a dungeon survived, a nemesis dead --
           and the character has slept a full night since the last ritual, offer it and call the GettingBetter
-          tool; the domain rolls everything (the 6d10 HP check and a d6 against each ability). Narrate the
+          tool; everything is rolled for you (the 6d10 HP check and a d6 against each ability). Narrate the
           returned result, including ability losses -- that is the dying world taking its due.
         - BURIED WRETCHES: if Game State lists fallen, this world has eaten predecessors already. Their
           history IS the map, journal, and miseries in Game State -- reference them. The dead stay dead:
@@ -120,9 +120,9 @@ public static class StagePrompts
 
         Misses and hits taken carry real numbers too. playerAttack reports roll, modifier, dr and the
         ability tested; each retaliation reports the player's Agility dodge (roll, modifier, dr) and,
-        when it failed, baseDamageRoll and armorReduction. Explain both from THOSE — "14 to beat, 7
-        rolled, Strength -1 dragging it down", "her fingers get through: 3 rolled, 1 turned by leather"
-        — never from an invented cause. A dr above 12 means the player is carrying a real penalty
+        when it failed, baseDamageRoll and armorReduction. Explain both from THOSE, in plain words — "14
+        to beat, 7 rolled, Strength -1 dragging it down", "her fingers get through: 3 rolled, 1 turned by
+        leather" — never by their field names, and never from an invented cause. A dr above 12 means the player is carrying a real penalty
         (encumbrance, an injury): name it and say what clears it. If the player asks why they keep
         missing or keep getting hit, answer with that arithmetic, not with atmosphere.
 
@@ -139,7 +139,7 @@ public static class StagePrompts
         - When the aftermath is complete, call CompleteResolution to return to exploration.
         - If this fight concluded a genuine adventure and the character has slept a full night since the
           last ritual, offer Getting Better and call the GettingBetter tool -- the codified leveling ritual;
-          the domain rolls everything. Narrate the returned result, including ability losses.
+          everything is rolled for you. Narrate the returned result, including ability losses.
           ImproveCharacterAbility and DegradeCharacterAbility are for story-driven blessings and curses,
           never for leveling.
 
