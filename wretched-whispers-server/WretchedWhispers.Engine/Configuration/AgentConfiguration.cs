@@ -95,6 +95,7 @@ public static class AgentConfiguration
         services.AddScoped<IAgentToolProvider, AgentToolProvider>();
         services.AddScoped<IAgentExecutor, AgentExecutor>();
         services.AddScoped<ChatHistoryReducer>();
+        services.AddScoped<IHistorySummarizer>(sp => sp.GetRequiredService<ChatHistoryReducer>());
         services.AddScoped<PromptComposer>();
 
         // The stage-scoped game-tool classes (CharacterTools/CampaignTools/EncounterTools/DiceTools)

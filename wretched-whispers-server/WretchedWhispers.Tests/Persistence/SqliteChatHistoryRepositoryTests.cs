@@ -192,6 +192,31 @@ public sealed class SqliteChatHistoryRepositoryTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task TrySaveSummary_OnlyAdvancesFromTheWatermarkItExpects()
+    {
+        var sessionId = await _repo.CreateSession(Guid.NewGuid());
+
+        // First pass read "nothing covered" and wins.
+        Assert.True(await _repo.TrySaveSummary(sessionId, new ChatSummary("first", 100), expectedCoveredCount: 0));
+        // A slower pass that also read "nothing covered" must not overwrite it.
+        Assert.False(await _repo.TrySaveSummary(sessionId, new ChatSummary("stale", 80), expectedCoveredCount: 0));
+
+        var summary = await _repo.GetSummary(sessionId);
+        Assert.Equal("first", summary!.Text);
+        Assert.Equal(100, summary.CoveredCount);
+
+        // The next pass, having read the current watermark, advances it.
+        Assert.True(await _repo.TrySaveSummary(sessionId, new ChatSummary("second", 150), expectedCoveredCount: 100));
+        Assert.Equal(150, (await _repo.GetSummary(sessionId))!.CoveredCount);
+    }
+
+    [Fact]
+    public async Task TrySaveSummary_UnknownSession_SavesNothing()
+    {
+        Assert.False(await _repo.TrySaveSummary(Guid.NewGuid(), new ChatSummary("x", 1), expectedCoveredCount: 0));
+    }
+
+    [Fact]
     public async Task SaveSummary_UnknownSession_Throws()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(

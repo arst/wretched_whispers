@@ -240,8 +240,10 @@ be catastrophic: it executes state-mutating tools inside the turn's transaction,
 twice. Retrying one request never re-runs a tool whose result is already in the conversation.
 
 **Long sessions get summarized, not truncated.** `ChatHistoryReducer` folds older messages into a single system message
-that preserves game state and tone, keeping the recent tail verbatim. The full history stays in the database; only the
-model's working context is bounded.
+that preserves the story and tone, keeping the recent tail verbatim. The full history stays in the database; only the
+model's working context is bounded. Summarizing never runs on the player's time: a turn only reads the stored summary,
+and the summary is rolled forward after the turn has committed and its stream has ended, outside the turn's transaction
+and session lock. It is saved only if nobody else advanced it meanwhile, so a slow summary cannot overwrite a newer one.
 
 **Deployment profiles are compile-time constants, not runtime flags.** `-p:DeploymentProfile=Server|StandaloneContainer|Desktop`
 sets a `DefineConstants` symbol. The Desktop profile is the only build that compiles `Desktop/**` or references

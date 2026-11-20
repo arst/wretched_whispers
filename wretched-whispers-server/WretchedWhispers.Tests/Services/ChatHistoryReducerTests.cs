@@ -25,86 +25,125 @@ public sealed class ChatHistoryReducerTests
                 It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, text)));
 
-    [Fact]
-    public async Task UnderThreshold_NoStoredSummary_ReturnsHistoryUnchanged_NoModelCall()
-    {
-        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ChatSummary?)null);
-
-        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(10), CancellationToken.None);
-
-        Assert.Equal(10, result.Count);
+    private void VerifyNoModelCall() =>
         _chatClient.Verify(c => c.GetResponseAsync(
             It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()),
             Times.Never);
+
+    private void SetupStored(ChatSummary? summary, int messages)
+    {
+        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>())).ReturnsAsync(summary);
+        _repo.Setup(r => r.LoadSession(_sessionId, It.IsAny<CancellationToken>())).ReturnsAsync(Messages(messages));
+    }
+
+    // ---- ComposeAsync: what a turn sends the model. Read-only, whatever the history's length. ----
+
+    [Fact]
+    public async Task Compose_NoStoredSummary_ReturnsHistoryUnchanged()
+    {
+        SetupStored(null, 0);
+
+        var result = await CreateReducer().ComposeAsync(_sessionId, Messages(10), CancellationToken.None);
+
+        Assert.Equal(10, result.Count);
+        VerifyNoModelCall();
     }
 
     [Fact]
-    public async Task UnderThreshold_WithStoredSummary_PrependsSummary_SkipsCoveredMessages()
+    public async Task Compose_WithStoredSummary_PrependsSummary_SkipsCoveredMessages()
     {
-        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ChatSummary("earlier doom", 50));
+        SetupStored(new ChatSummary("earlier doom", 50), 0);
 
-        // 120 total, 50 covered -> tail of 70, under threshold: summary + 70 messages, no model call.
-        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(120), CancellationToken.None);
+        var result = await CreateReducer().ComposeAsync(_sessionId, Messages(120), CancellationToken.None);
 
         Assert.Equal(71, result.Count);
         Assert.Equal(ChatRole.System, result[0].Role);
         Assert.Contains("earlier doom", result[0].Text);
         Assert.Equal("msg 50", result[1].Text);
-        _chatClient.Verify(c => c.GetResponseAsync(
-            It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+        VerifyNoModelCall();
     }
 
     [Fact]
-    public async Task OverThreshold_SummarizesTail_AdvancesWatermark()
+    public async Task Compose_OverThreshold_StillNeverSummarizesOrWrites()
     {
-        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ChatSummary?)null);
-        SetupSummarizerResponse("fresh summary");
+        // The turn must not wait on a summary: even far past the threshold, composing only reads.
+        SetupStored(new ChatSummary("earlier doom", 20), 0);
 
-        // 200 messages, none covered -> summarize oldest 100, keep 100.
-        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(200), CancellationToken.None);
+        var result = await CreateReducer().ComposeAsync(_sessionId, Messages(200), CancellationToken.None);
 
-        Assert.Equal(101, result.Count);
-        Assert.Contains("fresh summary", result[0].Text);
-        _repo.Verify(r => r.SaveSummary(
-            _sessionId,
-            It.Is<ChatSummary>(s => s.Text == "fresh summary" && s.CoveredCount == 100),
-            It.IsAny<CancellationToken>()));
-    }
-
-    [Fact]
-    public async Task OverThreshold_EmptySummarizerResponse_DoesNotAdvanceWatermark()
-    {
-        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ChatSummary("kept", 20));
-        SetupSummarizerResponse("   ");
-
-        // 200 total, 20 covered -> tail 180 over threshold, but summarization fails.
-        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(200), CancellationToken.None);
-
+        Assert.Equal(181, result.Count); // the stored summary + all 180 uncovered messages
+        VerifyNoModelCall();
         _repo.Verify(r => r.SaveSummary(It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        Assert.Contains("kept", result[0].Text);   // stored summary still leads
-        Assert.Equal(101, result.Count);           // stored summary + recent 100
+        _repo.Verify(r => r.TrySaveSummary(
+            It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ---- SummarizeIfDueAsync: the post-turn pass ----
+
+    [Fact]
+    public async Task Summarize_UnderThreshold_DoesNothing()
+    {
+        SetupStored(new ChatSummary("earlier doom", 50), messages: 120); // 70 uncovered
+
+        Assert.False(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
+
+        VerifyNoModelCall();
     }
 
     [Fact]
-    public async Task OverThreshold_SaveSummaryThrows_ReturnsFreshSummaryAnyway()
+    public async Task Summarize_OverThreshold_FoldsOlderMessagesIn_AndAdvancesTheWatermarkFromWhatItRead()
     {
-        _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ChatSummary?)null);
+        SetupStored(new ChatSummary("earlier doom", 20), messages: 200); // 180 uncovered -> fold 80, keep 100
         SetupSummarizerResponse("fresh summary");
-        _repo.Setup(r => r.SaveSummary(It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("db unavailable"));
+        IEnumerable<ChatMessage>? sent = null;
+        _chatClient
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()))
+            .Callback<IEnumerable<ChatMessage>, ChatOptions?, CancellationToken>((m, _, _) => sent = m.ToList())
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "fresh summary")));
+        _repo.Setup(r => r.TrySaveSummary(
+                _sessionId, It.IsAny<ChatSummary>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
-        // 200 messages, none covered -> summarize oldest 100, keep 100; save fails but must not throw.
-        var result = await CreateReducer().ReduceAsync(_sessionId, Messages(200), CancellationToken.None);
+        Assert.True(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
 
-        Assert.Equal(101, result.Count);
-        Assert.Contains("fresh summary", result[0].Text);
+        // The previous summary plus messages 20..99 went to the summarizer.
+        Assert.NotNull(sent);
+        Assert.Equal(81, sent!.Count());
+        Assert.Contains("earlier doom", sent.First().Text);
+        Assert.Equal("msg 20", sent.ElementAt(1).Text);
+        Assert.Equal("msg 99", sent.Last().Text);
+        _repo.Verify(r => r.TrySaveSummary(
+            _sessionId,
+            It.Is<ChatSummary>(s => s.Text == "fresh summary" && s.CoveredCount == 100),
+            20,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Summarize_EmptySummarizerResponse_SavesNothing()
+    {
+        SetupStored(new ChatSummary("kept", 20), messages: 200);
+        SetupSummarizerResponse("   ");
+
+        Assert.False(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
+
+        _repo.Verify(r => r.TrySaveSummary(
+            It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Summarize_WatermarkMovedMeanwhile_ReportsNothingSaved()
+    {
+        // Another pass finished first: the guarded save writes nothing, and this result is dropped.
+        SetupStored(null, messages: 200);
+        SetupSummarizerResponse("late summary");
+        _repo.Setup(r => r.TrySaveSummary(
+                _sessionId, It.IsAny<ChatSummary>(), 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        Assert.False(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
     }
 
     [Fact]

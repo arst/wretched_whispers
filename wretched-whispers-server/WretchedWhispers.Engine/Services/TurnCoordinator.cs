@@ -47,13 +47,26 @@ public sealed class TurnCoordinator(
         string playerMessage,
         Guid? turnId = null,
         CancellationToken ct = default,
-        int? attempt = null) =>
-        RunProducer(
-            (writer, token) => ProduceEventsAsync(writer, sessionId, playerMessage, token, turnId, attempt),
+        int? attempt = null)
+    {
+        var after = new AfterTurn();
+        return RunProducer(
+            (writer, token) => ProduceEventsAsync(writer, sessionId, playerMessage, token, turnId, attempt, after),
+            () => after.CommittedChatSessionId is { } chatSessionId
+                ? SummarizeAfterTurnAsync(chatSessionId)
+                : Task.CompletedTask,
             ct);
+    }
+
+    /// <summary>Set by a turn that committed: the chronicle whose summary may now be due.</summary>
+    private sealed class AfterTurn
+    {
+        public Guid? CommittedChatSessionId { get; set; }
+    }
 
     private static async IAsyncEnumerable<GameTurnEvent> RunProducer(
         Func<ChannelWriter<GameTurnEvent>, CancellationToken, Task> produce,
+        Func<Task> afterCompleted,
         [EnumeratorCancellation] CancellationToken ct)
     {
         var channel = Channel.CreateUnbounded<GameTurnEvent>(new UnboundedChannelOptions
@@ -62,7 +75,7 @@ public sealed class TurnCoordinator(
             SingleReader = true
         });
 
-        _ = ProduceAndCompleteAsync(produce, channel.Writer, ct);
+        _ = ProduceAndCompleteAsync(produce, afterCompleted, channel.Writer, ct);
 
         await foreach (var item in channel.Reader.ReadAllAsync(ct))
             yield return item;
@@ -70,6 +83,7 @@ public sealed class TurnCoordinator(
 
     private static async Task ProduceAndCompleteAsync(
         Func<ChannelWriter<GameTurnEvent>, CancellationToken, Task> produce,
+        Func<Task> afterCompleted,
         ChannelWriter<GameTurnEvent> writer,
         CancellationToken ct)
     {
@@ -81,6 +95,32 @@ public sealed class TurnCoordinator(
         catch (Exception ex)
         {
             writer.Complete(ex);
+            return;
+        }
+
+        // The reader's stream has ended — the player has their turn. What follows runs on this
+        // detached producer task and delays nobody.
+        await afterCompleted();
+    }
+
+    /// <summary>
+    /// Rolls the chronicle's summary forward if it is due. Runs after the turn committed, released its
+    /// session lock and completed its stream, on a fresh scope — so neither this player nor the
+    /// session's next turn waits on the summarizer's model call. Best-effort: on any failure nothing
+    /// was saved and the pass after the next turn tries again.
+    /// </summary>
+    private async Task SummarizeAfterTurnAsync(Guid chatSessionId)
+    {
+        try
+        {
+            using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            await using var scope = scopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IHistorySummarizer>()
+                .SummarizeIfDueAsync(chatSessionId, limit.Token);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Post-turn summarization failed — ChatSession={ChatSessionId}", chatSessionId);
         }
     }
 
@@ -90,7 +130,8 @@ public sealed class TurnCoordinator(
         string playerMessage,
         CancellationToken ct,
         Guid? turnId,
-        int? attempt)
+        int? attempt,
+        AfterTurn after)
     {
         using var activity = AgentToolProvider.ActivitySource.StartActivity("TurnCoordinator.ExecuteTurnAsync");
         activity?.SetTag("session.id", sessionId.ToString());
@@ -224,6 +265,7 @@ public sealed class TurnCoordinator(
 
             await uow.CommitAsync(ct);
             committed = true;
+            after.CommittedChatSessionId = chatSessionId;
 
             // Reload post-commit so the client sees committed state.
             var postTurnContext = await contextLoader.LoadAsync(sessionId, ct);
