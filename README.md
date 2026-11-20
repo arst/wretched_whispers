@@ -190,7 +190,8 @@ Strictly one direction. Nothing downstream leaks upstream.
    `Last-Event-ID`. Close the laptop mid-turn; reopen it and the corpse is still warm. Narration reaches the player
    *before* the turn commits, so it is provisional: a turn that fails ends with an `error` event and the client drops
    what streamed, and a retried attempt opens with a `reset` event that voids the earlier attempt's text. Only the
-   delta, the committed state and `done` are emitted after the commit.
+   delta, the committed state and `done` are emitted after the commit. The endpoint checks the store every 250 ms
+   (`GameSession:EventPollMilliseconds`), which is the pace the text reaches the player at.
 7. A turn does not run forever. Each attempt has an overall deadline (`GameSession:TurnDeadlineSeconds`, default 300),
    and `POST /api/turns/{id}/cancel` asks to stop it: a turn nobody has started is cancelled on the spot, a running
    one is stopped by its worker within about a second. Either way the outcome arrives on the event stream — and a turn

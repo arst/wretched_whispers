@@ -10,10 +10,17 @@ using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Api.Endpoints;
 
+/// <summary>How the events endpoint tails a turn. <see cref="PollInterval"/> is the longest a saved
+/// event waits before it is relayed to the client; keepalives are sent on their own, slower beat.</summary>
+public sealed record TurnEventTailOptions(TimeSpan PollInterval, TimeSpan KeepaliveInterval)
+{
+    public static TurnEventTailOptions From(IConfiguration configuration) => new(
+        TimeSpan.FromMilliseconds(Math.Max(20, configuration.GetValue("GameSession:EventPollMilliseconds", 250))),
+        TimeSpan.FromSeconds(1));
+}
+
 public static class TurnEndpoints
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
-
     public static RouteGroupBuilder MapTurnEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/sessions/{sessionId:guid}/turns", Submit)
@@ -63,7 +70,7 @@ public static class TurnEndpoints
     /// </summary>
     private static async Task<Results<ServerSentEventsResult<string>, NotFound>> Events(
         Guid turnId, HttpContext http, IUserContext user,
-        TurnQueue queue, TurnEventStore store, CancellationToken ct)
+        TurnQueue queue, TurnEventStore store, IConfiguration configuration, CancellationToken ct)
     {
         var turn = await queue.GetOwnedAsync(turnId, user.UserId, ct);
         if (turn is null)
@@ -73,14 +80,22 @@ public static class TurnEndpoints
         var alreadyFinished = turn.Status is TurnStatus.Completed or TurnStatus.Failed;
 
         return TypedResults.ServerSentEvents(
-            Stream(store, turnId, from, alreadyFinished, turn.TerminalError, ct));
+            TailAsync(store, turnId, from, alreadyFinished, turn.TerminalError,
+                TurnEventTailOptions.From(configuration), ct));
     }
 
-    private static async IAsyncEnumerable<SseItem<string>> Stream(
+    /// <summary>
+    /// Yields the turn's stored events after <paramref name="from"/>, then keeps checking the store
+    /// for more until the terminal event. The worker running the turn may be another process, so the
+    /// store is the only meeting point: narration streams to the player at the pace of
+    /// <see cref="TurnEventTailOptions.PollInterval"/>.
+    /// </summary>
+    public static async IAsyncEnumerable<SseItem<string>> TailAsync(
         TurnEventStore store, Guid turnId, long from, bool alreadyFinished, string? terminalError,
-        [EnumeratorCancellation] CancellationToken ct)
+        TurnEventTailOptions options, [EnumeratorCancellation] CancellationToken ct)
     {
         var sequence = from;
+        var sinceLastSend = System.Diagnostics.Stopwatch.StartNew();
 
         while (!ct.IsCancellationRequested)
         {
@@ -103,6 +118,7 @@ public static class TurnEndpoints
                 {
                     EventId = item.Sequence.ToString()
                 };
+                sinceLastSend.Restart();
                 if (item.EventType is "done" or "error")
                     yield break;
             }
@@ -118,11 +134,17 @@ public static class TurnEndpoints
                 yield break;
             }
 
-            yield return new SseItem<string>("", "keepalive");
+            // Keepalives hold the connection open through a quiet stretch (a tool running, a slow
+            // model). They keep their own beat: checking the store more often must not mean more of them.
+            if (sinceLastSend.Elapsed >= options.KeepaliveInterval)
+            {
+                yield return new SseItem<string>("", "keepalive");
+                sinceLastSend.Restart();
+            }
 
             try
             {
-                await Task.Delay(PollInterval, ct);
+                await Task.Delay(options.PollInterval, ct);
             }
             catch (OperationCanceledException)
             {
