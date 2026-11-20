@@ -49,4 +49,12 @@ public interface IChatHistoryRepository
     Task SaveRecap(Guid sessionId, ChatRecap recap, CancellationToken ct = default);
     Task<ChatSummary?> GetSummary(Guid sessionId, CancellationToken ct = default);
     Task SaveSummary(Guid sessionId, ChatSummary summary, CancellationToken ct = default);
+
+    /// <summary>
+    /// Saves the summary only if the stored watermark is still <paramref name="expectedCoveredCount"/>
+    /// — the value the caller read before it started summarizing. False means another summarizer got
+    /// there first and nothing was written, so a slow summary can never overwrite a newer one.
+    /// </summary>
+    Task<bool> TrySaveSummary(
+        Guid sessionId, ChatSummary summary, int expectedCoveredCount, CancellationToken ct = default);
 }

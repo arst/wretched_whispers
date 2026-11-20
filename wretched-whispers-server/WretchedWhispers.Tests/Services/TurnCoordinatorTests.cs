@@ -60,8 +60,11 @@ public class TurnCoordinatorTests
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => _turnTraceRepo.Object);
+        services.AddScoped(_ => _summarizer.Object);
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
+
+    private readonly Mock<IHistorySummarizer> _summarizer = new();
 
     private SessionContext MakeExplorationContext()
     {
@@ -440,6 +443,85 @@ public class TurnCoordinatorTests
         Assert.Equal(85, trace.OutputTokens);
         Assert.Equal(2, trace.Iterations);
         Assert.NotNull(trace.DurationMs);
+    }
+
+    // ---- Summarizing runs after the turn, off the player's time ----
+
+    [Fact]
+    public async Task CommittedTurn_SummarizesAfterItsStreamEnded_OutsideTheTransactionAndLock()
+    {
+        ArrangeExplorationTurn();
+        CaptureTraces(); // records "uow-disposed" in _sequence
+        _sessionLock
+            .Setup(l => l.TryAcquireAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CallbackDisposable(() => _sequence.Add("lock-released")));
+        SetupAgentExecutorStreaming(new NarrativeChunk("You rest."), new AgentTrace([]));
+
+        var summarizing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _summarizer
+            .Setup(s => s.SummarizeIfDueAsync(_chatSessionId, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                _sequence.Add("summarize");
+                summarizing.TrySetResult();
+                return release.Task; // a slow summarizer model call
+            });
+
+        // The whole stream — done included — is read while the summarizer is still "running".
+        var events = await RunTurnAsync();
+        Assert.IsType<TurnDone>(events[^1]);
+
+        await summarizing.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.False(release.Task.IsCompleted);
+        Assert.Equal(new[] { "lock-released", "uow-disposed", "trace-saved", "summarize" }.Order(), _sequence.Order());
+        Assert.Equal("summarize", _sequence[^1]);
+        release.SetResult(true);
+    }
+
+    [Fact]
+    public async Task TurnThatDidNotCommit_NeverSummarizes()
+    {
+        ArrangeExplorationTurn();
+        var saved = CaptureTraces();
+        SetupAgentExecutorStreaming(new AgentTrace([])); // empty response: the turn fails
+
+        await RunTurnAsync();
+
+        // The failed turn's trace is written on the same detached tail the summarizer would run on.
+        for (var i = 0; i < 100 && saved.Count == 0; i++) await Task.Delay(20, TestContext.Current.CancellationToken);
+        _summarizer.Verify(
+            s => s.SummarizeIfDueAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SummarizerFailure_DoesNotTouchTheCompletedTurn()
+    {
+        ArrangeExplorationTurn();
+        SetupAgentExecutorStreaming(new NarrativeChunk("You rest."), new AgentTrace([]));
+        var called = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _summarizer
+            .Setup(s => s.SummarizeIfDueAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                called.TrySetResult();
+                return Task.FromException<bool>(new HttpRequestException("summarizer unavailable"));
+            });
+
+        var events = await RunTurnAsync();
+
+        Assert.IsType<TurnDone>(events[^1]);
+        Assert.DoesNotContain(events, e => e is TurnError);
+        await called.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+    }
+
+    private sealed class CallbackDisposable(Action onDispose) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync()
+        {
+            onDispose();
+            return ValueTask.CompletedTask;
+        }
     }
 
     // ---- Retryable failures and cancellation ----

@@ -239,7 +239,9 @@ public class SqliteChatHistoryRepository(WretchedWhispersDbContext db, TimeProvi
 
     public async Task<ChatSummary?> GetSummary(Guid sessionId, CancellationToken ct = default)
     {
-        var session = await db.ChatSessions.FirstOrDefaultAsync(s => s.Id == sessionId, ct);
+        // Untracked on purpose: TrySaveSummary writes straight to the database, past the change
+        // tracker, so a tracked copy of the session could hand back a summary that is already stale.
+        var session = await db.ChatSessions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sessionId, ct);
         return session?.SummaryText is null
             ? null
             : new ChatSummary(session.SummaryText, session.SummaryCoveredCount);
@@ -253,6 +255,14 @@ public class SqliteChatHistoryRepository(WretchedWhispersDbContext db, TimeProvi
         session.SummaryCoveredCount = summary.CoveredCount;
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<bool> TrySaveSummary(
+        Guid sessionId, ChatSummary summary, int expectedCoveredCount, CancellationToken ct = default) =>
+        await db.ChatSessions
+            .Where(s => s.Id == sessionId && s.SummaryCoveredCount == expectedCoveredCount)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.SummaryText, summary.Text)
+                .SetProperty(x => x.SummaryCoveredCount, summary.CoveredCount), ct) == 1;
 
     private static void ApplyMetadata(ChatMessage message, string? metadataJson)
     {

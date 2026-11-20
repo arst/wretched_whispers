@@ -64,8 +64,9 @@ public sealed class AgentExecutor(
         activity?.SetTag("session.chat_id", chatSessionId.ToString());
 
         var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
-        // Bound the model's context on long sessions (summarize older messages).
-        history = await historyReducer.ReduceAsync(chatSessionId, history, ct);
+        // Bound the model's context on long sessions: the stored summary stands in for the messages
+        // it covers. Summarizing itself happens after the turn (see TurnCoordinator), never here.
+        history = await historyReducer.ComposeAsync(chatSessionId, history, ct);
         var instructions = promptComposer.Compose(sessionContext);
         var agent = CreateAgent(tools, instructions);
         var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };

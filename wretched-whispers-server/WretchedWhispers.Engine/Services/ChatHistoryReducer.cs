@@ -4,21 +4,34 @@ using WretchedWhispers.Infrastructure.Persistence;
 
 namespace WretchedWhispers.Engine.Services;
 
+/// <summary>Rolls a chronicle's summary forward when enough unsummarized history has built up.</summary>
+public interface IHistorySummarizer
+{
+    /// <summary>Returns true when a new summary was saved.</summary>
+    Task<bool> SummarizeIfDueAsync(Guid chatSessionId, CancellationToken ct);
+}
+
 /// <summary>
-/// Keeps the model's working context bounded on long sessions by summarizing older messages,
-/// restoring the parity lost when the Semantic Kernel ChatHistorySummarizationReducer was dropped
-/// during the Agent Framework migration.
+/// Keeps the model's working context bounded on long sessions by summarizing older messages.
 ///
-/// When the loaded history exceeds <see cref="ThresholdCount"/> messages, the oldest messages
-/// (all but the most recent <see cref="TargetCount"/>) are summarized into a single system message
-/// that preserves MORK BORG game state and tone; the recent tail is kept verbatim. The full history
-/// remains in the database — only what is sent to the model is reduced, and the summary watermark
-/// is persisted so later turns summarize incrementally instead of re-summarizing the whole prefix.
+/// Two separate steps, so the player never waits on a summary:
+/// <list type="bullet">
+/// <item><see cref="ComposeAsync"/> runs INSIDE the turn and only reads: the stored summary plus every
+/// message it does not cover yet. No model call, no write.</item>
+/// <item><see cref="SummarizeIfDueAsync"/> runs AFTER a turn has committed and its stream has ended,
+/// outside the turn's transaction and session lock. When more than <see cref="ThresholdCount"/>
+/// messages are uncovered, all but the most recent <see cref="TargetCount"/> are folded into the
+/// summary and the watermark advances.</item>
+/// </list>
+/// The full history stays in the database — only what is sent to the model is reduced. The summary
+/// is saved only if the watermark has not moved since it was read, so two summarizers (or a slow one
+/// and a newer one) cannot overwrite each other; until a new summary lands, turns simply send the old
+/// summary and a somewhat longer tail.
 /// </summary>
 public sealed class ChatHistoryReducer(
     IChatClient chatClient,
     IChatHistoryRepository chatHistoryRepository,
-    ILogger<ChatHistoryReducer> logger)
+    ILogger<ChatHistoryReducer> logger) : IHistorySummarizer
 {
     private const int TargetCount = 100;
     private const int ThresholdCount = 150;
@@ -73,15 +86,24 @@ public sealed class ChatHistoryReducer(
         raw statistics, rules language, or address the reader outside the fiction.
         """;
 
-    public async Task<IReadOnlyList<ChatMessage>> ReduceAsync(
+    /// <summary>What the model is sent for this chronicle: the stored summary (if any) followed by
+    /// the messages it does not cover. Read-only.</summary>
+    public async Task<IReadOnlyList<ChatMessage>> ComposeAsync(
         Guid chatSessionId, IReadOnlyList<ChatMessage> history, CancellationToken ct)
     {
         var stored = await chatHistoryRepository.GetSummary(chatSessionId, ct);
+        return Compose(stored, history.Skip(stored?.CoveredCount ?? 0).ToList());
+    }
+
+    public async Task<bool> SummarizeIfDueAsync(Guid chatSessionId, CancellationToken ct)
+    {
+        var stored = await chatHistoryRepository.GetSummary(chatSessionId, ct);
         var covered = stored?.CoveredCount ?? 0;
+        var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
         var tail = history.Skip(covered).ToList();
 
         if (tail.Count <= ThresholdCount)
-            return Compose(stored, tail);
+            return false;
 
         var olderCount = tail.Count - TargetCount;
         var toSummarize = new List<ChatMessage>(olderCount + 1);
@@ -91,36 +113,27 @@ public sealed class ChatHistoryReducer(
 
         var options = new ChatOptions { Instructions = SummarizationInstructions };
         var response = await chatClient.GetResponseAsync(toSummarize, options, ct);
-        var summaryText = response.Text;
-        var recent = tail.Skip(olderCount).ToList();
 
-        if (string.IsNullOrWhiteSpace(summaryText))
+        if (string.IsNullOrWhiteSpace(response.Text))
         {
-            // Summarization produced nothing usable — keep the stored summary and the recent tail;
-            // the watermark stays put so the next turn retries.
-            logger.LogWarning("History summarization returned empty; keeping recent {Count} messages", recent.Count);
-            return Compose(stored, recent);
+            // Nothing usable — the watermark stays put, so the next turn's pass retries.
+            logger.LogWarning("History summarization returned empty for session {SessionId}", chatSessionId);
+            return false;
         }
 
-        var updated = new ChatSummary(summaryText, covered + olderCount);
-        try
+        var updated = new ChatSummary(response.Text, covered + olderCount);
+        if (!await chatHistoryRepository.TrySaveSummary(chatSessionId, updated, expectedCoveredCount: covered, ct))
         {
-            await chatHistoryRepository.SaveSummary(chatSessionId, updated, ct);
-        }
-        catch (Exception ex)
-        {
-            // Persisting the watermark failed — degrade gracefully rather than fail the player's
-            // turn. The fresh summary is still used for this turn's response; since the watermark
-            // did not advance, the next turn re-summarizes the same prefix and retries the save.
-            logger.LogWarning(ex, "Failed to persist summary watermark for session {SessionId}", chatSessionId);
-            return Compose(updated, recent);
+            logger.LogInformation(
+                "Summary for session {SessionId} was superseded while it was being written; discarded",
+                chatSessionId);
+            return false;
         }
 
         logger.LogInformation(
-            "Rolled summary forward — covered {Covered} of {Total} messages, sending {Sent}",
-            updated.CoveredCount, history.Count, recent.Count + 1);
-
-        return Compose(updated, recent);
+            "Rolled summary forward — covered {Covered} of {Total} messages",
+            updated.CoveredCount, history.Count);
+        return true;
     }
 
     /// <summary>

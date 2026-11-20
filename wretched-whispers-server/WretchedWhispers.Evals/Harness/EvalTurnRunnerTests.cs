@@ -190,6 +190,53 @@ public class EvalTurnRunnerTests
     }
 
     [Fact]
+    public async Task LongChronicle_IsSummarizedAfterTheTurn_AndTheNextTurnUsesTheSummary()
+    {
+        // 160 stored messages is past the summarizer's threshold. The turn itself must not summarize:
+        // its one model request carries the whole history. The summary is written afterwards, and the
+        // following turn sends it in place of the messages it covers.
+        var client = new ScriptedChatClient(
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "The road goes on.")),      // turn 1
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "SUMMARY: much walking.")), // post-turn summarizer
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "And on.")));               // turn 2
+
+        await using var host = await EvalHost.CreateExplorationAsync(client);
+        var ct = TestContext.Current.CancellationToken;
+        await host.QueryAsync(async sp =>
+        {
+            var repo = sp.GetRequiredService<IChatHistoryRepository>();
+            for (var i = 0; i < 160; i++)
+                await repo.SaveMessage(host.ChatSessionId,
+                    new ChatMessage(i % 2 == 0 ? ChatRole.User : ChatRole.Assistant, $"old message {i}"), ct);
+            return 0;
+        });
+
+        var turn1 = await host.CreateTurnRunner().RunTurnAsync("I walk on.", ct);
+
+        Assert.Null(turn1.Error);
+        Assert.Equal(161, client.Requests[0].Count); // 160 stored + this message, nothing summarized yet
+        Assert.DoesNotContain(client.Requests[0], m => m.Role == ChatRole.System);
+
+        // The summary lands after the turn has ended.
+        ChatSummary? summary = null;
+        for (var i = 0; i < 200 && summary is null; i++)
+        {
+            summary = await host.QueryAsync(sp =>
+                sp.GetRequiredService<IChatHistoryRepository>().GetSummary(host.ChatSessionId, ct));
+            if (summary is null) await Task.Delay(25, ct);
+        }
+        Assert.NotNull(summary);
+        Assert.Equal("SUMMARY: much walking.", summary!.Text);
+        Assert.Equal(62, summary.CoveredCount); // 162 stored after turn 1, the latest 100 kept verbatim
+
+        await host.CreateTurnRunner().RunTurnAsync("Still walking.", ct);
+
+        var turn2Request = client.Requests[2];
+        Assert.Contains("SUMMARY: much walking.", turn2Request[0].Text);
+        Assert.Equal(1 + 100 + 1, turn2Request.Count); // summary + uncovered tail + this message
+    }
+
+    [Fact]
     public async Task TwoTurns_ShareState_AcrossSeparateScopes()
     {
         // Turn 1: the model asks for a name, no tools (1 response).
