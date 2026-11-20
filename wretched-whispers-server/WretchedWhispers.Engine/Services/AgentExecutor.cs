@@ -119,7 +119,7 @@ public sealed class AgentExecutor(
         AIAgent agent, List<ChatMessage> messages, RunState run, [EnumeratorCancellation] CancellationToken ct)
     {
         var scrubber = new StreamingScrubber();
-        var callNames = new Dictionary<string, string>();
+        var calls = new Dictionary<string, ToolCallTrace>();
         // Prose on either side of a tool round is separate paragraphs, however the model spaced it.
         var breakBeforeNextText = false;
 
@@ -153,22 +153,28 @@ public sealed class AgentExecutor(
                         if (Narrate(scrubber.Flush()) is { } beforeTool)
                             yield return beforeTool;
                         breakBeforeNextText = run.NarrativeChars > 0;
-                        if (call.CallId is not null) callNames[call.CallId] = call.Name;
-                        // Capture name + args for the turn trace (offline error analysis). Args are the
-                        // valuable part — e.g. which itemDescription or dice expr the model passed.
-                        run.ToolCalls.Add(new ToolCallTrace(call.Name, SerializeArgs(call.Arguments)));
+                        // Capture name + args for the turn trace (offline error analysis) and the turn
+                        // ledger. Args are the valuable part — e.g. which itemDescription or dice expr
+                        // the model passed.
+                        var trace = new ToolCallTrace(call.Name, SerializeArgs(call.Arguments));
+                        if (call.CallId is not null) calls[call.CallId] = trace;
+                        run.ToolCalls.Add(trace);
                         // Debug, not Information: args are model-generated and carry player-derived free
                         // text, which must not land in central logs by default. The durable always-on
                         // record of every invocation is the turn trace the coordinator persists.
                         logger.LogDebug("Tool call: {Tool}({Args})", call.Name, call.Arguments);
                         break;
                     case FunctionResultContent result:
-                        var name = result.CallId is not null && callNames.TryGetValue(result.CallId, out var n)
-                            ? n
-                            : "unknown";
+                        var made = result.CallId is not null && calls.TryGetValue(result.CallId, out var c) ? c : null;
+                        var name = made?.Name ?? "unknown";
+                        var output = result.Result?.ToString() ?? "";
                         run.ToolResults++;
                         logger.LogDebug("Tool result: {Tool} -> {Result}", name, result.Result);
-                        yield return new ToolResult(name, result.Result?.ToString() ?? "");
+                        // A tool that threw (validation, a per-turn limit, the turn having ended) or
+                        // that does not exist comes back as an error result: nothing was changed.
+                        var failed = result.Exception is not null
+                            || output.StartsWith("Error: ", StringComparison.Ordinal);
+                        yield return new ToolResult(name, output, made?.Arguments, failed);
                         break;
                 }
             }

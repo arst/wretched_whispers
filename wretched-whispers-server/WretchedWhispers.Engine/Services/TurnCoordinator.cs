@@ -253,8 +253,11 @@ public sealed class TurnCoordinator(
             // Saved AFTER the agent run: the executor reloads history from this same DbContext and
             // appends the player message itself, so persisting it first would double it in the
             // conversation the model sees.
-            await chatHistoryRepository.SaveMessage(
-                chatSessionId, new ChatMessage(ChatRole.User, playerMessage), ct, turnId);
+            // The tools this turn ran are stored with the player's message, so later turns can show the
+            // model what was actually resolved behind the narration (see TurnLedger).
+            var playerTurn = new ChatMessage(ChatRole.User, playerMessage);
+            TurnLedger.Attach(playerTurn, toolResults);
+            await chatHistoryRepository.SaveMessage(chatSessionId, playerTurn, ct, turnId);
             // Tools may legitimately finish a turn with no prose (the delta still tells the story);
             // an EMPTY assistant message must never enter the history the model sees.
             if (fullResponse.Length > 0)

@@ -268,6 +268,38 @@ public class AgentExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task ToolResults_CarryTheCallsArguments_AndWhetherItFailed()
+    {
+        // The turn ledger is built from these: a refused or unknown call changed nothing and is marked.
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new ScriptedChatClient(
+            ChatResponses.ToolCall("call_1", "Roll", new() { ["diceExpression"] = "banana" }),  // fails validation
+            ChatResponses.ToolCall("call_2", "Roll", new() { ["diceExpression"] = "d6" }),
+            ChatResponses.ToolCall("call_3", "NoSuchTool", new() { ["x"] = 1 }),
+            ChatResponses.Text("The die clatters."));
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "I roll");
+
+        var results = events.OfType<ToolResult>().ToList();
+        Assert.Equal(new[] { "Roll", "Roll", "NoSuchTool" }, results.Select(r => r.Function));
+        Assert.Equal(new[] { true, false, true }, results.Select(r => r.Failed));
+        Assert.Contains("banana", results[0].Arguments);
+        Assert.Contains("d6", results[1].Arguments);
+    }
+
+    [Fact]
+    public void ToolResult_ServerOnlyFields_AreNeverSerializedToTheClient()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize<GameTurnEvent>(
+            new ToolResult("Roll", "4", """{"diceExpression":"d6"}""", Failed: true),
+            System.Text.Json.JsonSerializerOptions.Web);
+
+        Assert.DoesNotContain("arguments", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("failed", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("diceExpression", json);
+    }
+
+    [Fact]
     public async Task GuidSplitAcrossStreamedChunks_IsStillScrubbed()
     {
         var (tools, ctx) = ExplorationToolsAndContext();

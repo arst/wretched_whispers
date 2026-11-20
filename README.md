@@ -252,6 +252,12 @@ model's working context is bounded. Summarizing never runs on the player's time:
 and the summary is rolled forward after the turn has committed and its stream has ended, outside the turn's transaction
 and session lock. It is saved only if nobody else advanced it meanwhile, so a slow summary cannot overwrite a newer one.
 
+**The model is shown which tools ran on earlier turns.** The chronicle stores prose, so looking back the model would
+see outcomes appear in the Game Master's narration with no tool call anywhere — the very pattern it must not continue.
+Each turn's successful tool calls are stored with the player's message (`TurnLedger`), and on later turns the model's
+view gets one system line after that message naming them with their arguments. Results are left out on purpose: they
+are full of numbers that go stale. The player never sees these records, and refused calls are not recorded.
+
 **Context is budgeted in tokens, not messages.** A player's "yes" and a 400-token combat narration are not the same
 size, so history is compacted when the unsummarized part passes `GameSession:HistoryTriggerTokens` (12,000), keeping the
 most recent `GameSession:HistoryKeepTokens` (8,000) verbatim. Counts are an estimate (about four characters per token);

@@ -295,6 +295,46 @@ public class EvalTurnRunnerTests
     }
 
     [Fact]
+    public async Task NextTurn_ShowsTheModelWhichToolsRanBefore_ButTheStoredChronicleStaysProse()
+    {
+        // Turn 1 runs a tool (and has one call refused). On turn 2 the model's request must carry an
+        // engine record of the successful call right after turn 1's player message — while the
+        // chronicle the player reads holds only the two plain messages.
+        static ChatResponse Call(string id, string name, Dictionary<string, object?> args) =>
+            new(new ChatMessage(ChatRole.Assistant, new List<AIContent> { new FunctionCallContent(id, name, args) }));
+
+        var client = new ScriptedChatClient(
+            Call("c1", "Roll", new() { ["diceExpression"] = "banana" }), // refused by validation
+            Call("c2", "Roll", new() { ["diceExpression"] = "d6" }),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "The bones clatter in the dust.")),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "Nothing stirs.")));
+
+        await using var host = await EvalHost.CreateExplorationAsync(client);
+        var ct = TestContext.Current.CancellationToken;
+
+        await host.CreateTurnRunner().RunTurnAsync("I cast the bones.", ct);
+        await host.CreateTurnRunner().RunTurnAsync("I wait.", ct);
+
+        // Turn 1's own requests show no record: there is nothing before it.
+        Assert.DoesNotContain(client.Requests[0], m => m.Role == ChatRole.System);
+
+        var turn2 = client.Requests[^1];
+        Assert.Equal(new[] { "user", "system", "assistant", "user" }, turn2.Select(m => m.Role.Value));
+        Assert.Equal("I cast the bones.", turn2[0].Text);
+        Assert.Equal(
+            "[Engine record, not shown to the player — tools run for the message above: Roll(diceExpression: \"d6\")]",
+            turn2[1].Text);
+        Assert.Equal("The bones clatter in the dust.", turn2[2].Text);
+
+        // What is stored — and served to the player — is the conversation only.
+        var stored = await host.QueryAsync(sp =>
+            sp.GetRequiredService<IChatHistoryRepository>().LoadSession(host.ChatSessionId, ct));
+        Assert.Equal(
+            new[] { "I cast the bones.", "The bones clatter in the dust.", "I wait.", "Nothing stirs." },
+            stored!.Select(m => m.Text));
+    }
+
+    [Fact]
     public async Task TwoTurns_ShareState_AcrossSeparateScopes()
     {
         // Turn 1: the model asks for a name, no tools (1 response).
