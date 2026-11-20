@@ -100,6 +100,12 @@ public sealed class SessionContext
         ActiveEncounter = null;
     }
 
+    /// <summary>The most recent journal entries shown in the snapshot, in estimated tokens.</summary>
+    public const int MaxJournalTokens = 3_000;
+
+    /// <summary>The most recently charted places shown in the snapshot.</summary>
+    public const int MaxMapPlaces = 40;
+
     public string FormatSnapshot()
     {
         var sb = new StringBuilder();
@@ -151,18 +157,41 @@ public sealed class SessionContext
             sb.AppendLine($"  Day {Campaign.CurrentDay}, Hour {Campaign.CurrentHour}");
             sb.AppendLine($"  Miseries: {Campaign.Miseries.Count}/7");
 
+            // The journal and the map grow for as long as a campaign runs, and this snapshot is sent on
+            // every turn. Both are capped to their most recent part; under the cap the text is exactly
+            // what it always was. ponytail: recency only — retrieval by relevance if old facts get lost.
             if (Campaign.JournalEntries.Count > 0)
             {
-                // ponytail: full injection, cap/retrieval when journals outgrow the context budget
+                var lines = Campaign.JournalEntries
+                    .Select(entry => $"    [Day {entry.Day}, {entry.Category}] {entry.Text}").ToList();
+                var shown = 0;
+                var tokens = 0;
+                for (var i = lines.Count - 1; i >= 0; i--)
+                {
+                    tokens += TokenEstimate.For(lines[i]);
+                    if (shown > 0 && tokens > MaxJournalTokens) break;
+                    shown++;
+                }
+
                 sb.AppendLine("  Journal:");
-                foreach (var entry in Campaign.JournalEntries)
-                    sb.AppendLine($"    [Day {entry.Day}, {entry.Category}] {entry.Text}");
+                if (shown < lines.Count)
+                    sb.AppendLine($"    ({lines.Count - shown} older entries not shown)");
+                foreach (var line in lines.Skip(lines.Count - shown))
+                    sb.AppendLine(line);
             }
 
             if (Campaign.Pois.Count > 0)
             {
+                var omitted = Math.Max(0, Campaign.Pois.Count - MaxMapPlaces);
+                // Wherever the party stands stays on the map even when it was charted long ago.
+                var places = Campaign.Pois
+                    .Where((poi, index) => index >= omitted || poi.Name == Campaign.CurrentLocationName)
+                    .ToList();
+
                 sb.AppendLine("  Map (0-100 grid, y=0 is north):");
-                foreach (var poi in Campaign.Pois)
+                if (places.Count < Campaign.Pois.Count)
+                    sb.AppendLine($"    ({Campaign.Pois.Count - places.Count} places charted earlier not shown)");
+                foreach (var poi in places)
                     sb.AppendLine($"    - {poi.Name} ({poi.Type}) at ({poi.X},{poi.Y})"
                         + (poi.ConnectedTo is null ? "" : $", path to {poi.ConnectedTo}"));
                 if (Campaign.CurrentLocationName is not null)

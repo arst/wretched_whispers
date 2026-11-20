@@ -23,6 +23,7 @@ public static class AgentConfiguration
         // The whole-turn budget, across every model request and tool round of one attempt. The
         // per-request timeout above bounds a single call; without this a turn could run for as long
         // as 15 tool rounds of slow requests take.
+        services.AddSingleton(HistoryBudget.From(configuration));
         services.AddSingleton(new TurnWorkerOptions
         {
             Deadline = TimeSpan.FromSeconds(configuration.GetValue("GameSession:TurnDeadlineSeconds", 300))

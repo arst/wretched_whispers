@@ -245,6 +245,13 @@ model's working context is bounded. Summarizing never runs on the player's time:
 and the summary is rolled forward after the turn has committed and its stream has ended, outside the turn's transaction
 and session lock. It is saved only if nobody else advanced it meanwhile, so a slow summary cannot overwrite a newer one.
 
+**Context is budgeted in tokens, not messages.** A player's "yes" and a 400-token combat narration are not the same
+size, so history is compacted when the unsummarized part passes `GameSession:HistoryTriggerTokens` (12,000), keeping the
+most recent `GameSession:HistoryKeepTokens` (8,000) verbatim. Counts are an estimate (about four characters per token);
+each turn's real input size is in its trace. The parts of the game state that grow with a campaign are capped too: the
+snapshot shows the most recent journal entries (about 3,000 tokens) and the 40 most recently charted places, plus
+wherever the party stands, and says how many older ones it left out.
+
 **Deployment profiles are compile-time constants, not runtime flags.** `-p:DeploymentProfile=Server|StandaloneContainer|Desktop`
 sets a `DefineConstants` symbol. The Desktop profile is the only build that compiles `Desktop/**` or references
 Photino; the standalone builds don't carry Identity's cookie surface. An invalid profile fails the build via an MSBuild

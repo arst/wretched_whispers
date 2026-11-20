@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
 
@@ -192,9 +193,9 @@ public class EvalTurnRunnerTests
     [Fact]
     public async Task LongChronicle_IsSummarizedAfterTheTurn_AndTheNextTurnUsesTheSummary()
     {
-        // 160 stored messages is past the summarizer's threshold. The turn itself must not summarize:
-        // its one model request carries the whole history. The summary is written afterwards, and the
-        // following turn sends it in place of the messages it covers.
+        // 160 stored messages of ~100 tokens each is past the summarizer's 12,000-token trigger. The
+        // turn itself must not summarize: its one model request carries the whole history. The summary
+        // is written afterwards, and the following turn sends it in place of the messages it covers.
         var client = new ScriptedChatClient(
             new ChatResponse(new ChatMessage(ChatRole.Assistant, "The road goes on.")),      // turn 1
             new ChatResponse(new ChatMessage(ChatRole.Assistant, "SUMMARY: much walking.")), // post-turn summarizer
@@ -207,7 +208,8 @@ public class EvalTurnRunnerTests
             var repo = sp.GetRequiredService<IChatHistoryRepository>();
             for (var i = 0; i < 160; i++)
                 await repo.SaveMessage(host.ChatSessionId,
-                    new ChatMessage(i % 2 == 0 ? ChatRole.User : ChatRole.Assistant, $"old message {i}"), ct);
+                    new ChatMessage(i % 2 == 0 ? ChatRole.User : ChatRole.Assistant,
+                        $"old message {i} ".PadRight(384, '.')), ct);
             return 0;
         });
 
@@ -227,13 +229,18 @@ public class EvalTurnRunnerTests
         }
         Assert.NotNull(summary);
         Assert.Equal("SUMMARY: much walking.", summary!.Text);
-        Assert.Equal(62, summary.CoveredCount); // 162 stored after turn 1, the latest 100 kept verbatim
+
+        // 162 messages are stored after turn 1. The newest that fit the 8,000-token keep budget stay
+        // verbatim (the two short turn-1 messages plus 79 of the ~100-token ones); the rest are covered.
+        var kept = 162 - summary.CoveredCount;
+        Assert.InRange(kept, 70, 90);
 
         await host.CreateTurnRunner().RunTurnAsync("Still walking.", ct);
 
         var turn2Request = client.Requests[2];
         Assert.Contains("SUMMARY: much walking.", turn2Request[0].Text);
-        Assert.Equal(1 + 100 + 1, turn2Request.Count); // summary + uncovered tail + this message
+        Assert.Equal(1 + kept + 1, turn2Request.Count); // summary + uncovered tail + this message
+        Assert.True(turn2Request.Skip(1).Sum(TokenEstimate.For) <= 8_000 + 50);
     }
 
     [Fact]
