@@ -52,7 +52,7 @@ public sealed class CampaignTools(
     }
 
     [Description("Record a lasting fact in the campaign journal — the GM's memory of the fiction. Use it the moment something durable is established: an NPC met, a location discovered, a promise made, a quest taken, or a notable event (a death, a betrayal, a discovery).")]
-    [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
+    [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution, AllowedAfterTurnEnd = true)]
     public async Task<string> RecordJournalEntry(
         [Description("Kind of fact: 'Npc', 'Location', 'Promise', 'Quest', or 'Event'")]
         JournalCategory category,
@@ -64,7 +64,7 @@ public sealed class CampaignTools(
     }
 
     [Description("Chart a place on the regional map the first time the fiction establishes it: a town entered, a dungeon found, a landmark sighted. Assign approximate map coordinates consistent with the geography already charted. Does not move the party.")]
-    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution, AllowedAfterTurnEnd = true)]
     public async Task<string> RecordPointOfInterest(
         [Description("Kind of place: 'Town', 'Dungeon', 'Landmark', 'Ruin', or 'Camp'")]
         PoiType type,
@@ -79,7 +79,7 @@ public sealed class CampaignTools(
     }
 
     [Description("Mark where the party currently is. Call when the party arrives at a charted place.")]
-    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution, AllowedAfterTurnEnd = true)]
     public async Task<string> SetPartyLocation(
         [Description("Name of an already-charted place")] string locationName)
     {

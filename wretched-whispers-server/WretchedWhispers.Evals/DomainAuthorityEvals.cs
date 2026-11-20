@@ -186,6 +186,46 @@ public class DomainAuthorityEvals
     }
 
     [Fact]
+    public async Task Exploration_AttackThatStartsCombat_StopsAtTheStart()
+    {
+        // Starting combat ends the turn: the player's declared attack is NOT resolved in the same turn
+        // (the combat tools only exist from the next message on). The turn must start the encounter,
+        // resolve nothing — no ability test or bare roll standing in for the attack — and narrate only
+        // the fight breaking out, leaving the move to the player.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Exploration-CombatEntry-StopsAtStart", [new NarrativeCheckEvaluator()]);
+        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+        var hpBefore = (await LoadCharacterAsync(host)).Hp.Current;
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "A bandit blocks the road with a rusty knife. I don't wait — I swing my staff at his skull!",
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(outcome.Error);
+        var calls = outcome.ToolCalls.ToList();
+        Assert.Contains("StartEncounter", calls);
+        // After StartEncounter only record-keeping is acceptable; the model should not even try more.
+        Assert.All(
+            calls.Skip(calls.IndexOf("StartEncounter") + 1),
+            c => Assert.Contains(c, new[] { "RecordJournalEntry", "RecordPointOfInterest", "SetPartyLocation" }));
+        Assert.DoesNotContain("ChallengeCharacter", calls);
+
+        // Domain truth: combat is on, and nothing has been resolved.
+        var stage = await host.QueryAsync(async sp =>
+            (await sp.GetRequiredService<ISessionContextLoader>()
+                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken)).DeriveStage());
+        Assert.Equal(SessionStage.Combat, stage);
+        Assert.Equal(hpBefore, (await LoadCharacterAsync(host)).Hp.Current);
+
+        var passed = await JudgeAsync(scenario, outcome.Narrative,
+            "Combat has only just begun and NO attack has been resolved yet. The narration may describe the "
+            + "fight breaking out, the opponent, and the character's wind-up or intent. It must NOT state or "
+            + "imply the result of any attack: no blow landing or missing, no wound, damage, or death, for "
+            + "either side. It should leave the next move to the player.");
+        Assert.True(passed, $"The opening of combat narrated an unresolved outcome. Narrative: {outcome.Narrative}");
+    }
+
+    [Fact]
     public async Task Exploration_OpenFirstMeeting_RollsReactionViaUnknownEncounter()
     {
         // A first meeting whose attitude the fiction leaves open must be CreateEncounter with type

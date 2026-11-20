@@ -60,6 +60,8 @@ public sealed class AgentToolProvider(
 
         var tools = new List<AIFunction>(descriptors.Count);
         var registeredFunctions = new List<string>(descriptors.Count);
+        // One per call of this method = per turn, shared by all of the turn's tools.
+        var turnEnd = new TurnEndGate();
 
         foreach (var descriptor in descriptors)
         {
@@ -76,9 +78,9 @@ public sealed class AgentToolProvider(
                 Name = descriptor.Name
             });
             // A fresh wrapper per call of this method = per turn, so the count starts at zero each turn.
-            tools.Add(descriptor.MaxCallsPerTurn > 0
-                ? new PerTurnCallLimit(function, descriptor.MaxCallsPerTurn)
-                : function);
+            if (descriptor.MaxCallsPerTurn > 0)
+                function = new PerTurnCallLimit(function, descriptor.MaxCallsPerTurn);
+            tools.Add(new TurnEndGuard(function, turnEnd, descriptor.EndsTurn, descriptor.AllowedAfterTurnEnd));
             registeredFunctions.Add($"{descriptor.Group}.{descriptor.Name}");
         }
 
@@ -109,6 +111,38 @@ internal sealed class PerTurnCallLimit(AIFunction inner, int maxCalls) : Delegat
 
         var result = await base.InvokeCoreAsync(arguments, cancellationToken);
         Interlocked.Increment(ref _completed);
+        return result;
+    }
+}
+
+/// <summary>Per-turn record of the tool (if any) that ended the turn's game actions.</summary>
+internal sealed class TurnEndGate
+{
+    private volatile string? _endedBy;
+    public string? EndedBy => _endedBy;
+    public void End(string toolName) => _endedBy ??= toolName;
+}
+
+/// <summary>
+/// Enforces <see cref="GameToolAttribute.EndsTurn"/>. Once a turn-ending tool has COMPLETED (a
+/// rejected call ends nothing), every other tool call that turn throws before reaching the domain,
+/// with a message the model can act on — except record-keeping tools. Without this, a model that has
+/// just started combat reaches for whatever is still on offer (an ability test, a bare dice roll) to
+/// "resolve" the attack the player declared, with the wrong mechanic.
+/// </summary>
+internal sealed class TurnEndGuard(AIFunction inner, TurnEndGate gate, bool endsTurn, bool allowedAfterEnd)
+    : DelegatingAIFunction(inner)
+{
+    protected override async ValueTask<object?> InvokeCoreAsync(
+        AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        if (gate.EndedBy is { } endedBy && !allowedAfterEnd)
+            throw new InvalidOperationException(
+                $"{endedBy} ended this turn's actions, so {Name} cannot be called now. Call no more tools: "
+                + "narrate what has just begun and stop. The player's next message is their first action in it.");
+
+        var result = await base.InvokeCoreAsync(arguments, cancellationToken);
+        if (endsTurn) gate.End(Name);
         return result;
     }
 }

@@ -24,11 +24,12 @@ public class AgentToolProviderTests
 {
     private readonly AgentToolProvider _provider;
     private readonly Mock<IEncountersRepository> _encountersRepo = new();
+    private readonly Mock<ICampaignsRepository> _campaignsRepo = new();
 
     public AgentToolProviderTests()
     {
         var charsRepo = new Mock<ICharactersRepository>().Object;
-        var campsRepo = new Mock<ICampaignsRepository>().Object;
+        var campsRepo = _campaignsRepo.Object;
         var encsRepo = _encountersRepo.Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
 
@@ -137,6 +138,93 @@ public class AgentToolProviderTests
         await tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
 
         _encountersRepo.Verify(r => r.Save(It.IsAny<Encounter>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ---- StartEncounter ends the turn's game actions ----
+
+    private const string TurnEndedFragment = "StartEncounter ended this turn's actions";
+
+    /// <summary>An exploration turn with a hostile, unstarted encounter ready to begin, and a campaign
+    /// the journal can be written to.</summary>
+    private (SessionContext Ctx, IReadOnlyList<AIFunction> Tools) ExplorationTurnWithReadyEncounter()
+    {
+        var dice = new Dice(new Mock<IRandomService>().Object);
+        var encounter = Encounter.Create("Road Ambush", "Bandits", EncounterType.Hostile, dice);
+        encounter.AddAdversary(new Adversary("Bandit", new HitPoints(4, 4), new Armor(ArmorTier.None), 7,
+            new AttackProfile("Rusty knife", DiceExpr.D4)));
+        _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
+
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
+        _campaignsRepo.Setup(r => r.Get(campaign.Id, It.IsAny<CancellationToken>())).ReturnsAsync(campaign);
+
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.SetCampaignId(campaign.Id);
+        ctx.SetActiveEncounterId(encounter.Id);
+        return (ctx, _provider.GetToolsForStage(ctx, SessionStage.Exploration).Tools);
+    }
+
+    private static ValueTask<object?> Call(IReadOnlyList<AIFunction> tools, string name, object? args = null) =>
+        tools.Single(t => t.Name == name).InvokeAsync(
+            new AIFunctionArguments(args is null
+                ? new Dictionary<string, object?>()
+                : System.Text.Json.JsonSerializer.SerializeToElement(args).EnumerateObject()
+                    .ToDictionary(p => p.Name, p => (object?)p.Value.Clone())),
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public async Task AfterStartEncounter_OtherGameTools_AreRejectedBeforeReachingTheDomain()
+    {
+        var (_, tools) = ExplorationTurnWithReadyEncounter();
+        await Call(tools, "Roll", new { diceExpression = "d6" }); // fine before combat starts
+
+        await Call(tools, "StartEncounter");
+
+        // The model reaching for a bare roll or an ability test to "resolve" the declared attack.
+        foreach (var (name, args) in new (string, object)[]
+                 {
+                     ("Roll", new { diceExpression = "d20" }),
+                     ("ChallengeCharacter", new { challengeDr = 12, abilityKind = "Strength" }),
+                     ("AdvanceTime", new { hours = 1 }),
+                 })
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Call(tools, name, args).AsTask());
+            Assert.Contains(TurnEndedFragment, ex.Message);
+            Assert.Contains($"{name} cannot be called now", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task AfterStartEncounter_RecordKeepingTools_StillWork()
+    {
+        var (_, tools) = ExplorationTurnWithReadyEncounter();
+        await Call(tools, "StartEncounter");
+
+        var result = await Call(tools, "RecordJournalEntry", new { category = "Event", text = "Bandits on the road" });
+
+        Assert.Contains("Recorded", result?.ToString());
+        _campaignsRepo.Verify(r => r.SaveCampaign(It.IsAny<Campaign>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartEncounterThatFails_EndsNothing()
+    {
+        var (ctx, tools) = ExplorationTurnWithReadyEncounter();
+        ctx.ClearActiveEncounter(); // no encounter: StartEncounter is rejected by its own validation
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Call(tools, "StartEncounter").AsTask());
+
+        Assert.NotNull(await Call(tools, "Roll", new { diceExpression = "d6" }));
+    }
+
+    [Fact]
+    public async Task TurnEnd_DoesNotCarryIntoTheNextTurnsTools()
+    {
+        var (ctx, tools) = ExplorationTurnWithReadyEncounter();
+        await Call(tools, "StartEncounter");
+
+        var nextTurn = _provider.GetToolsForStage(ctx, SessionStage.Exploration).Tools;
+
+        Assert.NotNull(await Call(nextTurn, "Roll", new { diceExpression = "d6" }));
     }
 
     [Fact]

@@ -76,6 +76,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Exploration-RiskyFeat-CallsChallenge** — a risky feat with real stakes must be resolved by `ChallengeCharacter`, never narrated success or failure.
 - **Exploration-Camp-NoFabricatedItemUse** — LLM-judge groundedness: camp narration must not invent item consumption or counts.
 - **Exploration-CombatEntry-OrderedChain** — violence erupting must run `CreateEncounter -> AddAdversaryToEncounter -> StartEncounter`, in order.
+- **Exploration-CombatEntry-StopsAtStart** — an attack that starts combat ends the turn at `StartEncounter`: no ability test or bare roll stands in for the attack, the stage is Combat with nothing resolved, and the narration (LLM judge) states no attack result and leaves the move to the player.
 - **Exploration-FirstMeeting-RollsReaction** — an open-attitude first meeting must create the encounter as `Unknown` so the domain rolls the reaction table.
 - **Resolution-Loot-AddsItem** — Resolution-stage loot must go through `AddItemToCharacterInventory`.
 - **Resolution-MovingOn-Completes** — leaving the aftermath must call `CompleteResolution`, and the derived stage must be Exploration afterwards.
