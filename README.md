@@ -225,10 +225,17 @@ that stage's tools bound. An out-of-stage action isn't rejected — it is *unrea
 handed to the model. Architecture where architecture can enforce it, prompt only where it can't. Adding a tool means
 adding one attributed method in one file.
 
-**Narration before the first tool call is discarded.** If the model calls any tool during a turn, only prose emitted
-*after* that call is trusted and shown. Text produced beforehand is the model describing an outcome it hasn't asked for
-yet — the exact shape of a fabricated result. Belt, braces, and a `OutputScrubber` that strips raw GUIDs the persona was
-already told never to speak aloud.
+**Narration is shown as it is written; it is never the source of truth.** An earlier version withheld any prose the
+model wrote before a tool call, on the theory that it described an outcome not yet rolled. That rule delayed every turn,
+could swallow a turn's narration entirely, and a model that simply skipped the tool walked straight past it. Now nothing
+is withheld: what the model may *not* do is change state by saying so, and the delta beside the prose is computed from
+committed state. Whether it narrates outcomes it has not resolved is measured by the evals. One filter remains: a
+streaming `OutputScrubber` strips raw GUIDs the persona was already told never to speak aloud.
+
+**Some things the prompt asks for are also enforced.** A tool can declare a per-turn call limit (one combat round per
+message) and that it ends the turn's game actions: `StartEncounter` begins combat, and the first round belongs to the
+player's next message, so any further game tool that turn is refused with a message the model can act on. Journal and map
+notes are still allowed.
 
 **Tool argument guards talk to the model, not the log.** `ToolGuard` messages are written to be *read by the model*:
 Agent Framework feeds the validation failure back so the call can be corrected, instead of a bad argument exploding deep

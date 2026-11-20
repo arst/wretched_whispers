@@ -244,6 +244,57 @@ public class EvalTurnRunnerTests
     }
 
     [Fact]
+    public async Task ToolCalledAfterStartEncounter_IsRejected_AndTheTurnCommitsInCombat()
+    {
+        // Plumbing for Exploration-CombatEntry-StopsAtStart: a model that starts combat and then
+        // reaches for an ability test to "resolve" the declared attack gets that call rejected; the
+        // turn still commits, in Combat, with nothing resolved.
+        static ChatResponse Call(string id, string name, Dictionary<string, object?> args) =>
+            new(new ChatMessage(ChatRole.Assistant, new List<AIContent> { new FunctionCallContent(id, name, args) }));
+
+        var client = new ScriptedChatClient(
+            Call("c1", "CreateEncounter", new()
+            {
+                ["name"] = "Road Ambush",
+                ["description"] = "A bandit blocks the road",
+                ["initialEncounterType"] = "Hostile",
+            }),
+            Call("c2", "AddAdversaryToEncounter", new()
+            {
+                ["adversary"] = new Dictionary<string, object?>
+                {
+                    ["name"] = "Bandit",
+                    ["hitPoints"] = 4,
+                    ["armorTier"] = "None",
+                    ["morale"] = 7,
+                    ["weaponDescription"] = "Rusty knife",
+                    ["weaponDamageDie"] = "1d4",
+                },
+            }),
+            Call("c3", "StartEncounter", new()),
+            Call("c4", "ChallengeCharacter", new() { ["challengeDr"] = 12, ["abilityKind"] = "Strength" }),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "The bandit bares his teeth. Your move.")));
+
+        await using var host = await EvalHost.CreateExplorationAsync(client);
+
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "I swing my staff at the bandit!", TestContext.Current.CancellationToken);
+
+        Assert.Null(outcome.Error);
+        Assert.Equal(
+            new[] { "CreateEncounter", "AddAdversaryToEncounter", "StartEncounter", "ChallengeCharacter" },
+            outcome.ToolCalls);
+        Assert.DoesNotContain("ended this turn's actions", outcome.ToolResults[2].Result.ToString());
+        Assert.Contains("StartEncounter ended this turn's actions", outcome.ToolResults[3].Result.ToString());
+        Assert.Equal(0, outcome.Delta?.HpChange);
+
+        var stage = await host.QueryAsync(async sp =>
+            (await sp.GetRequiredService<ISessionContextLoader>()
+                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken)).DeriveStage());
+        Assert.Equal(SessionStage.Combat, stage);
+    }
+
+    [Fact]
     public async Task TwoTurns_ShareState_AcrossSeparateScopes()
     {
         // Turn 1: the model asks for a name, no tools (1 response).

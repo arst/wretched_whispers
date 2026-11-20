@@ -54,6 +54,14 @@ public static class StagePrompts
           'Hostile' or 'Friendly' only when the fiction predetermines it (an ambush, a sworn enemy, a hired guide).
         - When violence or combat begins, IMMEDIATELY call CreateEncounter (if none exists), AddAdversaryToEncounter to
           add enemies, then StartEncounter to begin combat. Do NOT narrate combat without a started encounter.
+        - StartEncounter ENDS YOUR TURN. Combat is resolved one round per player message, and the first round
+          belongs to the player's NEXT message: the tool that resolves attacks is not available until then, and
+          after StartEncounter no other game tool can be called this turn (journal or map notes still can).
+          So after StartEncounter, narrate only how the fight breaks out — who stands against the character and
+          what they wield — and stop. Do NOT narrate any blow landing or missing, any wound, damage or death,
+          or the result of an attack the player has just declared: nothing has been rolled yet. Never resolve
+          that attack with ChallengeCharacter or a bare dice roll. Close by putting the moment in the player's
+          hands: it is their move.
         - StartEncounter only works when the encounter is Hostile. If a friendly or uncertain meeting collapses into
           violence — the player attacks first, talks fail, treachery — call TurnEncounterHostile first, then StartEncounter.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.

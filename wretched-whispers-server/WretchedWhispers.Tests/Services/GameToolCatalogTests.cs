@@ -40,6 +40,22 @@ public class GameToolCatalogTests
             limited);
     }
 
+    [Fact]
+    public void TurnEndingAndRecordKeepingTools_ArePinned()
+    {
+        var all = new[] { SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution }
+            .SelectMany(GameToolCatalog.ForStage).ToList();
+        string[] Names(Func<GameToolDescriptor, bool> where) =>
+            all.Where(where).Select(d => $"{d.Group}.{d.Name}").Distinct().OrderBy(x => x).ToArray();
+
+        // Starting combat ends the turn: its first round belongs to the player's next message.
+        Assert.Equal(new[] { "Encounter.StartEncounter" }, Names(d => d.EndsTurn));
+        // Only notes may still follow; nothing that resolves or changes the character.
+        Assert.Equal(
+            new[] { "Campaign.RecordJournalEntry", "Campaign.RecordPointOfInterest", "Campaign.SetPartyLocation" },
+            Names(d => d.AllowedAfterTurnEnd));
+    }
+
     /// <summary>Characters are made by the create-session and successor forms, never by the narrator, so a
     /// session cannot start without one and this stage is an unreachable fallback. It gets no tools at all:
     /// there is nothing it should be able to do, least of all conjure a character.</summary>

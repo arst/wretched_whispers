@@ -20,4 +20,16 @@ public sealed class GameToolAttribute(params SessionStage[] stages) : Attribute
     /// fails with a model-readable error before it reaches the domain.
     /// </summary>
     public int MaxCallsPerTurn { get; init; }
+
+    /// <summary>
+    /// Completing this tool ends the turn's game actions: the session has moved to a stage whose own
+    /// tools are not available until the player's next message (StartEncounter begins combat, but a
+    /// combat round can only be resolved next turn). Any later tool call this turn fails with a
+    /// model-readable error — except tools marked <see cref="AllowedAfterTurnEnd"/>.
+    /// </summary>
+    public bool EndsTurn { get; init; }
+
+    /// <summary>Pure record-keeping (journal, map) that resolves nothing, so it may still follow a
+    /// tool that <see cref="EndsTurn"/>.</summary>
+    public bool AllowedAfterTurnEnd { get; init; }
 }

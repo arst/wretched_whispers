@@ -84,8 +84,8 @@ public sealed class EncounterTools(
         return CreateEncounterDto(encounter);
     }
 
-    [Description("Start the current encounter")]
-    [GameTool(SessionStage.Exploration, MaxCallsPerTurn = 1)]
+    [Description("Start the current encounter: combat begins. This ENDS YOUR TURN — no other game tool can be called after it this turn, and the first combat round is resolved on the player's next message. After it, narrate only how the fight breaks out, then stop.")]
+    [GameTool(SessionStage.Exploration, MaxCallsPerTurn = 1, EndsTurn = true)]
     public async Task<EncounterDto> StartEncounter()
     {
         var encounter = await encounterService.StartEncounter(RequireEncounterId());
