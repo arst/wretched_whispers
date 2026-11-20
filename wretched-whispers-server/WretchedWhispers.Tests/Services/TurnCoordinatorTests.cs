@@ -445,6 +445,50 @@ public class TurnCoordinatorTests
         Assert.NotNull(trace.DurationMs);
     }
 
+    // ---- The turn ledger ----
+
+    [Fact]
+    public async Task CommittedTurn_StoresItsSuccessfulToolCalls_WithThePlayersMessage()
+    {
+        ArrangeExplorationTurn();
+        SetupAgentExecutorStreaming(
+            new ToolResult("Rest", "{\"hpHealed\":2}", "{\"hours\":8}"),
+            new ToolResult("Roll", "Error: bad dice", "{\"diceExpression\":\"banana\"}", Failed: true),
+            new NarrativeChunk("You sleep until dawn."),
+            new AgentTrace([new ToolCallTrace("Rest", "{\"hours\":8}")]));
+        ChatMessage? savedPlayerMessage = null;
+        _chatHistoryRepo
+            .Setup(r => r.SaveMessage(_chatSessionId, It.Is<ChatMessage>(m => m.Role == ChatRole.User),
+                It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
+            .Callback<Guid, ChatMessage, CancellationToken, Guid?>((_, m, _, _) => savedPlayerMessage = m)
+            .Returns(Task.CompletedTask);
+
+        await RunTurnAsync();
+
+        Assert.NotNull(savedPlayerMessage);
+        Assert.Equal("I explore", savedPlayerMessage!.Text); // the player's words are stored as typed
+        var record = TurnLedger.RecordText(savedPlayerMessage);
+        Assert.Contains("Rest(hours: 8)", record);
+        Assert.DoesNotContain("banana", record);
+    }
+
+    [Fact]
+    public async Task TurnWithoutTools_StoresNoRecord()
+    {
+        ArrangeExplorationTurn();
+        SetupAgentExecutorStreaming(new NarrativeChunk("Fog, and nothing else."), new AgentTrace([]));
+        ChatMessage? savedPlayerMessage = null;
+        _chatHistoryRepo
+            .Setup(r => r.SaveMessage(_chatSessionId, It.Is<ChatMessage>(m => m.Role == ChatRole.User),
+                It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
+            .Callback<Guid, ChatMessage, CancellationToken, Guid?>((_, m, _, _) => savedPlayerMessage = m)
+            .Returns(Task.CompletedTask);
+
+        await RunTurnAsync();
+
+        Assert.Null(TurnLedger.RecordText(savedPlayerMessage!));
+    }
+
     // ---- Summarizing runs after the turn, off the player's time ----
 
     [Fact]

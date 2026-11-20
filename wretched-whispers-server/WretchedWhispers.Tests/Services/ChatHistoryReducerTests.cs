@@ -101,6 +101,40 @@ public sealed class ChatHistoryReducerTests
             It.IsAny<Guid>(), It.IsAny<ChatSummary>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Compose_ShowsEachEarlierTurnsToolRecord_AfterItsPlayerMessage()
+    {
+        SetupStored(new ChatSummary("earlier doom", 0), 0);
+        var player = new ChatMessage(ChatRole.User, "I rest");
+        TurnLedger.Attach(player, [new Engine.Models.ToolResult("Rest", "{}", "{\"hours\":8}")]);
+        IReadOnlyList<ChatMessage> history = [player, new ChatMessage(ChatRole.Assistant, "You sleep.")];
+
+        var result = await CreateReducer().ComposeAsync(_sessionId, history, CancellationToken.None);
+
+        Assert.Equal(new[] { "system", "user", "system", "assistant" }, result.Select(m => m.Role.Value));
+        Assert.Contains("earlier doom", result[0].Text);
+        Assert.Contains("Rest(hours: 8)", result[2].Text);
+        VerifyNoModelCall();
+    }
+
+    [Fact]
+    public async Task Summarize_CountsTurnRecordsTowardTheBudget()
+    {
+        // 140 messages of ~100 tokens are under the 15,000 trigger on their own; their records push
+        // the real size of what the model is sent over it.
+        var history = Sized(140).Select(m =>
+        {
+            TurnLedger.Attach(m, [new Engine.Models.ToolResult(
+                "RecordJournalEntry", "{}", "{\"category\":\"Event\",\"text\":\"" + new string('x', 120) + "\"}")]);
+            return m;
+        }).ToList();
+        SetupStored(null, history);
+        SetupSummarizerResponse("fresh summary");
+        AcceptSave();
+
+        Assert.True(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
+    }
+
     // ---- SummarizeIfDueAsync: the post-turn pass ----
 
     [Fact]

@@ -17,7 +17,8 @@ public interface IHistorySummarizer
 /// Two separate steps, so the player never waits on a summary:
 /// <list type="bullet">
 /// <item><see cref="ComposeAsync"/> runs INSIDE the turn and only reads: the stored summary plus every
-/// message it does not cover yet. No model call, no write.</item>
+/// message it does not cover yet, with each earlier turn's tool record (<see cref="TurnLedger"/>)
+/// inserted after its player message. No model call, no write.</item>
 /// <item><see cref="SummarizeIfDueAsync"/> runs AFTER a turn has committed and its stream has ended,
 /// outside the turn's transaction and session lock. When the uncovered messages exceed the
 /// <see cref="HistoryBudget"/>'s trigger (measured in estimated tokens, not message count — a
@@ -97,8 +98,14 @@ public sealed class ChatHistoryReducer(
         Guid chatSessionId, IReadOnlyList<ChatMessage> history, CancellationToken ct)
     {
         var stored = await chatHistoryRepository.GetSummary(chatSessionId, ct);
-        return Compose(stored, history.Skip(stored?.CoveredCount ?? 0).ToList());
+        var composed = Compose(stored, history.Skip(stored?.CoveredCount ?? 0).ToList());
+        // Only here, in the model's view: the stored chronicle and what the player sees are untouched.
+        return TurnLedger.Expand(composed);
     }
+
+    /// <summary>What a stored message costs the model's context, its turn record included.</summary>
+    private static int Tokens(ChatMessage message) =>
+        TokenEstimate.For(message) + TokenEstimate.For(TurnLedger.RecordText(message));
 
     public async Task<bool> SummarizeIfDueAsync(Guid chatSessionId, CancellationToken ct)
     {
@@ -107,7 +114,7 @@ public sealed class ChatHistoryReducer(
         var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
         var tail = history.Skip(covered).ToList();
 
-        var tailTokens = tail.Sum(TokenEstimate.For);
+        var tailTokens = tail.Sum(Tokens);
         if (tailTokens <= _budget.TriggerTokens)
             return false;
 
@@ -116,7 +123,7 @@ public sealed class ChatHistoryReducer(
         var keptTokens = 0;
         for (var i = tail.Count - 1; i >= 0; i--)
         {
-            var tokens = TokenEstimate.For(tail[i]);
+            var tokens = Tokens(tail[i]);
             if (kept >= MinKeptMessages && keptTokens + tokens > _budget.KeepTokens) break;
             keptTokens += tokens;
             kept++;

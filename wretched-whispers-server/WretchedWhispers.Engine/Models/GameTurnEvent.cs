@@ -13,7 +13,14 @@ public abstract record GameTurnEvent(
 
 public record NarrativeChunk(string Text) : GameTurnEvent("narrative");
 
-public record ToolResult(string Function, object Result) : GameTurnEvent("tool_result");
+/// <summary><paramref name="Arguments"/> (the call's raw JSON arguments) and <paramref name="Failed"/>
+/// (the tool threw or was refused, so nothing changed) are for the server's own records — the turn
+/// ledger — and are never sent to the client.</summary>
+public record ToolResult(
+    string Function,
+    object Result,
+    [property: JsonIgnore] string? Arguments = null,
+    [property: JsonIgnore] bool Failed = false) : GameTurnEvent("tool_result");
 
 public record StateUpdate(
     Guid? CampaignId,

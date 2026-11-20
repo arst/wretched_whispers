@@ -186,6 +186,33 @@ public class DomainAuthorityEvals
     }
 
     [Fact]
+    public async Task Exploration_SecondRest_StillGoesThroughTheTool()
+    {
+        // History used to show the model only prose: on the second night it looked back at "you sleep
+        // and wake restored" with no tool call in sight, and was free to repeat the trick. The turn
+        // ledger shows it that the first night ran Rest. Multi-turn: both nights must call Rest, and
+        // the domain must record time passing on the second.
+        await using var scenario = await EvalScenario.StartAsync(
+            Suite, "Exploration-SecondRest-StillCallsRest", [new ToolCallEvaluator(ordered: false)]);
+        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+        var ct = TestContext.Current.CancellationToken;
+
+        var first = await host.CreateTurnRunner().RunTurnAsync("We camp for the night. I sleep until dawn.", ct);
+        Assert.Contains("Rest", first.ToolCalls);
+
+        var second = await host.CreateTurnRunner().RunTurnAsync(
+            "A long day on the road, and nothing to show for it. We make camp again and I sleep through the night.", ct);
+
+        EvaluationResult result = await scenario.Run.EvaluateAsync(
+            messages: [], modelResponse: second.Response,
+            additionalContext: [new ToolCallsContext(["Rest"])], cancellationToken: ct);
+        Assert.True(result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName).Value,
+            $"The second rest must call Rest too; got [{string.Join(", ", second.ToolCalls)}]. "
+            + $"Narrative: {second.Narrative}");
+        Assert.True(second.Delta is { HoursElapsed: > 0 }, "The second rest must advance time in the domain.");
+    }
+
+    [Fact]
     public async Task Exploration_AttackThatStartsCombat_StopsAtTheStart()
     {
         // Starting combat ends the turn: the player's declared attack is NOT resolved in the same turn
