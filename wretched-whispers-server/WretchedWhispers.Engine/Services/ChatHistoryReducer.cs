@@ -19,9 +19,11 @@ public interface IHistorySummarizer
 /// <item><see cref="ComposeAsync"/> runs INSIDE the turn and only reads: the stored summary plus every
 /// message it does not cover yet. No model call, no write.</item>
 /// <item><see cref="SummarizeIfDueAsync"/> runs AFTER a turn has committed and its stream has ended,
-/// outside the turn's transaction and session lock. When more than <see cref="ThresholdCount"/>
-/// messages are uncovered, all but the most recent <see cref="TargetCount"/> are folded into the
-/// summary and the watermark advances.</item>
+/// outside the turn's transaction and session lock. When the uncovered messages exceed the
+/// <see cref="HistoryBudget"/>'s trigger (measured in estimated tokens, not message count — a
+/// player's "yes" and a 400-token combat narration are not the same size), the older ones are folded
+/// into the summary, the most recent ones within the keep budget stay verbatim, and the watermark
+/// advances.</item>
 /// </list>
 /// The full history stays in the database — only what is sent to the model is reduced. The summary
 /// is saved only if the watermark has not moved since it was read, so two summarizers (or a slow one
@@ -31,10 +33,13 @@ public interface IHistorySummarizer
 public sealed class ChatHistoryReducer(
     IChatClient chatClient,
     IChatHistoryRepository chatHistoryRepository,
-    ILogger<ChatHistoryReducer> logger) : IHistorySummarizer
+    ILogger<ChatHistoryReducer> logger,
+    HistoryBudget? budget = null) : IHistorySummarizer
 {
-    private const int TargetCount = 100;
-    private const int ThresholdCount = 150;
+    /// <summary>The latest exchange stays verbatim whatever its size.</summary>
+    private const int MinKeptMessages = 2;
+
+    private readonly HistoryBudget _budget = budget ?? new HistoryBudget();
 
     private const string SummarizationInstructions =
         """
@@ -102,10 +107,25 @@ public sealed class ChatHistoryReducer(
         var history = await chatHistoryRepository.LoadSession(chatSessionId, ct) ?? [];
         var tail = history.Skip(covered).ToList();
 
-        if (tail.Count <= ThresholdCount)
+        var tailTokens = tail.Sum(TokenEstimate.For);
+        if (tailTokens <= _budget.TriggerTokens)
             return false;
 
-        var olderCount = tail.Count - TargetCount;
+        // Walk back from the newest message, keeping whole messages while they fit the keep budget.
+        var kept = 0;
+        var keptTokens = 0;
+        for (var i = tail.Count - 1; i >= 0; i--)
+        {
+            var tokens = TokenEstimate.For(tail[i]);
+            if (kept >= MinKeptMessages && keptTokens + tokens > _budget.KeepTokens) break;
+            keptTokens += tokens;
+            kept++;
+        }
+
+        var olderCount = tail.Count - kept;
+        if (olderCount <= 0)
+            return false;
+
         var toSummarize = new List<ChatMessage>(olderCount + 1);
         if (stored is not null)
             toSummarize.Add(SummaryMessage(stored.Text));
@@ -131,8 +151,8 @@ public sealed class ChatHistoryReducer(
         }
 
         logger.LogInformation(
-            "Rolled summary forward — covered {Covered} of {Total} messages",
-            updated.CoveredCount, history.Count);
+            "Rolled summary forward — covered {Covered} of {Total} messages; ~{Folded} tokens folded, ~{Kept} kept verbatim",
+            updated.CoveredCount, history.Count, tailTokens - keptTokens, keptTokens);
         return true;
     }
 

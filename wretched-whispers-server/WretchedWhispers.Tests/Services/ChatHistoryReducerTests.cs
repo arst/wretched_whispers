@@ -13,8 +13,18 @@ public sealed class ChatHistoryReducerTests
     private readonly Mock<IChatHistoryRepository> _repo = new();
     private readonly Guid _sessionId = Guid.NewGuid();
 
+    // In these tests a Sized message is ~100 estimated tokens, so this budget reads as "summarize past
+    // 150 such messages, keep the latest 100".
+    private static readonly HistoryBudget Budget = new(TriggerTokens: 15_000, KeepTokens: 10_000);
+
     private ChatHistoryReducer CreateReducer() =>
-        new(_chatClient.Object, _repo.Object, NullLogger<ChatHistoryReducer>.Instance);
+        new(_chatClient.Object, _repo.Object, NullLogger<ChatHistoryReducer>.Instance, Budget);
+
+    /// <summary>Messages of a known size: <paramref name="tokensEach"/> estimated tokens apiece.</summary>
+    private static IReadOnlyList<ChatMessage> Sized(int count, int tokensEach = 100) =>
+        Enumerable.Range(0, count)
+            .Select(i => new ChatMessage(ChatRole.User, $"msg {i} ".PadRight((tokensEach - 4) * 4, '.')))
+            .ToList();
 
     private static IReadOnlyList<ChatMessage> Messages(int count) =>
         Enumerable.Range(0, count).Select(i => new ChatMessage(ChatRole.User, $"msg {i}")).ToList();
@@ -30,11 +40,23 @@ public sealed class ChatHistoryReducerTests
             It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions?>(), It.IsAny<CancellationToken>()),
             Times.Never);
 
-    private void SetupStored(ChatSummary? summary, int messages)
+    private void SetupStored(ChatSummary? summary, int messages) => SetupStored(summary, Sized(messages));
+
+    private void SetupStored(ChatSummary? summary, IReadOnlyList<ChatMessage> history)
     {
         _repo.Setup(r => r.GetSummary(_sessionId, It.IsAny<CancellationToken>())).ReturnsAsync(summary);
-        _repo.Setup(r => r.LoadSession(_sessionId, It.IsAny<CancellationToken>())).ReturnsAsync(Messages(messages));
+        _repo.Setup(r => r.LoadSession(_sessionId, It.IsAny<CancellationToken>())).ReturnsAsync(history);
     }
+
+    private void AcceptSave() =>
+        _repo.Setup(r => r.TrySaveSummary(
+                _sessionId, It.IsAny<ChatSummary>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+    private void VerifySavedWatermark(int coveredCount, int expectedPrevious) =>
+        _repo.Verify(r => r.TrySaveSummary(
+            _sessionId, It.Is<ChatSummary>(s => s.CoveredCount == coveredCount), expectedPrevious,
+            It.IsAny<CancellationToken>()), Times.Once);
 
     // ---- ComposeAsync: what a turn sends the model. Read-only, whatever the history's length. ----
 
@@ -112,13 +134,67 @@ public sealed class ChatHistoryReducerTests
         Assert.NotNull(sent);
         Assert.Equal(81, sent!.Count());
         Assert.Contains("earlier doom", sent.First().Text);
-        Assert.Equal("msg 20", sent.ElementAt(1).Text);
-        Assert.Equal("msg 99", sent.Last().Text);
+        Assert.StartsWith("msg 20 ", sent.ElementAt(1).Text);
+        Assert.StartsWith("msg 99 ", sent.Last().Text);
         _repo.Verify(r => r.TrySaveSummary(
             _sessionId,
             It.Is<ChatSummary>(s => s.Text == "fresh summary" && s.CoveredCount == 100),
             20,
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ---- The budget is in tokens, not messages ----
+
+    [Fact]
+    public async Task Summarize_ManyShortMessages_UnderTheTokenBudget_DoesNothing()
+    {
+        // 400 one-word messages would have tripped a 150-message rule; they are ~2,400 tokens.
+        SetupStored(null, Messages(400));
+
+        Assert.False(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
+
+        VerifyNoModelCall();
+    }
+
+    [Fact]
+    public async Task Summarize_FewLongMessages_OverTheTokenBudget_AreSummarized()
+    {
+        // Only 20 messages, far under any message-count rule, but ~20,000 tokens.
+        SetupStored(null, Sized(20, tokensEach: 1_000));
+        SetupSummarizerResponse("fresh summary");
+        AcceptSave();
+
+        Assert.True(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
+
+        // The latest 10 fit the 10,000-token keep budget; the older 10 are folded in.
+        VerifySavedWatermark(coveredCount: 10, expectedPrevious: 0);
+    }
+
+    [Fact]
+    public async Task Summarize_KeepsWholeMessagesWithinTheKeepBudget_NewestFirst()
+    {
+        // 170 x 100 tokens = 17,000 uncovered: over the trigger. Exactly 100 fit the keep budget.
+        SetupStored(new ChatSummary("earlier doom", 30), messages: 200);
+        SetupSummarizerResponse("fresh summary");
+        AcceptSave();
+
+        Assert.True(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
+
+        VerifySavedWatermark(coveredCount: 100, expectedPrevious: 30);
+    }
+
+    [Fact]
+    public async Task Summarize_AlwaysKeepsTheLatestExchange_HoweverLargeItIs()
+    {
+        // The last two messages alone exceed the keep budget; they still stay verbatim.
+        var history = Sized(10).Concat(Sized(2, tokensEach: 9_000)).ToList();
+        SetupStored(null, history);
+        SetupSummarizerResponse("fresh summary");
+        AcceptSave();
+
+        Assert.True(await CreateReducer().SummarizeIfDueAsync(_sessionId, CancellationToken.None));
+
+        VerifySavedWatermark(coveredCount: 10, expectedPrevious: 0);
     }
 
     [Fact]
