@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Plays Wretched Whispers over its HTTP API, one command per player action. Made for simulated
-// players (see .claude/agents/ww-player.md): it prints what a player would see on screen and nothing
-// else, and records which persona played which session in sim-runs/manifest.jsonl.
+// players (see simulation/README.md): it prints what a player would see on screen and nothing
+// else, and records which persona played which session in simulation/runs/manifest.jsonl.
 //
-//   node tools/sim-player.mjs new --persona <slug> --name <character name> [--class <Class>]
+//   node simulation/sim-player.mjs new --persona <slug> --name <character name> [--class <Class>]
 //                                 [--difficulty <Difficulty>] [--max-turns 30]
-//   node tools/sim-player.mjs say <game>            (the message is read from stdin)
-//   node tools/sim-player.mjs successor <game> --name <character name> [--class <Class>]
+//   node simulation/sim-player.mjs say <game>            (the message is read from stdin)
+//   node simulation/sim-player.mjs successor <game> --name <character name> [--class <Class>]
 //
 // Needs the API running in the Server profile (dev: http://localhost:5007, override with WW_API).
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 const API = process.env.WW_API ?? "http://localhost:5007";
-const DIR = process.env.WW_SIM_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "..", "sim-runs");
+const DIR = process.env.WW_SIM_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "runs");
 const PASSWORD = "sim-player-password";
 
 const { positionals, values: flags } = parseArgs({
