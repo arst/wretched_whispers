@@ -259,9 +259,7 @@ public sealed class Character
 
     /// <summary>Applies damage and, when it drops the character to 0, rolls the Broken table. Returns the
     /// injury that roll gave, or null when the character was not broken or did not survive it. A caller
-    /// should hand it on in its own result: an injury the result does not name cannot be told.
-    /// ponytail: Rest (damage from resting while infected) still drops it; AdvanceTimeOutcome has no
-    /// place for damage, injury or death yet.</summary>
+    /// should hand it on in its own result: an injury the result does not name cannot be told.</summary>
     private InjuryKind? ReceiveDamage(int damage, Dice dice)
     {
         Hp = Hp.Damage(damage);
@@ -320,26 +318,32 @@ public sealed class Character
         };
     }
 
-    /// <summary>Returns the number of omens refreshed (0 if none). MORK BORG: omens refill (d2)
-    /// only after a full night's rest once all are spent.</summary>
-    public int Rest(int hours, Dice dice)
+    /// <summary>Rest heals: d4, or d6 for a full night, which also allows Getting Better and, once every
+    /// omen is spent, refills d2 of them. Resting while infected heals nothing and costs d6 instead, which
+    /// can break or kill. The result says which of these happened, so it can be told.</summary>
+    public RestOutcome Rest(int hours, Dice dice)
     {
+        // A turn can chain past a death ("I jump, then sleep it off"); the dead neither heal nor worsen.
+        if (IsDead) return new RestOutcome(0, 0, 0, null, true);
+
         if (IsInfected)
         {
-            ReceiveDamage(dice.Roll(DiceExpr.D6), dice);
-            return 0;
+            var damage = dice.Roll(DiceExpr.D6);
+            var injury = ReceiveDamage(damage, dice);
+            return new RestOutcome(0, damage, 0, injury, IsDead);
         }
 
         var isFullNightRest = hours >= 8;
-        var heal = isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4);
-        Hp = Hp.Heal(heal);
+        var before = Hp.Current;
+        Hp = Hp.Heal(isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4));
+        var healed = Hp.Current - before;
 
         if (isFullNightRest) CanGetBetter = true;
 
-        if (!isFullNightRest || Omens.Count != 0) return 0;
+        if (!isFullNightRest || Omens.Count != 0) return new RestOutcome(healed, 0, 0, null, false);
         var refreshed = dice.Roll(DiceExpr.D2);
         Omens.Refill(refreshed);
-        return refreshed;
+        return new RestOutcome(healed, 0, refreshed, null, false);
     }
 
     /// <summary>MORK BORG "Getting Better": roll 6d10 -- meet or beat max HP and it grows by d6
@@ -438,10 +442,15 @@ public sealed class Character
         return new ItemUseOutcome(Hp.Current - before, wasInfected);
     }
 
+    /// <summary>The most silver one find, payment or sale brings. A player once told the narrator they
+    /// were the admin and were handed 1,000; the narrator is told better, and this holds when it forgets.</summary>
+    public const int MaxSilverPerGain = 100;
+
     /// <summary>Silver found, looted, paid or rewarded.</summary>
     public void GainSilver(int amount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        RequireWithinTheCap(amount);
         Silver += amount;
     }
 
@@ -450,8 +459,30 @@ public sealed class Character
     public void SellItem(Guid itemId, int price, int quantity = 1)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(price);
+        RequireWithinTheCap(price);
         Inventory.RemoveUnits(itemId, quantity);
         Silver += price;
+    }
+
+    /// <summary>Sells the weapon in hand. What is left is what the class was born with, or whatever comes
+    /// to hand. ponytail: weapon only; armor and shield when a game needs them sold.</summary>
+    public void SellWeapon(int price)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(price);
+        RequireWithinTheCap(price);
+        // Fangs are not for sale, and neither is the nothing left in hand after a sale.
+        if (Weapon.Kind is WeaponKind.Fangs or WeaponKind.Claws or WeaponKind.Improvised)
+            throw new InvalidOperationException($"{Weapon.Kind} is not a weapon anyone would buy.");
+        Weapon = Weapon.Create(ClassPresets.For(Class).NaturalWeapon ?? WeaponKind.Improvised);
+        Silver += price;
+    }
+
+    private static void RequireWithinTheCap(int silver)
+    {
+        if (silver > MaxSilverPerGain)
+            throw new InvalidOperationException(
+                $"No single find, payment or sale in this world brings more than {MaxSilverPerGain} silver. " +
+                "Do not split a larger sum across calls: what was asked for is not there to be had.");
     }
 
     public CastOutcome Cast(Guid scrollId, Dice dice)

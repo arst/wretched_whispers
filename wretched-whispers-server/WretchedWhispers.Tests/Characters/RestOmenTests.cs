@@ -13,7 +13,7 @@ public sealed class RestOmenTests : TestBase
         var character = TestCharacters.Create(Dice, startingOmens: 0);
         SetupDiceRolls(3 /* heal d6 -> 4 */, 1 /* omen d2 -> 2 */);
 
-        var refreshed = character.Rest(8, Dice);
+        var refreshed = character.Rest(8, Dice).OmensRefreshed;
 
         Assert.Equal(2, refreshed);
         Assert.Equal(2, character.Omens.Count);
@@ -25,7 +25,7 @@ public sealed class RestOmenTests : TestBase
         var character = TestCharacters.Create(Dice, startingOmens: 0);
         SetupDiceRolls(2 /* heal d4 -> 3 */);
 
-        var refreshed = character.Rest(4, Dice);
+        var refreshed = character.Rest(4, Dice).OmensRefreshed;
 
         Assert.Equal(0, refreshed);
         Assert.Equal(0, character.Omens.Count);
@@ -38,7 +38,7 @@ public sealed class RestOmenTests : TestBase
         var character = TestCharacters.Create(Dice, startingOmens: 1);
         SetupDiceRolls(3 /* heal d6 */);
 
-        var refreshed = character.Rest(8, Dice);
+        var refreshed = character.Rest(8, Dice).OmensRefreshed;
 
         Assert.Equal(0, refreshed);
         Assert.Equal(1, character.Omens.Count);
@@ -52,7 +52,7 @@ public sealed class RestOmenTests : TestBase
         character.Infect();
         SetupDiceRolls(2 /* infection d6 -> 3 damage */);
 
-        var refreshed = character.Rest(8, Dice);
+        var refreshed = character.Rest(8, Dice).OmensRefreshed;
 
         Assert.Equal(0, refreshed);
         Assert.Equal(0, character.Omens.Count);

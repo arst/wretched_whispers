@@ -233,6 +233,62 @@ public class GameToolsTests
         _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    // The wielded weapon is on the sheet, not in the pack: "sell my sword" found nothing to sell.
+    [Fact]
+    public async Task SellItem_NamingTheWieldedWeapon_PaysAndDisarms()
+    {
+        var hero = HeroInSession();
+
+        var sheet = await CharacterTools().SellItem("Sword", silverPrice: 18);
+
+        Assert.Equal(WeaponKind.Improvised, sheet.WeaponKind);
+        Assert.Equal(28, sheet.Silver);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SellItem_PrefersACarriedItemOverTheWieldedWeapon()
+    {
+        var hero = HeroInSession();
+        Carry(hero, "sword");
+
+        var sheet = await CharacterTools().SellItem("Sword", silverPrice: 18);
+
+        Assert.Equal(WeaponKind.Sword, sheet.WeaponKind);
+        Assert.Empty(hero.Inventory.InventoryItems);
+    }
+
+    // The model copied the scroll's whole line from Game State as its name.
+    [Theory]
+    [InlineData("Scroll: Hermetic Step (Sacred): For 2d10 minutes the caster finds every trap in their path.")]
+    [InlineData("Scroll: Hermetic Step (Sacred)")]
+    [InlineData("hermetic step")]
+    public async Task CastScroll_FindsTheScrollFromItsGameStateLine(string asTheModelWroteIt)
+    {
+        // d4 daily powers; d20 = 15 to cast.
+        var dice = ScriptedDice(0, 14);
+        var hero = TestCharacters.Create(dice, scrolls:
+        [
+            new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Bestial Speech"),
+            new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Hermetic Step")
+        ]);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var cast = await CharacterTools(dice).CastScroll(asTheModelWroteIt);
+
+        Assert.Equal("Hermetic Step", cast.Scroll);
+    }
+
+    [Fact]
+    public void CombatRoundOutcome_ThatKilledThePlayer_SaysDead()
+    {
+        var round = new CombatRoundOutcome(null, null, null, [], [], true, EncounterEndReason.PlayerDead, 0, false);
+
+        Assert.True(CombatRoundOutcomeDto.From(round).PlayerDead);
+        Assert.False(CombatRoundOutcomeDto.From(round with { EndReason = EncounterEndReason.None }).PlayerDead);
+    }
+
     [Fact]
     public async Task GainSilver_PaysTheCharacter()
     {

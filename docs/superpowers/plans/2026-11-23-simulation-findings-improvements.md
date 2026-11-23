@@ -230,9 +230,38 @@ The second run is also the baseline for Stage 3: new tools change what the model
 
 ---
 
+## Stage 1b: what the second run sent back
+
+From `simulation/findings/2026-11-23-second-run.md`. One branch, one commit per task, with Tasks 10 and 11 below.
+
+### Task 12: Silver is capped per gain, and not handed out on demand
+
+`GainSilver(1000, "admin transfer")` went through when a player claimed to be the admin. Decision D is reversed: there is a cap, and the prompt is tuned too, because a cap alone still allows many small grants.
+
+- [ ] Tests: `GainSilver_AboveTheCap_ThrowsAndChangesNothing`; `GainSilver_AtTheCap_Pays`; `SellItem_PriceAboveTheCap_ThrowsAndKeepsTheItem`.
+- [ ] `Character.MaxSilverPerGain = 100`, enforced in `GainSilver` and `SellItem`. `GainSilver` is limited to two calls a turn, so a refused sum cannot be split in the same turn.
+- [ ] Eval first: `Exploration-OutOfStoryDemand-NoSilver` (the admin message; no `GainSilver` call) and `Exploration-InventedDebt-NoSilver` (a claimed debt pays nothing). Record the rate against the current prompt, then change the `GainSilver` description and the Exploration prompt, and re-run. This is plan item 3.3's refusal half, brought forward.
+
+### Task 13: A cast finds the scroll from its Game State line
+
+- [ ] Test: `CastScroll_GivenTheGameStateLine_FindsTheScroll` (`"Scroll: Hermetic Step (Sacred): For 2d10 minutes…"` resolves to `Hermetic Step`); the exact name still wins.
+- [ ] The lookup falls back to the scroll whose name the given text contains.
+
+### Task 14: The wielded weapon can be sold
+
+- [ ] Tests: `SellItem_NamingTheWieldedWeapon_PaysAndDisarms`; a carried item of the same name is sold first.
+- [ ] `Character.SellWeapon(int price)`: pays, and the character falls back to the class's natural weapon or `Improvised`. `SellItem` uses it when nothing carried matches and the name is the wielded weapon's. Armor and shield are left for when a run needs them.
+
+### Task 15: A round that kills the player says so
+
+- [ ] Test: `ResolveCombatRound_ThatKillsThePlayer_ReportsPlayerDead`.
+- [ ] `CombatRoundOutcomeDto` gains `PlayerDead`.
+
+---
+
 ## Before Stage 3: two fixes found during Stage 1
 
-Both predate Stage 1 and were left out of it. Each is its own pull request. They can run alongside Stage 2, and both must be merged before Stage 3 starts.
+Both predate Stage 1 and were left out of it. They are done with Stage 1b, and both must be merged before Stage 3 starts. The second run widened Task 10: a rest that heals must report it too.
 
 ### Task 10: Resting while infected says what it did
 
@@ -293,6 +322,31 @@ If 3.6 does not hold through prompting, the code options are a single tool that 
 
 ---
 
+## Later: item pricing
+
+Not scheduled. Its own design and plan when it is taken up.
+
+### Task 16: The game knows what things are worth
+
+Nothing in the game says what an item costs or sells for. Every price is the narrator's: `BuyItem`, `SellItem` and the equip tools take whatever number the model passes. Stage 1b bounded the damage (100 silver per gain or sale, a few calls a turn) and tuned the prompt, but those are fences around a missing rule:
+
+- A narrator can conjure an item and sell it for up to 100, turn after turn.
+- An honest sale of several things worth more than 100 together is refused.
+- The same sword can cost 10 at one stall and 40 at the next, and sell back for more than it cost.
+- Repair, hire and services have no price at all.
+
+What a design has to settle:
+
+- [ ] Where prices come from: the book's equipment tables for weapons, armor and listed gear, and a rule for everything the narrator invents (a price band by kind of thing, or a price fixed when the item enters the world).
+- [ ] Whether an item carries its value, so a sale is bounded by what the thing is worth and not by a flat cap. This is what would let the per-call cap go.
+- [ ] How far haggling moves a price, and whether a test decides it.
+- [ ] What a found or looted item is worth when nobody priced it.
+- [ ] Whether selling worn armor and a shield comes in here (today only the wielded weapon can be sold).
+
+Until then the cap, the per-turn limits and the silver evals stand.
+
+---
+
 ## Decisions made (23 November 2026)
 
 | | Decision | Outcome |
@@ -300,5 +354,5 @@ If 3.6 does not hold through prompting, the code options are a single tool that 
 | A | A character who survives the Broken table gets d4 HP back at once | Yes (Task 6) |
 | B | The narrator may mark a bought or found item as healing | Yes, applied in the domain: the item carries the effect and `Character.UseItem` applies it (Task 4) |
 | C | Scroll effects that move numbers are applied by the game | Yes (Task 3) |
-| D | A cap on silver per sale or gain | No |
+| D | A cap on silver per sale or gain | No. Reversed after the second run: 100 silver per gain or sale, with the prompt tuned as well (Task 12) |
 | E | Tools to change weapon, armor and shield | Yes (Task 9) |

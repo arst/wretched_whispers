@@ -93,6 +93,9 @@ public class EncounterService(
             ?? throw new InvalidOperationException("Character not found");
         if (!encounter.IsStarted || encounter.IsEnded)
             throw new InvalidOperationException("The encounter is not in active combat.");
+        // A turn can chain past a death (a fizzled scroll, then "I run"); the dead take no more rounds.
+        if (character.IsDead)
+            throw new InvalidOperationException("The character is dead: there is no round to resolve.");
         if (omenUse is not CombatOmenUse.None && character.Omens.Count == 0)
             throw new InvalidOperationException("No omens remaining.");
 

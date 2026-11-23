@@ -1,5 +1,6 @@
 using WretchedWhispers.Core.Campaigns.Time;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Campaigns;
@@ -131,19 +132,29 @@ public class CampaignService(
         var outcome = campaign.AdvanceTime(hours, dice);
         await campaignsRepository.SaveCampaign(campaign, ct);
 
-        var omensRefreshed = 0;
+        // ponytail: one player to a campaign, so the result describes the last character rested. Report
+        // per character when a campaign holds more than one.
         foreach (var playerId in campaign.Players)
         {
             var character = await charactersRepository.Get(playerId, ct);
 
             if (character is null) throw new InvalidOperationException("Player character not found.");
-            omensRefreshed += character.Rest(hours, dice);
+            var rest = character.Rest(hours, dice);
 
             if (outcome.IsNewDawn) character.StartNewDay(dice);
 
             await charactersRepository.Save(character, ct);
+            outcome = outcome with
+            {
+                OmensRefreshed = rest.OmensRefreshed,
+                HpHealed = rest.HpHealed,
+                DamageTaken = rest.DamageTaken,
+                CurrentHp = character.Hp.Current,
+                NewInjury = rest.NewInjury?.DisplayName(),
+                IsDead = rest.Died
+            };
         }
 
-        return outcome with { OmensRefreshed = omensRefreshed };
+        return outcome;
     }
 }

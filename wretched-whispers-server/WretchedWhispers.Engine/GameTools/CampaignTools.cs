@@ -42,7 +42,7 @@ public sealed class CampaignTools(
         return await campaignService.AdvanceTime(RequireCampaignId(), hours);
     }
 
-    [Description("Rest for recovery -- characters heal HP and restore magical abilities during the rest period")]
+    [Description("Rest for recovery: time passes and the character heals -- d4 hit points, or d6 and a chance to refill spent omens for a full night of 8 hours or more. An infected character heals nothing and takes damage instead, which can break or kill. The result says what happened: hpHealed, damageTaken, currentHp, newInjury, isDead. Narrate those numbers and nothing else about the character's health.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<AdvanceTimeOutcome> Rest(
         [Description("The number of hours characters will rest and recover")] int hours)

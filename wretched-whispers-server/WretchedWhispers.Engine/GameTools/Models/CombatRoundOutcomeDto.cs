@@ -29,10 +29,13 @@ public sealed record CombatRoundOutcomeDto(
     bool EncounterEnded,
     string EndReason,
     // Post-round player condition. PlayerBroken (dropped to 0, survived with an injury) is NOT death — the model
-    // narrates a collapse. Death is only the PlayerDead EndReason.
+    // narrates a collapse.
     int PlayerCurrentHp,
     bool PlayerBroken)
 {
+    // Spelled out beside PlayerBroken: with only EndReason to go on, a death was told as "not yet dead".
+    public bool PlayerDead => EndReason == nameof(EncounterEndReason.PlayerDead);
+
     public static CombatRoundOutcomeDto From(CombatRoundOutcome outcome) => new(
         outcome.PlayerAttack is { } attack && outcome.PlayerAttackTarget is { } target
             ? new PlayerAttackDto(target, attack.Hit, attack.Damage.Amount, attack.Critical, attack.Fumble,
