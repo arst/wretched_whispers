@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Engine.Prompts;
@@ -6,25 +8,35 @@ namespace WretchedWhispers.Engine.Services;
 
 public sealed class PromptComposer
 {
-    public string Compose(SessionContext context)
+    public string Compose(SessionContext context) =>
+        $"""
+            {ComposeInstructions(context)}
+            ## Game State
+            {context.FormatSnapshot()}
+            """;
+
+    /// <summary>Identifies the prompt this turn ran under, for telling prompt versions apart across runs.
+    /// It covers the instructions only: Game State changes every turn, so a hash that included it would
+    /// differ on almost every turn and identify nothing. Two turns in the same stage, difficulty and class
+    /// share a hash for as long as the prompt text is unchanged.</summary>
+    public string VersionHash(SessionContext context) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(ComposeInstructions(context))));
+
+    /// <summary>Everything the narrator is told apart from Game State.</summary>
+    private static string ComposeInstructions(SessionContext context)
     {
         var stage = context.DeriveStage();
-        var persona = NarratorPersona.Text;
-        var stageInstructions = StagePrompts.For(stage);
-        var snapshot = context.FormatSnapshot();
         var toneNote = DifficultyPresets.For(context.Campaign?.Difficulty ?? Difficulty.Grim).GmToneNote;
 
         return $"""
-            {persona}
+            {NarratorPersona.Text}
 
             ## Current Stage: {stage}
-            {stageInstructions}
+            {StagePrompts.For(stage)}
 
             ## Difficulty
             {toneNote}
             {ComposeClassSection(context)}
-            ## Game State
-            {snapshot}
             """;
     }
 

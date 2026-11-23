@@ -71,6 +71,8 @@ public sealed class AgentExecutor(
         // it covers. Summarizing itself happens after the turn (see TurnCoordinator), never here.
         history = await historyReducer.ComposeAsync(chatSessionId, history, ct);
         var instructions = promptComposer.Compose(sessionContext);
+        // Taken now: the turn's tools may move the stage before the trace is written.
+        var promptVersion = promptComposer.VersionHash(sessionContext);
         var agent = CreateAgent(tools, instructions);
         var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
         _metrics.Reset();
@@ -100,7 +102,7 @@ public sealed class AgentExecutor(
         yield return new AgentTrace(
             run.ToolCalls,
             ModelId: _metrics.ModelId,
-            PromptHash: HashPrompt(instructions),
+            PromptHash: promptVersion,
             InputTokens: _metrics.InputTokens,
             OutputTokens: _metrics.OutputTokens,
             Iterations: _metrics.Requests,
@@ -146,10 +148,6 @@ public sealed class AgentExecutor(
     }
 
     /// <summary>SHA-256 of the composed instructions: equal hashes mean the model saw the same prompt.</summary>
-    public static string HashPrompt(string instructions) =>
-        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(instructions)));
-
     /// <summary>What one agent run has produced so far.</summary>
     private sealed class RunState
     {

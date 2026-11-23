@@ -265,7 +265,7 @@ public class AgentExecutorIntegrationTests
         Assert.Equal(300, trace.InputTokens);
         Assert.Equal(30, trace.OutputTokens);
         Assert.Equal(2, trace.Iterations);
-        Assert.Equal(AgentExecutor.HashPrompt(new PromptComposer().Compose(ctx)), trace.PromptHash);
+        Assert.Equal(new PromptComposer().VersionHash(ctx), trace.PromptHash);
         Assert.Matches("^[0-9a-f]{64}$", trace.PromptHash!);
     }
 

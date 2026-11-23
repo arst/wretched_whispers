@@ -2,6 +2,7 @@ using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
@@ -80,6 +81,39 @@ public class PromptComposerTests : TestBase
         var result = _composer.Compose(new SessionContext { SessionId = Guid.NewGuid() });
 
         Assert.DoesNotContain("## Class", result);
+    }
+
+    // The trace's prompt hash is what tells one prompt version from another across runs. Hashing the
+    // whole prompt made it differ on almost every turn, because Game State is part of it.
+    [Fact]
+    public void VersionHash_SameStageDifferentState_IsTheSame()
+    {
+        var healthy = BuildContextForStage(SessionStage.Exploration);
+        var wounded = BuildContextForStage(SessionStage.Exploration);
+        Assert.NotNull(wounded.Character);
+        SetupDiceRoll(2, 0); // a wound of 1
+        wounded.Character.SufferConsequence(
+            ChallengeConsequence.Minor, DifficultyPresets.For(Difficulty.Grim), Dice);
+
+        Assert.NotEqual(_composer.Compose(healthy), _composer.Compose(wounded));
+        Assert.Equal(_composer.VersionHash(healthy), _composer.VersionHash(wounded));
+        Assert.Matches("^[0-9a-f]{64}$", _composer.VersionHash(healthy));
+    }
+
+    [Fact]
+    public void VersionHash_DifferentStage_Differs()
+    {
+        Assert.NotEqual(
+            _composer.VersionHash(BuildContextForStage(SessionStage.Exploration)),
+            _composer.VersionHash(BuildContextForStage(SessionStage.Combat)));
+    }
+
+    [Fact]
+    public void VersionHash_DifferentClass_Differs()
+    {
+        Assert.NotEqual(
+            _composer.VersionHash(BuildContextForStage(SessionStage.Exploration)),
+            _composer.VersionHash(BuildContextForStage(SessionStage.Exploration, CharacterClass.EsotericHermit)));
     }
 
     // -- helpers --

@@ -62,8 +62,10 @@ model, per-request token usage, and the ordered list of what the player was show
 - **The exports hold every message and the full prompts.** `runs/` is git-ignored; keep it that way.
 - **Starting clean.** Games accumulate in the `ww-sim-pg` volume across waves. To start over:
   `docker rm -f ww-sim-pg && docker volume rm ww-sim-pg`, and delete `runs/`.
-- **`promptHash` does not identify a prompt version.** It covers the whole instructions including the
-  game state, so it differs on almost every turn. Separate builds by date.
+- **`promptHash` identifies the prompt version.** It covers the instructions without the game state,
+  so turns in the same stage, difficulty and class share a hash until the prompt text changes. Use it
+  to compare runs before and after a prompt change. Traces from the first run (23 November 2026)
+  predate this: their hash includes the game state and differs on almost every turn.
 
 ## Adding a persona
 
