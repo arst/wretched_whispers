@@ -91,6 +91,14 @@ public sealed class Encounter
         IsEnded = true;
     }
 
+    /// <summary>Closes the encounter for good from whatever state it is in: the player it belonged to is
+    /// dead. Whoever was still standing stays as they were -- nobody won.</summary>
+    public void Abandon()
+    {
+        IsEnded = true;
+        IsResolved = true;
+    }
+
     public void Resolve()
     {
         if (!IsEnded) throw new InvalidOperationException("Can't resolve an encounter that hasn't ended.");

@@ -12,10 +12,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Moq;
 using WretchedWhispers.Core;
+using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
+using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Encounters;
+using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
 using Xunit;
@@ -490,6 +495,46 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
             var chronicles = await chatHistoryRepo.GetSessionsForCampaign(campaignId);
             Assert.Equal(sessionCountBefore + 1, chronicles.Count);
             Assert.NotEqual(originalChronicleId, chronicles.First());
+        }
+    }
+
+    /// <summary>The fight that killed the last wretch used to stay open, so the successor's first turn was
+    /// a combat round against whatever had just killed their predecessor.</summary>
+    [Fact]
+    public async Task Successor_AfterDeathInCombat_StartsInExploration()
+    {
+        var user = await RegisterAndLogin("successor-midfight@test.com");
+        var (sessionId, campaignId) = await CreateSessionAsync(user);
+        await SeedCharacterInCampaign(campaignId, dead: true);
+
+        Guid fightId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dice = scope.ServiceProvider.GetRequiredService<Dice>();
+            var fight = Encounter.Create("Gallows Road", "The thing that killed them", EncounterType.Hostile, dice);
+            fight.AddAdversary(new Adversary("Gallows Wight", new HitPoints(30, 30), new Armor(ArmorTier.None), 9,
+                new AttackProfile("claws", DiceExpr.Parse("d6"))));
+            fight.StartEncounter();
+            await scope.ServiceProvider.GetRequiredService<IEncountersRepository>().Save(fight);
+            fightId = fight.Id;
+        }
+
+        await WithOwnedCampaign(campaignId, campaign => campaign.AddEncounter(fightId));
+
+        var response = await CreateSuccessor(user, sessionId);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var entity = await sp.GetRequiredService<WretchedWhispersDbContext>().Campaigns.FindAsync(campaignId)
+                ?? throw new InvalidOperationException("campaign entity missing");
+            sp.GetRequiredService<IUserContext>().SetUserId(entity.UserId);
+
+            var context = await sp.GetRequiredService<ISessionContextLoader>().LoadAsync(sessionId);
+
+            Assert.Null(context.ActiveEncounter);
+            Assert.Equal(SessionStage.Exploration, context.DeriveStage());
         }
     }
 

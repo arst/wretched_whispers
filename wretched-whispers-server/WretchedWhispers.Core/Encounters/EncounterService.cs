@@ -51,6 +51,18 @@ public class EncounterService(
         return encounter;
     }
 
+    /// <summary>Closes every encounter among <paramref name="encounterIds"/> that is still open. Called
+    /// when a dead character is buried: left open, their last fight would be loaded as the successor's.</summary>
+    public async Task AbandonUnresolved(IEnumerable<Guid> encounterIds, CancellationToken ct = default)
+    {
+        foreach (var encounterId in encounterIds)
+        {
+            if (await encountersRepository.Get(encounterId, ct) is not { IsResolved: false } encounter) continue;
+            encounter.Abandon();
+            await encountersRepository.Save(encounter, ct);
+        }
+    }
+
     public async Task<Encounter> TurnHostile(Guid encounterId, CancellationToken ct = default)
     {
         var encounter = await encountersRepository.Get(encounterId, ct) ??
