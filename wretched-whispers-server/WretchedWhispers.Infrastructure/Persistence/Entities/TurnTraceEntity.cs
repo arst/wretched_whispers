@@ -73,6 +73,16 @@ public class TurnTraceEntity
 
     /// <summary>How many model requests the turn made (one per tool round, plus any empty-response retry).</summary>
     public int? Iterations { get; set; }
+
+    /// <summary>JSON array with one entry per model request, in order: model id, input / cached input /
+    /// output / reasoning tokens, duration, time to first output, finish reason. The token columns
+    /// above are the sums of these.</summary>
+    public string? ModelCallsJson { get; set; }
+
+    /// <summary>What the turn sent the model, as JSON: the full instructions, the messages (history
+    /// as the model saw it, then the player's message) and the tool declarations. With the tool calls
+    /// and results above, enough to replay the turn. Recorded even when the turn then fails.</summary>
+    public string? RequestJson { get; set; }
 }
 
 /// <summary>The values of <see cref="TurnTraceEntity.Outcome"/>.</summary>

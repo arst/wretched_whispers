@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -72,6 +75,9 @@ public sealed class AgentExecutor(
         var messages = new List<ChatMessage>(history) { new(ChatRole.User, playerMessage) };
         _metrics.Reset();
 
+        // Out-of-band and first: what this turn sends the model, recorded before anything can fail.
+        yield return new ModelRequest(DescribeRequest(instructions, messages, tools));
+
         var run = new RunState();
         await foreach (var evt in RunOnceAsync(agent, messages, run, ct))
             yield return evt;
@@ -97,7 +103,46 @@ public sealed class AgentExecutor(
             PromptHash: HashPrompt(instructions),
             InputTokens: _metrics.InputTokens,
             OutputTokens: _metrics.OutputTokens,
-            Iterations: _metrics.Requests);
+            Iterations: _metrics.Requests,
+            ModelCalls: _metrics.Calls.ToList());
+    }
+
+    // Relaxed escaping: the prompts are full of dashes and quotes, and this is stored, never rendered.
+    private static readonly JsonSerializerOptions RequestJson =
+        new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    /// <summary>
+    /// The turn's input as JSON: instructions, the messages (history as composed for the model, then
+    /// the player's message) and the tool declarations with their descriptions and parameter schemas
+    /// — the three things the model is sent, and so the three that decide how it answers.
+    /// </summary>
+    private static string DescribeRequest(
+        string instructions, IReadOnlyList<ChatMessage> messages, IReadOnlyList<AIFunction> tools)
+    {
+        var messageArray = new JsonArray();
+        foreach (var message in messages)
+        {
+            var entry = new JsonObject { ["role"] = message.Role.Value };
+            if (message.AuthorName is not null) entry["author"] = message.AuthorName;
+            entry["text"] = message.Text;
+            messageArray.Add(entry);
+        }
+
+        var toolArray = new JsonArray();
+        foreach (var tool in tools)
+            toolArray.Add(new JsonObject
+            {
+                ["name"] = tool.Name,
+                ["description"] = tool.Description,
+                ["parameters"] = JsonNode.Parse(tool.JsonSchema.GetRawText())
+            });
+
+        return new JsonObject
+        {
+            ["instructions"] = instructions,
+            ["messages"] = messageArray,
+            ["tools"] = toolArray
+        }.ToJsonString(RequestJson);
     }
 
     /// <summary>SHA-256 of the composed instructions: equal hashes mean the model saw the same prompt.</summary>
@@ -220,58 +265,112 @@ public sealed class AgentExecutor(
     }
 }
 
-/// <summary>Per-turn model-request metrics, filled by <see cref="MetricsCapturingChatClient"/>.</summary>
+/// <summary>The model requests of one turn, filled by <see cref="MetricsCapturingChatClient"/>.</summary>
 internal sealed class ModelCallMetrics
 {
-    public int Requests { get; private set; }
-    public string? ModelId { get; private set; }
-    public long? InputTokens { get; private set; }
-    public long? OutputTokens { get; private set; }
+    private readonly List<ModelCall> _calls = [];
 
-    public void Reset()
-    {
-        Requests = 0;
-        ModelId = null;
-        InputTokens = null;
-        OutputTokens = null;
-    }
+    /// <summary>One entry per model request, in order.</summary>
+    public IReadOnlyList<ModelCall> Calls => _calls;
 
-    public void CountRequest() => Requests++;
+    public int Requests => _calls.Count;
+    public string? ModelId => _calls.LastOrDefault(call => call.ModelId is not null)?.ModelId;
+    public long? InputTokens => Sum(call => call.InputTokens);
+    public long? OutputTokens => Sum(call => call.OutputTokens);
+
+    public void Reset() => _calls.Clear();
+
+    public void Add(ModelCall call) => _calls.Add(call);
+
+    // Null, not zero, when no request reported the count at all.
+    private long? Sum(Func<ModelCall, long?> count) =>
+        _calls.Any(call => count(call) is not null) ? _calls.Sum(call => count(call) ?? 0) : null;
+}
+
+/// <summary>Watches one model request stream past and sums it up as a <see cref="ModelCall"/>.</summary>
+internal sealed class ModelCallObserver(string? configuredModelId)
+{
+    private readonly long _started = Stopwatch.GetTimestamp();
+    private string? _modelId;
+    private string? _finishReason;
+    private long? _inputTokens, _cachedInputTokens, _outputTokens, _reasoningTokens, _firstOutputMs;
 
     public void Observe(ChatResponseUpdate update)
     {
-        if (!string.IsNullOrEmpty(update.ModelId))
-            ModelId = update.ModelId;
-        foreach (var usage in update.Contents.OfType<UsageContent>())
+        if (!string.IsNullOrEmpty(update.ModelId)) _modelId = update.ModelId;
+        if (update.FinishReason is { } reason) _finishReason = reason.Value;
+
+        foreach (var content in update.Contents)
         {
-            if (usage.Details.InputTokenCount is { } input) InputTokens = (InputTokens ?? 0) + input;
-            if (usage.Details.OutputTokenCount is { } output) OutputTokens = (OutputTokens ?? 0) + output;
+            if (content is UsageContent { Details: var usage })
+            {
+                Add(ref _inputTokens, usage.InputTokenCount);
+                Add(ref _cachedInputTokens, usage.CachedInputTokenCount);
+                Add(ref _outputTokens, usage.OutputTokenCount);
+                Add(ref _reasoningTokens, usage.ReasoningTokenCount);
+            }
+            else if (content is TextContent { Text.Length: > 0 } or FunctionCallContent)
+            {
+                _firstOutputMs ??= ElapsedMs();
+            }
         }
+    }
+
+    // Azure streams an empty model id on every update, so the model the client is configured with
+    // (the deployment) stands in whenever the provider names none.
+    public ModelCall Complete() => new(
+        _modelId ?? configuredModelId, _inputTokens, _cachedInputTokens, _outputTokens, _reasoningTokens,
+        ElapsedMs(), _firstOutputMs, _finishReason);
+
+    private long ElapsedMs() => (long)Stopwatch.GetElapsedTime(_started).TotalMilliseconds;
+
+    private static void Add(ref long? total, long? count)
+    {
+        if (count is { } value) total = (total ?? 0) + value;
     }
 }
 
-/// <summary>Records each model request's model id and token usage as it streams past.</summary>
+/// <summary>Records each model request — model, usage, timing — as it streams past.</summary>
 internal sealed class MetricsCapturingChatClient(IChatClient inner, ModelCallMetrics metrics) : DelegatingChatClient(inner)
 {
     public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages, ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        metrics.CountRequest();
-        await foreach (var update in base.GetStreamingResponseAsync(messages, options, cancellationToken))
+        var call = NewObserver();
+        try
         {
-            metrics.Observe(update);
-            yield return update;
+            await foreach (var update in base.GetStreamingResponseAsync(messages, options, cancellationToken))
+            {
+                call.Observe(update);
+                yield return update;
+            }
+        }
+        finally
+        {
+            // A request that failed part-way still happened, and still cost what it had streamed.
+            metrics.Add(call.Complete());
         }
     }
 
     public override async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
-        metrics.CountRequest();
-        var response = await base.GetResponseAsync(messages, options, cancellationToken);
-        foreach (var update in response.ToChatResponseUpdates())
-            metrics.Observe(update);
-        return response;
+        var call = NewObserver();
+        try
+        {
+            var response = await base.GetResponseAsync(messages, options, cancellationToken);
+            foreach (var update in response.ToChatResponseUpdates())
+                call.Observe(update);
+            return response;
+        }
+        finally
+        {
+            metrics.Add(call.Complete());
+        }
     }
+
+    // Asked per request: the standalone client can be pointed at another model while the app runs.
+    private ModelCallObserver NewObserver() =>
+        new(InnerClient.GetService<ChatClientMetadata>()?.DefaultModelId);
 }

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,12 +25,12 @@ namespace WretchedWhispers.Tests.Services;
 /// </summary>
 public class AgentExecutorIntegrationTests
 {
-    private static AgentExecutor CreateExecutor(IChatClient chatClient)
+    private static AgentExecutor CreateExecutor(IChatClient chatClient, IReadOnlyList<ChatMessage>? history = null)
     {
         var historyRepo = new Mock<IChatHistoryRepository>();
         historyRepo
             .Setup(r => r.LoadSession(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyList<ChatMessage>?)new List<ChatMessage>());
+            .ReturnsAsync(history ?? []);
 
         return new AgentExecutor(
             chatClient,
@@ -135,6 +136,7 @@ public class AgentExecutorIntegrationTests
         var events = await RunAsync(CreateExecutor(client), tools, ctx, "Grim");
 
         Assert.Collection(events,
+            e => Assert.IsType<ModelRequest>(e),
             e => Assert.Equal("Something stirs in the muck.", Assert.IsType<NarrativeChunk>(e).Text),
             e => Assert.Equal("CreateEncounter", Assert.IsType<ToolResult>(e).Function),
             e => Assert.Equal("\n\nGrim claws free of the muck, doomed already.", Assert.IsType<NarrativeChunk>(e).Text),
@@ -268,6 +270,103 @@ public class AgentExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task Trace_ListsEachModelRequest_WithItsOwnUsageAndFinishReason()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new UpdateScriptChatClient(
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("call_1", "Roll", new Dictionary<string, object?> { ["diceExpression"] = "d6" })])
+                    { ModelId = "gpt-test" },
+                new ChatResponseUpdate(ChatRole.Assistant,
+                    [new UsageContent(new UsageDetails { InputTokenCount = 100, CachedInputTokenCount = 40, OutputTokenCount = 10, ReasoningTokenCount = 4 })])
+                    { ModelId = "gpt-test", FinishReason = ChatFinishReason.ToolCalls },
+            ],
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, "The die clatters.") { ModelId = "gpt-test" },
+                new ChatResponseUpdate(ChatRole.Assistant,
+                    [new UsageContent(new UsageDetails { InputTokenCount = 200, CachedInputTokenCount = 150, OutputTokenCount = 20, ReasoningTokenCount = 8 })])
+                    { ModelId = "gpt-test", FinishReason = ChatFinishReason.Stop },
+            ]);
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "I roll");
+
+        var calls = events.OfType<AgentTrace>().Single().ModelCalls;
+        Assert.NotNull(calls);
+        Assert.Collection(calls,
+            first =>
+            {
+                Assert.Equal("gpt-test", first.ModelId);
+                Assert.Equal(100, first.InputTokens);
+                Assert.Equal(40, first.CachedInputTokens);
+                Assert.Equal(10, first.OutputTokens);
+                Assert.Equal(4, first.ReasoningTokens);
+                Assert.Equal("tool_calls", first.FinishReason);
+            },
+            second =>
+            {
+                Assert.Equal(200, second.InputTokens);
+                Assert.Equal(150, second.CachedInputTokens);
+                Assert.Equal(20, second.OutputTokens);
+                Assert.Equal(8, second.ReasoningTokens);
+                Assert.Equal("stop", second.FinishReason);
+            });
+        Assert.All(calls, call =>
+        {
+            Assert.True(call.DurationMs >= 0);
+            Assert.InRange(call.FirstOutputMs ?? -1, 0, call.DurationMs);
+        });
+    }
+
+    [Fact]
+    public async Task ModelId_FallsBackToTheConfiguredModel_WhenTheProviderReportsNone()
+    {
+        // Azure streams an empty model id on every update; the deployment the client is configured
+        // with is then the best record of which model served the turn.
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new UpdateScriptChatClient(
+            [new ChatResponseUpdate(ChatRole.Assistant, "Fog, and nothing else.") { ModelId = "" }])
+        {
+            Metadata = new ChatClientMetadata("azure", null, "my-deployment")
+        };
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "hello");
+
+        var trace = events.OfType<AgentTrace>().Single();
+        Assert.Equal("my-deployment", trace.ModelId);
+        Assert.Equal("my-deployment", Assert.Single(trace.ModelCalls!).ModelId);
+    }
+
+    [Fact]
+    public async Task TheRequest_IsEmittedBeforeTheRun_AndIsWhatTheModelWasSent()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new ScriptedChatClient(ChatResponses.Text("The road goes on."));
+        List<ChatMessage> history =
+        [
+            new(ChatRole.User, "begin"),
+            new(ChatRole.Assistant, "You wake in a ditch.") { AuthorName = "Game_Master" },
+        ];
+
+        var events = await RunAsync(CreateExecutor(client, history), tools, ctx, "I walk on");
+
+        // First, so a turn that fails mid-run has still recorded what it sent.
+        var request = JsonNode.Parse(Assert.IsType<ModelRequest>(events[0]).Json)!;
+        var (sentMessages, sentOptions) = client.Requests[0];
+        Assert.NotNull(sentOptions);
+        Assert.Equal(sentOptions.Instructions, request["instructions"]!.GetValue<string>());
+        Assert.Equal(
+            sentMessages.Select(m => (m.Role.Value, m.Text)),
+            request["messages"]!.AsArray().Select(m => (m!["role"]!.GetValue<string>(), m["text"]!.GetValue<string>())));
+        Assert.Equal("Game_Master", request["messages"]![1]!["author"]!.GetValue<string>());
+        Assert.Equal(
+            sentOptions.Tools!.Select(t => t.Name),
+            request["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>()));
+        var roll = request["tools"]!.AsArray().Single(t => t!["name"]!.GetValue<string>() == "Roll")!;
+        Assert.False(string.IsNullOrWhiteSpace(roll["description"]!.GetValue<string>()));
+        Assert.Equal("object", roll["parameters"]!["type"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task ToolResults_CarryTheCallsArguments_AndWhetherItFailed()
     {
         // The turn ledger is built from these: a refused or unknown call changed nothing and is marked.
@@ -375,10 +474,14 @@ public class AgentExecutorIntegrationTests
         /// <summary>How many model calls were made.</summary>
         public int Calls { get; private set; }
 
+        /// <summary>What each model call was sent, in call order.</summary>
+        public List<(IReadOnlyList<ChatMessage> Messages, ChatOptions? Options)> Requests { get; } = [];
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
         {
             Calls++;
+            Requests.Add((messages.ToList(), options));
             var response = _responses.Count > 0
                 ? _responses.Dequeue()
                 : new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Empty));
@@ -426,6 +529,9 @@ public class AgentExecutorIntegrationTests
     {
         private readonly Queue<ChatResponseUpdate[]> _calls = new(calls);
 
+        /// <summary>What the client reports about itself, as a real provider client does.</summary>
+        public ChatClientMetadata? Metadata { get; init; }
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -439,7 +545,8 @@ public class AgentExecutorIntegrationTests
             await Task.CompletedTask;
         }
 
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(ChatClientMetadata) ? Metadata : null;
 
         public void Dispose() { }
     }

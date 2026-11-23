@@ -445,6 +445,64 @@ public class TurnCoordinatorTests
         Assert.NotNull(trace.DurationMs);
     }
 
+    [Fact]
+    public async Task CommittedTrace_CarriesTheRequestSent_AndEachModelRequestsUsage()
+    {
+        ArrangeExplorationTurn();
+        var saved = CaptureTraces();
+        SetupAgentExecutorStreaming(
+            new ModelRequest("""{"instructions":"Be grim.","messages":[{"role":"user","text":"I explore"}],"tools":[]}"""),
+            new NarrativeChunk("Fog, and nothing else."),
+            new AgentTrace([], ModelId: "gpt-test", ModelCalls:
+            [
+                new ModelCall("gpt-test", InputTokens: 1200, CachedInputTokens: 1024, OutputTokens: 85,
+                    ReasoningTokens: 64, DurationMs: 4200, FirstOutputMs: 900, FinishReason: "stop"),
+            ]));
+
+        var events = await RunTurnAsync();
+
+        // Like AgentTrace, the request is for the trace only and never reaches the client.
+        Assert.DoesNotContain(events, e => e is ModelRequest);
+        var trace = Assert.Single(saved);
+        Assert.Equal("Be grim.", JsonDocument.Parse(trace.RequestJson!).RootElement.GetProperty("instructions").GetString());
+        var call = JsonDocument.Parse(trace.ModelCallsJson!).RootElement[0];
+        Assert.Equal("gpt-test", call.GetProperty("modelId").GetString());
+        Assert.Equal(1200, call.GetProperty("inputTokens").GetInt64());
+        Assert.Equal(1024, call.GetProperty("cachedInputTokens").GetInt64());
+        Assert.Equal(85, call.GetProperty("outputTokens").GetInt64());
+        Assert.Equal(64, call.GetProperty("reasoningTokens").GetInt64());
+        Assert.Equal(4200, call.GetProperty("durationMs").GetInt64());
+        Assert.Equal(900, call.GetProperty("firstOutputMs").GetInt64());
+        Assert.Equal("stop", call.GetProperty("finishReason").GetString());
+    }
+
+    [Fact]
+    public async Task FailedTurn_StillRecordsTheRequestItSent()
+    {
+        // The turns that go wrong are the ones worth replaying, and the request is known before the
+        // model is ever called.
+        ArrangeExplorationTurn();
+        var saved = CaptureTraces();
+        _agentExecutor
+            .Setup(a => a.ExecuteAsync(It.IsAny<IReadOnlyList<AIFunction>>(), It.IsAny<SessionContext>(),
+                _chatSessionId, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(RequestThenThrow());
+
+        await RunTurnAsync();
+
+        var trace = Assert.Single(saved);
+        Assert.Equal(TurnTraceOutcome.Failed, trace.Outcome);
+        Assert.Equal("""{"instructions":"Be grim."}""", trace.RequestJson);
+        Assert.Null(trace.ModelCallsJson);
+
+        static async IAsyncEnumerable<GameTurnEvent> RequestThenThrow()
+        {
+            yield return new ModelRequest("""{"instructions":"Be grim."}""");
+            await Task.CompletedTask;
+            throw new InvalidOperationException("LLM exploded");
+        }
+    }
+
     // ---- The turn ledger ----
 
     [Fact]
