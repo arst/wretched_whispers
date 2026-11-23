@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.RegularExpressions;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
@@ -19,7 +20,7 @@ namespace WretchedWhispers.Engine.GameTools;
 /// <see cref="ToolGuard"/>, then calls the domain directly and maps the result to a DTO.
 /// </summary>
 [Description("Interact with the player character: challenge, manage inventory, improve or degrade abilities, handle infection, buy items, and cast scrolls.")]
-public sealed class CharacterTools(
+public sealed partial class CharacterTools(
     ICharactersRepository charactersRepository,
     CharacterService characterService,
     Dice dice,
@@ -87,15 +88,7 @@ public sealed class CharacterTools(
         [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription)
     {
         var character = await RequireCharacter();
-        // The model never sees item GUIDs, so resolve by the description it can read off Game State.
-        // On no match, hand back the current inventory so the model can retry with the exact string
-        // (transport surfaces tool errors to the model — the built-in correction loop).
-        var item = character.Inventory.InventoryItems
-            .FirstOrDefault(i => string.Equals(i.Description, itemDescription, StringComparison.OrdinalIgnoreCase));
-        if (item is null)
-            throw new InvalidOperationException(
-                $"No item matching '{itemDescription}' is in the inventory. Current items: " +
-                $"{string.Join("; ", character.Inventory.InventoryItems.Select(i => i.Description))}.");
+        var item = RequireItem(character, itemDescription);
         character.ConsumeItem(item.Id);
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
@@ -189,6 +182,27 @@ public sealed class CharacterTools(
         return await charactersRepository.Get(characterId)
             ?? throw new InvalidOperationException($"Character with id {characterId} not found");
     }
+
+    /// <summary>Finds a carried item by the description the model read off Game State. Game State lists
+    /// an item as "life elixir x2", so a name that matches nothing is tried again without a trailing
+    /// quantity. The exact name wins, so an item really called "bolts x20" still resolves to itself.
+    /// On no match the error hands back the current inventory, so the model can retry with the exact
+    /// string (transport surfaces tool errors to the model: the built-in correction loop).</summary>
+    private static InventoryItem RequireItem(Character character, string itemDescription)
+    {
+        var items = character.Inventory.InventoryItems;
+        var withoutQuantity = QuantitySuffix().Replace(itemDescription, "");
+        return FindItem(items, itemDescription) ?? FindItem(items, withoutQuantity)
+            ?? throw new InvalidOperationException(
+                $"No item matching '{itemDescription}' is in the inventory. Current items: " +
+                $"{string.Join("; ", items.Select(i => i.Description))}.");
+    }
+
+    private static InventoryItem? FindItem(IReadOnlyList<InventoryItem> items, string description) =>
+        items.FirstOrDefault(i => string.Equals(i.Description, description, StringComparison.OrdinalIgnoreCase));
+
+    [GeneratedRegex(@"\s+x\d+$")]
+    private static partial Regex QuantitySuffix();
 
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier) => armorTier switch
     {

@@ -100,6 +100,46 @@ public class GameToolsTests
         _charactersRepo.Verify(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    private Character HeroInSession(Dice? dice = null)
+    {
+        var hero = BuildHero(dice ?? _zeroDice);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        return hero;
+    }
+
+    private static InventoryItem Carry(Character hero, string description, int quantity = 1)
+    {
+        var item = new InventoryItem(Guid.NewGuid(), description, false, false, quantity);
+        hero.AddItem(item);
+        return item;
+    }
+
+    // Game State lists an item as "life elixir x2", and the model copies the quantity into the name.
+    [Fact]
+    public async Task UseItem_AcceptsTheNameWithItsQuantitySuffix()
+    {
+        var hero = HeroInSession();
+        var elixir = Carry(hero, "life elixir", quantity: 2);
+
+        await CharacterTools().UseItemFromCharacterInventory("life elixir x2");
+
+        Assert.Equal(1, elixir.Quantity);
+    }
+
+    [Fact]
+    public async Task UseItem_PrefersAnExactNameOverAStrippedOne()
+    {
+        var hero = HeroInSession();
+        var bolts = Carry(hero, "bolts", quantity: 5);
+        var bundle = Carry(hero, "bolts x20", quantity: 2);
+
+        await CharacterTools().UseItemFromCharacterInventory("bolts x20");
+
+        Assert.Equal(1, bundle.Quantity);
+        Assert.Equal(5, bolts.Quantity);
+    }
+
     // -- CampaignTools --
 
     [Fact]
