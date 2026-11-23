@@ -230,6 +230,35 @@ The second run is also the baseline for Stage 3: new tools change what the model
 
 ---
 
+## Before Stage 3: two fixes found during Stage 1
+
+Both predate Stage 1 and were left out of it. Each is its own pull request. They can run alongside Stage 2, and both must be merged before Stage 3 starts.
+
+### Task 10: Resting while infected says what it did
+
+`Character.Rest` damages an infected character, and that damage can break or kill them. `AdvanceTimeOutcome` carries neither the damage, the injury nor the death, so the `Rest` tool's result is silent and the narrator can only learn it from Game State on the next turn.
+
+**Files:**
+- Modify: `WretchedWhispers.Core/Characters/Character.cs` (`Rest`), `WretchedWhispers.Core/Campaigns/Time/AdvanceTimeOutcome.cs`, `WretchedWhispers.Core/Campaigns/CampaignService.cs` (`AdvanceTimeWithRest`), `WretchedWhispers.Engine/GameTools/CampaignTools.cs` (`Rest`)
+- Test: `WretchedWhispers.Tests/Characters/Status/`, `WretchedWhispers.Tests/GameTools/GameToolsTests.cs`
+
+- [ ] Tests first, with a repository that round-trips JSON: `Rest_WhileInfected_ReportsTheDamage`; `Rest_WhileInfected_ThatBreaks_NamesTheInjury`; `Rest_WhileInfected_ThatKills_ReportsDeath`; `Rest_WhenHealthy_ReportsHpHealed`.
+- [ ] The rest result carries HP healed or lost, the new injury (by `DisplayName()`, as Task 5 does) and whether the character died. Remove the `ponytail:` note on `ReceiveDamage` that records this gap.
+- [ ] Run the suite, re-record the evals that rest, commit.
+
+### Task 11: The eval suite stops failing at setup
+
+Evals fail intermittently at host setup with `SqliteException` error 5 ("unable to delete/modify user-function due to active statements", "database is locked"). On `main` at `dd691ca` it happened in 4 of 4 runs of the suite, one or two evals each, a different eval each time. Stage 3 scores behaviours as rates over the evals, so a setup failure that looks like a behaviour failure spoils the numbers.
+
+**Files:**
+- Modify: `WretchedWhispers.Evals/Harness/EvalHost.cs` (opens `SqliteConnection("DataSource=:memory:")` per eval)
+
+- [ ] Reproduce first: run the suite until it fails and keep the stack trace. Use superpowers:systematic-debugging; find the cause before changing anything.
+- [ ] Untested lead: pooled in-memory connections shared between evals running side by side. `Pooling=False` on the eval connection, or a named private in-memory database per host, would be the fix if that is the cause.
+- [ ] Done when the suite runs 10 times in a row from the cache with no setup failure.
+
+---
+
 ## Stage 3: Prompt tuning, eval first
 
 Each item is one pull request holding the eval, the prompt change, and its line in `WretchedWhispers.Evals/README.md`. The loop for each:
