@@ -373,6 +373,22 @@ public sealed class Character
         Silver -= price;
     }
 
+    /// <summary>Silver found, looted, paid or rewarded.</summary>
+    public void GainSilver(int amount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        Silver += amount;
+    }
+
+    /// <summary>Sells, trades away or gives away carried units of an item. <paramref name="price"/> is the
+    /// total paid for all of them; zero is a gift.</summary>
+    public void SellItem(Guid itemId, int price, int quantity = 1)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(price);
+        Inventory.RemoveUnits(itemId, quantity);
+        Silver += price;
+    }
+
     public CastOutcome Cast(Guid scrollId, Dice dice)
     {
         var scroll = _scrolls.FirstOrDefault(s => s.Id == scrollId);

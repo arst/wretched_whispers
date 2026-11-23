@@ -79,6 +79,10 @@ public class GameToolsTests
     [InlineData("BuyItem_NegativeSilverCost")]
     [InlineData("AddItem_QuantityBelowOne")]
     [InlineData("Challenge_OutOfRangeDr")]
+    [InlineData("GainSilver_Zero")]
+    [InlineData("GainSilver_Negative")]
+    [InlineData("SellItem_NegativePrice")]
+    [InlineData("SellItem_QuantityBelowOne")]
     public async Task CharacterToolGuards_RejectBadArguments_BeforeTouchingTheRepository(string call)
     {
         _context.SetCharacterId(Guid.NewGuid());
@@ -93,6 +97,10 @@ public class GameToolsTests
             "BuyItem_NegativeSilverCost" => () => tools.BuyItem("rusty knife", silverCost: -5),
             "AddItem_QuantityBelowOne" => () => tools.AddItemToCharacterInventory("a bone", quantity: 0),
             "Challenge_OutOfRangeDr" => () => tools.ChallengeCharacter(99, AbilityKind.Agility),
+            "GainSilver_Zero" => () => tools.GainSilver(0, "a dead man's purse"),
+            "GainSilver_Negative" => () => tools.GainSilver(-10, "a dead man's purse"),
+            "SellItem_NegativePrice" => () => tools.SellItem("a bone", silverPrice: -1),
+            "SellItem_QuantityBelowOne" => () => tools.SellItem("a bone", silverPrice: 1, quantity: 0),
             _ => throw new ArgumentOutOfRangeException(nameof(call))
         };
 
@@ -138,6 +146,30 @@ public class GameToolsTests
 
         Assert.Equal(1, bundle.Quantity);
         Assert.Equal(5, bolts.Quantity);
+    }
+
+    [Fact]
+    public async Task SellItem_ResolvesTheItemByDescription()
+    {
+        var hero = HeroInSession();
+        var torches = Carry(hero, "torches", quantity: 3);
+
+        var sheet = await CharacterTools().SellItem("Torches x3", silverPrice: 9, quantity: 3);
+
+        Assert.DoesNotContain(torches, hero.Inventory.InventoryItems);
+        Assert.Equal(19, sheet.Silver);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GainSilver_PaysTheCharacter()
+    {
+        var hero = HeroInSession();
+
+        var sheet = await CharacterTools().GainSilver(30, "the toll-keeper's strongbox");
+
+        Assert.Equal(40, sheet.Silver);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // -- CampaignTools --

@@ -67,7 +67,7 @@ public sealed partial class CharacterTools(
         return GettingBetterOutcomeDto.From(outcome);
     }
 
-    [Description("Add an item to the character's inventory")]
+    [Description("Add an item to the character's inventory. Never for coins or silver: GainSilver does that.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> AddItemToCharacterInventory(
         [Description("Description of the item to add")] string itemDescription,
@@ -153,6 +153,34 @@ public sealed partial class CharacterTools(
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
         character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity));
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Sell, trade away, or give away an item the character carries: removes it AND pays the silver in one step. Identify the item by the description shown in Game State. silverPrice is the total paid for everything sold in this call; 0 when it is given away or lost.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> SellItem(
+        [Description("Description of the inventory item to sell, exactly as shown in Game State")] string itemDescription,
+        [Description("Total silver paid for what is sold; 0 for a gift")] int silverPrice,
+        [Description("How many of the item to sell")] int quantity = 1)
+    {
+        ToolGuard.NonNegative(silverPrice, nameof(silverPrice));
+        ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
+        var character = await RequireCharacter();
+        character.SellItem(RequireItem(character, itemDescription).Id, silverPrice, quantity);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Give the character silver: coins found or looted, a payment, a reward, a debt repaid. This is the ONLY way silver is gained (selling an item is SellItem).")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> GainSilver(
+        [Description("How much silver the character gains")] int amount,
+        [Description("One short phrase saying where the silver came from, e.g. 'the dead toll-keeper's purse'")] string source)
+    {
+        ToolGuard.Positive(amount, nameof(amount), "at least 1 silver");
+        var character = await RequireCharacter();
+        character.GainSilver(amount);
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
