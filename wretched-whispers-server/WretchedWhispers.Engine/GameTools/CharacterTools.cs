@@ -27,6 +27,10 @@ public sealed partial class CharacterTools(
     EncounterService encounterService,
     SessionContext sessionContext)
 {
+    // The flag only labels the item. The healing is rolled and applied by the domain when it is used.
+    private const string HealsDescription =
+        "True for a healing item (a draught, salve, poultice or remedy): using one unit then restores d6 hit points and clears infection. Leave false for anything else";
+
     private Guid RequireCharacterId() =>
         sessionContext.CharacterId
         ?? throw new InvalidOperationException("No character exists for this session.");
@@ -74,25 +78,26 @@ public sealed partial class CharacterTools(
         [Description("Description of the item to add")] string itemDescription,
         [Description("Whether the item is bulky and takes 2 inventory slots")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
-        [Description("Quantity of the item to add")] int quantity = 1)
+        [Description("Quantity of the item to add")] int quantity = 1,
+        [Description(HealsDescription)] bool heals = false)
     {
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
-        character.AddItem(new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity));
+        character.AddItem(new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity,
+            heals ? ItemEffect.Heal : ItemEffect.None));
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
-    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up.")]
+    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
-    public async Task<CharacterDto> UseItemFromCharacterInventory(
+    public async Task<ItemUseOutcomeDto> UseItemFromCharacterInventory(
         [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription)
     {
         var character = await RequireCharacter();
         var item = RequireItem(character, itemDescription);
-        character.ConsumeItem(item.Id);
-        await charactersRepository.Save(character);
-        return CreateCharacterDto(character);
+        var outcome = await characterService.UseItem(character, item.Id);
+        return new ItemUseOutcomeDto(outcome.HpHealed, outcome.InfectionCured, CreateCharacterDto(character));
     }
 
     [Description("Improve the character's ability score by a specified amount")]
@@ -148,12 +153,14 @@ public sealed partial class CharacterTools(
         [Description("Cost of the item in silver")] int silverCost,
         [Description("Whether the item is bulky")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
-        [Description("Quantity of the item to buy")] int quantity = 1)
+        [Description("Quantity of the item to buy")] int quantity = 1,
+        [Description(HealsDescription)] bool heals = false)
     {
         ToolGuard.NonNegative(silverCost, nameof(silverCost));
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
-        character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity));
+        character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse,
+            quantity, heals ? ItemEffect.Heal : ItemEffect.None));
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }

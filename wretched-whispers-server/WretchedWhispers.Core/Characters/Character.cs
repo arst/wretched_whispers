@@ -378,6 +378,22 @@ public sealed class Character
         Silver -= price;
     }
 
+    /// <summary>Uses one unit of a carried item and applies what the item does.</summary>
+    public ItemUseOutcome UseItem(Guid itemId, Dice dice)
+    {
+        var item = Inventory.InventoryItems.FirstOrDefault(i => i.Id == itemId)
+            ?? throw new InvalidOperationException($"Item with id {itemId} is not in the inventory");
+        Inventory.ConsumeItem(itemId);
+
+        if (item.Effect is not ItemEffect.Heal) return new ItemUseOutcome(0, false);
+
+        var before = Hp.Current;
+        Hp = Hp.Heal(dice.Roll(DiceExpr.D6));
+        var wasInfected = IsInfected;
+        IsInfected = false;
+        return new ItemUseOutcome(Hp.Current - before, wasInfected);
+    }
+
     /// <summary>Silver found, looted, paid or rewarded.</summary>
     public void GainSilver(int amount)
     {

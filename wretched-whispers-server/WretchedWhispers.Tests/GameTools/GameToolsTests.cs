@@ -5,6 +5,7 @@ using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
@@ -148,6 +149,37 @@ public class GameToolsTests
 
         Assert.Equal(1, bundle.Quantity);
         Assert.Equal(5, bolts.Quantity);
+    }
+
+    [Fact]
+    public async Task UseItem_HealingItem_ReportsWhatItHealed()
+    {
+        // d4 daily powers; a wound of 6; d6 = 3 healed.
+        var dice = ScriptedDice(0, 5, 2);
+        var hero = HeroInSession(dice);
+        hero.SufferConsequence(ChallengeConsequence.Deadly, DifficultyPresets.For(Difficulty.Hardcore), dice);
+        var woundedAt = hero.Hp.Current;
+        hero.AddItem(new InventoryItem(Guid.NewGuid(), "life elixir", false, true, 1, ItemEffect.Heal));
+
+        var used = await CharacterTools(dice).UseItemFromCharacterInventory("life elixir");
+
+        Assert.Equal(3, used.HpHealed);
+        Assert.Equal(woundedAt + 3, used.Character.CurrentHp);
+        Assert.Empty(used.Character.Inventory.Items);
+    }
+
+    [Theory]
+    [InlineData(true, ItemEffect.Heal)]
+    [InlineData(false, ItemEffect.None)]
+    public async Task BoughtAndFoundItems_CarryTheHealingTheNarratorDeclared(bool heals, ItemEffect expected)
+    {
+        var hero = HeroInSession();
+
+        await CharacterTools().BuyItem("bitter draught", silverCost: 5, heals: heals);
+        await CharacterTools().AddItemToCharacterInventory("grave moss", heals: heals);
+
+        Assert.Equal(2, hero.Inventory.InventoryItems.Count);
+        Assert.All(hero.Inventory.InventoryItems, item => Assert.Equal(expected, item.Effect));
     }
 
     [Fact]

@@ -79,10 +79,12 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
             foodDays,
             container,
             gear1Scroll is null && !gear1.IsShield
-                ? new InventoryItem(Guid.NewGuid(), gear1.GearDescription, false, true, gear1.Quantity)
+                ? new InventoryItem(Guid.NewGuid(), gear1.GearDescription, false, true, gear1.Quantity,
+                    EffectOf(gear1.GearDescription))
                 : null,
             gear2Scroll is null && !gear2.IsShield
-                ? new InventoryItem(Guid.NewGuid(), gear2.GearDescription, false, true, gear2.Quantity)
+                ? new InventoryItem(Guid.NewGuid(), gear2.GearDescription, false, true, gear2.Quantity,
+                    EffectOf(gear2.GearDescription))
                 : null,
             weapon,
             armor,
@@ -148,6 +150,14 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
             _ => "black sedge (stops bleeding, scars foully)"
         };
     }
+
+    /// <summary>The two pieces of starting gear the book gives a healing use: both restore d6 hit points
+    /// and clear infection.</summary>
+    private static ItemEffect EffectOf(string gearDescription) =>
+        gearDescription.StartsWith("life elixir", StringComparison.Ordinal)
+        || gearDescription.StartsWith("medicine chest", StringComparison.Ordinal)
+            ? ItemEffect.Heal
+            : ItemEffect.None;
 
     /// <summary>A scroll is named for the power it holds, rolled on its school's table.</summary>
     private Scroll RollScroll(ScrollSchool school) =>

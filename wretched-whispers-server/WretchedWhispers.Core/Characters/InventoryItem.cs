@@ -2,11 +2,26 @@ using System.Text.Json.Serialization;
 
 namespace WretchedWhispers.Core.Characters;
 
+/// <summary>What using an item does beyond spending it. Carried by the item, applied by
+/// <see cref="Character.UseItem"/>.</summary>
+public enum ItemEffect
+{
+    None,
+
+    /// <summary>Restores d6 hit points and cures infection: the life elixir and the medicine chest.</summary>
+    Heal
+}
+
+/// <summary>What using one unit of an item did to the character.</summary>
+public readonly record struct ItemUseOutcome(int HpHealed, bool InfectionCured);
+
 public class InventoryItem
 {
     [JsonConstructor]
-    public InventoryItem(Guid id, string description, bool isBulky, bool isOneTimeUse, int quantity = 1)
+    public InventoryItem(Guid id, string description, bool isBulky, bool isOneTimeUse, int quantity = 1,
+        ItemEffect effect = ItemEffect.None)
     {
+        Effect = effect;
         Id = id;
         Description = description;
         IsBulky = isBulky;
@@ -23,6 +38,8 @@ public class InventoryItem
     [JsonInclude] public int Quantity { get; private set; }
 
     public bool IsOneTimeUse { get; }
+
+    public ItemEffect Effect { get; }
 
     public void Add(int amount)
     {
