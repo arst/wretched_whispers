@@ -178,7 +178,9 @@ Strictly one direction. Nothing downstream leaks upstream.
    turn row, and returns `202 Accepted` immediately. The HTTP request does not wait for a model that may think for
    minutes.
 2. `TurnWorker` (a `BackgroundService`) claims the turn under a renewable lease. A lease that expires means the owner
-   actually died, not that the model was slow; whoever reclaims it decides the outcome.
+   actually died, not that the model was slow; whoever reclaims it decides the outcome. One game's turns run one at
+   a time and in order; turns of different games run side by side, up to `GameSession:ConcurrentTurns` per process
+   (4 on PostgreSQL, 1 on SQLite, where a turn holds the only write lock anyway).
 3. `TurnCoordinator` takes the session lock, loads `SessionContext`, **derives** the stage, and runs the turn inside a
    single unit of work.
 4. `AgentToolProvider` builds the agent with *only* the tools that stage allows. `PromptComposer` assembles the persona,

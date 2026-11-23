@@ -169,6 +169,11 @@ if (DeploymentProfile.UsesIdentity)
     });
 }
 
+// A turn holds SQLite's only write lock for as long as it runs, so only PostgreSQL gains from running
+// turns side by side. Each one keeps a transaction open and makes model requests the whole time.
+// ponytail: 4 is a starting point, not a measurement — raise it while the model's rate limit allows.
+builder.Configuration["GameSession:ConcurrentTurns"] ??= usePostgres ? "4" : "1";
+
 builder.AddWretchedWhispersOpenTelemetry();
 builder.Services.AddGameAgent(builder.Configuration);
 
