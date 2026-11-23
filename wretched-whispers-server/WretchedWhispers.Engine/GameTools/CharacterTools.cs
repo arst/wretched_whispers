@@ -170,7 +170,10 @@ public sealed partial class CharacterTools(
     }
 
     [Description("Sell, trade away, or give away an item the character carries, or the weapon in their hand: removes it AND pays the silver in one step. Identify it by the description shown in Game State. silverPrice is the total paid for everything sold in this call; 0 when it is given away or lost.")]
-    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    // ponytail: three sales a turn, so a price the cap refused cannot be dealt out in pieces. What a
+    // thing is worth is not modelled: a narrator who conjures goods and sells them turn after turn is
+    // held by the prompt and its evals, not here. A silver budget per turn is the upgrade if that fails.
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 3)]
     public async Task<CharacterDto> SellItem(
         [Description("Description of the inventory item to sell, exactly as shown in Game State")] string itemDescription,
         [Description("Total silver paid for what is sold; 0 for a gift")] int silverPrice,

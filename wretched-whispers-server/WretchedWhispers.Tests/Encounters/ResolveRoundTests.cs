@@ -477,4 +477,20 @@ public sealed class ResolveRoundTests : TestBase
 
         Assert.Throws<InvalidOperationException>(encounter.Resolve);
     }
+
+    // A fizzled scroll can kill the caster mid-turn; a flee after it used to end the fight as an escape.
+    [Fact]
+    public async Task ResolveRound_ForADeadCharacter_Throws()
+    {
+        var (encounter, character) = Arrange(characterHp: 1);
+        SetupDiceRolls(0, 0); // infection d6 = 1; Broken d4 = 1: dead
+        character.Infect();
+        character.Rest(8, Dice);
+        Assert.True(character.IsDead);
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Flee));
+        Assert.Contains("dead", refusal.Message);
+        Assert.False(encounter.IsEnded);
+    }
 }

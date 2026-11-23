@@ -84,4 +84,25 @@ public class RestReportingTests : TestBase
         Assert.Null(rest.NewInjury);
         Assert.True(hero.IsDead);
     }
+
+    // A turn can chain past a death ("I jump, then sleep it off"); the tools for it are already built.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Rest_WhenDead_ChangesNothingAndSaysDead(bool stillInfected)
+    {
+        SetupDiceRoll(4, 0); // Broken table: 1, dead
+        var hero = TestCharacters.Create(Dice, maxHp: 1);
+        hero.Infect();
+        hero.Rest(8, Dice);
+        if (!stillInfected) hero.CureInfection();
+        SetupDiceRoll(4, 2); // were the table rolled again, the corpse would come round
+        SetupDiceRoll(6, 5);
+
+        var rest = hero.Rest(8, Dice);
+
+        Assert.Equal(new RestOutcome(0, 0, 0, null, true), rest);
+        Assert.Equal(0, hero.Hp.Current);
+        Assert.True(hero.IsDead);
+    }
 }

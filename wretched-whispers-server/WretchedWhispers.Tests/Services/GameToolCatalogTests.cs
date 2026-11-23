@@ -34,6 +34,7 @@ public class GameToolCatalogTests
             {
                 "Character.GainSilver=2",
                 "Character.GettingBetter=1",
+                "Character.SellItem=3",
                 "Encounter.CompleteResolution=1",
                 "Encounter.ResolveCombatRound=1",
                 "Encounter.StartEncounter=1"

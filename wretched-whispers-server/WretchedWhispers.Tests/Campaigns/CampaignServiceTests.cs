@@ -275,4 +275,45 @@ public class CampaignServiceTests : TestBase
         Assert.Equal("lost eye", result.NewInjury);
         Assert.False(result.IsDead);
     }
+
+    [Fact]
+    public async Task AdvanceTimeWithRest_ThatHeals_ReportsTheHpHealedAndTheHpLeft()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        var character = TestCharacters.Create(Dice, maxHp: 20, startingOmens: 1);
+        character.Infect();
+        SetupDiceRolls(5, 2); // the infection takes 6; then a short rest heals d4 = 3
+        character.Rest(8, Dice);
+        character.CureInfection();
+        campaign.JoinGame(character.Id);
+        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
+        _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(character);
+
+        var result = await _service.AdvanceTimeWithRest(Guid.NewGuid(), 4);
+
+        Assert.Equal(3, result.HpHealed);
+        Assert.Equal(17, result.CurrentHp);
+        Assert.Equal(0, result.DamageTaken);
+        Assert.False(result.IsDead);
+    }
+
+    [Fact]
+    public async Task AdvanceTimeWithRest_ThatKills_ReportsTheDeath()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        var character = TestCharacters.Create(Dice, maxHp: 1);
+        character.Infect();
+        campaign.JoinGame(character.Id);
+        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
+        _charactersRepository.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(character);
+        SetupDiceRolls(5, 0); // infection d6 = 6; Broken d4 = 1: dead
+
+        var result = await _service.AdvanceTimeWithRest(Guid.NewGuid(), 8);
+
+        Assert.True(result.IsDead);
+        Assert.Equal(0, result.CurrentHp);
+        Assert.Null(result.NewInjury);
+    }
 }

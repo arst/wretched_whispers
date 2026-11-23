@@ -140,4 +140,15 @@ public class SilverTests
         Assert.Throws<InvalidOperationException>(() => hero.SellWeapon(5));
         Assert.Equal(15, hero.Silver);
     }
+
+    [Fact]
+    public void SellWeapon_PriceAboveTheCap_ThrowsAndKeepsTheWeapon()
+    {
+        var hero = Hero();
+
+        Assert.Throws<InvalidOperationException>(() => hero.SellWeapon(Character.MaxSilverPerGain + 1));
+
+        Assert.Equal(WeaponKind.Sword, hero.Weapon.Kind);
+        Assert.Equal(10, hero.Silver);
+    }
 }

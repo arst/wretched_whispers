@@ -323,6 +323,9 @@ public sealed class Character
     /// can break or kill. The result says which of these happened, so it can be told.</summary>
     public RestOutcome Rest(int hours, Dice dice)
     {
+        // A turn can chain past a death ("I jump, then sleep it off"); the dead neither heal nor worsen.
+        if (IsDead) return new RestOutcome(0, 0, 0, null, true);
+
         if (IsInfected)
         {
             var damage = dice.Roll(DiceExpr.D6);
@@ -467,7 +470,7 @@ public sealed class Character
     {
         ArgumentOutOfRangeException.ThrowIfNegative(price);
         RequireWithinTheCap(price);
-        // Selling fangs, or the nothing left after a sale, would be silver for free, again and again.
+        // Fangs are not for sale, and neither is the nothing left in hand after a sale.
         if (Weapon.Kind is WeaponKind.Fangs or WeaponKind.Claws or WeaponKind.Improvised)
             throw new InvalidOperationException($"{Weapon.Kind} is not a weapon anyone would buy.");
         Weapon = Weapon.Create(ClassPresets.For(Class).NaturalWeapon ?? WeaponKind.Improvised);
