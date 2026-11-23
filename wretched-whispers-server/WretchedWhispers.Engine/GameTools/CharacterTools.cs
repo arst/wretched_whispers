@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.RegularExpressions;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
@@ -6,8 +7,12 @@ using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools.Models;
 using WretchedWhispers.Engine.Services;
 
@@ -18,13 +23,17 @@ namespace WretchedWhispers.Engine.GameTools;
 /// <see cref="SessionContext"/> (the model never sees GUIDs), validates model-supplied arguments via
 /// <see cref="ToolGuard"/>, then calls the domain directly and maps the result to a DTO.
 /// </summary>
-[Description("Interact with the player character: challenge, manage inventory, improve or degrade abilities, handle infection, buy items, and cast scrolls.")]
-public sealed class CharacterTools(
+[Description("Interact with the player character: challenge, manage inventory, silver and gear, improve or degrade abilities, handle infection, buy and sell items, and cast scrolls.")]
+public sealed partial class CharacterTools(
     ICharactersRepository charactersRepository,
     CharacterService characterService,
-    Dice dice,
+    EncounterService encounterService,
     SessionContext sessionContext)
 {
+    // The flag only labels the item. The healing is rolled and applied by the domain when it is used.
+    private const string HealsDescription =
+        "True for a healing item (a draught, salve, poultice or remedy): using one unit then restores d6 hit points and clears infection. Leave false for anything else";
+
     private Guid RequireCharacterId() =>
         sessionContext.CharacterId
         ?? throw new InvalidOperationException("No character exists for this session.");
@@ -53,7 +62,8 @@ public sealed class CharacterTools(
         return new ChallengeOutcomeDto(
             result.Outcome.IsSuccess, result.Outcome.Roll, result.Outcome.Modifier,
             result.Outcome.Roll + result.Outcome.Modifier,
-            result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead, result.CurrentHp);
+            result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead, result.CurrentHp,
+            result.NewInjury?.DisplayName());
     }
 
     [Description("MORK BORG 'Getting Better': the post-adventure improvement ritual and the ONLY leveling mechanic. Call ONLY when the fiction concludes a genuine adventure or scenario -- a quest completed, a dungeon survived, a nemesis dead -- never after a routine fight. Requires a full night's rest since the last ritual (fails otherwise). Everything is rolled for you: 6d10 vs max HP (max grows by d6 on success) and a d6 against each ability (improve, or on harder difficulties worsen). Narrate the returned result.")]
@@ -66,39 +76,32 @@ public sealed class CharacterTools(
         return GettingBetterOutcomeDto.From(outcome);
     }
 
-    [Description("Add an item to the character's inventory")]
+    [Description("Add an item to the character's inventory. Never for coins or silver: GainSilver does that.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> AddItemToCharacterInventory(
         [Description("Description of the item to add")] string itemDescription,
         [Description("Whether the item is bulky and takes 2 inventory slots")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
-        [Description("Quantity of the item to add")] int quantity = 1)
+        [Description("Quantity of the item to add")] int quantity = 1,
+        [Description(HealsDescription)] bool heals = false)
     {
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
-        character.AddItem(new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity));
+        character.AddItem(new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity,
+            heals ? ItemEffect.Heal : ItemEffect.None));
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
-    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up.")]
+    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
-    public async Task<CharacterDto> UseItemFromCharacterInventory(
+    public async Task<ItemUseOutcomeDto> UseItemFromCharacterInventory(
         [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription)
     {
         var character = await RequireCharacter();
-        // The model never sees item GUIDs, so resolve by the description it can read off Game State.
-        // On no match, hand back the current inventory so the model can retry with the exact string
-        // (transport surfaces tool errors to the model — the built-in correction loop).
-        var item = character.Inventory.InventoryItems
-            .FirstOrDefault(i => string.Equals(i.Description, itemDescription, StringComparison.OrdinalIgnoreCase));
-        if (item is null)
-            throw new InvalidOperationException(
-                $"No item matching '{itemDescription}' is in the inventory. Current items: " +
-                $"{string.Join("; ", character.Inventory.InventoryItems.Select(i => i.Description))}.");
-        character.ConsumeItem(item.Id);
-        await charactersRepository.Save(character);
-        return CreateCharacterDto(character);
+        var item = RequireItem(character, itemDescription);
+        var outcome = await characterService.UseItem(character, item.Id);
+        return new ItemUseOutcomeDto(outcome.HpHealed, outcome.InfectionCured, CreateCharacterDto(character));
     }
 
     [Description("Improve the character's ability score by a specified amount")]
@@ -154,19 +157,99 @@ public sealed class CharacterTools(
         [Description("Cost of the item in silver")] int silverCost,
         [Description("Whether the item is bulky")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
-        [Description("Quantity of the item to buy")] int quantity = 1)
+        [Description("Quantity of the item to buy")] int quantity = 1,
+        [Description(HealsDescription)] bool heals = false)
     {
         ToolGuard.NonNegative(silverCost, nameof(silverCost));
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
-        character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity));
+        character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse,
+            quantity, heals ? ItemEffect.Heal : ItemEffect.None));
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
-    [Description("Cast a scroll spell that the character possesses")]
+    [Description("Sell, trade away, or give away an item the character carries: removes it AND pays the silver in one step. Identify the item by the description shown in Game State. silverPrice is the total paid for everything sold in this call; 0 when it is given away or lost.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> SellItem(
+        [Description("Description of the inventory item to sell, exactly as shown in Game State")] string itemDescription,
+        [Description("Total silver paid for what is sold; 0 for a gift")] int silverPrice,
+        [Description("How many of the item to sell")] int quantity = 1)
+    {
+        ToolGuard.NonNegative(silverPrice, nameof(silverPrice));
+        ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
+        var character = await RequireCharacter();
+        character.SellItem(RequireItem(character, itemDescription).Id, silverPrice, quantity);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Give the character silver: coins found or looted, a payment, a reward, a debt repaid. This is the ONLY way silver is gained (selling an item is SellItem).")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> GainSilver(
+        [Description("How much silver the character gains")] int amount,
+        [Description("One short phrase saying where the silver came from, e.g. 'the dead toll-keeper's purse'")] string source)
+    {
+        ToolGuard.Positive(amount, nameof(amount), "at least 1 silver");
+        var character = await RequireCharacter();
+        character.GainSilver(amount);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Change the weapon the character wields: one looted, found, bought or taken up. It REPLACES the current weapon in Game State, which is dropped -- add it to the inventory with AddItemToCharacterInventory if the character keeps it. Never narrate the character fighting with a weapon Game State does not show.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> EquipWeapon(
+        [Description("The kind of weapon taken up; pick the closest. 'Improvised' for anything makeshift")] WeaponKind weapon,
+        [Description("Silver the character pays for it; 0 when it is found, looted or given")] int silverCost = 0)
+    {
+        ToolGuard.NonNegative(silverCost, nameof(silverCost));
+        // The schema constrains the value to the enum names, but the JSON binder still accepts integers.
+        if (!Enum.IsDefined(weapon))
+            throw new ArgumentException(
+                $"Weapon '{weapon}' is not valid. Expected one of: {string.Join(", ", Enum.GetNames<WeaponKind>())}.");
+        var character = await RequireCharacter();
+        character.Equip(Weapon.Create(weapon), silverCost);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Change the armor the character wears: looted, found, bought or taken off ('None'). It REPLACES the current armor in Game State. Never narrate armor Game State does not show.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> EquipArmor(
+        [Description("The armor put on: 'Light', 'Medium', 'Heavy', or 'None' to wear nothing")] ArmorTierDto armor,
+        [Description("Silver the character pays for it; 0 when it is found, looted or given")] int silverCost = 0)
+    {
+        ToolGuard.NonNegative(silverCost, nameof(silverCost));
+        var tier = armor switch
+        {
+            ArmorTierDto.None => ArmorTier.None,
+            ArmorTierDto.Light => ArmorTier.Light,
+            ArmorTierDto.Medium => ArmorTier.Medium,
+            ArmorTierDto.Heavy => ArmorTier.Heavy,
+            _ => throw new ArgumentException($"Armor '{armor}' is not valid. Expected one of: None, Light, Medium, Heavy.")
+        };
+        var character = await RequireCharacter();
+        character.Wear(new Armor(tier), silverCost);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Give the character a shield: looted, found or bought. It turns 1 damage from every hit.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> EquipShield(
+        [Description("Silver the character pays for it; 0 when it is found, looted or given")] int silverCost = 0)
+    {
+        ToolGuard.NonNegative(silverCost, nameof(silverCost));
+        var character = await RequireCharacter();
+        character.TakeUpShield(silverCost);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Cast a scroll the character possesses. Spends one of the day's castings and tests Presence against DR 12; on a failure the scroll fizzles, costs hit points and no scroll can be cast until a new day. On a success the result says what the power does, and anything it heals or harms has already been applied -- in a fight, to the adversaries it names. An adversary the result does not name as hit is unchanged and still acts, whatever the power's description says.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat)]
-    public async Task<CastOutcome> CastScroll(
+    public async Task<CastOutcomeDto> CastScroll(
         [Description("Description of the scroll to cast, exactly as shown in Game State")] string scrollDescription)
     {
         var character = await RequireCharacter();
@@ -178,9 +261,9 @@ public sealed class CharacterTools(
             throw new InvalidOperationException(
                 $"No scroll matching '{scrollDescription}' is known. Known scrolls: " +
                 $"{string.Join("; ", character.Scrolls.Select(s => s.Description))}.");
-        var outcome = character.Cast(scroll.Id, dice);
-        await charactersRepository.Save(character);
-        return outcome;
+        // The service loads its own copy of the character, so the result carries the caster's hit points.
+        return CastOutcomeDto.From(
+            await encounterService.CastScroll(character.Id, scroll.Id, sessionContext.ActiveEncounterId));
     }
 
     private async Task<Character> RequireCharacter()
@@ -189,6 +272,27 @@ public sealed class CharacterTools(
         return await charactersRepository.Get(characterId)
             ?? throw new InvalidOperationException($"Character with id {characterId} not found");
     }
+
+    /// <summary>Finds a carried item by the description the model read off Game State. Game State lists
+    /// an item as "life elixir x2", so a name that matches nothing is tried again without a trailing
+    /// quantity. The exact name wins, so an item really called "bolts x20" still resolves to itself.
+    /// On no match the error hands back the current inventory, so the model can retry with the exact
+    /// string (transport surfaces tool errors to the model: the built-in correction loop).</summary>
+    private static InventoryItem RequireItem(Character character, string itemDescription)
+    {
+        var items = character.Inventory.InventoryItems;
+        var withoutQuantity = QuantitySuffix().Replace(itemDescription, "");
+        return FindItem(items, itemDescription) ?? FindItem(items, withoutQuantity)
+            ?? throw new InvalidOperationException(
+                $"No item matching '{itemDescription}' is in the inventory. Current items: " +
+                $"{string.Join("; ", items.Select(i => i.Description))}.");
+    }
+
+    private static InventoryItem? FindItem(IReadOnlyList<InventoryItem> items, string description) =>
+        items.FirstOrDefault(i => string.Equals(i.Description, description, StringComparison.OrdinalIgnoreCase));
+
+    [GeneratedRegex(@"\s+x\d+$")]
+    private static partial Regex QuantitySuffix();
 
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier) => armorTier switch
     {

@@ -5,6 +5,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure;
 using WretchedWhispers.Infrastructure.Persistence;
@@ -297,6 +298,7 @@ public static class SessionEndpoints
         ChatHistoryReducer chatHistoryReducer,
         CharacterCreationService characterCreationService,
         CampaignService campaignService,
+        EncounterService encounterService,
         ISessionLock sessionLock,
         CancellationToken ct,
         CreateSuccessorRequest? request = null)
@@ -330,6 +332,9 @@ public static class SessionEndpoints
 
         campaign.BuryCharacter(character.Id, character.Name);
         await campaignsRepo.SaveCampaign(campaign);
+        // Whatever the dead wretch was still fighting or facing is over. An encounter left open would be
+        // loaded as the successor's, and their first turn would be a combat round nobody asked for.
+        await encounterService.AbandonUnresolved(campaign.EncounterIds, ct);
 
         // The successor is rolled here rather than by the narrator, so the campaign is never left in a
         // characterless state. Difficulty is the campaign's own — a death does not renegotiate it.

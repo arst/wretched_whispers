@@ -5,12 +5,17 @@ using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
+using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools;
+using WretchedWhispers.Engine.GameTools.Models;
 using WretchedWhispers.Engine.Services;
+using WretchedWhispers.Infrastructure.Persistence.Serialization;
 using Xunit;
 
 namespace WretchedWhispers.Tests.GameTools;
@@ -36,7 +41,8 @@ public class GameToolsTests
     private CharacterTools CharacterTools(Dice? dice = null) => new(
         _charactersRepo.Object,
         new CharacterService(_charactersRepo.Object, dice ?? _zeroDice),
-        dice ?? _zeroDice, _context);
+        new EncounterService(dice ?? _zeroDice, _charactersRepo.Object, _encountersRepo.Object),
+        _context);
 
     private CampaignTools CampaignTools() => new(
         MakeCampaignService(), _context);
@@ -79,6 +85,14 @@ public class GameToolsTests
     [InlineData("BuyItem_NegativeSilverCost")]
     [InlineData("AddItem_QuantityBelowOne")]
     [InlineData("Challenge_OutOfRangeDr")]
+    [InlineData("GainSilver_Zero")]
+    [InlineData("GainSilver_Negative")]
+    [InlineData("SellItem_NegativePrice")]
+    [InlineData("SellItem_QuantityBelowOne")]
+    [InlineData("EquipWeapon_NegativeCost")]
+    [InlineData("EquipWeapon_UndefinedKind")]
+    [InlineData("EquipArmor_NegativeCost")]
+    [InlineData("EquipShield_NegativeCost")]
     public async Task CharacterToolGuards_RejectBadArguments_BeforeTouchingTheRepository(string call)
     {
         _context.SetCharacterId(Guid.NewGuid());
@@ -93,11 +107,272 @@ public class GameToolsTests
             "BuyItem_NegativeSilverCost" => () => tools.BuyItem("rusty knife", silverCost: -5),
             "AddItem_QuantityBelowOne" => () => tools.AddItemToCharacterInventory("a bone", quantity: 0),
             "Challenge_OutOfRangeDr" => () => tools.ChallengeCharacter(99, AbilityKind.Agility),
+            "GainSilver_Zero" => () => tools.GainSilver(0, "a dead man's purse"),
+            "GainSilver_Negative" => () => tools.GainSilver(-10, "a dead man's purse"),
+            "SellItem_NegativePrice" => () => tools.SellItem("a bone", silverPrice: -1),
+            "SellItem_QuantityBelowOne" => () => tools.SellItem("a bone", silverPrice: 1, quantity: 0),
+            "EquipWeapon_NegativeCost" => () => tools.EquipWeapon(WeaponKind.Sword, silverCost: -1),
+            "EquipWeapon_UndefinedKind" => () => tools.EquipWeapon((WeaponKind)99),
+            "EquipArmor_NegativeCost" => () => tools.EquipArmor(ArmorTierDto.Light, silverCost: -1),
+            "EquipShield_NegativeCost" => () => tools.EquipShield(silverCost: -1),
             _ => throw new ArgumentOutOfRangeException(nameof(call))
         };
 
         await Assert.ThrowsAsync<ArgumentException>(act);
         _charactersRepo.Verify(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private Character HeroInSession(Dice? dice = null)
+    {
+        var hero = BuildHero(dice ?? _zeroDice);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        return hero;
+    }
+
+    private static InventoryItem Carry(Character hero, string description, int quantity = 1)
+    {
+        var item = new InventoryItem(Guid.NewGuid(), description, false, false, quantity);
+        hero.AddItem(item);
+        return item;
+    }
+
+    // Game State lists an item as "life elixir x2", and the model copies the quantity into the name.
+    [Fact]
+    public async Task UseItem_AcceptsTheNameWithItsQuantitySuffix()
+    {
+        var hero = HeroInSession();
+        var elixir = Carry(hero, "life elixir", quantity: 2);
+
+        await CharacterTools().UseItemFromCharacterInventory("life elixir x2");
+
+        Assert.Equal(1, elixir.Quantity);
+    }
+
+    [Fact]
+    public async Task UseItem_PrefersAnExactNameOverAStrippedOne()
+    {
+        var hero = HeroInSession();
+        var bolts = Carry(hero, "bolts", quantity: 5);
+        var bundle = Carry(hero, "bolts x20", quantity: 2);
+
+        await CharacterTools().UseItemFromCharacterInventory("bolts x20");
+
+        Assert.Equal(1, bundle.Quantity);
+        Assert.Equal(5, bolts.Quantity);
+    }
+
+    [Fact]
+    public async Task UseItem_HealingItem_ReportsWhatItHealed()
+    {
+        // d4 daily powers; a wound of 6; d6 = 3 healed.
+        var dice = ScriptedDice(0, 5, 2);
+        var hero = HeroInSession(dice);
+        hero.SufferConsequence(ChallengeConsequence.Deadly, DifficultyPresets.For(Difficulty.Hardcore), dice);
+        var woundedAt = hero.Hp.Current;
+        hero.AddItem(new InventoryItem(Guid.NewGuid(), "life elixir", false, true, 1, ItemEffect.Heal));
+
+        var used = await CharacterTools(dice).UseItemFromCharacterInventory("life elixir");
+
+        Assert.Equal(3, used.HpHealed);
+        Assert.Equal(woundedAt + 3, used.Character.CurrentHp);
+        Assert.Empty(used.Character.Inventory.Items);
+    }
+
+    [Theory]
+    [InlineData(true, ItemEffect.Heal)]
+    [InlineData(false, ItemEffect.None)]
+    public async Task BoughtAndFoundItems_CarryTheHealingTheNarratorDeclared(bool heals, ItemEffect expected)
+    {
+        var hero = HeroInSession();
+
+        await CharacterTools().BuyItem("bitter draught", silverCost: 5, heals: heals);
+        await CharacterTools().AddItemToCharacterInventory("grave moss", heals: heals);
+
+        Assert.Equal(2, hero.Inventory.InventoryItems.Count);
+        Assert.All(hero.Inventory.InventoryItems, item => Assert.Equal(expected, item.Effect));
+    }
+
+    [Fact]
+    public async Task EquipTools_ChangeTheSheetAndChargeTheSilver()
+    {
+        var hero = HeroInSession();
+
+        await CharacterTools().EquipWeapon(WeaponKind.Flail, silverCost: 4);
+        await CharacterTools().EquipArmor(ArmorTierDto.Medium);
+        var sheet = await CharacterTools().EquipShield(silverCost: 2);
+
+        Assert.Equal(WeaponKind.Flail, sheet.WeaponKind);
+        Assert.Equal(ArmorTierDto.Medium, sheet.ArmorTier);
+        Assert.True(sheet.HasShield);
+        Assert.Equal(4, sheet.Silver);
+        Assert.Equal(WeaponKind.Flail, hero.Weapon.Kind);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task EquipWeapon_RefusesNaturalAttacks()
+    {
+        var hero = HeroInSession();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CharacterTools().EquipWeapon(WeaponKind.Fangs));
+
+        Assert.Equal(WeaponKind.Sword, hero.Weapon.Kind);
+    }
+
+    [Fact]
+    public async Task SellItem_ResolvesTheItemByDescription()
+    {
+        var hero = HeroInSession();
+        var torches = Carry(hero, "torches", quantity: 3);
+
+        var sheet = await CharacterTools().SellItem("Torches x3", silverPrice: 9, quantity: 3);
+
+        Assert.DoesNotContain(torches, hero.Inventory.InventoryItems);
+        Assert.Equal(19, sheet.Silver);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GainSilver_PaysTheCharacter()
+    {
+        var hero = HeroInSession();
+
+        var sheet = await CharacterTools().GainSilver(30, "the toll-keeper's strongbox");
+
+        Assert.Equal(40, sheet.Silver);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CastScroll_TellsWhatTheScrollDidAndWhoItHit()
+    {
+        // d4 daily powers; d20 = 15 to cast; d2 = 1 creature; d8 = 8.
+        var dice = ScriptedDice(0, 14, 0, 7);
+        var hero = TestCharacters.Create(dice,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate"));
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        var encounter = Encounter.Create("Ambush", "test", EncounterType.Hostile, _zeroDice);
+        encounter.AddAdversary(NewAdversary("Goblin"));
+        encounter.StartEncounter();
+        _context.SetActiveEncounterId(encounter.Id);
+        _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
+
+        var cast = await CharacterTools(dice).CastScroll("palms open the southern gate");
+
+        Assert.True(cast.Succeeded);
+        Assert.Equal("Palms Open the Southern Gate", cast.Scroll);
+        Assert.False(string.IsNullOrWhiteSpace(cast.Effect));
+        var hit = Assert.Single(cast.AdversariesHit);
+        Assert.Equal(("Goblin", 8, true), (hit.Adversary, hit.Damage, hit.Killed));
+        Assert.Equal(hero.Hp.Current, cast.CurrentHp);
+    }
+
+    // The real repository deserializes a fresh character on every Get, so a tool that reports from the
+    // instance it loaded, after a service changed another one, reports stale numbers.
+    [Fact]
+    public async Task CastScroll_ReportsTheCastersHpAsSaved_NotAsFirstLoaded()
+    {
+        // d4 daily powers; a wound of 6; d20 = 15 to cast; d10 = 4 healed.
+        var dice = ScriptedDice(0, 5, 14, 3);
+        var hero = TestCharacters.Create(dice,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Grace of a Dead Saint"));
+        hero.SufferConsequence(ChallengeConsequence.Deadly, DifficultyPresets.For(Difficulty.Hardcore), dice);
+        var woundedAt = hero.Hp.Current;
+        var json = AggregateJsonOptions.Create();
+        var stored = JsonSerializer.Serialize(hero, json);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => JsonSerializer.Deserialize<Character>(stored, json));
+        _charactersRepo.Setup(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()))
+            .Callback((Character saved, CancellationToken _) => stored = JsonSerializer.Serialize(saved, json));
+
+        var cast = await CharacterTools(dice).CastScroll("Grace of a Dead Saint");
+
+        Assert.Equal(4, cast.HpHealed);
+        Assert.Equal(woundedAt + 4, cast.CurrentHp);
+    }
+
+    /// <summary>Every d4 rolls 3 (daily powers, damage, the Broken table: survives), every d6 rolls 6 (a
+    /// lost eye) and every d20 rolls 5 (a failed test, dodge or casting).</summary>
+    private static Dice DiceThatBreakWithALostEye()
+    {
+        var random = new Mock<IRandomService>();
+        random.Setup(r => r.GenerateRandomRoll(4)).Returns(2);
+        random.Setup(r => r.GenerateRandomRoll(6)).Returns(5);
+        random.Setup(r => r.GenerateRandomRoll(20)).Returns(4);
+        return new Dice(random.Object);
+    }
+
+    [Fact]
+    public async Task ChallengeCharacter_NamesTheInjuryABreakGave()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 1);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var result = await CharacterTools(dice).ChallengeCharacter(
+            12, AbilityKind.Strength, ChallengeConsequence.Serious);
+
+        Assert.Equal("lost eye", result.NewInjury);
+        Assert.True(result.IsBroken);
+        Assert.Equal(1, result.CurrentHp);
+    }
+
+    [Fact]
+    public async Task ResolveCombatRound_NamesTheInjuryARetaliationGave()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 1);
+        var encounter = Encounter.Create("Ambush", "test", EncounterType.Hostile, _zeroDice);
+        encounter.AddAdversary(new Adversary("Goblin", new HitPoints(100, 100), new Armor(ArmorTier.None), 7,
+            new AttackProfile("Knife", DiceExpr.Parse("1d4"))));
+        encounter.StartEncounter();
+        _context.SetCharacterId(hero.Id);
+        _context.SetActiveEncounterId(encounter.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
+
+        var round = await EncounterTools(dice).ResolveCombatRound(PlayerRoundAction.Other);
+
+        Assert.Equal("lost eye", Assert.Single(round.Retaliations).Injury);
+        Assert.True(round.PlayerBroken);
+        Assert.Equal(1, round.PlayerCurrentHp);
+    }
+
+    [Fact]
+    public async Task CastScroll_NamesTheInjuryAFizzleGave()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 1,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Bestial Speech"));
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var cast = await CharacterTools(dice).CastScroll("Bestial Speech");
+
+        Assert.False(cast.Succeeded);
+        Assert.Equal("lost eye", cast.NewInjury);
+    }
+
+    [Fact]
+    public async Task CastScroll_FizzleThatKills_ReportsTheDeath()
+    {
+        var random = new Mock<IRandomService>();
+        random.Setup(r => r.GenerateRandomRoll(20)).Returns(1); // Presence test: 2 against DR 12
+        var dice = new Dice(random.Object); // every other die rolls 1: the fizzle costs 1, the Broken table says dead
+        var hero = TestCharacters.Create(dice, maxHp: 1,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Bestial Speech"));
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var cast = await CharacterTools(dice).CastScroll("Bestial Speech");
+
+        Assert.False(cast.Succeeded);
+        Assert.True(cast.IsDead);
+        Assert.Equal(0, cast.CurrentHp);
     }
 
     // -- CampaignTools --

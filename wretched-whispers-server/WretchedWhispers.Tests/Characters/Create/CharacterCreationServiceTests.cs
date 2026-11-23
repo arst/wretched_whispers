@@ -1,7 +1,9 @@
 using Moq;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using Xunit;
 
@@ -23,6 +25,42 @@ public class CharacterCreationServiceTests : TestBase
         Assert.InRange(character.Abilities.Presence.Modifier, -3, 6);
         Assert.InRange(character.Abilities.Strength.Modifier, -3, 6);
         Assert.InRange(character.Abilities.Toughness.Modifier, -3, 6);
+    }
+
+    [Fact]
+    public async Task Create_ClassScroll_IsNamedForARealPower()
+    {
+        var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.EsotericHermit);
+
+        Assert.NotEmpty(character.Scrolls);
+        Assert.All(character.Scrolls, s => Assert.NotNull(ScrollPowers.Find(s.Description)));
+    }
+
+    [Fact]
+    public async Task Create_GearTableScroll_IsNamedForAPowerOfItsSchool()
+    {
+        SetupDiceRoll(12, 4); // both gear tables roll 5: the first is an unclean scroll
+        SetupDiceRoll(10, 9); // the power table rolls 10
+
+        var character = await NewService().Create("Hero", Difficulty.Grim);
+
+        var scroll = Assert.Single(character.Scrolls);
+        Assert.Equal(ScrollSchool.Unclean, scroll.School);
+        Assert.Equal("Death", scroll.Description);
+    }
+
+    [Theory]
+    [InlineData(0, "life elixir")] // both gear tables roll 1: the second is the elixir
+    [InlineData(6, "medicine chest (Presence + 4 uses)")] // both roll 7: the first is the chest
+    public async Task Create_HealingGear_IsMarkedAsHealing(int zeroBasedD12, string healingItem)
+    {
+        SetupDiceRoll(12, zeroBasedD12);
+
+        var character = await NewService().Create("Hero", Difficulty.Grim);
+
+        Assert.All(character.Inventory.InventoryItems, item =>
+            Assert.Equal(item.Description == healingItem ? ItemEffect.Heal : ItemEffect.None, item.Effect));
+        Assert.Contains(character.Inventory.InventoryItems, item => item.Description == healingItem);
     }
 
     [Fact]

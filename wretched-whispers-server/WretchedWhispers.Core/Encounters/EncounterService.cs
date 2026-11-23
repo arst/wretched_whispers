@@ -1,8 +1,10 @@
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Encounters;
@@ -49,6 +51,18 @@ public class EncounterService(
         return encounter;
     }
 
+    /// <summary>Closes every encounter among <paramref name="encounterIds"/> that is still open. Called
+    /// when a dead character is buried: left open, their last fight would be loaded as the successor's.</summary>
+    public async Task AbandonUnresolved(IEnumerable<Guid> encounterIds, CancellationToken ct = default)
+    {
+        foreach (var encounterId in encounterIds)
+        {
+            if (await encountersRepository.Get(encounterId, ct) is not { IsResolved: false } encounter) continue;
+            encounter.Abandon();
+            await encountersRepository.Save(encounter, ct);
+        }
+    }
+
     public async Task<Encounter> TurnHostile(Guid encounterId, CancellationToken ct = default)
     {
         var encounter = await encountersRepository.Get(encounterId, ct) ??
@@ -93,9 +107,10 @@ public class EncounterService(
         {
             case PlayerRoundAction.Attack:
                 {
+                    // Nobody left to hit (a scroll can clear the field outside a round): the swing is
+                    // skipped and the round below ends the fight as won, rather than leaving it open.
                     var living = ActiveAdversaries(encounter);
-                    if (living.Count == 0)
-                        throw new InvalidOperationException("No living adversaries remain.");
+                    if (living.Count == 0) break;
                     var target = living.FirstOrDefault(a =>
                             a.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
                         ?? living[0];
@@ -155,7 +170,54 @@ public class EncounterService(
         return new CombatRoundOutcome(
             playerAttack, attackedName, fleeAttempt, retaliations, fledThisRound,
             endReason is not EncounterEndReason.None, endReason,
-            character.Hp.Current, character.Hp.IsZero && !character.IsDead);
+            character.Hp.Current, retaliations.Any(r => r.Outcome.Injury is not null) && !character.IsDead);
+    }
+
+    /// <summary>Casts a scroll and, when its power harms others, applies that to the adversaries of the
+    /// fight in progress. Outside a started fight a harmful power hits nothing the game tracks. The fight
+    /// is not ended here even if nobody is left standing: the round that follows the cast does that.</summary>
+    public async Task<ScrollCastResult> CastScroll(
+        Guid characterId, Guid scrollId, Guid? encounterId, CancellationToken ct = default)
+    {
+        var character = await charactersRepository.Get(characterId, ct)
+            ?? throw new InvalidOperationException("Character not found");
+
+        var outcome = character.Cast(scrollId, dice);
+        await charactersRepository.Save(character, ct);
+
+        var hits = new List<ScrollHit>();
+        if (outcome.Power is not { Kind: ScrollEffectKind.DamageEach or ScrollEffectKind.DamageSplit } power
+            || encounterId is null)
+            return new ScrollCastResult(outcome, hits, character.Hp.Current, character.IsDead);
+
+        var encounter = await encountersRepository.Get(encounterId.Value, ct);
+        if (encounter is not { IsStarted: true, IsEnded: false })
+            return new ScrollCastResult(outcome, hits, character.Hp.Current, character.IsDead);
+
+        // ponytail: targets are taken in order and no morale is rolled for the survivors; let the
+        // player choose targets and check morale here if scroll kills start deciding fights.
+        var standing = ActiveAdversaries(encounter);
+        if (power.Kind is ScrollEffectKind.DamageEach)
+        {
+            var targets = power.Targets.Sides == 0 ? 1 : dice.Roll(power.Targets);
+            foreach (var adversary in standing.Take(targets))
+                hits.Add(Hit(adversary, dice.Roll(power.Amount)));
+        }
+        else if (standing.Count > 0)
+        {
+            var total = dice.Roll(power.Amount);
+            for (var i = 0; i < standing.Count; i++)
+                hits.Add(Hit(standing[i], total / standing.Count + (i < total % standing.Count ? 1 : 0)));
+        }
+
+        await encountersRepository.Save(encounter, ct);
+        return new ScrollCastResult(outcome, hits, character.Hp.Current, character.IsDead);
+
+        static ScrollHit Hit(Adversary adversary, int damage)
+        {
+            adversary.ReceiveDamage(damage);
+            return new ScrollHit(adversary.Name, damage, adversary.IsDead);
+        }
     }
 
     private static IReadOnlyList<Adversary> ActiveAdversaries(Encounter encounter) =>

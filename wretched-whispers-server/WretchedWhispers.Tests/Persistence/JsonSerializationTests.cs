@@ -35,6 +35,60 @@ public class JsonSerializationTests : TestBase
         Assert.Equal(CharacterClass.CursedSkinwalker, deserialized.Class);
     }
 
+    [Fact]
+    public void Character_RoundTrips_WhatAnItemDoesAndAPendingBlessing()
+    {
+        SetupDiceRolls(0, 14, 3); // d4 daily powers; d20 = 15 to cast; d6 = 4 blessing
+        var blessing = new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Grace for a Sinner");
+        var character = TestCharacters.Create(Dice, scrolls: blessing);
+        character.AddItem(new InventoryItem(Guid.NewGuid(), "life elixir", false, true, 2, ItemEffect.Heal));
+        character.Cast(blessing.Id, Dice);
+
+        var json = JsonSerializer.Serialize(character, _options);
+        var loaded = JsonSerializer.Deserialize<Character>(json, _options);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(ItemEffect.Heal, Assert.Single(loaded.Inventory.InventoryItems).Effect);
+        Assert.Equal(4, loaded.NextTestBonus);
+    }
+
+    [Fact]
+    public void Character_RoundTrips_ChangedGear()
+    {
+        var character = TestCharacters.Create(Dice, weaponKind: WeaponKind.Knife, armorTier: ArmorTier.None);
+        character.Equip(Weapon.Create(WeaponKind.Flail));
+        character.Wear(new Armor(ArmorTier.Medium));
+        character.TakeUpShield();
+
+        var loaded = JsonSerializer.Deserialize<Character>(JsonSerializer.Serialize(character, _options), _options);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(WeaponKind.Flail, loaded.Weapon.Kind);
+        Assert.Equal(ArmorTier.Medium, loaded.Armor.Tier);
+        Assert.NotNull(loaded.Shield);
+    }
+
+    /// <summary>An item saved before items had effects has no "effect" key and must load as an ordinary
+    /// item; a character saved before blessings existed has no "nextTestBonus".</summary>
+    [Fact]
+    public void Character_SavedBeforeItemEffects_LoadsWithOrdinaryItems()
+    {
+        var character = TestCharacters.Create(Dice);
+        character.AddItem(new InventoryItem(Guid.NewGuid(), "life elixir", false, true, 2, ItemEffect.Heal));
+        var node = JsonNode.Parse(JsonSerializer.Serialize(character, _options));
+        Assert.NotNull(node);
+        var item = node["inventory"]?["inventoryItems"]?[0]?.AsObject();
+        Assert.NotNull(item);
+        Assert.True(item.Remove("effect"), "expected an 'effect' key to remove");
+        Assert.True(node.AsObject().Remove("nextTestBonus"), "expected a 'nextTestBonus' key to remove");
+
+        var loaded = JsonSerializer.Deserialize<Character>(node.ToJsonString(), _options);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(ItemEffect.None, Assert.Single(loaded.Inventory.InventoryItems).Effect);
+        Assert.Equal(0, loaded.NextTestBonus);
+    }
+
     /// <summary>Two shapes of old blob have to keep loading, and there is no migration to fix either up --
     /// the Characters table is a single JSON column. Characters saved before classes existed have no
     /// "class" key and must land as classless; characters saved while the power die was briefly a class
@@ -161,7 +215,8 @@ public class JsonSerializationTests : TestBase
         // 3. CalculateDamageAfterDefense -> attack D4: returns 0 -> roll 1 (1 damage, enough to reach 0 HP)
         // 4. ReceiveDamage -> ResolveBroken -> D4: returns 2 -> roll 3 (not dead, proceed to injury)
         // 5. ResolveBroken -> D6: returns 4 -> roll 5 (BrokenHand)
-        SetupDiceRolls(3, 4, 0, 2, 4);
+        // 6. Coming round -> D4: returns 0 -> roll 1
+        SetupDiceRolls(3, 4, 0, 2, 4, 0);
 
         var abilities = new Abilities(
             new AbilityScore(0), new AbilityScore(0),

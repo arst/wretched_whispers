@@ -3,6 +3,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using Xunit;
 
@@ -89,7 +90,7 @@ public sealed class ChallengeTests : TestBase
 
         // Grim: Minor d2 / Serious d4 / Deadly d6 — matches the InlineData sides.
         var settings = DifficultyPresets.For(Difficulty.Grim);
-        var damage = character.SufferConsequence(severity, settings, Dice);
+        var damage = character.SufferConsequence(severity, settings, Dice).Damage;
 
         Assert.Equal(1, damage);
         Assert.Equal(hpBefore - 1, character.Hp.Current);
@@ -103,7 +104,7 @@ public sealed class ChallengeTests : TestBase
         var hpBefore = character.Hp.Current;
         var settings = DifficultyPresets.For(Difficulty.Grim);
 
-        var damage = character.SufferConsequence(ChallengeConsequence.None, settings, Dice);
+        var damage = character.SufferConsequence(ChallengeConsequence.None, settings, Dice).Damage;
 
         Assert.Equal(0, damage);
         Assert.Equal(hpBefore, character.Hp.Current);
@@ -126,16 +127,16 @@ public sealed class ChallengeTests : TestBase
     }
 
     [Fact]
-    public async Task ChallengePlayer_ConsequenceZeroesHp_SurvivesBroken_ReportsAliveAndZeroHp()
+    public async Task ChallengePlayer_ConsequenceZeroesHp_SurvivesBroken_ReportsAliveWithTheHpTheyCameRoundWith()
     {
         // The playtest bug: a DR-12 test fails, fall damage zeroes a 3-HP wretch, the Broken table
-        // rolls an injury (not death) — the character is ALIVE at 0 HP. ChallengeResult must report
-        // IsDead=false and CurrentHp=0 so the narrator can't fabricate a death.
+        // rolls an injury (not death) — the character is ALIVE and comes round with d4. ChallengeResult
+        // must report IsDead=false, the injury and those hit points so the narrator can't fabricate a death.
         var character = TestCharacters.Create(Dice, maxHp: 3);
         var service = NewService(character);
         // d20 -> 7 (fail vs 12); Deadly d6 -> 3 damage (3 HP -> 0); Broken d4 -> 3 (injury branch, survives);
-        // injury d6 -> 3 (SmashedFace).
-        SetupDiceRolls(6, 2, 2, 2);
+        // injury d6 -> 3 (SmashedFace); d4 -> 2 hit points on coming round.
+        SetupDiceRolls(6, 2, 2, 2, 1);
 
         var result = await service.ChallengePlayer(
             character.Id, new Dr(12), AbilityKind.Agility, DifficultyPresets.For(Difficulty.Grim),
@@ -144,7 +145,8 @@ public sealed class ChallengeTests : TestBase
         Assert.False(result.Outcome.IsSuccess);
         Assert.Equal(3, result.DamageTaken);
         Assert.False(result.IsDead);
-        Assert.Equal(0, result.CurrentHp);
+        Assert.Equal(2, result.CurrentHp);
+        Assert.Equal(InjuryKind.SmashedFace, result.NewInjury);
         Assert.True(character.HasSmashedFace); // survived Broken with an injury
     }
 

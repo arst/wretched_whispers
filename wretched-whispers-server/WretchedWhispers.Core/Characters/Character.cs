@@ -43,8 +43,10 @@ public sealed class Character
         bool isDizzyFromMagic = false,
         bool isDead = false,
         bool canGetBetter = false,
-        CharacterClass @class = CharacterClass.Classless)
+        CharacterClass @class = CharacterClass.Classless,
+        int nextTestBonus = 0)
     {
+        NextTestBonus = nextTestBonus;
         Id = id;
         Name = name;
         Class = @class;
@@ -100,8 +102,8 @@ public sealed class Character
     [JsonInclude] public Inventory Inventory { get; private set; }
 
     [JsonInclude] public HitPoints Hp { get; private set; }
-    public Armor Armor { get; }
-    public Shield? Shield { get; }
+    [JsonInclude] public Armor Armor { get; private set; }
+    [JsonInclude] public Shield? Shield { get; private set; }
     [JsonInclude] public Weapon Weapon { get; private set; }
     [JsonInclude] public Omens Omens { get; private set; }
     public PowerPool Powers { get; }
@@ -116,6 +118,9 @@ public sealed class Character
     [JsonInclude] public bool CanGetBetter { get; private set; }
 
     [JsonInclude] public InjurySet Injuries { get; private set; }
+
+    /// <summary>A pending blessing: lowers the DR of the next test, then is gone.</summary>
+    [JsonInclude] public int NextTestBonus { get; private set; }
 
     [JsonIgnore] public bool HasLostEye => Injuries.Has(InjuryKind.LostEye);
     [JsonIgnore] public bool HasStabbedLung => Injuries.Has(InjuryKind.StabbedLung);
@@ -234,10 +239,11 @@ public sealed class Character
             damage = Math.Max(0, damage - omenReduction);
         }
 
-        ReceiveDamage(damage, dice);
+        var injury = ReceiveDamage(damage, dice);
 
         return new DefenceOutcome
         {
+            Injury = injury,
             DamageDealt = damage,
             Avoided = false,
             CriticalFreeAttack = false,
@@ -251,21 +257,30 @@ public sealed class Character
         };
     }
 
-    private void ReceiveDamage(int damage, Dice dice)
+    /// <summary>Applies damage and, when it drops the character to 0, rolls the Broken table. Returns the
+    /// injury that roll gave, or null when the character was not broken or did not survive it. A caller
+    /// should hand it on in its own result: an injury the result does not name cannot be told.
+    /// ponytail: Rest (damage from resting while infected) still drops it; AdvanceTimeOutcome has no
+    /// place for damage, injury or death yet.</summary>
+    private InjuryKind? ReceiveDamage(int damage, Dice dice)
     {
         Hp = Hp.Damage(damage);
 
-        if (Hp.IsZero)
-        {
-            var brokenOutcome = ResolveBroken(dice);
-            if (brokenOutcome is null)
-                return;
+        if (ResolveBroken(dice) is not { } brokenOutcome) return null;
 
-            if (brokenOutcome == InjuryKind.None)
-                IsDead = true;
-            else
-                Injuries = Injuries.Add(brokenOutcome.Value);
+        if (brokenOutcome == InjuryKind.None)
+        {
+            IsDead = true;
+            return null;
         }
+
+        Injuries = Injuries.Add(brokenOutcome);
+        // MORK BORG: whoever survives the Broken table comes round with d4 hit points. Left at 0 they
+        // would stay there, every later hit another roll on the table.
+        // ponytail: comes round at once; the book has them out for d4 rounds first. Track that if
+        // getting back up mid-fight proves too forgiving.
+        Hp = Hp.Heal(dice.Roll(DiceExpr.D4));
+        return brokenOutcome;
     }
 
 
@@ -373,12 +388,80 @@ public sealed class Character
         Silver -= price;
     }
 
+    /// <summary>Takes up a weapon, replacing the one wielded. Fangs and claws are not gear: only a class
+    /// born with them can go back to them.</summary>
+    public void Equip(Weapon weapon, int price = 0)
+    {
+        if (weapon.Kind is WeaponKind.Fangs or WeaponKind.Claws
+            && ClassPresets.For(Class).NaturalWeapon != weapon.Kind)
+            throw new InvalidOperationException($"{weapon.Kind} are a natural attack, not a weapon to take up.");
+        Pay(price);
+        Weapon = weapon;
+    }
+
+    /// <summary>Puts on armor, replacing what was worn. <see cref="ArmorTier.None"/> takes it off.</summary>
+    public void Wear(Armor armor, int price = 0)
+    {
+        Pay(price);
+        Armor = armor;
+    }
+
+    public void TakeUpShield(int price = 0)
+    {
+        Pay(price);
+        Shield = new Shield();
+    }
+
+    private void Pay(int price)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(price);
+        if (Silver < price) throw new InvalidOperationException("Not enough silver to pay for it.");
+        Silver -= price;
+    }
+
+    /// <summary>Uses one unit of a carried item and applies what the item does.</summary>
+    public ItemUseOutcome UseItem(Guid itemId, Dice dice)
+    {
+        // A turn can chain actions past a death ("I jump, then drink"); nothing heals the dead.
+        if (IsDead) throw new InvalidOperationException("The character is dead and can use nothing.");
+
+        var item = Inventory.InventoryItems.FirstOrDefault(i => i.Id == itemId)
+            ?? throw new InvalidOperationException($"Item with id {itemId} is not in the inventory");
+        Inventory.ConsumeItem(itemId);
+
+        if (item.Effect is not ItemEffect.Heal) return new ItemUseOutcome(0, false);
+
+        var before = Hp.Current;
+        Hp = Hp.Heal(dice.Roll(DiceExpr.D6));
+        var wasInfected = IsInfected;
+        IsInfected = false;
+        return new ItemUseOutcome(Hp.Current - before, wasInfected);
+    }
+
+    /// <summary>Silver found, looted, paid or rewarded.</summary>
+    public void GainSilver(int amount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        Silver += amount;
+    }
+
+    /// <summary>Sells, trades away or gives away carried units of an item. <paramref name="price"/> is the
+    /// total paid for all of them; zero is a gift.</summary>
+    public void SellItem(Guid itemId, int price, int quantity = 1)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(price);
+        Inventory.RemoveUnits(itemId, quantity);
+        Silver += price;
+    }
+
     public CastOutcome Cast(Guid scrollId, Dice dice)
     {
         var scroll = _scrolls.FirstOrDefault(s => s.Id == scrollId);
 
         if (scroll is null) throw new InvalidOperationException("Scroll not found in inventory.");
 
+        if (IsDead)
+            return CastOutcome.Fail("The caster is dead");
         if (IsDizzyFromMagic)
             return CastOutcome.Fail("Dizzy from prior failure");
         if (!ScrollRestrictionPolicy.CanUseScrolls(Weapon, Armor))
@@ -388,12 +471,29 @@ public sealed class Character
 
         var challengeOutcome = Challenge(new Dr(12), AbilityKind.Presence, dice);
 
-        if (challengeOutcome.IsSuccess) return CastOutcome.Success(scroll.Description);
+        if (challengeOutcome.IsSuccess)
+        {
+            // What the power does to the caster is applied here; what it does to adversaries is the
+            // encounter's to apply (EncounterService.CastScroll), since a character knows no enemies.
+            var power = ScrollPowers.Find(scroll.Description);
+            var healed = 0;
+            if (power?.Kind is ScrollEffectKind.HealCaster)
+            {
+                var before = Hp.Current;
+                Hp = Hp.Heal(dice.Roll(power.Amount));
+                healed = Hp.Current - before;
+            }
+
+            if (power?.Kind is ScrollEffectKind.BlessNextTest)
+                NextTestBonus = dice.Roll(power.Amount);
+
+            return CastOutcome.Success(scroll.Description, power, healed, NextTestBonus);
+        }
 
         var loss = dice.Roll(DiceExpr.D2);
-        ReceiveDamage(loss, dice);
+        var injury = ReceiveDamage(loss, dice);
         IsDizzyFromMagic = true;
-        return CastOutcome.Fizzle(scroll.Description, loss);
+        return CastOutcome.Fizzle(scroll.Description, loss, injury);
     }
 
     public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int penalty = 0,
@@ -403,6 +503,13 @@ public sealed class Character
         {
             if (!Omens.TrySpend()) throw new InvalidOperationException("No omens remaining.");
             challenge = new Dr(challenge.Value - 4);
+        }
+
+        // A blessing (Grace for a Sinner) eases exactly one test, whichever comes next.
+        if (NextTestBonus > 0)
+        {
+            challenge = new Dr(challenge.Value - NextTestBonus);
+            NextTestBonus = 0;
         }
 
         // Encumbrance penalty
@@ -447,10 +554,11 @@ public sealed class Character
     public ChallengeOutcome AttemptFlee(Dice dice) =>
         Challenge(new Dr(12), AbilityKind.Agility, dice, Armor.AgilityPenalty);
 
-    public int SufferConsequence(ChallengeConsequence consequence, DifficultySettings settings, Dice dice)
+    public ConsequenceOutcome SufferConsequence(
+        ChallengeConsequence consequence, DifficultySettings settings, Dice dice)
     {
         if (consequence is ChallengeConsequence.None)
-            return 0;
+            return new ConsequenceOutcome(0, null);
 
         var severityDie = consequence switch
         {
@@ -461,8 +569,7 @@ public sealed class Character
         };
 
         var damage = dice.Roll(severityDie);
-        ReceiveDamage(damage, dice);
-        return damage;
+        return new ConsequenceOutcome(damage, ReceiveDamage(damage, dice));
     }
 
     public void Improve(AbilityKind kind, int delta)

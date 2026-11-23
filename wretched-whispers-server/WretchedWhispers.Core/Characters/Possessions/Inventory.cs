@@ -57,6 +57,21 @@ public sealed class Inventory
         _inventoryItems.Remove(item);
     }
 
+    /// <summary>Takes <paramref name="quantity"/> units of an item out of the inventory, all or nothing.</summary>
+    public void RemoveUnits(Guid itemId, int quantity)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
+        var item = _inventoryItems.FirstOrDefault(i => i.Id == itemId);
+
+        if (item is null) throw new InvalidOperationException($"Item with id {itemId} is not in the inventory");
+        if (item.Quantity < quantity)
+            throw new InvalidOperationException(
+                $"Only {item.Quantity} of '{item.Description}' is carried, not {quantity}.");
+
+        for (var i = 0; i < quantity; i++) item.TryUseOne();
+        if (item.Quantity == 0) _inventoryItems.Remove(item);
+    }
+
     public bool ConsumeItem(Guid itemId)
     {
         var item = _inventoryItems.FirstOrDefault(i => i.Id == itemId);

@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
 
@@ -17,7 +18,8 @@ public sealed record AdversaryRetaliation(string AdversaryName, DefenceOutcome O
 /// <summary>Everything that happened in one domain-resolved combat round, in resolution order:
 /// player action, adversary retaliation, morale flights, and whether the encounter ended.
 /// PlayerCurrentHp/PlayerBroken carry the player's post-round condition so the model narrates the
-/// domain truth: PlayerBroken (0 HP, survived with an injury) is ALIVE, not dead.</summary>
+/// domain truth: PlayerBroken (dropped to 0, survived the Broken table with an injury, came round with
+/// a few hit points) is ALIVE, not dead.</summary>
 public sealed record CombatRoundOutcome(
     AttackOutcome? PlayerAttack,
     string? PlayerAttackTarget,
@@ -28,3 +30,11 @@ public sealed record CombatRoundOutcome(
     EncounterEndReason EndReason,
     int PlayerCurrentHp,
     bool PlayerBroken);
+
+/// <summary>What a scroll did to one adversary of the fight in progress.</summary>
+public sealed record ScrollHit(string AdversaryName, int Damage, bool Killed);
+
+/// <summary>A casting, every adversary its power reached, and the caster's condition afterwards: a fizzle
+/// costs hit points and can kill.</summary>
+public sealed record ScrollCastResult(
+    CastOutcome Outcome, IReadOnlyList<ScrollHit> Hits, int CasterHp, bool CasterDead);

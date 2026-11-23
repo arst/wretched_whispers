@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Encounters;
 
 namespace WretchedWhispers.Engine.GameTools.Models;
@@ -16,7 +17,9 @@ public sealed record RetaliationDto(
     int OmenDamageReduction = 0,
     // The player's dodge test (always Agility) and, when it failed, the damage breakdown — so a hit
     // taken is explained from the numbers. Dr already includes armor, encumbrance and injuries.
-    int Roll = 0, int Modifier = 0, int Dr = 0, int BaseDamageRoll = 0, int ArmorReduction = 0);
+    int Roll = 0, int Modifier = 0, int Dr = 0, int BaseDamageRoll = 0, int ArmorReduction = 0,
+    // The injury this hit gave when it broke the player, in Game State's words ("lost eye").
+    string? Injury = null);
 
 public sealed record CombatRoundOutcomeDto(
     PlayerAttackDto? PlayerAttack,
@@ -25,7 +28,7 @@ public sealed record CombatRoundOutcomeDto(
     IReadOnlyList<string> AdversariesFled,
     bool EncounterEnded,
     string EndReason,
-    // Post-round player condition. PlayerBroken (0 HP, alive) is a survived hit, NOT death — the model
+    // Post-round player condition. PlayerBroken (dropped to 0, survived with an injury) is NOT death — the model
     // narrates a collapse. Death is only the PlayerDead EndReason.
     int PlayerCurrentHp,
     bool PlayerBroken)
@@ -43,7 +46,7 @@ public sealed record CombatRoundOutcomeDto(
             .Select(r => new RetaliationDto(r.AdversaryName, r.Outcome.DamageDealt, r.Outcome.Avoided,
                 r.Outcome.CriticalFreeAttack, r.Outcome.FumbleDoubleDamage, r.Outcome.OmenDamageReduction,
                 r.Outcome.Roll, r.Outcome.Modifier, r.Outcome.EffectiveDr,
-                r.Outcome.BaseDamageRoll, r.Outcome.ArmorReduction))
+                r.Outcome.BaseDamageRoll, r.Outcome.ArmorReduction, r.Outcome.Injury?.DisplayName()))
             .ToList(),
         outcome.AdversariesFledThisRound,
         outcome.EncounterEnded,
