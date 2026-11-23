@@ -54,6 +54,10 @@ Suite `campaign-creation` (`CampaignCreationEvals.cs`):
 - **Opening-NarratesRolledWretch** — the opening turn calls exactly `ConfigureCampaign` and narrates the pre-rolled character (name + class) from Game State.
 - **Opening-DoesNotReAsk** — the opening narration must not re-ask for a name or class (both come from the create-session form; there is no `CreateCharacter` tool).
 
+Suite `narrator-voice` (`NarratorVoiceEvals.cs`):
+
+- **Voice-\*** — the narration is shown to the player unfiltered, so it must not talk about the machinery: tool names, "the domain", result field names, restated instructions, notes to self. Six kinds of turn (opening, look around, first meeting, risky feat, combat entry, combat round), three samples each. This varies from one model run to the next, so it is a rate with a bar (at most 2 leaking samples of 18; 5 of 18 leaked before the persona's "every word you write is shown to the player" rule), not a pass per sample. Each sample gets an exact check (`EngineTalk`) and an LLM judge.
+
 Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 
 - **Combat-PlayerAttack-OneRound** — a player attack must call `ResolveCombatRound` exactly once (journaling a notable event alongside it is permitted).

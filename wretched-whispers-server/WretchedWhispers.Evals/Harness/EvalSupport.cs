@@ -159,12 +159,16 @@ public sealed class EvalScenario : IAsyncDisposable
     /// NOTE: this wraps the scenario's ONE shared client, so it applies to the game-under-test turn as
     /// well as the judge call — a no-op there today (AgentExecutor never sets either), but rescope if
     /// a future scenario's game path relies on them.
+    /// <paramref name="sample"/>: for behaviour that varies from one model run to the next, run the
+    /// scenario several times under different sample numbers. Each sample is its own iteration with
+    /// its own cached responses, so the samples differ from each other and still replay for free.
     /// </summary>
     public static async Task<EvalScenario> StartAsync(
         string suite,
         string scenarioName,
         IEnumerable<IEvaluator> evaluators,
-        bool stripSamplingOptions = false)
+        bool stripSamplingOptions = false,
+        int sample = 1)
     {
         var chatClient = EvalSupport.TryCreateAzureChatClient();
         Assert.SkipWhen(chatClient is null, "Azure OpenAI credentials not configured; skipping live eval.");
@@ -177,7 +181,7 @@ public sealed class EvalScenario : IAsyncDisposable
             }).Build();
 
         var reporting = EvalSupport.CreateReportingConfiguration(chatClient, evaluators, suite);
-        var run = await reporting.CreateScenarioRunAsync(scenarioName);
+        var run = await reporting.CreateScenarioRunAsync(scenarioName, iterationName: sample.ToString());
 
         var chatConfiguration = run.ChatConfiguration
             ?? throw new InvalidOperationException("ScenarioRun has no ChatConfiguration; response caching was not wired.");

@@ -36,7 +36,7 @@ public sealed class EncounterTools(
     public async Task<EncounterDto> CreateEncounter(
         [Description("The name of the encounter")] string name,
         [Description("A description of the encounter setting or narrative context")] string description,
-        [Description("Initial type. 'Unknown' = the domain rolls the Mörk Borg reaction table and returns the result — the DEFAULT for any first meeting whose attitude the fiction leaves open. Pre-declare 'Hostile' or 'Friendly' ONLY when the fiction predetermines the attitude (an ambush, a sworn enemy, a hired guide).")] EncounterType initialEncounterType)
+        [Description("Initial type. 'Unknown' = the Mörk Borg reaction table is rolled for you and the result returned — the DEFAULT for any first meeting whose attitude the fiction leaves open. Pre-declare 'Hostile' or 'Friendly' ONLY when the fiction predetermines the attitude (an ambush, a sworn enemy, a hired guide).")] EncounterType initialEncounterType)
     {
         // The schema constrains the value to the enum names, but the JSON binder still accepts integers.
         if (!Enum.IsDefined(initialEncounterType))
@@ -55,7 +55,7 @@ public sealed class EncounterTools(
         return CreateEncounterDto(encounter);
     }
 
-    [Description("Add an adversary to the current encounter. Stat the creature as the fiction demands — the domain then scales hit points and caps armor to the campaign's difficulty, so forgiving campaigns stay winnable. The returned encounter carries the ADJUSTED stats: treat those as the truth and never restate the numbers you sent.")]
+    [Description("Add an adversary to the current encounter. Stat the creature as the fiction demands — hit points are then scaled and armor capped to the campaign's difficulty, so forgiving campaigns stay winnable. The returned encounter carries the ADJUSTED stats: treat those as the truth and never restate the numbers you sent.")]
     [GameTool(SessionStage.Exploration)]
     public async Task<EncounterDto> AddAdversaryToEncounter(
         [Description("The adversary to add")] NewAdversaryDto adversary)
