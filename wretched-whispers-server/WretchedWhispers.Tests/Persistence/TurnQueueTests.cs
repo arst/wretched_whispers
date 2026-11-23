@@ -94,6 +94,32 @@ public class TurnQueueTests : SqliteTestBase
         Assert.Single(Db.TurnEvents);
     }
 
+    [Fact]
+    public async Task Claim_PassesOverATurnWhoseGameAlreadyHasOneRunning()
+    {
+        // Turns of different games run side by side, but one game's turns happen one at a time and in
+        // order: a second action waits for the first instead of colliding with it on the session lock.
+        var queue = new TurnQueue(Db, TimeProvider.System);
+        var game = Guid.NewGuid();
+        var first = await EnqueueAsync(game);
+        var second = await EnqueueAsync(game);
+        var otherGame = await EnqueueAsync(Guid.NewGuid());
+
+        Assert.Equal(first, (await ClaimAsync("worker-a"))?.Id);
+        Assert.Equal(otherGame, (await ClaimAsync("worker-b"))?.Id);
+        Assert.Null(await ClaimAsync("worker-c"));
+
+        Assert.True(await queue.FinalizeAsync(first, "worker-a", null, CancellationToken.None));
+        Assert.Equal(second, (await ClaimAsync("worker-c"))?.Id);
+
+        async Task<Guid> EnqueueAsync(Guid campaignId) =>
+            (await queue.EnqueueAsync(campaignId, UserId, Guid.NewGuid(), "I open the door.", CancellationToken.None))
+            .Turn?.Id ?? throw new InvalidOperationException("The turn was not enqueued.");
+
+        Task<TurnRequestEntity?> ClaimAsync(string owner) =>
+            queue.ClaimAsync(owner, TimeSpan.FromMinutes(5), 3, CancellationToken.None);
+    }
+
     private async Task<(TurnQueue Queue, Guid TurnId)> EnqueueOneAsync()
     {
         var queue = new TurnQueue(Db, TimeProvider.System);

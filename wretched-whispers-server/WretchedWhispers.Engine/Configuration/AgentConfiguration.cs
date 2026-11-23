@@ -26,7 +26,8 @@ public static class AgentConfiguration
         services.AddSingleton(HistoryBudget.From(configuration));
         services.AddSingleton(new TurnWorkerOptions
         {
-            Deadline = TimeSpan.FromSeconds(configuration.GetValue("GameSession:TurnDeadlineSeconds", 300))
+            Deadline = TimeSpan.FromSeconds(configuration.GetValue("GameSession:TurnDeadlineSeconds", 300)),
+            ConcurrentTurns = configuration.GetValue("GameSession:ConcurrentTurns", 1)
         });
 
         // Provider selection. Hosted web build leaves "Llm:Provider" unset → Azure (unchanged). The

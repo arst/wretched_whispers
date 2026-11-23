@@ -20,6 +20,10 @@ public sealed record TurnWorkerOptions
     public TimeSpan RetryBackoff { get; init; } = TimeSpan.FromSeconds(2);
 
     public int MaxAttempts { get; init; } = 3;
+
+    /// <summary>How many turns this process runs at once. One game's turns still run one at a time:
+    /// the queue hands out a game's next turn only once its current one has finished.</summary>
+    public int ConcurrentTurns { get; init; } = 1;
 }
 
 public sealed class TurnWorker(
@@ -37,7 +41,13 @@ public sealed class TurnWorker(
     private readonly TurnWorkerOptions _options = options ?? new TurnWorkerOptions();
     private readonly string _owner = $"{Environment.MachineName}:{Guid.NewGuid():N}";
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    // ponytail: each loop polls the queue on its own; one poller feeding a pool if idle queries ever matter
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        Task.WhenAll(Enumerable.Range(0, Math.Max(1, _options.ConcurrentTurns))
+            .Select(_ => Task.Run(() => RunTurnsAsync(stoppingToken), CancellationToken.None)));
+
+    /// <summary>Takes one turn off the queue at a time and sees it through to its end.</summary>
+    private async Task RunTurnsAsync(CancellationToken stoppingToken)
     {
         var failures = 0;
         while (!stoppingToken.IsCancellationRequested)

@@ -208,6 +208,34 @@ public sealed class TurnWorkerTests : IDisposable
     }
 
     [Fact]
+    public async Task TurnsOfDifferentGames_RunAtTheSameTime()
+    {
+        // Two players in two games share nothing, so neither waits for the other's narrator.
+        await EnqueueAsync();
+        await EnqueueAsync();
+        ArrangeRunnableTurn();
+        var running = 0;
+        var bothRunning = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        SetupExecutor(ct =>
+        {
+            if (Interlocked.Increment(ref running) == 2) bothRunning.TrySetResult();
+            return Hang(new TaskCompletionSource(), ct);
+        });
+
+        await using var provider = BuildWorkerProvider(contextLoader: ExplorationContextLoader());
+        var worker = CreateWorker(provider, FastOptions with { ConcurrentTurns = 2 });
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            await bothRunning.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task CancelRequestedWhileRunning_StopsTheRun_AndFailsAsCancelled()
     {
         var turnId = await EnqueueAsync();

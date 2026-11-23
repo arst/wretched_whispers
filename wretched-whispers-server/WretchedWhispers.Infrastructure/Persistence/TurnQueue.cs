@@ -65,6 +65,11 @@ public sealed class TurnQueue(WretchedWhispersDbContext db, TimeProvider clock)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         var candidate = await db.TurnRequests.AsNoTracking().Where(x => x.Status == TurnStatus.Pending || (x.Status == TurnStatus.Running && x.LeaseExpiresAt < now))
+            // One game's turns run one at a time, in order: pass over a turn while another turn of its
+            // game is live. Claimers always go for the oldest turn, so two of them cannot take two
+            // turns of one game at once — the loser of the first finds it running on its next look.
+            .Where(x => !db.TurnRequests.Any(other => other.CampaignId == x.CampaignId && other.Id != x.Id
+                && other.Status == TurnStatus.Running && other.LeaseExpiresAt >= now))
             .OrderBy(x => x.CreatedAt).FirstOrDefaultAsync(ct);
         if (candidate is null) return null;
         // A cancel requested while the turn waited (requeued, or its owner died) is honoured here,
