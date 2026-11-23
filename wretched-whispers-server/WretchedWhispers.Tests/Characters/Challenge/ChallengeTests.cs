@@ -3,8 +3,8 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
-using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Characters.Status;
+using WretchedWhispers.Core.Dices;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Characters.Challenge;

@@ -1,8 +1,8 @@
 using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
-using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Cast;
+using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Dices;
