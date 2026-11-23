@@ -273,6 +273,11 @@ public sealed class Character
         }
 
         Injuries = Injuries.Add(brokenOutcome);
+        // MORK BORG: whoever survives the Broken table comes round with d4 hit points. Left at 0 they
+        // would stay there, every later hit another roll on the table.
+        // ponytail: comes round at once; the book has them out for d4 rounds first. Track that if
+        // getting back up mid-fight proves too forgiving.
+        Hp = Hp.Heal(dice.Roll(DiceExpr.D4));
         return brokenOutcome;
     }
 

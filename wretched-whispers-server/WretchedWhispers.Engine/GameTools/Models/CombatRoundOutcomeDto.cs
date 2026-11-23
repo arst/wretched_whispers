@@ -28,7 +28,7 @@ public sealed record CombatRoundOutcomeDto(
     IReadOnlyList<string> AdversariesFled,
     bool EncounterEnded,
     string EndReason,
-    // Post-round player condition. PlayerBroken (0 HP, alive) is a survived hit, NOT death — the model
+    // Post-round player condition. PlayerBroken (dropped to 0, survived with an injury) is NOT death — the model
     // narrates a collapse. Death is only the PlayerDead EndReason.
     int PlayerCurrentHp,
     bool PlayerBroken)

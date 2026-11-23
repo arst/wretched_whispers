@@ -157,7 +157,7 @@ public class EncounterService(
         return new CombatRoundOutcome(
             playerAttack, attackedName, fleeAttempt, retaliations, fledThisRound,
             endReason is not EncounterEndReason.None, endReason,
-            character.Hp.Current, character.Hp.IsZero && !character.IsDead);
+            character.Hp.Current, retaliations.Any(r => r.Outcome.Injury is not null) && !character.IsDead);
     }
 
     /// <summary>Casts a scroll and, when its power harms others, applies that to the adversaries of the

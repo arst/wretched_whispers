@@ -69,6 +69,7 @@ public sealed class ResolveRoundTests : TestBase
 
         Assert.Equal(InjuryKind.LostEye, Assert.Single(outcome.Retaliations).Outcome.Injury);
         Assert.True(outcome.PlayerBroken);
+        Assert.Equal(1, outcome.PlayerCurrentHp);
     }
 
     [Fact]
@@ -229,20 +230,21 @@ public sealed class ResolveRoundTests : TestBase
     [Fact]
     public async Task Retaliation_ZeroesPlayerButSurvivesBroken_ReportsBrokenAlive_NotDead()
     {
-        // The fabrication guard for combat: a claw drops a 1-HP wretch to 0, the Broken table rolls an
-        // injury (survives). The round must report PlayerBroken=true, PlayerCurrentHp=0, IsDead=false —
-        // so the narrator describes a collapse, not a death.
-        var (encounter, character) = Arrange(adversaries: 1, characterHp: 1);
-        // d20 defence 5 (fail vs 12), d4 claw 1 (1 HP -> 0), Broken d4 = 3 (injury branch, survives),
-        // injury d6 = 3 (SmashedFace).
-        SetupDiceRolls(4, 0, 2, 2);
+        // The fabrication guard for combat: a claw drops a 3-HP wretch to 0, the Broken table rolls an
+        // injury (survives) and they come round with d4. The round must report PlayerBroken=true and
+        // IsDead=false, with the hit points they came round with -- so the narrator describes a
+        // collapse, not a death.
+        var (encounter, character) = Arrange(adversaries: 1, characterHp: 3);
+        // d20 defence 5 (fail vs 12), d4 claw 3 (3 HP -> 0), Broken d4 = 3 (injury branch, survives),
+        // injury d6 = 3 (SmashedFace), d4 = 2 hit points on coming round.
+        SetupDiceRolls(4, 2, 2, 2, 1);
 
         var outcome = await CreateService().ResolveRound(
             encounter.Id, character.Id, PlayerRoundAction.Other, null);
 
         Assert.False(character.IsDead);
         Assert.True(character.HasSmashedFace);
-        Assert.Equal(0, outcome.PlayerCurrentHp);
+        Assert.Equal(2, outcome.PlayerCurrentHp);
         Assert.True(outcome.PlayerBroken);
         Assert.Equal(EncounterEndReason.None, outcome.EndReason);
         Assert.False(outcome.EncounterEnded);

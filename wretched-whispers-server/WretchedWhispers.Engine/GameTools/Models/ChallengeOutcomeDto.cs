@@ -6,7 +6,8 @@ public record ChallengeOutcomeDto(
     // to learn which one it was in the turn it happens.
     string? NewInjury = null)
 {
-    // 0 HP but not dead = Broken: the character survived the Broken table with an injury. The narrator
-    // must read this as "grievously wounded, alive" — never as death (the fabrication this closes).
-    public bool IsBroken => CurrentHp <= 0 && !IsDead;
+    // Broken: the damage dropped the character to 0, they survived the Broken table with an injury, and
+    // came round with the few hit points CurrentHp shows. The narrator must read this as "grievously
+    // wounded, alive" — never as death (the fabrication this closes).
+    public bool IsBroken => NewInjury is not null;
 }

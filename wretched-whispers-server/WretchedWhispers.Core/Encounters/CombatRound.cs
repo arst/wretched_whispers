@@ -18,7 +18,8 @@ public sealed record AdversaryRetaliation(string AdversaryName, DefenceOutcome O
 /// <summary>Everything that happened in one domain-resolved combat round, in resolution order:
 /// player action, adversary retaliation, morale flights, and whether the encounter ended.
 /// PlayerCurrentHp/PlayerBroken carry the player's post-round condition so the model narrates the
-/// domain truth: PlayerBroken (0 HP, survived with an injury) is ALIVE, not dead.</summary>
+/// domain truth: PlayerBroken (dropped to 0, survived the Broken table with an injury, came round with
+/// a few hit points) is ALIVE, not dead.</summary>
 public sealed record CombatRoundOutcome(
     AttackOutcome? PlayerAttack,
     string? PlayerAttackTarget,

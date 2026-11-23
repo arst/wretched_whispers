@@ -199,7 +199,8 @@ public class JsonSerializationTests : TestBase
         // 3. CalculateDamageAfterDefense -> attack D4: returns 0 -> roll 1 (1 damage, enough to reach 0 HP)
         // 4. ReceiveDamage -> ResolveBroken -> D4: returns 2 -> roll 3 (not dead, proceed to injury)
         // 5. ResolveBroken -> D6: returns 4 -> roll 5 (BrokenHand)
-        SetupDiceRolls(3, 4, 0, 2, 4);
+        // 6. Coming round -> D4: returns 0 -> roll 1
+        SetupDiceRolls(3, 4, 0, 2, 4, 0);
 
         var abilities = new Abilities(
             new AbilityScore(0), new AbilityScore(0),

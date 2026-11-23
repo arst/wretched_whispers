@@ -281,6 +281,7 @@ public class GameToolsTests
 
         Assert.Equal("lost eye", result.NewInjury);
         Assert.True(result.IsBroken);
+        Assert.Equal(1, result.CurrentHp);
     }
 
     [Fact]
@@ -301,6 +302,7 @@ public class GameToolsTests
 
         Assert.Equal("lost eye", Assert.Single(round.Retaliations).Injury);
         Assert.True(round.PlayerBroken);
+        Assert.Equal(1, round.PlayerCurrentHp);
     }
 
     [Fact]

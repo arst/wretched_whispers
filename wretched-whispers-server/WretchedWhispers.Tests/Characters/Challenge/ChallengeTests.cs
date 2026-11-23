@@ -4,6 +4,7 @@ using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Characters.Status;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Characters.Challenge;
@@ -126,16 +127,16 @@ public sealed class ChallengeTests : TestBase
     }
 
     [Fact]
-    public async Task ChallengePlayer_ConsequenceZeroesHp_SurvivesBroken_ReportsAliveAndZeroHp()
+    public async Task ChallengePlayer_ConsequenceZeroesHp_SurvivesBroken_ReportsAliveWithTheHpTheyCameRoundWith()
     {
         // The playtest bug: a DR-12 test fails, fall damage zeroes a 3-HP wretch, the Broken table
-        // rolls an injury (not death) — the character is ALIVE at 0 HP. ChallengeResult must report
-        // IsDead=false and CurrentHp=0 so the narrator can't fabricate a death.
+        // rolls an injury (not death) — the character is ALIVE and comes round with d4. ChallengeResult
+        // must report IsDead=false, the injury and those hit points so the narrator can't fabricate a death.
         var character = TestCharacters.Create(Dice, maxHp: 3);
         var service = NewService(character);
         // d20 -> 7 (fail vs 12); Deadly d6 -> 3 damage (3 HP -> 0); Broken d4 -> 3 (injury branch, survives);
-        // injury d6 -> 3 (SmashedFace).
-        SetupDiceRolls(6, 2, 2, 2);
+        // injury d6 -> 3 (SmashedFace); d4 -> 2 hit points on coming round.
+        SetupDiceRolls(6, 2, 2, 2, 1);
 
         var result = await service.ChallengePlayer(
             character.Id, new Dr(12), AbilityKind.Agility, DifficultyPresets.For(Difficulty.Grim),
@@ -144,7 +145,8 @@ public sealed class ChallengeTests : TestBase
         Assert.False(result.Outcome.IsSuccess);
         Assert.Equal(3, result.DamageTaken);
         Assert.False(result.IsDead);
-        Assert.Equal(0, result.CurrentHp);
+        Assert.Equal(2, result.CurrentHp);
+        Assert.Equal(InjuryKind.SmashedFace, result.NewInjury);
         Assert.True(character.HasSmashedFace); // survived Broken with an injury
     }
 
