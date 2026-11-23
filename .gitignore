@@ -446,4 +446,4 @@ traces-export/
 [Bb]in\\[Dd]ebug/
 
 # Simulated-player runs: session cookies and the persona-to-session manifest
-sim-runs/
+simulation/runs/

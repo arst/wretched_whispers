@@ -18,7 +18,7 @@ Start the game (pick a character name your persona would pick; add `--class` or 
 if your task says so):
 
 ```bash
-node tools/sim-player.mjs new --persona <persona-slug> --name "<character name>" --max-turns <limit>
+node simulation/sim-player.mjs new --persona <persona-slug> --name "<character name>" --max-turns <limit>
 ```
 
 It prints `GAME <id>`, the Game Master's opening, and a status line showing what your screen shows
@@ -26,7 +26,7 @@ It prints `GAME <id>`, the Game Master's opening, and a status line showing what
 quotes and apostrophes survive:
 
 ```bash
-node tools/sim-player.mjs say <id> <<'MSG'
+node simulation/sim-player.mjs say <id> <<'MSG'
 i grab the torch and go down the stairs
 MSG
 ```
@@ -35,7 +35,7 @@ Each reply ends with a status line and a note. Follow the note:
 
 - `Turn N of M.` — keep playing.
 - `YOUR CHARACTER IS DEAD.` — if your persona would keep going, roll a successor once with
-  `node tools/sim-player.mjs successor <id> --name "<new name>"` and play on; otherwise stop.
+  `node simulation/sim-player.mjs successor <id> --name "<new name>"` and play on; otherwise stop.
 - `THE GAME IS OVER.` or `Turn limit reached.` — stop.
 - `(The game showed an error: ...)` — react as your persona would (most players just try again). Stop
   if it happens three times in a row.
