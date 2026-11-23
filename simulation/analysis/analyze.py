@@ -76,6 +76,9 @@ if not which or "voice" in which:
               r"|\bthe assistant\b|ChatGPT|two (identical |assistant |\"final\" )?(final )?messages|previous message already ended"
               r"|I repeated last message|Assistant notes|must respond (as GM|to the player)|await player's input", re.I), n=4)
     show("'the party' in a solo game", find(r"\bthe party\b", re.I), n=2)
+    # Since the fix of 23 November 2026 the game cuts a second message off the reply and keeps it here.
+    show("Second message cut off the reply (kept from the player)",
+         [(t, t["suppressedNarrative"].strip()) for t in ok if t.get("suppressedNarrative")], n=5, width=160)
 
 if not which or "dup" in which:
     hits = []

@@ -310,6 +310,8 @@ Behaviours that vary run to run are scored as a rate against a bar, the way `nar
 | 3.8 | Chained actions and "undo" (10) | `Exploration-ChainedActions-ResolvedOrNamed` (every part resolved or said to be left), `Exploration-Undo-NoDuplicates`. | Exploration prompt |
 | 3.9 | Off-task requests, reply length for terse players, repeated paragraphs (10) | Decide first whether these are wanted; lowest priority. | Persona |
 
+**3.2 was fixed in code, not in the prompt (23 November 2026).** The cause is not wording. After a tool call the model sometimes writes a second message once its reply has ended, and the provider joins it on with a single line break. It carried the planning text, and also the repeated paragraphs, the scenes told twice and the stray "(End of turn.)" lines of 3.9: 32 of 558 turns over the two runs, all in responses that followed a tool call and did no hidden reasoning. `StreamingScrubber` now ends the reply at that break and keeps the rest in the trace's `suppressedNarrative`. Replayed over both runs it removes all 11 planning leaks and 31 of the 32 second messages; it also cuts two poems short. The next wave measures it: `analyze.py voice` counts the cuts. Not done: the harness-level marker check, which the cut makes vacuous. Open: moving the client to the Responses API, which returns the messages as separate items and keeps the model's reasoning across tool calls.
+
 If 3.6 does not hold through prompting, the code options are a single tool that charts a place and moves the party there, and time that advances by rule. Decide when the eval numbers are in.
 
 ---

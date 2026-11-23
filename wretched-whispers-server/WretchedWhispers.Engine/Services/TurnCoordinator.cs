@@ -444,6 +444,7 @@ public sealed class TurnCoordinator(
             ToolResultsJson = toolResultsJson,
             TurnDeltaJson = turnDelta is null ? null : JsonSerializer.Serialize(turnDelta, TraceJson),
             Narrative = draft.Narrative.ToString(),
+            SuppressedNarrative = agentTrace?.DroppedNarrative,
             TurnId = draft.TurnId,
             Attempt = draft.Attempt,
             Outcome = outcome,

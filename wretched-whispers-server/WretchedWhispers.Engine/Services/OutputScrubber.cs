@@ -38,36 +38,119 @@ public static partial class OutputScrubber
 /// be split across streamed pieces, so the tail of the text that could still turn out to be the start
 /// of one is held back until more arrives. Text is released in pieces of at least
 /// <see cref="MinChunk"/> characters, so a narration costs a handful of events, not one per token.
+/// <para>
+/// It also ends a reply where the reply ends. After its reply the model sometimes writes a second
+/// message in the same response: its own planning ("The assistant ended with two messages? ... we are
+/// ChatGPT now"), the scene told a second time, a stray "(End of turn.)". In the simulated runs of 23
+/// November 2026 that was 32 of 558 turns, every one of them in a response that followed a tool call.
+/// The provider joins the second message on with a single line break, and the model's own prose never
+/// puts one between sentences: its paragraphs are a blank line apart, and its single line breaks belong
+/// to lists and verse. So a finished sentence, one line break and then more text is where the reply
+/// ended; the rest is kept in <see cref="Dropped"/> for the turn trace and not shown.
+/// ponytail: told from the text, because the chat-completions stream does not mark the boundary. Verse
+/// whose line ends a sentence is cut there. The Responses API returns the messages as separate items;
+/// read the boundary from those if the client moves to it.
+/// </para>
 /// </summary>
-public sealed class StreamingScrubber
+public sealed partial class StreamingScrubber
 {
     private const int MinChunk = 32;
     private const int GuidLength = 36;
+    // "12. " is the longest list marker looked for.
+    private const int ListMarkerLength = 4;
 
     private string _pending = string.Empty;
+    // The part of the current line already released: how a line ends decides whether a reply ended there.
+    private string _line = string.Empty;
+    private bool _replyEnded;
+    private readonly System.Text.StringBuilder _dropped = new();
 
     /// <summary>True once any GUID has been removed.</summary>
     public bool Redacted { get; private set; }
 
+    /// <summary>Everything the model wrote after a reply had ended. Never shown to the player.</summary>
+    public string Dropped => _dropped.ToString();
+
+    /// <summary>Call when the model's next response begins (a tool ran in between): it is a new reply,
+    /// not more of one that was cut short.</summary>
+    public void StartNewReply()
+    {
+        _replyEnded = false;
+        _line = string.Empty;
+    }
+
     /// <summary>Adds text; returns what is now safe to show (possibly empty).</summary>
     public string Append(string text)
     {
-        _pending += text;
-        var release = _pending.Length - HeldBack(_pending);
-        if (release < MinChunk) return string.Empty;
+        if (_replyEnded)
+        {
+            _dropped.Append(text);
+            return string.Empty;
+        }
 
-        var released = Clean(_pending[..release]);
-        _pending = _pending[release..];
-        return released;
+        _pending += text;
+        var undecided = EndReplyWhereItEnds(noMoreText: false);
+        if (_replyEnded) return Release(_pending.Length);
+
+        var release = Math.Min(_pending.Length - HeldBack(_pending), undecided);
+        return release < MinChunk ? string.Empty : Release(release);
     }
 
     /// <summary>Returns everything still held. Call when no more text can follow it directly.</summary>
     public string Flush()
     {
-        var rest = Clean(_pending);
-        _pending = string.Empty;
-        return rest;
+        if (!_replyEnded) EndReplyWhereItEnds(noMoreText: true);
+        return Release(_pending.Length);
     }
+
+    private string Release(int length)
+    {
+        var raw = _pending[..length];
+        _pending = _pending[length..];
+        var lineStart = raw.LastIndexOf('\n') + 1;
+        _line = lineStart > 0 ? raw[lineStart..] : _line + raw;
+        return Clean(raw);
+    }
+
+    /// <summary>Cuts the pending text at the end of the reply, if it is there. Returns the index of a
+    /// line break that cannot be judged until more text arrives (the pending length when there is none):
+    /// nothing from it on may be shown yet.</summary>
+    private int EndReplyWhereItEnds(bool noMoreText)
+    {
+        var lineStart = 0;
+        for (var i = _pending.IndexOf('\n'); i >= 0; i = _pending.IndexOf('\n', lineStart))
+        {
+            var line = (lineStart == 0 ? _line : string.Empty) + _pending[lineStart..i];
+            lineStart = i + 1;
+            if (!EndsAReply(line)) continue;
+
+            var nextEnd = _pending.IndexOf('\n', lineStart);
+            var next = nextEnd < 0 ? _pending[lineStart..] : _pending[lineStart..nextEnd];
+            var nextIsWhole = nextEnd >= 0 || noMoreText;
+            if (!nextIsWhole && next.Length < ListMarkerLength) return i;
+            // A blank line makes a paragraph, a list marker a list, and nothing at all is just the end.
+            if (next.Length == 0 || ListLine().IsMatch(next)) continue;
+
+            _dropped.Append(_pending[i..]);
+            _pending = _pending[..i];
+            _replyEnded = true;
+            break;
+        }
+
+        return _pending.Length;
+    }
+
+    /// <summary>A line that finishes a sentence and is not part of a list or of verse set with hard
+    /// breaks (two trailing blanks).</summary>
+    private static bool EndsAReply(string line)
+    {
+        if (line.EndsWith("  ", StringComparison.Ordinal) || ListLine().IsMatch(line)) return false;
+        var text = line.TrimEnd();
+        return text.Length > 0 && ".?!\u2026)\"\u201d\u2019*".Contains(text[^1]);
+    }
+
+    [GeneratedRegex(@"^\s*(?:[-*\u2022\u2013\u2014]|\d+[.)])\s")]
+    private static partial Regex ListLine();
 
     // Removing a GUID from the very end of a piece leaves the blank that preceded it; the blank that
     // followed it opens the next piece. Scrubbed whole, the two would have been collapsed into one.
