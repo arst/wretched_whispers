@@ -258,8 +258,10 @@ public sealed class Character
     }
 
     /// <summary>Applies damage and, when it drops the character to 0, rolls the Broken table. Returns the
-    /// injury that roll gave, or null when the character was not broken or did not survive it. Every
-    /// caller hands it on in its own result: an injury the result does not name cannot be told.</summary>
+    /// injury that roll gave, or null when the character was not broken or did not survive it. A caller
+    /// should hand it on in its own result: an injury the result does not name cannot be told.
+    /// ponytail: Rest (damage from resting while infected) still drops it; AdvanceTimeOutcome has no
+    /// place for damage, injury or death yet.</summary>
     private InjuryKind? ReceiveDamage(int damage, Dice dice)
     {
         Hp = Hp.Damage(damage);
@@ -420,6 +422,9 @@ public sealed class Character
     /// <summary>Uses one unit of a carried item and applies what the item does.</summary>
     public ItemUseOutcome UseItem(Guid itemId, Dice dice)
     {
+        // A turn can chain actions past a death ("I jump, then drink"); nothing heals the dead.
+        if (IsDead) throw new InvalidOperationException("The character is dead and can use nothing.");
+
         var item = Inventory.InventoryItems.FirstOrDefault(i => i.Id == itemId)
             ?? throw new InvalidOperationException($"Item with id {itemId} is not in the inventory");
         Inventory.ConsumeItem(itemId);
@@ -455,6 +460,8 @@ public sealed class Character
 
         if (scroll is null) throw new InvalidOperationException("Scroll not found in inventory.");
 
+        if (IsDead)
+            return CastOutcome.Fail("The caster is dead");
         if (IsDizzyFromMagic)
             return CastOutcome.Fail("Dizzy from prior failure");
         if (!ScrollRestrictionPolicy.CanUseScrolls(Weapon, Armor))

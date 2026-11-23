@@ -357,6 +357,24 @@ public class GameToolsTests
         Assert.Equal("lost eye", cast.NewInjury);
     }
 
+    [Fact]
+    public async Task CastScroll_FizzleThatKills_ReportsTheDeath()
+    {
+        var random = new Mock<IRandomService>();
+        random.Setup(r => r.GenerateRandomRoll(20)).Returns(1); // Presence test: 2 against DR 12
+        var dice = new Dice(random.Object); // every other die rolls 1: the fizzle costs 1, the Broken table says dead
+        var hero = TestCharacters.Create(dice, maxHp: 1,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Bestial Speech"));
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var cast = await CharacterTools(dice).CastScroll("Bestial Speech");
+
+        Assert.False(cast.Succeeded);
+        Assert.True(cast.IsDead);
+        Assert.Equal(0, cast.CurrentHp);
+    }
+
     // -- CampaignTools --
 
     [Fact]

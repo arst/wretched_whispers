@@ -107,9 +107,10 @@ public class EncounterService(
         {
             case PlayerRoundAction.Attack:
                 {
+                    // Nobody left to hit (a scroll can clear the field outside a round): the swing is
+                    // skipped and the round below ends the fight as won, rather than leaving it open.
                     var living = ActiveAdversaries(encounter);
-                    if (living.Count == 0)
-                        throw new InvalidOperationException("No living adversaries remain.");
+                    if (living.Count == 0) break;
                     var target = living.FirstOrDefault(a =>
                             a.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
                         ?? living[0];
@@ -187,11 +188,11 @@ public class EncounterService(
         var hits = new List<ScrollHit>();
         if (outcome.Power is not { Kind: ScrollEffectKind.DamageEach or ScrollEffectKind.DamageSplit } power
             || encounterId is null)
-            return new ScrollCastResult(outcome, hits, character.Hp.Current);
+            return new ScrollCastResult(outcome, hits, character.Hp.Current, character.IsDead);
 
         var encounter = await encountersRepository.Get(encounterId.Value, ct);
         if (encounter is not { IsStarted: true, IsEnded: false })
-            return new ScrollCastResult(outcome, hits, character.Hp.Current);
+            return new ScrollCastResult(outcome, hits, character.Hp.Current, character.IsDead);
 
         // ponytail: targets are taken in order and no morale is rolled for the survivors; let the
         // player choose targets and check morale here if scroll kills start deciding fights.
@@ -210,7 +211,7 @@ public class EncounterService(
         }
 
         await encountersRepository.Save(encounter, ct);
-        return new ScrollCastResult(outcome, hits, character.Hp.Current);
+        return new ScrollCastResult(outcome, hits, character.Hp.Current, character.IsDead);
 
         static ScrollHit Hit(Adversary adversary, int damage)
         {

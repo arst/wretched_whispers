@@ -17,6 +17,8 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
 
         if (character is null) throw new InvalidOperationException($"Character with id {characterId} does not exist.");
 
+        // A pending blessing is spent by this test whether it passes or fails.
+        var blessingSpent = character.NextTestBonus > 0;
         var outcome = character.Challenge(dr, ability, dice, spendOmenToLowerDr: spendOmenToLowerDr);
 
         var consequence = new ConsequenceOutcome(0, null);
@@ -24,8 +26,8 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
         if (consequenceApplied)
             consequence = character.SufferConsequence(consequenceOnFailure, settings, dice);
 
-        // A spent omen must persist even when the test succeeds.
-        if (spendOmenToLowerDr || consequenceApplied)
+        // A spent omen or blessing must persist even when the test succeeds.
+        if (spendOmenToLowerDr || blessingSpent || consequenceApplied)
             await charactersRepository.Save(character, ct);
 
         return new ChallengeResult(

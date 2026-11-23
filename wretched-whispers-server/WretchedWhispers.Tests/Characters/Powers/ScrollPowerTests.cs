@@ -1,9 +1,12 @@
+using System.Text.Json;
+using Moq;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Infrastructure.Persistence.Serialization;
 using Xunit;
 
 namespace WretchedWhispers.Tests.Characters.Powers;
@@ -85,6 +88,51 @@ public class ScrollPowerTests : TestBase
         Assert.False(string.IsNullOrWhiteSpace(outcome.Effect));
         Assert.Equal(0, outcome.HpHealed);
         Assert.Equal(0, outcome.NextTestBonus);
+    }
+
+    // The repository hands back a fresh character on every read, so a blessing that is only cleared in
+    // memory comes back with the next load and eases every test after it.
+    [Fact]
+    public async Task Blessing_IsSpentInWhatIsSaved_EvenWhenTheTestPasses()
+    {
+        // d4 daily powers; d20 = 15 to cast; d6 = 4 blessing; then two tests rolling 20.
+        SetupDiceRolls(0, 14, 3, 19, 19);
+        var scroll = ScrollOf("Grace for a Sinner");
+        var hero = TestCharacters.Create(Dice, scrolls: scroll);
+        hero.Cast(scroll.Id, Dice);
+        var json = AggregateJsonOptions.Create();
+        var stored = JsonSerializer.Serialize(hero, json);
+        var repo = new Mock<ICharactersRepository>();
+        repo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => JsonSerializer.Deserialize<Character>(stored, json));
+        repo.Setup(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()))
+            .Callback((Character saved, CancellationToken _) => stored = JsonSerializer.Serialize(saved, json));
+        var service = new CharacterService(repo.Object, Dice);
+        var grim = DifficultyPresets.For(Difficulty.Grim);
+
+        var blessed = await service.ChallengePlayer(hero.Id, new Dr(12), AbilityKind.Strength, grim);
+        var unblessed = await service.ChallengePlayer(hero.Id, new Dr(12), AbilityKind.Strength, grim);
+
+        Assert.Equal(8, blessed.Outcome.EffectiveDr);
+        Assert.Equal(12, unblessed.Outcome.EffectiveDr);
+    }
+
+    [Fact]
+    public void Cast_ByADeadCharacter_DoesNothing()
+    {
+        SetupDiceRoll(4, 0); // daily powers 1; Broken table 1: dead
+        var scroll = ScrollOf("Grace of a Dead Saint");
+        var hero = TestCharacters.Create(Dice, maxHp: 1, scrolls: scroll);
+        hero.SufferConsequence(ChallengeConsequence.Serious, DifficultyPresets.For(Difficulty.Grim), Dice);
+        Assert.True(hero.IsDead);
+        var castingsLeft = hero.Powers.UsesRemaining;
+
+        var outcome = hero.Cast(scroll.Id, Dice);
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(0, outcome.HpHealed);
+        Assert.Equal(0, hero.Hp.Current);
+        Assert.Equal(castingsLeft, hero.Powers.UsesRemaining);
     }
 
     // A character saved before scrolls had powers still carries one called "random".

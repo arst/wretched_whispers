@@ -147,7 +147,6 @@ public sealed class AgentExecutor(
         }.ToJsonString(RequestJson);
     }
 
-    /// <summary>SHA-256 of the composed instructions: equal hashes mean the model saw the same prompt.</summary>
     /// <summary>What one agent run has produced so far.</summary>
     private sealed class RunState
     {

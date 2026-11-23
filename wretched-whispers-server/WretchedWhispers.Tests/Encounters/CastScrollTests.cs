@@ -22,7 +22,7 @@ public sealed class CastScrollTests : TestBase
 
     /// <summary>Script the dice before calling: building the caster rolls a d4 for daily powers.</summary>
     private (Encounter encounter, Character caster, Scroll scroll) Arrange(
-        string power, int adversaries, int adversaryHp)
+        string power, int adversaries, int adversaryHp, int casterHp = 20)
     {
         var encounter = Encounter.Create("Fight", "desc", EncounterType.Hostile, Dice);
         for (var i = 0; i < adversaries; i++)
@@ -32,7 +32,7 @@ public sealed class CastScrollTests : TestBase
         encounter.StartEncounter();
 
         var scroll = new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, power);
-        var caster = TestCharacters.Create(Dice, scrolls: scroll);
+        var caster = TestCharacters.Create(Dice, maxHp: casterHp, scrolls: scroll);
         _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
         _charactersRepo.Setup(r => r.Get(caster.Id, It.IsAny<CancellationToken>())).ReturnsAsync(caster);
         return (encounter, caster, scroll);
@@ -95,6 +95,38 @@ public sealed class CastScrollTests : TestBase
         Assert.False(result.Outcome.Succeeded);
         Assert.Empty(result.Hits);
         Assert.Equal(4, encounter.Adversaries[0].Hp.Current);
+    }
+
+    [Fact]
+    public async Task CastScroll_FizzleThatKillsTheCaster_SaysSo()
+    {
+        SetupDiceRoll(4, 0); // daily powers 1; Broken table 1: dead
+        SetupDiceRoll(20, 1); // Presence test: 2 against DR 12
+        SetupDiceRoll(2, 0); // the fizzle costs 1
+        var (encounter, caster, scroll) = Arrange("Death", adversaries: 1, adversaryHp: 4, casterHp: 1);
+
+        var result = await CreateService().CastScroll(caster.Id, scroll.Id, encounter.Id);
+
+        Assert.False(result.Outcome.Succeeded);
+        Assert.True(result.CasterDead);
+        Assert.Equal(0, result.CasterHp);
+    }
+
+    // If the round that should follow a killing cast is skipped, the next attack finds nobody to hit.
+    // That used to throw and leave the fight open with no one in it.
+    [Fact]
+    public async Task Attack_WithNobodyLeftStanding_EndsTheFight()
+    {
+        SetupDiceRolls(0, 14, 9, 9, 9, 9);
+        var (encounter, caster, scroll) = Arrange("Death", adversaries: 1, adversaryHp: 4);
+        var service = CreateService();
+        await service.CastScroll(caster.Id, scroll.Id, encounter.Id);
+
+        var round = await service.ResolveRound(encounter.Id, caster.Id, PlayerRoundAction.Attack, "Ghoul 1");
+
+        Assert.Null(round.PlayerAttack);
+        Assert.Equal(EncounterEndReason.AllDefeated, round.EndReason);
+        Assert.True(encounter.IsEnded);
     }
 
     [Fact]

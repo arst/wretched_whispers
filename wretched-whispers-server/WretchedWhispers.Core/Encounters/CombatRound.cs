@@ -34,5 +34,7 @@ public sealed record CombatRoundOutcome(
 /// <summary>What a scroll did to one adversary of the fight in progress.</summary>
 public sealed record ScrollHit(string AdversaryName, int Damage, bool Killed);
 
-/// <summary>A casting, every adversary its power reached, and the caster's hit points afterwards.</summary>
-public sealed record ScrollCastResult(CastOutcome Outcome, IReadOnlyList<ScrollHit> Hits, int CasterHp);
+/// <summary>A casting, every adversary its power reached, and the caster's condition afterwards: a fizzle
+/// costs hit points and can kill.</summary>
+public sealed record ScrollCastResult(
+    CastOutcome Outcome, IReadOnlyList<ScrollHit> Hits, int CasterHp, bool CasterDead);

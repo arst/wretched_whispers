@@ -72,6 +72,23 @@ public class ItemEffectTests : TestBase
         Assert.Equal(1, torch.Quantity);
     }
 
+    // A message can chain "I jump the gap, then drink my elixir": if the jump kills, the elixir must not
+    // be drunk by a corpse and put hit points back on it.
+    [Fact]
+    public void UseItem_ByADeadCharacter_IsRefusedAndTheItemKept()
+    {
+        SetupDiceRoll(4, 0); // daily powers 1; Broken table 1: dead
+        var hero = TestCharacters.Create(Dice, maxHp: 1);
+        hero.SufferConsequence(ChallengeConsequence.Serious, DifficultyPresets.For(Difficulty.Grim), Dice);
+        Assert.True(hero.IsDead);
+        var elixir = Carry(hero, "life elixir", ItemEffect.Heal);
+
+        Assert.Throws<InvalidOperationException>(() => hero.UseItem(elixir.Id, Dice));
+
+        Assert.Equal(0, hero.Hp.Current);
+        Assert.Equal(1, elixir.Quantity);
+    }
+
     [Fact]
     public void UseItem_TheLastUnit_RemovesTheItem()
     {

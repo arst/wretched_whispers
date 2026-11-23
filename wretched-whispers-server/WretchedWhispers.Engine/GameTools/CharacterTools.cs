@@ -247,7 +247,7 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Cast a scroll the character possesses. Spends one of the day's castings and tests Presence against DR 12; on a failure the scroll fizzles, costs hit points and no scroll can be cast until a new day. On a success the result says what the power does, and anything it heals or harms has already been applied -- in a fight, to the adversaries it names.")]
+    [Description("Cast a scroll the character possesses. Spends one of the day's castings and tests Presence against DR 12; on a failure the scroll fizzles, costs hit points and no scroll can be cast until a new day. On a success the result says what the power does, and anything it heals or harms has already been applied -- in a fight, to the adversaries it names. An adversary the result does not name as hit is unchanged and still acts, whatever the power's description says.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat)]
     public async Task<CastOutcomeDto> CastScroll(
         [Description("Description of the scroll to cast, exactly as shown in Game State")] string scrollDescription)

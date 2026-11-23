@@ -17,12 +17,13 @@ public sealed record CastOutcomeDto(
     [property: Description("Hit points the caster regained")] int HpHealed,
     [property: Description("When above 0: the caster's next test is easier by this much")] int NextTestBonus,
     [property: Description("Adversaries of the current fight the power harmed, with the damage each took. Empty when the power harms no one or there is no fight")] IReadOnlyList<ScrollHitDto> AdversariesHit,
-    [property: Description("The caster's hit points after the casting")] int CurrentHp)
+    [property: Description("The caster's hit points after the casting")] int CurrentHp,
+    [property: Description("True when the fizzle killed the caster")] bool IsDead)
 {
     public static CastOutcomeDto From(ScrollCastResult result) => new(
         result.Outcome.Succeeded, result.Outcome.Reason, result.Outcome.PowerKey, result.Outcome.Effect,
         result.Outcome.HpLost, result.Outcome.NewInjury?.DisplayName(),
         result.Outcome.HpHealed, result.Outcome.NextTestBonus,
         result.Hits.Select(h => new ScrollHitDto(h.AdversaryName, h.Damage, h.Killed)).ToList(),
-        result.CasterHp);
+        result.CasterHp, result.CasterDead);
 }
