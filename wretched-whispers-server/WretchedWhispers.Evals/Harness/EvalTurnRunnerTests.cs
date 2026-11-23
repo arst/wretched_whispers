@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Engine.Services;
@@ -9,6 +10,27 @@ namespace WretchedWhispers.Evals.Harness;
 
 public class EvalTurnRunnerTests
 {
+    // After a turn the coordinator rolls the chronicle's summary forward on a detached task with its own
+    // scope, while the eval goes on to read what the turn did. On one shared connection the second
+    // scope's setup hit the first one's open statement: SQLite Error 5, in a different eval every run.
+    [Fact]
+    public async Task TwoScopes_CanReadAtTheSameTime()
+    {
+        await using var host = await EvalHost.CreateAsync(new ScriptedChatClient());
+
+        var campaigns = await host.QueryAsync(async first =>
+        {
+            var db = first.GetRequiredService<WretchedWhispersDbContext>();
+            await using var open = db.Campaigns.AsAsyncEnumerable().GetAsyncEnumerator();
+            Assert.True(await open.MoveNextAsync()); // a statement is now active on the first scope
+
+            return await host.QueryAsync(second =>
+                second.GetRequiredService<WretchedWhispersDbContext>().Campaigns.CountAsync());
+        });
+
+        Assert.Equal(1, campaigns);
+    }
+
     [Fact]
     public async Task RunTurn_CapturesToolCallOrder_FromExecutorEvents()
     {

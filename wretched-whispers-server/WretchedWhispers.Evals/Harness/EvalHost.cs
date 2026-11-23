@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +23,7 @@ namespace WretchedWhispers.Evals.Harness;
 
 /// <summary>
 /// Builds production wiring (real Core services + the shipped agent pipeline via
-/// <see cref="AgentConfiguration.AddGameAgentOrchestration"/>) over an in-memory SQLite database for
+/// <see cref="AgentConfiguration.AddGameAgentOrchestration"/>) over a throwaway SQLite database for
 /// an eval run, seeded with an empty campaign + chat session so turns start in the CharacterCreation
 /// stage. The supplied chat client is registered as THE <see cref="IChatClient"/> — the same slot the
 /// product fills with Azure/OpenAI.
@@ -33,16 +32,16 @@ public sealed class EvalHost : IAsyncDisposable
 {
     private const string TestUserId = "eval-user";
 
-    private readonly SqliteConnection _connection;
+    private readonly string _databasePath;
     private readonly ServiceProvider _provider;
     private readonly List<EvalTurnRunner> _runners = new();
 
     public Guid SessionId { get; }
     public Guid ChatSessionId { get; }
 
-    private EvalHost(SqliteConnection connection, ServiceProvider provider, Guid sessionId, Guid chatSessionId)
+    private EvalHost(string databasePath, ServiceProvider provider, Guid sessionId, Guid chatSessionId)
     {
-        _connection = connection;
+        _databasePath = databasePath;
         _provider = provider;
         SessionId = sessionId;
         ChatSessionId = chatSessionId;
@@ -50,12 +49,18 @@ public sealed class EvalHost : IAsyncDisposable
 
     public static async Task<EvalHost> CreateAsync(IChatClient chatClient)
     {
-        var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
+        // A file, not one shared in-memory connection: every scope opens its own connection, as in
+        // production. The coordinator summarizes the chronicle on a detached task after each turn, and on
+        // a shared connection that read collided with the eval's next one (SQLite Error 5).
+        // Created here and opened ReadWrite from then on: a summarizer still running after the host is
+        // disposed then fails to open the deleted file instead of leaving a new empty one behind.
+        var databasePath = Path.Combine(Path.GetTempPath(), $"ww-eval-{Guid.NewGuid():N}.db");
+        File.Create(databasePath).Dispose();
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<WretchedWhispersDbContext>(o => o.UseSqlite(connection));
+        services.AddDbContext<WretchedWhispersDbContext>(
+            o => o.UseSqlite($"Data Source={databasePath};Mode=ReadWrite;Pooling=False"));
         services.AddDomainServices();
         services.AddGameAgentOrchestration();
         // The rest of what TurnCoordinator needs: AddDomainServices supplies IUnitOfWork,
@@ -95,7 +100,7 @@ public sealed class EvalHost : IAsyncDisposable
             sessionId = campaign.Id;
         }
 
-        return new EvalHost(connection, provider, sessionId, chatSessionId);
+        return new EvalHost(databasePath, provider, sessionId, chatSessionId);
     }
 
     /// <summary>Combat mid-fight: the priest stands, the encounter is started. Pass
@@ -399,13 +404,20 @@ public sealed class EvalHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        // Dispose runners (and their scopes) first, then the root provider, then the connection.
+        // Dispose runners (and their scopes) first, then the root provider, then the database.
         foreach (var runner in _runners)
             await runner.DisposeAsync();
 
         await _provider.DisposeAsync();
-        _connection.Close();
-        _connection.Dispose();
+        try
+        {
+            foreach (var suffix in new[] { "", "-wal", "-shm" })
+                File.Delete(_databasePath + suffix);
+        }
+        catch (IOException)
+        {
+            // A summarizer still finishing holds the file on Windows; the temp folder gets it later.
+        }
     }
 
     private static void SetEvalUser(IServiceProvider sp) =>
