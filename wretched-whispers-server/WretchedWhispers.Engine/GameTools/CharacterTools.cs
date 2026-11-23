@@ -214,7 +214,7 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Change the armor the character wears: looted, found, bought or taken off ('None'). It REPLACES the current armor in Game State. Medium and heavy armor make dodging harder and prevent scroll casting. Never narrate armor Game State does not show.")]
+    [Description("Change the armor the character wears: looted, found, bought or taken off ('None'). It REPLACES the current armor in Game State. Never narrate armor Game State does not show.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> EquipArmor(
         [Description("The armor put on: 'Light', 'Medium', 'Heavy', or 'None' to wear nothing")] ArmorTierDto armor,
