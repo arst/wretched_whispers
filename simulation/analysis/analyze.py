@@ -1,6 +1,6 @@
 """Measures failure modes across the exported turns: counts per game and a few examples of each.
 
-    python3 simulation/analysis/analyze.py [voice] [dup] [silver] [hp] [world] [items] [tools] [size]
+    python3 simulation/analysis/analyze.py [voice] [dup] [silver] [hp] [world] [items] [tools] [fixes] [size]
 
 No arguments runs every section. Reads simulation/runs/export/turns.jsonl (see sim.sh export), or the
 file named by WW_TURNS. The checks are text patterns over the narration compared with the recorded
@@ -72,7 +72,9 @@ if not which or "voice" in which:
               r"|\b(rest|item-use|buy|purchase|shop) tool\b|\bcall the\b.{0,30}\b(tool|action)\b", re.I))
     show("Field names from tool results", find(r"\b(consequenceOnFailure|currentHp|isDead|isBroken|damageTaken|isSuccess|silverCost|challengeDr)\b"))
     show("Run-on: writes about the conversation itself",
-         find(r"we are GM|The final output should|last (user|assistant) (message|query)|as the assistant|the user (has|hasn't|said|asked|wants)|system prompt says", re.I), n=4)
+         find(r"we are GM|The final output should|last (user|assistant) (message|query)|as the assistant|the user (has|hasn't|said|asked|wants)|system prompt says"
+              r"|\bthe assistant\b|ChatGPT|two (identical |assistant |\"final\" )?(final )?messages|previous message already ended"
+              r"|I repeated last message|Assistant notes|must respond (as GM|to the player)|await player's input", re.I), n=4)
     show("'the party' in a solo game", find(r"\bthe party\b", re.I), n=2)
 
 if not which or "dup" in which:
@@ -218,6 +220,47 @@ if not which or "tools" in which:
     opening = [(t, str([c["name"] for c in t["toolCalls"]])) for t in ok if t["playerMessage"] == "begin"
                and any(c["name"] in ("ResolveCombatRound", "ChallengeCharacter", "BuyItem", "StartEncounter", "CreateEncounter", "AdvanceTime", "UseItemFromCharacterInventory") for c in t["toolCalls"])]
     show("Opening turn that already acts for the player", opening, n=6, width=200)
+
+if not which or "fixes" in which:
+    # What the first run's capability fixes should have moved (findings 1, 6, 7, 8, 9, 10).
+    print("\n== Capability fixes")
+    delta = lambda t: t["turnDelta"] or {}
+    tools = lambda t: [c["name"] for c in t["toolCalls"]]
+    show("Silver rose", [(t, f"+{delta(t)['silverChange']} via {tools(t)}") for t in ok if delta(t).get("silverChange", 0) > 0], width=120)
+    sells = [t for t in ok if re.search(r"\b(sell|sold|pawn|trade)\b", t["playerMessage"], re.I)]
+    # A sale and a purchase in one turn can net to a loss, so a sale that went through counts as paid.
+    sold = lambda t: any(r["name"] in ("SellItem", "GainSilver") and not str(r["result"]).startswith("Error") for r in t["toolResults"])
+    paid = [t for t in sells if delta(t).get("silverChange", 0) > 0 or sold(t)]
+    print(f"   turns where the player sells or trades: {len(sells)}; paid in silver: {len(paid)}")
+    grants = [(t, f"{c['arguments']}") for t in ok for c in calls(t, "GainSilver")]
+    show("Silver granted (read each: is the source in the fiction?)", grants, n=12, width=110)
+    show("Sells or trades, silver did not rise", [(t, f"tools {tools(t)}; ...{t['narrative'][-140:]}") for t in sells if t not in paid], n=5)
+
+    uses = [(t, str(r["result"])) for t in ok for r in t["toolResults"] if r["name"] == "UseItemFromCharacterInventory"]
+    print(f"   use-item calls: {len(uses)}")
+    show("Use-item call failed on the item's name", [(t, text[:120]) for t, text in uses if "No item matching" in text], width=120)
+
+    words = {"losteye": "eye", "stabbedlung": "lung", "brokenhand": "hand", "crushedfoot": "foot", "severedarm": "arm",
+             "smashedface": "face|jaw|nose|teeth", "infected": "infect|fester|rot"}
+    injuries = [(t, a, words[k]) for t in ok for a in delta(t).get("newAfflictions") or []
+                for k in [str(a).replace(" ", "").lower()] if k in words]
+    print(f"   new injuries: {len(injuries)}")
+    show("New injury not named in that turn's narration",
+         [(t, f"{a}; tools {tools(t)}") for t, a, word in injuries if not re.search(word, t["narrative"], re.I)], n=6, width=120)
+
+    show("Sheet carries a scroll named 'random'",
+         [(t, str(t["gameState"]["characterScrolls"])) for t in ok if re.search(r"\brandom\b", str(t["gameState"].get("characterScrolls")), re.I)], n=2)
+    show("Cast failed on the scroll's name", [(t, str(r["result"])[:150]) for t in ok for r in t["toolResults"]
+                                              if r["name"] == "CastScroll" and "No scroll matching" in str(r["result"])], width=150)
+    casts = [(t, json.dumps(r)[:200]) for t in ok for r in results(t, "CastScroll")]
+    show("Scroll casts", casts, n=4, width=200)
+
+    begins = [t for t in ok if t["playerMessage"] == "begin" and t["stage"] != "CampaignSetup"]
+    print(f"   successors' opening turns: {len(begins)}")
+    show("Successor opens in Combat", [(t, f"tools {tools(t)}") for t in begins if t["stage"] == "Combat"])
+
+    hashes = collections.Counter((t["stage"], t["promptHash"]) for t in ok)
+    print(f"   distinct prompt hashes: {len(hashes)} over {len(ok)} turns")
 
 if not which or "size" in which:
     lens = sorted(len(t["narrative"]) for t in ok)
