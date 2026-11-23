@@ -259,9 +259,7 @@ public sealed class Character
 
     /// <summary>Applies damage and, when it drops the character to 0, rolls the Broken table. Returns the
     /// injury that roll gave, or null when the character was not broken or did not survive it. A caller
-    /// should hand it on in its own result: an injury the result does not name cannot be told.
-    /// ponytail: Rest (damage from resting while infected) still drops it; AdvanceTimeOutcome has no
-    /// place for damage, injury or death yet.</summary>
+    /// should hand it on in its own result: an injury the result does not name cannot be told.</summary>
     private InjuryKind? ReceiveDamage(int damage, Dice dice)
     {
         Hp = Hp.Damage(damage);
@@ -320,26 +318,29 @@ public sealed class Character
         };
     }
 
-    /// <summary>Returns the number of omens refreshed (0 if none). MORK BORG: omens refill (d2)
-    /// only after a full night's rest once all are spent.</summary>
-    public int Rest(int hours, Dice dice)
+    /// <summary>Rest heals: d4, or d6 for a full night, which also allows Getting Better and, once every
+    /// omen is spent, refills d2 of them. Resting while infected heals nothing and costs d6 instead, which
+    /// can break or kill. The result says which of these happened, so it can be told.</summary>
+    public RestOutcome Rest(int hours, Dice dice)
     {
         if (IsInfected)
         {
-            ReceiveDamage(dice.Roll(DiceExpr.D6), dice);
-            return 0;
+            var damage = dice.Roll(DiceExpr.D6);
+            var injury = ReceiveDamage(damage, dice);
+            return new RestOutcome(0, damage, 0, injury, IsDead);
         }
 
         var isFullNightRest = hours >= 8;
-        var heal = isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4);
-        Hp = Hp.Heal(heal);
+        var before = Hp.Current;
+        Hp = Hp.Heal(isFullNightRest ? dice.Roll(DiceExpr.D6) : dice.Roll(DiceExpr.D4));
+        var healed = Hp.Current - before;
 
         if (isFullNightRest) CanGetBetter = true;
 
-        if (!isFullNightRest || Omens.Count != 0) return 0;
+        if (!isFullNightRest || Omens.Count != 0) return new RestOutcome(healed, 0, 0, null, false);
         var refreshed = dice.Roll(DiceExpr.D2);
         Omens.Refill(refreshed);
-        return refreshed;
+        return new RestOutcome(healed, 0, refreshed, null, false);
     }
 
     /// <summary>MORK BORG "Getting Better": roll 6d10 -- meet or beat max HP and it grows by d6
