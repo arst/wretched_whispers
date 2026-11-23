@@ -169,7 +169,7 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Sell, trade away, or give away an item the character carries: removes it AND pays the silver in one step. Identify the item by the description shown in Game State. silverPrice is the total paid for everything sold in this call; 0 when it is given away or lost.")]
+    [Description("Sell, trade away, or give away an item the character carries, or the weapon in their hand: removes it AND pays the silver in one step. Identify it by the description shown in Game State. silverPrice is the total paid for everything sold in this call; 0 when it is given away or lost.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> SellItem(
         [Description("Description of the inventory item to sell, exactly as shown in Game State")] string itemDescription,
@@ -179,13 +179,18 @@ public sealed partial class CharacterTools(
         ToolGuard.NonNegative(silverPrice, nameof(silverPrice));
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
         var character = await RequireCharacter();
-        character.SellItem(RequireItem(character, itemDescription).Id, silverPrice, quantity);
+        // The wielded weapon is on the sheet, not in the pack, so a carried item of that name goes first.
+        if (FindCarried(character, itemDescription) is null && NamesTheWieldedWeapon(character, itemDescription))
+            character.SellWeapon(silverPrice);
+        else
+            character.SellItem(RequireItem(character, itemDescription).Id, silverPrice, quantity);
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
 
     [Description("Give the character silver: coins found or looted, a payment, a reward, a debt repaid. This is the ONLY way silver is gained (selling an item is SellItem).")]
-    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    // Two a turn: enough for a purse and a payment, too few to deal out a refused sum in pieces.
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 2)]
     public async Task<CharacterDto> GainSilver(
         [Description("How much silver the character gains")] int amount,
         [Description("One short phrase saying where the silver came from, e.g. 'the dead toll-keeper's purse'")] string source)
@@ -255,8 +260,12 @@ public sealed partial class CharacterTools(
         var character = await RequireCharacter();
         // The model never sees scroll GUIDs, so resolve by the description it can read off Game State.
         // On no match, hand back the known scrolls so the model can retry with the exact string.
+        // Game State prints "Scroll: Hermetic Step (Sacred): <effect>" and the model sometimes copies the
+        // whole line, so a name that matches nothing falls back to the scroll the text names.
         var scroll = character.Scrolls.FirstOrDefault(
-            s => string.Equals(s.Description, scrollDescription, StringComparison.OrdinalIgnoreCase));
+                         s => string.Equals(s.Description, scrollDescription, StringComparison.OrdinalIgnoreCase))
+                     ?? character.Scrolls.FirstOrDefault(
+                         s => scrollDescription.Contains(s.Description, StringComparison.OrdinalIgnoreCase));
         if (scroll is null)
             throw new InvalidOperationException(
                 $"No scroll matching '{scrollDescription}' is known. Known scrolls: " +
@@ -278,15 +287,22 @@ public sealed partial class CharacterTools(
     /// quantity. The exact name wins, so an item really called "bolts x20" still resolves to itself.
     /// On no match the error hands back the current inventory, so the model can retry with the exact
     /// string (transport surfaces tool errors to the model: the built-in correction loop).</summary>
-    private static InventoryItem RequireItem(Character character, string itemDescription)
+    private static InventoryItem RequireItem(Character character, string itemDescription) =>
+        FindCarried(character, itemDescription)
+        ?? throw new InvalidOperationException(
+            $"No item matching '{itemDescription}' is in the inventory. Current items: " +
+            $"{string.Join("; ", character.Inventory.InventoryItems.Select(i => i.Description))}.");
+
+    private static InventoryItem? FindCarried(Character character, string itemDescription)
     {
         var items = character.Inventory.InventoryItems;
-        var withoutQuantity = QuantitySuffix().Replace(itemDescription, "");
-        return FindItem(items, itemDescription) ?? FindItem(items, withoutQuantity)
-            ?? throw new InvalidOperationException(
-                $"No item matching '{itemDescription}' is in the inventory. Current items: " +
-                $"{string.Join("; ", items.Select(i => i.Description))}.");
+        return FindItem(items, itemDescription) ?? FindItem(items, QuantitySuffix().Replace(itemDescription, ""));
     }
+
+    /// <summary>Game State prints the weapon as "ShortSword (d6)"; the model may write "short sword".</summary>
+    private static bool NamesTheWieldedWeapon(Character character, string description) =>
+        string.Equals(description.Split('(')[0].Replace(" ", ""), character.Weapon.Kind.ToString(),
+            StringComparison.OrdinalIgnoreCase);
 
     private static InventoryItem? FindItem(IReadOnlyList<InventoryItem> items, string description) =>
         items.FirstOrDefault(i => string.Equals(i.Description, description, StringComparison.OrdinalIgnoreCase));

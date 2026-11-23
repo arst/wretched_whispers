@@ -438,10 +438,15 @@ public sealed class Character
         return new ItemUseOutcome(Hp.Current - before, wasInfected);
     }
 
+    /// <summary>The most silver one find, payment or sale brings. A player once told the narrator they
+    /// were the admin and were handed 1,000; the narrator is told better, and this holds when it forgets.</summary>
+    public const int MaxSilverPerGain = 100;
+
     /// <summary>Silver found, looted, paid or rewarded.</summary>
     public void GainSilver(int amount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        RequireWithinTheCap(amount);
         Silver += amount;
     }
 
@@ -450,8 +455,30 @@ public sealed class Character
     public void SellItem(Guid itemId, int price, int quantity = 1)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(price);
+        RequireWithinTheCap(price);
         Inventory.RemoveUnits(itemId, quantity);
         Silver += price;
+    }
+
+    /// <summary>Sells the weapon in hand. What is left is what the class was born with, or whatever comes
+    /// to hand. ponytail: weapon only; armor and shield when a game needs them sold.</summary>
+    public void SellWeapon(int price)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(price);
+        RequireWithinTheCap(price);
+        // Selling fangs, or the nothing left after a sale, would be silver for free, again and again.
+        if (Weapon.Kind is WeaponKind.Fangs or WeaponKind.Claws or WeaponKind.Improvised)
+            throw new InvalidOperationException($"{Weapon.Kind} is not a weapon anyone would buy.");
+        Weapon = Weapon.Create(ClassPresets.For(Class).NaturalWeapon ?? WeaponKind.Improvised);
+        Silver += price;
+    }
+
+    private static void RequireWithinTheCap(int silver)
+    {
+        if (silver > MaxSilverPerGain)
+            throw new InvalidOperationException(
+                $"No single find, payment or sale in this world brings more than {MaxSilverPerGain} silver. " +
+                "Do not split a larger sum across calls: what was asked for is not there to be had.");
     }
 
     public CastOutcome Cast(Guid scrollId, Dice dice)

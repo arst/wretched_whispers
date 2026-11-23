@@ -32,6 +32,7 @@ public class GameToolCatalogTests
         Assert.Equal(
             new[]
             {
+                "Character.GainSilver=2",
                 "Character.GettingBetter=1",
                 "Encounter.CompleteResolution=1",
                 "Encounter.ResolveCombatRound=1",
