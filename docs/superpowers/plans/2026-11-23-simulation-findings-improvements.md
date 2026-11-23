@@ -322,6 +322,31 @@ If 3.6 does not hold through prompting, the code options are a single tool that 
 
 ---
 
+## Later: item pricing
+
+Not scheduled. Its own design and plan when it is taken up.
+
+### Task 16: The game knows what things are worth
+
+Nothing in the game says what an item costs or sells for. Every price is the narrator's: `BuyItem`, `SellItem` and the equip tools take whatever number the model passes. Stage 1b bounded the damage (100 silver per gain or sale, a few calls a turn) and tuned the prompt, but those are fences around a missing rule:
+
+- A narrator can conjure an item and sell it for up to 100, turn after turn.
+- An honest sale of several things worth more than 100 together is refused.
+- The same sword can cost 10 at one stall and 40 at the next, and sell back for more than it cost.
+- Repair, hire and services have no price at all.
+
+What a design has to settle:
+
+- [ ] Where prices come from: the book's equipment tables for weapons, armor and listed gear, and a rule for everything the narrator invents (a price band by kind of thing, or a price fixed when the item enters the world).
+- [ ] Whether an item carries its value, so a sale is bounded by what the thing is worth and not by a flat cap. This is what would let the per-call cap go.
+- [ ] How far haggling moves a price, and whether a test decides it.
+- [ ] What a found or looted item is worth when nobody priced it.
+- [ ] Whether selling worn armor and a shield comes in here (today only the wielded weapon can be sold).
+
+Until then the cap, the per-turn limits and the silver evals stand.
+
+---
+
 ## Decisions made (23 November 2026)
 
 | | Decision | Outcome |
