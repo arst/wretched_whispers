@@ -1,3 +1,5 @@
+using WretchedWhispers.Core.Characters.Status;
+
 namespace WretchedWhispers.Core.Characters.Combat;
 
 public readonly record struct DefenceOutcome(
@@ -16,4 +18,6 @@ public readonly record struct DefenceOutcome(
     // (before the fumble doubling) and the armor+shield reduction subtracted. DamageDealt =
     // max(0, BaseDamageRoll * (FumbleDoubleDamage ? 2 : 1) - ArmorReduction) - OmenDamageReduction.
     int BaseDamageRoll = 0,
-    int ArmorReduction = 0);
+    int ArmorReduction = 0,
+    // The injury the Broken table gave when this hit dropped the character to 0 and they lived.
+    InjuryKind? Injury = null);

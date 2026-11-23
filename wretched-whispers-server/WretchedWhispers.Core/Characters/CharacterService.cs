@@ -19,16 +19,17 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
 
         var outcome = character.Challenge(dr, ability, dice, spendOmenToLowerDr: spendOmenToLowerDr);
 
-        var damageTaken = 0;
+        var consequence = new ConsequenceOutcome(0, null);
         var consequenceApplied = !outcome.IsSuccess && consequenceOnFailure is not ChallengeConsequence.None;
         if (consequenceApplied)
-            damageTaken = character.SufferConsequence(consequenceOnFailure, settings, dice);
+            consequence = character.SufferConsequence(consequenceOnFailure, settings, dice);
 
         // A spent omen must persist even when the test succeeds.
         if (spendOmenToLowerDr || consequenceApplied)
             await charactersRepository.Save(character, ct);
 
-        return new ChallengeResult(outcome, damageTaken, character.IsDead, character.Hp.Current);
+        return new ChallengeResult(
+            outcome, consequence.Damage, character.IsDead, character.Hp.Current, consequence.Injury);
     }
 
     /// <summary>Uses one unit of an item the character carries and saves the result. Takes the loaded

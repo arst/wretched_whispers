@@ -239,10 +239,11 @@ public sealed class Character
             damage = Math.Max(0, damage - omenReduction);
         }
 
-        ReceiveDamage(damage, dice);
+        var injury = ReceiveDamage(damage, dice);
 
         return new DefenceOutcome
         {
+            Injury = injury,
             DamageDealt = damage,
             Avoided = false,
             CriticalFreeAttack = false,
@@ -256,21 +257,23 @@ public sealed class Character
         };
     }
 
-    private void ReceiveDamage(int damage, Dice dice)
+    /// <summary>Applies damage and, when it drops the character to 0, rolls the Broken table. Returns the
+    /// injury that roll gave, or null when the character was not broken or did not survive it. Every
+    /// caller hands it on in its own result: an injury the result does not name cannot be told.</summary>
+    private InjuryKind? ReceiveDamage(int damage, Dice dice)
     {
         Hp = Hp.Damage(damage);
 
-        if (Hp.IsZero)
-        {
-            var brokenOutcome = ResolveBroken(dice);
-            if (brokenOutcome is null)
-                return;
+        if (ResolveBroken(dice) is not { } brokenOutcome) return null;
 
-            if (brokenOutcome == InjuryKind.None)
-                IsDead = true;
-            else
-                Injuries = Injuries.Add(brokenOutcome.Value);
+        if (brokenOutcome == InjuryKind.None)
+        {
+            IsDead = true;
+            return null;
         }
+
+        Injuries = Injuries.Add(brokenOutcome);
+        return brokenOutcome;
     }
 
 
@@ -445,9 +448,9 @@ public sealed class Character
         }
 
         var loss = dice.Roll(DiceExpr.D2);
-        ReceiveDamage(loss, dice);
+        var injury = ReceiveDamage(loss, dice);
         IsDizzyFromMagic = true;
-        return CastOutcome.Fizzle(scroll.Description, loss);
+        return CastOutcome.Fizzle(scroll.Description, loss, injury);
     }
 
     public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int penalty = 0,
@@ -508,10 +511,11 @@ public sealed class Character
     public ChallengeOutcome AttemptFlee(Dice dice) =>
         Challenge(new Dr(12), AbilityKind.Agility, dice, Armor.AgilityPenalty);
 
-    public int SufferConsequence(ChallengeConsequence consequence, DifficultySettings settings, Dice dice)
+    public ConsequenceOutcome SufferConsequence(
+        ChallengeConsequence consequence, DifficultySettings settings, Dice dice)
     {
         if (consequence is ChallengeConsequence.None)
-            return 0;
+            return new ConsequenceOutcome(0, null);
 
         var severityDie = consequence switch
         {
@@ -522,8 +526,7 @@ public sealed class Character
         };
 
         var damage = dice.Roll(severityDie);
-        ReceiveDamage(damage, dice);
-        return damage;
+        return new ConsequenceOutcome(damage, ReceiveDamage(damage, dice));
     }
 
     public void Improve(AbilityKind kind, int delta)

@@ -257,6 +257,67 @@ public class GameToolsTests
         Assert.Equal(woundedAt + 4, cast.CurrentHp);
     }
 
+    /// <summary>Every d4 rolls 3 (daily powers, damage, the Broken table: survives), every d6 rolls 6 (a
+    /// lost eye) and every d20 rolls 5 (a failed test, dodge or casting).</summary>
+    private static Dice DiceThatBreakWithALostEye()
+    {
+        var random = new Mock<IRandomService>();
+        random.Setup(r => r.GenerateRandomRoll(4)).Returns(2);
+        random.Setup(r => r.GenerateRandomRoll(6)).Returns(5);
+        random.Setup(r => r.GenerateRandomRoll(20)).Returns(4);
+        return new Dice(random.Object);
+    }
+
+    [Fact]
+    public async Task ChallengeCharacter_NamesTheInjuryABreakGave()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 1);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var result = await CharacterTools(dice).ChallengeCharacter(
+            12, AbilityKind.Strength, ChallengeConsequence.Serious);
+
+        Assert.Equal("lost eye", result.NewInjury);
+        Assert.True(result.IsBroken);
+    }
+
+    [Fact]
+    public async Task ResolveCombatRound_NamesTheInjuryARetaliationGave()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 1);
+        var encounter = Encounter.Create("Ambush", "test", EncounterType.Hostile, _zeroDice);
+        encounter.AddAdversary(new Adversary("Goblin", new HitPoints(100, 100), new Armor(ArmorTier.None), 7,
+            new AttackProfile("Knife", DiceExpr.Parse("1d4"))));
+        encounter.StartEncounter();
+        _context.SetCharacterId(hero.Id);
+        _context.SetActiveEncounterId(encounter.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
+
+        var round = await EncounterTools(dice).ResolveCombatRound(PlayerRoundAction.Other);
+
+        Assert.Equal("lost eye", Assert.Single(round.Retaliations).Injury);
+        Assert.True(round.PlayerBroken);
+    }
+
+    [Fact]
+    public async Task CastScroll_NamesTheInjuryAFizzleGave()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 1,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Bestial Speech"));
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var cast = await CharacterTools(dice).CastScroll("Bestial Speech");
+
+        Assert.False(cast.Succeeded);
+        Assert.Equal("lost eye", cast.NewInjury);
+    }
+
     // -- CampaignTools --
 
     [Fact]

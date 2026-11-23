@@ -241,16 +241,8 @@ public sealed class SessionContext
     private static string AdversaryStatus(Core.Adversaries.Adversary adversary) =>
         adversary.IsDead ? "dead" : adversary.IsFled ? "fled" : "alive";
 
-    private static readonly (InjuryKind Kind, string Name)[] InjuryNames =
-    [
-        (InjuryKind.LostEye, "lost eye"),
-        (InjuryKind.StabbedLung, "stabbed lung"),
-        (InjuryKind.BrokenHand, "broken hand"),
-        (InjuryKind.CrushedFoot, "crushed foot"),
-        (InjuryKind.SeveredArm, "severed arm"),
-        (InjuryKind.SmashedFace, "smashed face"),
-    ];
-
     private static string FormatInjuries(Character character) =>
-        string.Join(", ", InjuryNames.Where(i => character.Injuries.Has(i.Kind)).Select(i => i.Name));
+        string.Join(", ", Enum.GetValues<InjuryKind>()
+            .Where(character.Injuries.Has)
+            .Select(injury => injury.DisplayName()));
 }

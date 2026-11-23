@@ -89,7 +89,7 @@ public sealed class ChallengeTests : TestBase
 
         // Grim: Minor d2 / Serious d4 / Deadly d6 — matches the InlineData sides.
         var settings = DifficultyPresets.For(Difficulty.Grim);
-        var damage = character.SufferConsequence(severity, settings, Dice);
+        var damage = character.SufferConsequence(severity, settings, Dice).Damage;
 
         Assert.Equal(1, damage);
         Assert.Equal(hpBefore - 1, character.Hp.Current);
@@ -103,7 +103,7 @@ public sealed class ChallengeTests : TestBase
         var hpBefore = character.Hp.Current;
         var settings = DifficultyPresets.For(Difficulty.Grim);
 
-        var damage = character.SufferConsequence(ChallengeConsequence.None, settings, Dice);
+        var damage = character.SufferConsequence(ChallengeConsequence.None, settings, Dice).Damage;
 
         Assert.Equal(0, damage);
         Assert.Equal(hpBefore, character.Hp.Current);

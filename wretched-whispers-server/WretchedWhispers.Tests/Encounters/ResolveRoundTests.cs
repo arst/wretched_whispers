@@ -6,6 +6,7 @@ using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using Xunit;
@@ -53,6 +54,21 @@ public sealed class ResolveRoundTests : TestBase
         Assert.Equal("Ghoul 1", outcome.PlayerAttackTarget);
         Assert.Equal(2, outcome.Retaliations.Count);
         Assert.False(outcome.EncounterEnded);
+    }
+
+    [Fact]
+    public async Task Retaliation_ThatBreaksThePlayer_ReportsTheInjury()
+    {
+        // Every d4 rolls 3 (daily powers, the claws, the Broken table: survives); the d6 gives a lost eye.
+        SetupDiceRoll(4, 2);
+        SetupDiceRoll(6, 5);
+        SetupDiceRoll(20, 4); // dodge: 5 against DR 12
+        var (encounter, character) = Arrange(adversaryHp: 100, characterHp: 1);
+
+        var outcome = await CreateService().ResolveRound(encounter.Id, character.Id, PlayerRoundAction.Other);
+
+        Assert.Equal(InjuryKind.LostEye, Assert.Single(outcome.Retaliations).Outcome.Injury);
+        Assert.True(outcome.PlayerBroken);
     }
 
     [Fact]

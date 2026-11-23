@@ -8,6 +8,7 @@ using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools.Models;
@@ -59,7 +60,8 @@ public sealed partial class CharacterTools(
         return new ChallengeOutcomeDto(
             result.Outcome.IsSuccess, result.Outcome.Roll, result.Outcome.Modifier,
             result.Outcome.Roll + result.Outcome.Modifier,
-            result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead, result.CurrentHp);
+            result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead, result.CurrentHp,
+            result.NewInjury?.DisplayName());
     }
 
     [Description("MORK BORG 'Getting Better': the post-adventure improvement ritual and the ONLY leveling mechanic. Call ONLY when the fiction concludes a genuine adventure or scenario -- a quest completed, a dungeon survived, a nemesis dead -- never after a routine fight. Requires a full night's rest since the last ritual (fails otherwise). Everything is rolled for you: 6d10 vs max HP (max grows by d6 on success) and a d6 against each ability (improve, or on harder difficulties worsen). Narrate the returned result.")]
