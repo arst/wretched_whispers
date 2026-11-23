@@ -9,6 +9,7 @@ using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
+using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools.Models;
 using WretchedWhispers.Engine.Services;
 
@@ -23,7 +24,7 @@ namespace WretchedWhispers.Engine.GameTools;
 public sealed partial class CharacterTools(
     ICharactersRepository charactersRepository,
     CharacterService characterService,
-    Dice dice,
+    EncounterService encounterService,
     SessionContext sessionContext)
 {
     private Guid RequireCharacterId() =>
@@ -185,9 +186,9 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Cast a scroll spell that the character possesses")]
+    [Description("Cast a scroll the character possesses. Spends one of the day's castings and tests Presence against DR 12; on a failure the scroll fizzles, costs hit points and no scroll can be cast until a new day. On a success the result says what the power does, and anything it heals or harms has already been applied -- in a fight, to the adversaries it names.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat)]
-    public async Task<CastOutcome> CastScroll(
+    public async Task<CastOutcomeDto> CastScroll(
         [Description("Description of the scroll to cast, exactly as shown in Game State")] string scrollDescription)
     {
         var character = await RequireCharacter();
@@ -199,9 +200,8 @@ public sealed partial class CharacterTools(
             throw new InvalidOperationException(
                 $"No scroll matching '{scrollDescription}' is known. Known scrolls: " +
                 $"{string.Join("; ", character.Scrolls.Select(s => s.Description))}.");
-        var outcome = character.Cast(scroll.Id, dice);
-        await charactersRepository.Save(character);
-        return outcome;
+        var result = await encounterService.CastScroll(character.Id, scroll.Id, sessionContext.ActiveEncounterId);
+        return CastOutcomeDto.From(result, character.Hp.Current);
     }
 
     private async Task<Character> RequireCharacter()

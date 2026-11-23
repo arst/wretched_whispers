@@ -2,7 +2,9 @@ using WretchedWhispers.Core.Adversaries;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Combat;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Encounters;
@@ -156,6 +158,53 @@ public class EncounterService(
             playerAttack, attackedName, fleeAttempt, retaliations, fledThisRound,
             endReason is not EncounterEndReason.None, endReason,
             character.Hp.Current, character.Hp.IsZero && !character.IsDead);
+    }
+
+    /// <summary>Casts a scroll and, when its power harms others, applies that to the adversaries of the
+    /// fight in progress. Outside a started fight a harmful power hits nothing the game tracks. The fight
+    /// is not ended here even if nobody is left standing: the round that follows the cast does that.</summary>
+    public async Task<ScrollCastResult> CastScroll(
+        Guid characterId, Guid scrollId, Guid? encounterId, CancellationToken ct = default)
+    {
+        var character = await charactersRepository.Get(characterId, ct)
+            ?? throw new InvalidOperationException("Character not found");
+
+        var outcome = character.Cast(scrollId, dice);
+        await charactersRepository.Save(character, ct);
+
+        var hits = new List<ScrollHit>();
+        if (outcome.Power is not { Kind: ScrollEffectKind.DamageEach or ScrollEffectKind.DamageSplit } power
+            || encounterId is null)
+            return new ScrollCastResult(outcome, hits);
+
+        var encounter = await encountersRepository.Get(encounterId.Value, ct);
+        if (encounter is not { IsStarted: true, IsEnded: false })
+            return new ScrollCastResult(outcome, hits);
+
+        // ponytail: targets are taken in order and no morale is rolled for the survivors; let the
+        // player choose targets and check morale here if scroll kills start deciding fights.
+        var standing = ActiveAdversaries(encounter);
+        if (power.Kind is ScrollEffectKind.DamageEach)
+        {
+            var targets = power.Targets.Sides == 0 ? 1 : dice.Roll(power.Targets);
+            foreach (var adversary in standing.Take(targets))
+                hits.Add(Hit(adversary, dice.Roll(power.Amount)));
+        }
+        else if (standing.Count > 0)
+        {
+            var total = dice.Roll(power.Amount);
+            for (var i = 0; i < standing.Count; i++)
+                hits.Add(Hit(standing[i], total / standing.Count + (i < total % standing.Count ? 1 : 0)));
+        }
+
+        await encountersRepository.Save(encounter, ct);
+        return new ScrollCastResult(outcome, hits);
+
+        static ScrollHit Hit(Adversary adversary, int damage)
+        {
+            adversary.ReceiveDamage(damage);
+            return new ScrollHit(adversary.Name, damage, adversary.IsDead);
+        }
     }
 
     private static IReadOnlyList<Adversary> ActiveAdversaries(Encounter encounter) =>

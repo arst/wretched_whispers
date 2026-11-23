@@ -3,6 +3,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Encounters;
 
@@ -135,7 +136,17 @@ public sealed class SessionContext
             foreach (var item in Character.Inventory.InventoryItems)
                 sb.AppendLine($"    - {item.Description} x{item.Quantity}");
             foreach (var scroll in Character.Scrolls)
-                sb.AppendLine($"    - Scroll: {scroll.Description} ({scroll.School})");
+            {
+                // What the scroll does is told here so the narrator can answer "what does it do?"
+                // before it is cast. A scroll from before powers existed has none and shows its name.
+                var effect = ScrollPowers.Find(scroll.Description)?.Effect;
+                sb.AppendLine(effect is null
+                    ? $"    - Scroll: {scroll.Description} ({scroll.School})"
+                    : $"    - Scroll: {scroll.Description} ({scroll.School}): {effect}");
+            }
+
+            if (Character.NextTestBonus > 0)
+                sb.AppendLine($"  Blessed: +{Character.NextTestBonus} on the next test");
             // Each omitted when empty, so a character without injuries or dizziness renders exactly as
             // before. Without these the model only learns of an injury from the prose of the turn that
             // dealt it, and forgets it once that turn is summarized away.

@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
 
@@ -28,3 +29,9 @@ public sealed record CombatRoundOutcome(
     EncounterEndReason EndReason,
     int PlayerCurrentHp,
     bool PlayerBroken);
+
+/// <summary>What a scroll did to one adversary of the fight in progress.</summary>
+public sealed record ScrollHit(string AdversaryName, int Damage, bool Killed);
+
+/// <summary>A casting and, when its power harms others, every adversary it reached.</summary>
+public sealed record ScrollCastResult(CastOutcome Outcome, IReadOnlyList<ScrollHit> Hits);

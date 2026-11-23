@@ -6,6 +6,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
@@ -265,6 +266,42 @@ public class StageDerivationTests : TestBase
         Assert.Contains("Doom Campaign", snapshot);
         // Must NOT contain any GUIDs
         Assert.DoesNotMatch(@"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", snapshot);
+    }
+
+    [Fact]
+    public void FormatSnapshot_SaysWhatEachScrollDoes()
+    {
+        var scroll = new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Bestial Speech");
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.Character = TestCharacters.Create(Dice, scrolls: scroll);
+
+        var snapshot = ctx.FormatSnapshot();
+
+        var power = ScrollPowers.Find("Bestial Speech");
+        Assert.NotNull(power);
+        Assert.Contains($"- Scroll: Bestial Speech (Sacred): {power.Effect}", snapshot);
+    }
+
+    [Fact]
+    public void FormatSnapshot_ScrollWithoutAPower_ShowsOnlyItsName()
+    {
+        var scroll = new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "random");
+        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        ctx.Character = TestCharacters.Create(Dice, scrolls: scroll);
+
+        Assert.Contains("- Scroll: random (Unclean)\n", ctx.FormatSnapshot().ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void FormatSnapshot_ShowsAPendingBlessing()
+    {
+        SetupDiceRolls(0, 14, 3); // d4 daily powers; d20 = 15 to cast; d6 = 4
+        var scroll = new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Grace for a Sinner");
+        var hero = TestCharacters.Create(Dice, scrolls: scroll);
+        hero.Cast(scroll.Id, Dice);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid(), Character = hero };
+
+        Assert.Contains("Blessed: +4 on the next test", ctx.FormatSnapshot());
     }
 
     [Fact]

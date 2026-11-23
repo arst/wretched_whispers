@@ -1,7 +1,9 @@
 using Moq;
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using Xunit;
 
@@ -23,6 +25,28 @@ public class CharacterCreationServiceTests : TestBase
         Assert.InRange(character.Abilities.Presence.Modifier, -3, 6);
         Assert.InRange(character.Abilities.Strength.Modifier, -3, 6);
         Assert.InRange(character.Abilities.Toughness.Modifier, -3, 6);
+    }
+
+    [Fact]
+    public async Task Create_ClassScroll_IsNamedForARealPower()
+    {
+        var character = await NewService().Create("Hero", Difficulty.Grim, CharacterClass.EsotericHermit);
+
+        Assert.NotEmpty(character.Scrolls);
+        Assert.All(character.Scrolls, s => Assert.NotNull(ScrollPowers.Find(s.Description)));
+    }
+
+    [Fact]
+    public async Task Create_GearTableScroll_IsNamedForAPowerOfItsSchool()
+    {
+        SetupDiceRoll(12, 4); // both gear tables roll 5: the first is an unclean scroll
+        SetupDiceRoll(10, 9); // the power table rolls 10
+
+        var character = await NewService().Create("Hero", Difficulty.Grim);
+
+        var scroll = Assert.Single(character.Scrolls);
+        Assert.Equal(ScrollSchool.Unclean, scroll.School);
+        Assert.Equal("Death", scroll.Description);
     }
 
     [Fact]

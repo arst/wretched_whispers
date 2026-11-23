@@ -7,6 +7,7 @@ using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools;
@@ -36,7 +37,8 @@ public class GameToolsTests
     private CharacterTools CharacterTools(Dice? dice = null) => new(
         _charactersRepo.Object,
         new CharacterService(_charactersRepo.Object, dice ?? _zeroDice),
-        dice ?? _zeroDice, _context);
+        new EncounterService(dice ?? _zeroDice, _charactersRepo.Object, _encountersRepo.Object),
+        _context);
 
     private CampaignTools CampaignTools() => new(
         MakeCampaignService(), _context);
@@ -170,6 +172,31 @@ public class GameToolsTests
 
         Assert.Equal(40, sheet.Silver);
         _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CastScroll_TellsWhatTheScrollDidAndWhoItHit()
+    {
+        // d4 daily powers; d20 = 15 to cast; d2 = 1 creature; d8 = 8.
+        var dice = ScriptedDice(0, 14, 0, 7);
+        var hero = TestCharacters.Create(dice,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate"));
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        var encounter = Encounter.Create("Ambush", "test", EncounterType.Hostile, _zeroDice);
+        encounter.AddAdversary(NewAdversary("Goblin"));
+        encounter.StartEncounter();
+        _context.SetActiveEncounterId(encounter.Id);
+        _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
+
+        var cast = await CharacterTools(dice).CastScroll("palms open the southern gate");
+
+        Assert.True(cast.Succeeded);
+        Assert.Equal("Palms Open the Southern Gate", cast.Scroll);
+        Assert.False(string.IsNullOrWhiteSpace(cast.Effect));
+        var hit = Assert.Single(cast.AdversariesHit);
+        Assert.Equal(("Goblin", 8, true), (hit.Adversary, hit.Damage, hit.Killed));
+        Assert.Equal(hero.Hp.Current, cast.CurrentHp);
     }
 
     // -- CampaignTools --

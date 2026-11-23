@@ -67,12 +67,12 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         var armor = RollArmor(CapForScroll(settings.ArmorDie, DiceExpr.D2, hasScroll));
         var scrolls = new List<Scroll>();
 
-        if (gear1Scroll is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear1Scroll.Value, "random"));
+        if (gear1Scroll is not null) scrolls.Add(RollScroll(gear1Scroll.Value));
 
-        if (gear2Scroll is not null) scrolls.Add(new Scroll(Guid.NewGuid(), gear2Scroll.Value, "random"));
+        if (gear2Scroll is not null) scrolls.Add(RollScroll(gear2Scroll.Value));
 
         for (var i = 0; i < settings.StartingScrollCount; i++)
-            scrolls.Add(new Scroll(Guid.NewGuid(), settings.StartingScrollSchool ?? RollScrollSchool(), "random"));
+            scrolls.Add(RollScroll(settings.StartingScrollSchool ?? RollScrollSchool()));
 
         return new StartingEquipment(
             silver,
@@ -148,6 +148,10 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
             _ => "black sedge (stops bleeding, scars foully)"
         };
     }
+
+    /// <summary>A scroll is named for the power it holds, rolled on its school's table.</summary>
+    private Scroll RollScroll(ScrollSchool school) =>
+        new(Guid.NewGuid(), school, ScrollPowers.Roll(school, dice).Name);
 
     private string RollContainer()
     {

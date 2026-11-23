@@ -43,8 +43,10 @@ public sealed class Character
         bool isDizzyFromMagic = false,
         bool isDead = false,
         bool canGetBetter = false,
-        CharacterClass @class = CharacterClass.Classless)
+        CharacterClass @class = CharacterClass.Classless,
+        int nextTestBonus = 0)
     {
+        NextTestBonus = nextTestBonus;
         Id = id;
         Name = name;
         Class = @class;
@@ -116,6 +118,9 @@ public sealed class Character
     [JsonInclude] public bool CanGetBetter { get; private set; }
 
     [JsonInclude] public InjurySet Injuries { get; private set; }
+
+    /// <summary>A pending blessing: lowers the DR of the next test, then is gone.</summary>
+    [JsonInclude] public int NextTestBonus { get; private set; }
 
     [JsonIgnore] public bool HasLostEye => Injuries.Has(InjuryKind.LostEye);
     [JsonIgnore] public bool HasStabbedLung => Injuries.Has(InjuryKind.StabbedLung);
@@ -404,7 +409,24 @@ public sealed class Character
 
         var challengeOutcome = Challenge(new Dr(12), AbilityKind.Presence, dice);
 
-        if (challengeOutcome.IsSuccess) return CastOutcome.Success(scroll.Description);
+        if (challengeOutcome.IsSuccess)
+        {
+            // What the power does to the caster is applied here; what it does to adversaries is the
+            // encounter's to apply (EncounterService.CastScroll), since a character knows no enemies.
+            var power = ScrollPowers.Find(scroll.Description);
+            var healed = 0;
+            if (power?.Kind is ScrollEffectKind.HealCaster)
+            {
+                var before = Hp.Current;
+                Hp = Hp.Heal(dice.Roll(power.Amount));
+                healed = Hp.Current - before;
+            }
+
+            if (power?.Kind is ScrollEffectKind.BlessNextTest)
+                NextTestBonus = dice.Roll(power.Amount);
+
+            return CastOutcome.Success(scroll.Description, power, healed, NextTestBonus);
+        }
 
         var loss = dice.Roll(DiceExpr.D2);
         ReceiveDamage(loss, dice);
@@ -419,6 +441,13 @@ public sealed class Character
         {
             if (!Omens.TrySpend()) throw new InvalidOperationException("No omens remaining.");
             challenge = new Dr(challenge.Value - 4);
+        }
+
+        // A blessing (Grace for a Sinner) eases exactly one test, whichever comes next.
+        if (NextTestBonus > 0)
+        {
+            challenge = new Dr(challenge.Value - NextTestBonus);
+            NextTestBonus = 0;
         }
 
         // Encumbrance penalty

@@ -50,7 +50,7 @@ public sealed class AgentToolProvider(
         var instances = new Dictionary<Type, object>
         {
             [typeof(CharacterTools)] = new CharacterTools(
-                charactersRepository, characterService, dice, sessionContext),
+                charactersRepository, characterService, encounterService, sessionContext),
             [typeof(CampaignTools)] = new CampaignTools(
                 campaignService, sessionContext),
             [typeof(EncounterTools)] = new EncounterTools(

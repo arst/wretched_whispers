@@ -4,6 +4,7 @@ using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 
@@ -18,7 +19,8 @@ public static class TestCharacters
 {
     public static Character Create(Dice dice, int agility = 0, int presence = 0, int strength = 0,
         int toughness = 0, int startingOmens = 0, int maxHp = 20,
-        ArmorTier armorTier = ArmorTier.None, WeaponKind weaponKind = WeaponKind.Sword)
+        ArmorTier armorTier = ArmorTier.None, WeaponKind weaponKind = WeaponKind.Sword,
+        params Scroll[] scrolls)
     {
         var abilities = new Abilities(
             agility: new AbilityScore(agility),
@@ -30,7 +32,7 @@ public static class TestCharacters
             Gear1: null, Gear2: null,
             Weapon: Weapon.Create(weaponKind),
             Armor: new Armor(armorTier),
-            Shield: null, Scrolls: []);
+            Shield: null, Scrolls: [.. scrolls]);
         return Character.Create(Guid.NewGuid(), "TestHero", maxHp, abilities, equipment, dice, startingOmens);
     }
 }
