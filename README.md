@@ -293,7 +293,11 @@ with model responses cached on disk so unchanged scenarios re-run for free. A gu
 that quietly stops working.
 
 **The narrator is instrumented.** OpenTelemetry spans cover the turn pipeline and tool calls; turn traces are persisted
-and exportable. When the game master lies, you can go and read exactly how.
+and exportable. When the game master lies, you can go and read exactly how. A trace holds the turn's whole input — the
+instructions, the messages and the tool declarations the model was sent — and its output: tool calls and results, the
+narration, what the turn really changed, and for every model request its model, input / cached / output / reasoning
+tokens, timing and finish reason. `dotnet run --project WretchedWhispers.Api -- export-traces [outDir]` writes them all
+to one JSON file.
 
 ---
 

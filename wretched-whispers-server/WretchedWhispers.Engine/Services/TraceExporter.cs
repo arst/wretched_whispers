@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WretchedWhispers.Infrastructure.Persistence;
+using WretchedWhispers.Infrastructure.Persistence.Entities;
 
 namespace WretchedWhispers.Engine.Services;
 
@@ -24,6 +25,16 @@ public static class TraceExporter
             .ThenBy(t => t.ChatSessionId)
             .ThenBy(t => t.OrderIndex)
             .ToListAsync(ct);
+
+        // The event log knows what the trace does not: the order in which narration and tool results
+        // reached the player. Read whole — this is an offline dump — and matched to traces by turn.
+        var events = (await db.TurnEvents
+                .AsNoTracking()
+                .Where(e => ShownEventTypes.Contains(e.EventType))
+                .OrderBy(e => e.TurnId)
+                .ThenBy(e => e.Sequence)
+                .ToListAsync(ct))
+            .ToLookup(e => e.TurnId);
 
         // Group into sessions; each turn re-embeds its stored JSON columns as real nested JSON.
         var sessions = new JsonArray();
@@ -55,7 +66,10 @@ public static class TraceExporter
                     ["inputTokens"] = t.InputTokens,
                     ["outputTokens"] = t.OutputTokens,
                     ["durationMs"] = t.DurationMs,
-                    ["iterations"] = t.Iterations
+                    ["iterations"] = t.Iterations,
+                    ["modelCalls"] = Parse(t.ModelCallsJson),
+                    ["request"] = Parse(t.RequestJson),
+                    ["events"] = t.TurnId is { } turnId && events.Contains(turnId) ? Shown(events[turnId]) : null
                 });
 
             sessions.Add(new JsonObject
@@ -73,6 +87,36 @@ public static class TraceExporter
         await File.WriteAllTextAsync(path, json, ct);
 
         Console.WriteLine($"Exported {traces.Count} turns across {sessions.Count} sessions -> {path}");
+    }
+
+    // Outcome events (turn_delta, state_update, done) are left out: the trace already holds them as
+    // turnDelta and the next turn's gameState.
+    private static readonly string[] ShownEventTypes = ["narrative", "tool_result", "reset", "error"];
+
+    /// <summary>
+    /// A turn's event log as the player saw it, in order: narration (the pieces it streamed in, joined
+    /// back together), each tool result where it arrived, "reset" where an earlier attempt's output
+    /// was discarded, and the error if the turn failed. Each entry is the stored event plus its type.
+    /// </summary>
+    private static JsonArray Shown(IEnumerable<TurnEventEntity> events)
+    {
+        var shown = new JsonArray();
+        foreach (var evt in events)
+        {
+            var payload = Parse(evt.Payload) as JsonObject ?? [];
+            if (evt.EventType == "narrative" && shown.Count > 0
+                && shown[^1] is JsonObject previous && (string?)previous["type"] == "narrative")
+            {
+                previous["text"] = (string?)previous["text"] + (string?)payload["text"];
+                continue;
+            }
+
+            var entry = new JsonObject { ["type"] = evt.EventType };
+            foreach (var (name, value) in payload)
+                entry[name] = value?.DeepClone();
+            shown.Add(entry);
+        }
+        return shown;
     }
 
     // Stored columns are already JSON. Parse so the output nests them instead of escaping strings.

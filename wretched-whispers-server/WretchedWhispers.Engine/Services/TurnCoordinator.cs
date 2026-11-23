@@ -226,6 +226,14 @@ public sealed class TurnCoordinator(
                     continue;
                 }
 
+                // Likewise out-of-band: what the turn sent the model. It arrives before the run, so
+                // it is on the draft — and in the trace — even if the run then fails.
+                if (evt is ModelRequest request)
+                {
+                    draft.RequestJson = request.Json;
+                    continue;
+                }
+
                 // Straight to the player — provisional until the commit below (see the class comment).
                 writer.TryWrite(evt);
 
@@ -401,6 +409,7 @@ public sealed class TurnCoordinator(
         public string GameStateJson { get; } = gameStateJson;
         public IReadOnlyList<string>? ToolsOffered { get; set; }
         public AgentTrace? AgentTrace { get; set; }
+        public string? RequestJson { get; set; }
         public List<ToolResult> ToolResults { get; } = [];
         public StringBuilder Narrative { get; } = new();
     }
@@ -445,7 +454,11 @@ public sealed class TurnCoordinator(
             InputTokens = agentTrace?.InputTokens,
             OutputTokens = agentTrace?.OutputTokens,
             DurationMs = (long)clock.GetElapsedTime(started).TotalMilliseconds,
-            Iterations = agentTrace?.Iterations
+            Iterations = agentTrace?.Iterations,
+            ModelCallsJson = agentTrace?.ModelCalls is { Count: > 0 } modelCalls
+                ? JsonSerializer.Serialize(modelCalls, TraceJson)
+                : null,
+            RequestJson = draft.RequestJson
         };
     }
 }

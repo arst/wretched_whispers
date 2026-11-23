@@ -410,6 +410,9 @@ namespace WretchedWhispers.Infrastructure.Migrations
                     b.Property<int?>("Iterations")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ModelCallsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ModelId")
                         .HasColumnType("TEXT");
 
@@ -431,6 +434,9 @@ namespace WretchedWhispers.Infrastructure.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("PromptHash")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestJson")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Stage")

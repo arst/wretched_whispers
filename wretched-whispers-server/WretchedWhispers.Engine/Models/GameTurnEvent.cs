@@ -120,4 +120,31 @@ public record AgentTrace(
     string? PromptHash = null,
     long? InputTokens = null,
     long? OutputTokens = null,
-    int Iterations = 0) : GameTurnEvent("agent_trace");
+    int Iterations = 0,
+    IReadOnlyList<ModelCall>? ModelCalls = null) : GameTurnEvent("agent_trace");
+
+/// <summary>
+/// One model request of a turn (a turn makes one per tool round): which model answered, what it
+/// cost, and how long it took. <paramref name="CachedInputTokens"/> is the part of
+/// <paramref name="InputTokens"/> the provider served from its prompt cache;
+/// <paramref name="ReasoningTokens"/> is the part of <paramref name="OutputTokens"/> spent on
+/// hidden reasoning. <paramref name="FirstOutputMs"/> is the wait for the first text or tool call.
+/// </summary>
+public record ModelCall(
+    string? ModelId,
+    long? InputTokens,
+    long? CachedInputTokens,
+    long? OutputTokens,
+    long? ReasoningTokens,
+    long DurationMs,
+    long? FirstOutputMs,
+    string? FinishReason);
+
+/// <summary>
+/// Out-of-band capture event emitted FIRST by <see cref="Services.AgentExecutor"/>: what the turn
+/// sends the model — instructions, messages and tool declarations — as JSON, for the turn trace.
+/// First rather than with <see cref="AgentTrace"/>, so a turn that fails mid-run has still recorded
+/// its input. Like <see cref="AgentTrace"/> it is not a <c>[JsonDerivedType]</c> and never reaches
+/// the client.
+/// </summary>
+public record ModelRequest(string Json) : GameTurnEvent("model_request");
