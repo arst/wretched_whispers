@@ -52,6 +52,22 @@ public class JsonSerializationTests : TestBase
         Assert.Equal(4, loaded.NextTestBonus);
     }
 
+    [Fact]
+    public void Character_RoundTrips_ChangedGear()
+    {
+        var character = TestCharacters.Create(Dice, weaponKind: WeaponKind.Knife, armorTier: ArmorTier.None);
+        character.Equip(Weapon.Create(WeaponKind.Flail));
+        character.Wear(new Armor(ArmorTier.Medium));
+        character.TakeUpShield();
+
+        var loaded = JsonSerializer.Deserialize<Character>(JsonSerializer.Serialize(character, _options), _options);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(WeaponKind.Flail, loaded.Weapon.Kind);
+        Assert.Equal(ArmorTier.Medium, loaded.Armor.Tier);
+        Assert.NotNull(loaded.Shield);
+    }
+
     /// <summary>An item saved before items had effects has no "effect" key and must load as an ordinary
     /// item; a character saved before blessings existed has no "nextTestBonus".</summary>
     [Fact]

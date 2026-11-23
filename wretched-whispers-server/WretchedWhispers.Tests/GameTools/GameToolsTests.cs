@@ -9,9 +9,11 @@ using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools;
+using WretchedWhispers.Engine.GameTools.Models;
 using WretchedWhispers.Engine.Services;
 using WretchedWhispers.Infrastructure.Persistence.Serialization;
 using Xunit;
@@ -87,6 +89,10 @@ public class GameToolsTests
     [InlineData("GainSilver_Negative")]
     [InlineData("SellItem_NegativePrice")]
     [InlineData("SellItem_QuantityBelowOne")]
+    [InlineData("EquipWeapon_NegativeCost")]
+    [InlineData("EquipWeapon_UndefinedKind")]
+    [InlineData("EquipArmor_NegativeCost")]
+    [InlineData("EquipShield_NegativeCost")]
     public async Task CharacterToolGuards_RejectBadArguments_BeforeTouchingTheRepository(string call)
     {
         _context.SetCharacterId(Guid.NewGuid());
@@ -105,6 +111,10 @@ public class GameToolsTests
             "GainSilver_Negative" => () => tools.GainSilver(-10, "a dead man's purse"),
             "SellItem_NegativePrice" => () => tools.SellItem("a bone", silverPrice: -1),
             "SellItem_QuantityBelowOne" => () => tools.SellItem("a bone", silverPrice: 1, quantity: 0),
+            "EquipWeapon_NegativeCost" => () => tools.EquipWeapon(WeaponKind.Sword, silverCost: -1),
+            "EquipWeapon_UndefinedKind" => () => tools.EquipWeapon((WeaponKind)99),
+            "EquipArmor_NegativeCost" => () => tools.EquipArmor(ArmorTierDto.Light, silverCost: -1),
+            "EquipShield_NegativeCost" => () => tools.EquipShield(silverCost: -1),
             _ => throw new ArgumentOutOfRangeException(nameof(call))
         };
 
@@ -181,6 +191,33 @@ public class GameToolsTests
 
         Assert.Equal(2, hero.Inventory.InventoryItems.Count);
         Assert.All(hero.Inventory.InventoryItems, item => Assert.Equal(expected, item.Effect));
+    }
+
+    [Fact]
+    public async Task EquipTools_ChangeTheSheetAndChargeTheSilver()
+    {
+        var hero = HeroInSession();
+
+        await CharacterTools().EquipWeapon(WeaponKind.Flail, silverCost: 4);
+        await CharacterTools().EquipArmor(ArmorTierDto.Medium);
+        var sheet = await CharacterTools().EquipShield(silverCost: 2);
+
+        Assert.Equal(WeaponKind.Flail, sheet.WeaponKind);
+        Assert.Equal(ArmorTierDto.Medium, sheet.ArmorTier);
+        Assert.True(sheet.HasShield);
+        Assert.Equal(4, sheet.Silver);
+        Assert.Equal(WeaponKind.Flail, hero.Weapon.Kind);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task EquipWeapon_RefusesNaturalAttacks()
+    {
+        var hero = HeroInSession();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CharacterTools().EquipWeapon(WeaponKind.Fangs));
+
+        Assert.Equal(WeaponKind.Sword, hero.Weapon.Kind);
     }
 
     [Fact]

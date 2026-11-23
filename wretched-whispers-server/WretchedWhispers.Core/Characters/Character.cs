@@ -102,8 +102,8 @@ public sealed class Character
     [JsonInclude] public Inventory Inventory { get; private set; }
 
     [JsonInclude] public HitPoints Hp { get; private set; }
-    public Armor Armor { get; }
-    public Shield? Shield { get; }
+    [JsonInclude] public Armor Armor { get; private set; }
+    [JsonInclude] public Shield? Shield { get; private set; }
     [JsonInclude] public Weapon Weapon { get; private set; }
     [JsonInclude] public Omens Omens { get; private set; }
     public PowerPool Powers { get; }
@@ -383,6 +383,37 @@ public sealed class Character
         if (Silver < price) throw new InvalidOperationException("Not enough silver to buy the item.");
 
         Inventory.AddItem(item);
+        Silver -= price;
+    }
+
+    /// <summary>Takes up a weapon, replacing the one wielded. Fangs and claws are not gear: only a class
+    /// born with them can go back to them.</summary>
+    public void Equip(Weapon weapon, int price = 0)
+    {
+        if (weapon.Kind is WeaponKind.Fangs or WeaponKind.Claws
+            && ClassPresets.For(Class).NaturalWeapon != weapon.Kind)
+            throw new InvalidOperationException($"{weapon.Kind} are a natural attack, not a weapon to take up.");
+        Pay(price);
+        Weapon = weapon;
+    }
+
+    /// <summary>Puts on armor, replacing what was worn. <see cref="ArmorTier.None"/> takes it off.</summary>
+    public void Wear(Armor armor, int price = 0)
+    {
+        Pay(price);
+        Armor = armor;
+    }
+
+    public void TakeUpShield(int price = 0)
+    {
+        Pay(price);
+        Shield = new Shield();
+    }
+
+    private void Pay(int price)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(price);
+        if (Silver < price) throw new InvalidOperationException("Not enough silver to pay for it.");
         Silver -= price;
     }
 

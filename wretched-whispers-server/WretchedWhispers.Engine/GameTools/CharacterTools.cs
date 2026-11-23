@@ -7,7 +7,9 @@ using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
@@ -21,7 +23,7 @@ namespace WretchedWhispers.Engine.GameTools;
 /// <see cref="SessionContext"/> (the model never sees GUIDs), validates model-supplied arguments via
 /// <see cref="ToolGuard"/>, then calls the domain directly and maps the result to a DTO.
 /// </summary>
-[Description("Interact with the player character: challenge, manage inventory, improve or degrade abilities, handle infection, buy items, and cast scrolls.")]
+[Description("Interact with the player character: challenge, manage inventory, silver and gear, improve or degrade abilities, handle infection, buy and sell items, and cast scrolls.")]
 public sealed partial class CharacterTools(
     ICharactersRepository charactersRepository,
     CharacterService characterService,
@@ -191,6 +193,56 @@ public sealed partial class CharacterTools(
         ToolGuard.Positive(amount, nameof(amount), "at least 1 silver");
         var character = await RequireCharacter();
         character.GainSilver(amount);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Change the weapon the character wields: one looted, found, bought or taken up. It REPLACES the current weapon in Game State, which is dropped -- add it to the inventory with AddItemToCharacterInventory if the character keeps it. Never narrate the character fighting with a weapon Game State does not show.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> EquipWeapon(
+        [Description("The kind of weapon taken up; pick the closest. 'Improvised' for anything makeshift")] WeaponKind weapon,
+        [Description("Silver the character pays for it; 0 when it is found, looted or given")] int silverCost = 0)
+    {
+        ToolGuard.NonNegative(silverCost, nameof(silverCost));
+        // The schema constrains the value to the enum names, but the JSON binder still accepts integers.
+        if (!Enum.IsDefined(weapon))
+            throw new ArgumentException(
+                $"Weapon '{weapon}' is not valid. Expected one of: {string.Join(", ", Enum.GetNames<WeaponKind>())}.");
+        var character = await RequireCharacter();
+        character.Equip(Weapon.Create(weapon), silverCost);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Change the armor the character wears: looted, found, bought or taken off ('None'). It REPLACES the current armor in Game State. Medium and heavy armor make dodging harder and prevent scroll casting. Never narrate armor Game State does not show.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> EquipArmor(
+        [Description("The armor put on: 'Light', 'Medium', 'Heavy', or 'None' to wear nothing")] ArmorTierDto armor,
+        [Description("Silver the character pays for it; 0 when it is found, looted or given")] int silverCost = 0)
+    {
+        ToolGuard.NonNegative(silverCost, nameof(silverCost));
+        var tier = armor switch
+        {
+            ArmorTierDto.None => ArmorTier.None,
+            ArmorTierDto.Light => ArmorTier.Light,
+            ArmorTierDto.Medium => ArmorTier.Medium,
+            ArmorTierDto.Heavy => ArmorTier.Heavy,
+            _ => throw new ArgumentException($"Armor '{armor}' is not valid. Expected one of: None, Light, Medium, Heavy.")
+        };
+        var character = await RequireCharacter();
+        character.Wear(new Armor(tier), silverCost);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Give the character a shield: looted, found or bought. It turns 1 damage from every hit.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> EquipShield(
+        [Description("Silver the character pays for it; 0 when it is found, looted or given")] int silverCost = 0)
+    {
+        ToolGuard.NonNegative(silverCost, nameof(silverCost));
+        var character = await RequireCharacter();
+        character.TakeUpShield(silverCost);
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
