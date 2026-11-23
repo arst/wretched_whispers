@@ -17,9 +17,9 @@ public sealed record CastOutcomeDto(
     [property: Description("Adversaries of the current fight the power harmed, with the damage each took. Empty when the power harms no one or there is no fight")] IReadOnlyList<ScrollHitDto> AdversariesHit,
     [property: Description("The caster's hit points after the casting")] int CurrentHp)
 {
-    public static CastOutcomeDto From(ScrollCastResult result, int currentHp) => new(
+    public static CastOutcomeDto From(ScrollCastResult result) => new(
         result.Outcome.Succeeded, result.Outcome.Reason, result.Outcome.PowerKey, result.Outcome.Effect,
         result.Outcome.HpLost, result.Outcome.HpHealed, result.Outcome.NextTestBonus,
         result.Hits.Select(h => new ScrollHitDto(h.AdversaryName, h.Damage, h.Killed)).ToList(),
-        currentHp);
+        result.CasterHp);
 }

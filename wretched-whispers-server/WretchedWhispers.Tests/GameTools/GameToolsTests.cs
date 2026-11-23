@@ -13,6 +13,7 @@ using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
 using WretchedWhispers.Engine.GameTools;
 using WretchedWhispers.Engine.Services;
+using WretchedWhispers.Infrastructure.Persistence.Serialization;
 using Xunit;
 
 namespace WretchedWhispers.Tests.GameTools;
@@ -229,6 +230,31 @@ public class GameToolsTests
         var hit = Assert.Single(cast.AdversariesHit);
         Assert.Equal(("Goblin", 8, true), (hit.Adversary, hit.Damage, hit.Killed));
         Assert.Equal(hero.Hp.Current, cast.CurrentHp);
+    }
+
+    // The real repository deserializes a fresh character on every Get, so a tool that reports from the
+    // instance it loaded, after a service changed another one, reports stale numbers.
+    [Fact]
+    public async Task CastScroll_ReportsTheCastersHpAsSaved_NotAsFirstLoaded()
+    {
+        // d4 daily powers; a wound of 6; d20 = 15 to cast; d10 = 4 healed.
+        var dice = ScriptedDice(0, 5, 14, 3);
+        var hero = TestCharacters.Create(dice,
+            scrolls: new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Grace of a Dead Saint"));
+        hero.SufferConsequence(ChallengeConsequence.Deadly, DifficultyPresets.For(Difficulty.Hardcore), dice);
+        var woundedAt = hero.Hp.Current;
+        var json = AggregateJsonOptions.Create();
+        var stored = JsonSerializer.Serialize(hero, json);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => JsonSerializer.Deserialize<Character>(stored, json));
+        _charactersRepo.Setup(r => r.Save(It.IsAny<Character>(), It.IsAny<CancellationToken>()))
+            .Callback((Character saved, CancellationToken _) => stored = JsonSerializer.Serialize(saved, json));
+
+        var cast = await CharacterTools(dice).CastScroll("Grace of a Dead Saint");
+
+        Assert.Equal(4, cast.HpHealed);
+        Assert.Equal(woundedAt + 4, cast.CurrentHp);
     }
 
     // -- CampaignTools --

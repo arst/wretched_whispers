@@ -175,11 +175,11 @@ public class EncounterService(
         var hits = new List<ScrollHit>();
         if (outcome.Power is not { Kind: ScrollEffectKind.DamageEach or ScrollEffectKind.DamageSplit } power
             || encounterId is null)
-            return new ScrollCastResult(outcome, hits);
+            return new ScrollCastResult(outcome, hits, character.Hp.Current);
 
         var encounter = await encountersRepository.Get(encounterId.Value, ct);
         if (encounter is not { IsStarted: true, IsEnded: false })
-            return new ScrollCastResult(outcome, hits);
+            return new ScrollCastResult(outcome, hits, character.Hp.Current);
 
         // ponytail: targets are taken in order and no morale is rolled for the survivors; let the
         // player choose targets and check morale here if scroll kills start deciding fights.
@@ -198,7 +198,7 @@ public class EncounterService(
         }
 
         await encountersRepository.Save(encounter, ct);
-        return new ScrollCastResult(outcome, hits);
+        return new ScrollCastResult(outcome, hits, character.Hp.Current);
 
         static ScrollHit Hit(Adversary adversary, int damage)
         {

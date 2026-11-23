@@ -207,8 +207,9 @@ public sealed partial class CharacterTools(
             throw new InvalidOperationException(
                 $"No scroll matching '{scrollDescription}' is known. Known scrolls: " +
                 $"{string.Join("; ", character.Scrolls.Select(s => s.Description))}.");
-        var result = await encounterService.CastScroll(character.Id, scroll.Id, sessionContext.ActiveEncounterId);
-        return CastOutcomeDto.From(result, character.Hp.Current);
+        // The service loads its own copy of the character, so the result carries the caster's hit points.
+        return CastOutcomeDto.From(
+            await encounterService.CastScroll(character.Id, scroll.Id, sessionContext.ActiveEncounterId));
     }
 
     private async Task<Character> RequireCharacter()
