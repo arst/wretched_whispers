@@ -332,6 +332,8 @@ Two things this turned up:
 
 Left of 3.7: `Combat-NonAttackAction-NoStrikeNarrated` and `Successor-Opening-NoCombat`.
 
+**3.5 needed no prompt change (24 November 2026).** Four evals on seeded dice, three samples each: a failed test that kills, a round that kills, and each of those leaving a known injury instead. All pass on the prompt as it stands; the two death evals were run to nine samples each and told the death in 18 of 18. The second run's two deaths told as survival are not reproduced: one was the round result without a `playerDead` field, fixed in Stage 1b; the other came many turns into a game where the character had been broken before, which a one-turn eval does not have. The third wave is the check for that one.
+
 If 3.6 does not hold through prompting, the code options are a single tool that charts a place and moves the party there, and time that advances by rule. Decide when the eval numbers are in.
 
 ---
