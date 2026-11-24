@@ -89,7 +89,7 @@ public class CampaignServiceTests : TestBase
         Task Act() => method switch
         {
             nameof(CampaignService.JoinCampaign) => _service.JoinCampaign(Guid.NewGuid(), Guid.NewGuid()),
-            nameof(CampaignService.ConfigureCampaign) => _service.ConfigureCampaign(Guid.NewGuid(), "Doom", "The end"),
+            nameof(CampaignService.ConfigureCampaign) => _service.ConfigureCampaign(Guid.NewGuid(), "Doom", "The end", PoiType.Town, "Galgenbeck"),
             nameof(CampaignService.AttachEncounter) => _service.AttachEncounter(Guid.NewGuid(), Guid.NewGuid()),
             nameof(CampaignService.EndCampaign) => _service.EndCampaign(Guid.NewGuid()),
             nameof(CampaignService.IsActive) => _service.IsActive(Guid.NewGuid()),
@@ -110,11 +110,57 @@ public class CampaignServiceTests : TestBase
         _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
         _charactersRepository.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
 
-        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end");
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end", PoiType.Town, "Galgenbeck");
         Assert.False(campaign.IsActive()); // configured but no player yet
 
         await _service.JoinCampaign(campaign.Id, character.Id);
         Assert.True(campaign.IsActive()); // both conditions met -> started
+    }
+
+    [Fact]
+    public async Task Configure_ChartsTheStartingPlaceAndPutsThePartyThere()
+    {
+        // Six of eleven simulated games never had a place on the sheet: the opening turn describes where
+        // the character wakes, and no tool offered on that turn could record it.
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end", PoiType.Ruin, "The Drowned Chapel");
+
+        var place = Assert.Single(campaign.Pois);
+        Assert.Equal(("The Drowned Chapel", PoiType.Ruin), (place.Name, place.Type));
+        Assert.Equal("The Drowned Chapel", campaign.CurrentLocationName);
+    }
+
+    [Fact]
+    public async Task TravelTo_MovesThePartyAndTheClock()
+    {
+        // Simulated play: arrivals moved the party on the sheet and left the clock where it was, and the
+        // doom of the world runs on that clock. A journey now carries its hours.
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        campaign.Configure("Doom", "The end", PoiType.Ruin, "The Drowned Chapel");
+        campaign.RecordPointOfInterest(PoiType.Town, "Galgenbeck", 50, 20, "The Drowned Chapel");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        var hourBefore = campaign.CurrentHour;
+
+        await _service.TravelTo(campaign.Id, "Galgenbeck", hours: 3);
+
+        Assert.Equal("Galgenbeck", campaign.CurrentLocationName);
+        Assert.Equal(hourBefore + 3, campaign.CurrentHour);
+    }
+
+    [Fact]
+    public async Task TravelTo_AnUnchartedPlace_PassesNoTime()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        campaign.Configure("Doom", "The end", PoiType.Ruin, "The Drowned Chapel");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        var hourBefore = campaign.CurrentHour;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.TravelTo(campaign.Id, "Nowhere", hours: 3));
+
+        Assert.Equal("The Drowned Chapel", campaign.CurrentLocationName);
+        Assert.Equal(hourBefore, campaign.CurrentHour);
     }
 
     [Fact]
@@ -128,7 +174,7 @@ public class CampaignServiceTests : TestBase
         await _service.JoinCampaign(campaign.Id, character.Id);
         Assert.False(campaign.IsActive()); // player joined, not configured yet
 
-        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end");
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end", PoiType.Town, "Galgenbeck");
         Assert.True(campaign.IsActive());
     }
 
@@ -192,6 +238,75 @@ public class CampaignServiceTests : TestBase
         Assert.Equal(5, campaign.CurrentHour);
         Assert.False(result.IsNewDawn);
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AdvanceTime_SaysWhatTheClockReadsAfterwards()
+    {
+        // Simulated play: 13 of 38 replies that stated the hour stated one the sheet did not have. The
+        // narrator saw the hour from before the turn and had to do the sum itself, across midnight too.
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
+
+        var result = await _service.AdvanceTime(Guid.NewGuid(), 27);
+
+        Assert.Equal((2, 3), (result.Day, result.Hour));
+        Assert.Equal((campaign.CurrentDay, campaign.CurrentHour), (result.Day, result.Hour));
+    }
+
+    // Simulated play: two 30-turn games advanced one hour and none. No single turn was at fault: a
+    // look, a question and a blow are each too small for an hour, and thirty of them are an afternoon.
+    // So quiet turns are counted, and every sixth one makes an hour due.
+
+    [Fact]
+    public async Task QuietTurns_TheSixthMakesAnHourDue()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        for (var turn = 1; turn <= 5; turn++)
+            await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 0));
+        Assert.Null(await _service.PassQuietHour(campaign.Id));
+
+        await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 0));
+        var slipped = await _service.PassQuietHour(campaign.Id);
+
+        Assert.NotNull(slipped);
+        Assert.Equal((1, 1), (slipped.Day, slipped.Hour));
+        Assert.Equal(1, campaign.CurrentHour);
+        Assert.Null(await _service.PassQuietHour(campaign.Id)); // and the count starts again
+    }
+
+    [Fact]
+    public async Task QuietTurns_PassingTimeStartsTheCountAgain()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        for (var turn = 1; turn <= 5; turn++)
+            await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 0));
+        await _service.AdvanceTime(campaign.Id, 2);
+        await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 2));
+
+        Assert.Null(await _service.PassQuietHour(campaign.Id));
+        Assert.Equal(2, campaign.CurrentHour);
+    }
+
+    [Fact]
+    public async Task QuietTurns_ATurnThatPassedTimeIsNotQuiet()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        for (var turn = 1; turn <= 6; turn++)
+        {
+            var hourAtStart = campaign.CurrentHour;
+            await _service.AdvanceTime(campaign.Id, 1);
+            await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, hourAtStart));
+        }
+
+        Assert.Null(await _service.PassQuietHour(campaign.Id));
+        Assert.Equal(6, campaign.CurrentHour);
     }
 
     [Fact]

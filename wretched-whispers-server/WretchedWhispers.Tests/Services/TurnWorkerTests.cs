@@ -479,8 +479,16 @@ public sealed class TurnWorkerTests : IDisposable
         services.AddSingleton<IUserContext>(new WorkerUserContext());
         services.AddSingleton(_chatHistory.Object);
         services.AddSingleton(Mock.Of<ITurnTraceRepository>());
+        // The coordinator counts quiet turns on the campaign; any campaign will do for these tests.
+        var campaigns = new Mock<Core.Campaigns.ICampaignsRepository>();
+        campaigns.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => Core.Campaigns.Campaign.Create(Core.Campaigns.Difficulty.Grim, "Test Campaign", "A test"));
+        var campaignService = new Core.Campaigns.CampaignService(
+            campaigns.Object, Mock.Of<Core.Characters.ICharactersRepository>(),
+            new Core.Dices.Dice(new SeededRandomService(1)));
         services.AddScoped(sp => new TurnCoordinator(
             contextLoader ?? Mock.Of<ISessionContextLoader>(),
+            campaignService,
             toolProvider.Object,
             _agentExecutor.Object,
             _chatHistory.Object,

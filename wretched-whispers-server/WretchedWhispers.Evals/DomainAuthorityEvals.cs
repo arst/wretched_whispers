@@ -527,7 +527,9 @@ public class DomainAuthorityEvals
                 "Combat has only just begun and NO attack has been resolved yet. The narration may describe the "
                 + "fight breaking out, the opponent, and the character's wind-up or intent. It must NOT state or "
                 + "imply the result of any attack: no blow landing or missing, no wound, damage, or death, for "
-                + "either side. It should leave the next move to the player.");
+                + "either side. It should leave the next move to the player. These are NOT results and pass: "
+                + "the weapon raised, hovering or ready; saying the first blow, strike or move belongs to the "
+                + "player; the enemy's hit points or how many wounds he can take.");
             if (passed != true) told.Add($"sample {sample}: {outcome.Narrative}");
         }
 
@@ -541,7 +543,8 @@ public class DomainAuthorityEvals
     /// <summary>
     /// Measured on gpt-5-mini: 2 to 3 of 6 before the Exploration rule "the blow the player declared has
     /// not been struck: the weapon is raised, not swinging", 0 of 6 with it. As one cached sample this
-    /// eval passed or failed on the draw.
+    /// eval passed or failed on the draw. The judge once failed two openings that held the blow ("the
+    /// staff hovers ... the first strike is yours"), so its criterion names what is not a result.
     /// </summary>
     private const int MaxCombatEntryOutcomesTold = 1;
 

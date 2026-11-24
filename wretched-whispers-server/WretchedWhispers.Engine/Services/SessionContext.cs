@@ -1,5 +1,6 @@
 using System.Text;
 using WretchedWhispers.Core.Campaigns;
+using WretchedWhispers.Core.Campaigns.Time;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
@@ -19,6 +20,11 @@ public sealed class SessionContext
     // Domain objects loaded at start of turn
     public Character? Character { get; set; }
     public Campaign? Campaign { get; set; }
+
+    /// <summary>Set for the one turn that opens an hour later than the last closed, by the rule that
+    /// quiet turns add up (<see cref="Campaign.QuietTurnsPerHour"/>). Game State says so, so the narrator
+    /// can tell the hour, and the dawn or misery it brought, as part of the story.</summary>
+    public AdvanceTimeOutcome? SlippedHour { get; set; }
     public Encounter? ActiveEncounter { get; set; }
 
     /// <summary>
@@ -166,6 +172,13 @@ public sealed class SessionContext
         {
             sb.AppendLine($"Campaign: {Campaign.Name}");
             sb.AppendLine($"  Day {Campaign.CurrentDay}, Hour {Campaign.CurrentHour}");
+            if (SlippedHour is { } slipped)
+                sb.AppendLine("  An hour has slipped by since time was last passed: small acts add up. The hour above "
+                    + "already counts it. Let the telling show it (the light, hunger, a bell)."
+                    + (slipped.IsNewDawn ? " A new dawn has broken." : "")
+                    + (slipped.Miseries.Count > 0
+                        ? $" With it a misery has come to pass, and it must be told: {string.Join(" ", slipped.Miseries)}"
+                        : ""));
             sb.AppendLine($"  Miseries: {Campaign.Miseries.Count}/7");
 
             // The journal and the map grow for as long as a campaign runs, and this snapshot is sent on

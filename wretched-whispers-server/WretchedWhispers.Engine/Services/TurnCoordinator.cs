@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Engine.Models;
 using WretchedWhispers.Infrastructure.Persistence;
 using WretchedWhispers.Infrastructure.Persistence.Entities;
@@ -29,6 +30,7 @@ namespace WretchedWhispers.Engine.Services;
 /// </summary>
 public sealed class TurnCoordinator(
     ISessionContextLoader contextLoader,
+    CampaignService campaignService,
     IAgentToolProvider toolProvider,
     IAgentExecutor agentExecutor,
     IChatHistoryRepository chatHistoryRepository,
@@ -177,10 +179,30 @@ public sealed class TurnCoordinator(
                 return;
             }
 
+            // The BEFORE side of the per-turn delta computed post-commit. Taken here, ahead of the hour
+            // that may slip by below, so the delta shows that hour to the player.
+            var preTurnState = StateUpdateMapper.Map(context);
+            var campaignId = context.Campaign.Id;
+
+            // Quiet turns add up: every sixth Exploration turn that passed no time makes an hour due, and
+            // it is passed here, before the narrator reads Game State, so it can be told.
+            // ponytail: one flat rate for every kind of turn, and a slipped hour can cross a dawn; if that
+            // dawn ends the world the turn is refused below with no last narration. Rate by what the turn
+            // did, and a narrated ending, if the pace or that ending proves wrong in play.
+            if (context.DeriveStage() == SessionStage.Exploration
+                && await campaignService.PassQuietHour(campaignId, ct) is { } slippedHour)
+            {
+                context = await contextLoader.LoadAsync(sessionId, ct);
+                context.SlippedHour = slippedHour;
+            }
+
             var currentStage = context.DeriveStage();
             stage = currentStage;
+            // What the model sees as INPUT for this turn, frozen before any tool mutates the loaded
+            // aggregates: the "why did the model do X" context for error analysis.
+            var seenByTheNarrator = StateUpdateMapper.Map(context);
             draft = new TraceDraft(sessionId, chatSessionId, currentStage, playerMessage, turnId, attempt,
-                JsonSerializer.Serialize(StateUpdateMapper.Map(context), TraceJson));
+                JsonSerializer.Serialize(seenByTheNarrator, TraceJson));
 
             // Domain is final: a dead character or an ended world accepts no further actions. Do NOT run the
             // narrator — with no tools it cannot mutate anything, but it could still fabricate a "revival" in
@@ -205,12 +227,6 @@ public sealed class TurnCoordinator(
             tools = tools.Select(AIFunction (t) => new ToolRunObserver(t, toolRan)).ToList();
             activity?.SetTag("session.stage", currentStage.ToString());
             activity?.SetTag("session.functions", string.Join(", ", registeredFunctions));
-
-            // Snapshot the state the model sees as INPUT for this turn, frozen before any tool mutates the
-            // loaded aggregates (StateUpdate is an immutable record over copied values). Serves two roles:
-            // the "why did the model do X" context for error analysis, and the BEFORE side of the per-turn
-            // delta computed post-commit.
-            var preTurnState = StateUpdateMapper.Map(context);
 
             var toolResults = draft.ToolResults;
             var fullResponse = draft.Narrative;
@@ -257,6 +273,10 @@ public sealed class TurnCoordinator(
                     "Empty agent response: no narrative and no tool calls", started);
                 return; // uow disposal rolls back
             }
+
+            if (currentStage == SessionStage.Exploration)
+                await campaignService.NoteTurnEnded(
+                    campaignId, (seenByTheNarrator.CurrentDay, seenByTheNarrator.CurrentHour), ct);
 
             // Saved AFTER the agent run: the executor reloads history from this same DbContext and
             // appends the player message itself, so persisting it first would double it in the

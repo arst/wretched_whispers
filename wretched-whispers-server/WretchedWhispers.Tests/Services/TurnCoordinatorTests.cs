@@ -41,9 +41,21 @@ public class TurnCoordinatorTests
             .ReturnsAsync(Mock.Of<IAsyncDisposable>());
     }
 
+    /// <summary>The coordinator counts quiet turns on the campaign; any campaign will do for these tests.</summary>
+    private static Core.Campaigns.CampaignService AnyCampaign()
+    {
+        var campaigns = new Mock<Core.Campaigns.ICampaignsRepository>();
+        campaigns.Setup(r => r.Get(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => Core.Campaigns.Campaign.Create(Core.Campaigns.Difficulty.Grim, "Test Campaign", "A test"));
+        return new Core.Campaigns.CampaignService(
+            campaigns.Object, Mock.Of<Core.Characters.ICharactersRepository>(),
+            new Core.Dices.Dice(new WretchedWhispers.Infrastructure.SeededRandomService(1)));
+    }
+
     private TurnCoordinator CreateCoordinator() =>
         new(
             _contextLoader.Object,
+            AnyCampaign(),
             _toolProvider.Object,
             _agentExecutor.Object,
             _chatHistoryRepo.Object,

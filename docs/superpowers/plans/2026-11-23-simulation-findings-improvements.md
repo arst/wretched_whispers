@@ -334,6 +334,17 @@ Left of 3.7: `Combat-NonAttackAction-NoStrikeNarrated` and `Successor-Opening-No
 
 **3.5 needed no prompt change (24 November 2026).** Four evals on seeded dice, three samples each: a failed test that kills, a round that kills, and each of those leaving a known injury instead. All pass on the prompt as it stands; the two death evals were run to nine samples each and told the death in 18 of 18. The second run's two deaths told as survival are not reproduced: one was the round result without a `playerDead` field, fixed in Stage 1b; the other came many turns into a game where the character had been broken before, which a one-turn eval does not have. The third wave is the check for that one.
 
+**3.6: the place and the journey are fixed in code; the slow clock is not (24 November 2026).** New suite `place-and-time`, six samples each.
+
+- **No place on the sheet** was a gap in the tools, not a habit of the narrator: the opening turn describes where the character wakes and no tool offered on that turn could record it. `ConfigureCampaign` now takes the starting place, charts it and puts the party there. 0 of 3 before, 6 of 6 now.
+- **Arrivals left the clock still** in 2 of 3. Saying so in the tool descriptions got 4 of 6. `SetPartyLocation` now takes the hours of the journey and passes them itself: 6 of 6.
+- **A stated hour the sheet did not have**: the result of passing time did not say what hour it had become, so the narrator did the sum. `AdvanceTime`, `Rest` and `SetPartyLocation` now return the day and hour.
+- **A search that takes time** passes an hour in 5 of 6 with a sharper Exploration rule (4 of 6 before).
+
+**The clock over a whole game: time by rule (decided 24 November 2026).** Two 30-turn games advanced one hour and none. That is not one action left untimed; it is thirty short ones (a look, a question, a blow) that are each too small for an hour and add up to an afternoon. No prompt rule reaches it, so the game counts: every sixth Exploration turn in a row that passed no time makes an hour due. It is passed at the start of the next Exploration turn, before the narrator reads Game State, and Game State says an hour has slipped by (and any dawn or misery it brought) so it can be told. Any time passed by a tool starts the count again. Combat turns are not counted.
+
+Known limits: one flat rate for every kind of turn; and a slipped hour can cross a dawn, which can end the world with the turn refused and no last narration. The third wave will show whether six is the right number.
+
 If 3.6 does not hold through prompting, the code options are a single tool that charts a place and moves the party there, and time that advances by rule. Decide when the eval numbers are in.
 
 ---

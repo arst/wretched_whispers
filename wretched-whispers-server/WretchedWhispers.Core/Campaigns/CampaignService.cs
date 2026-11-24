@@ -22,11 +22,12 @@ public class CampaignService(
                ?? throw new InvalidOperationException($"Campaign with {campaignId} doesn't exist.");
     }
 
-    public async Task<Campaign> ConfigureCampaign(Guid campaignId, string name, string description, CancellationToken ct = default)
+    public async Task<Campaign> ConfigureCampaign(Guid campaignId, string name, string description,
+        PoiType startingPlaceType, string startingPlaceName, CancellationToken ct = default)
     {
         var campaign = await GetRequiredCampaign(campaignId, ct);
 
-        campaign.Configure(name, description);
+        campaign.Configure(name, description, startingPlaceType, startingPlaceName);
         TryAutoStart(campaign);
         await campaignsRepository.SaveCampaign(campaign, ct);
         return campaign;
@@ -71,13 +72,15 @@ public class CampaignService(
         return campaign;
     }
 
-    public async Task<Campaign> SetPartyLocation(Guid campaignId, string name, CancellationToken ct = default)
+    /// <summary>Moves the party to a charted place and passes the hours the journey took. One step, so an
+    /// arrival cannot leave the clock where it was. An uncharted place throws before any time passes.</summary>
+    public async Task<AdvanceTimeOutcome> TravelTo(Guid campaignId, string name, int hours, CancellationToken ct = default)
     {
         var campaign = await GetRequiredCampaign(campaignId, ct);
 
         campaign.SetPartyLocation(name);
         await campaignsRepository.SaveCampaign(campaign, ct);
-        return campaign;
+        return await AdvanceTime(campaignId, hours, ct);
     }
 
     public async Task AttachEncounter(Guid campaignId, Guid encounterId, CancellationToken ct = default)
@@ -123,6 +126,24 @@ public class CampaignService(
         }
 
         return outcome;
+    }
+
+    /// <summary>Passes the hour that quiet turns have added up to. Null when none is due yet.</summary>
+    public async Task<AdvanceTimeOutcome?> PassQuietHour(Guid campaignId, CancellationToken ct = default)
+    {
+        var campaign = await GetRequiredCampaign(campaignId, ct);
+        return campaign.IsQuietHourDue ? await AdvanceTime(campaignId, 1, ct) : null;
+    }
+
+    /// <summary>Counts an Exploration turn as quiet when the clock reads what it read at the turn's start.
+    /// A turn that passed time is not counted: passing time starts the count again.</summary>
+    public async Task NoteTurnEnded(Guid campaignId, (int Day, int Hour) clockAtTurnStart, CancellationToken ct = default)
+    {
+        var campaign = await GetRequiredCampaign(campaignId, ct);
+        if ((campaign.CurrentDay, campaign.CurrentHour) != clockAtTurnStart) return;
+
+        campaign.NoteQuietTurn();
+        await campaignsRepository.SaveCampaign(campaign, ct);
     }
 
     public async Task<AdvanceTimeOutcome> AdvanceTimeWithRest(Guid campaignId, int hours, CancellationToken ct = default)

@@ -31,7 +31,8 @@ public static class StagePrompts
 
         Finish the setup in THIS turn -- do not interrogate the player with menus, and never ask for a name
         or a class, they have already chosen both. Call ConfigureCampaign with a doom-appropriate name and
-        description; the campaign begins automatically.
+        description, and with the place the tale opens in: decide where they wake before you call it, give
+        that place a name, and describe that same place below. The campaign begins automatically.
 
         Then open the tale. Paint the dying world in a few visceral lines, name who they are -- use their
         name and their class from Game State, and let the class colour the telling -- and reveal their
@@ -73,7 +74,11 @@ public static class StagePrompts
           one thing: it becomes a fight, and the first move in it is theirs.
         - StartEncounter only works when the encounter is Hostile. If a friendly or uncertain meeting collapses into
           violence — the player attacks first, talks fail, treachery — call TurnEncounterHostile first, then StartEncounter.
-        - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
+        - Time passes only when you pass it, and the doom of the world waits on it. A journey passes its hours
+          through SetPartyLocation. Anything else that takes a while -- searching a building, a long talk or
+          a haggle, keeping watch, working a lock, binding wounds -- costs at least an hour: call AdvanceTime
+          in that same turn. State the day and hour only as a time tool's result gives them, or as Game State
+          shows when no time has passed.
         - Before using an item/resource, verify it exists in Game State or can be obtained through an explicit
           action now; do not grant random gear.
         - When the player casts a scroll they possess, call CastScroll — it spends the scroll's use and returns

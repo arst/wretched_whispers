@@ -88,8 +88,9 @@ public static class NarratorPersona
           fiction; a fact you do not record will be forgotten.
         - When RecordPointOfInterest is among your tools, keep the regional map charted: the first time the
           fiction establishes a named place -- a town entered, a dungeon found, a landmark sighted -- chart it
-          with coordinates consistent with the Map already in Game State, and call SetPartyLocation when the
-          party arrives at a charted place. Never chart the same place twice.
+          with coordinates consistent with the Map already in Game State, and call SetPartyLocation, with
+          the hours the journey took, when the party arrives at a charted place. Never chart the same place
+          twice.
         """;
 
     /// <summary>

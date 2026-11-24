@@ -14,8 +14,9 @@ public sealed class Campaign
         bool isStarted = false, bool isEnded = false, bool isConfigured = false,
         List<JournalEntry>? journal = null, Difficulty difficulty = Difficulty.Grim,
         List<PointOfInterest>? pointsOfInterest = null, string? currentLocationName = null,
-        List<FallenCharacter>? fallen = null)
+        List<FallenCharacter>? fallen = null, int quietTurns = 0)
     {
+        QuietTurns = quietTurns;
         Id = id;
         Name = name;
         Description = description;
@@ -75,6 +76,18 @@ public sealed class Campaign
 
     [JsonIgnore] public IReadOnlyList<FallenCharacter> FallenCharacters => Fallen.AsReadOnly();
 
+    /// <summary>How many quiet turns make an hour. A look, a question and a blow are each too small to
+    /// pass time for, and thirty of them are an afternoon: simulated games of 30 turns advanced one hour
+    /// and none, and the doom of the world waits on the clock.</summary>
+    public const int QuietTurnsPerHour = 6;
+
+    /// <summary>Exploration turns in a row during which no time passed.</summary>
+    [JsonInclude] internal int QuietTurns { get; private set; }
+
+    [JsonIgnore] public bool IsQuietHourDue => QuietTurns >= QuietTurnsPerHour;
+
+    internal void NoteQuietTurn() => QuietTurns++;
+
     [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
     [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calendar.Miseries;
@@ -86,6 +99,7 @@ public sealed class Campaign
     internal AdvanceTimeOutcome AdvanceTime(int hours, Dice dice)
     {
         CurrentHour += hours;
+        QuietTurns = 0;
 
         if (CurrentHour >= 24)
         {
@@ -102,19 +116,25 @@ public sealed class Campaign
                 var triggered = Calendar.DawnRoll(DawnDice, dice);
                 if (triggered is not null) newMiseries.Add(triggered.Psalm);
             }
-            return new AdvanceTimeOutcome(newMiseries, Calendar.WorldEnded, true);
+            return new AdvanceTimeOutcome(newMiseries, Calendar.WorldEnded, true) { Day = CurrentDay, Hour = CurrentHour };
         }
 
         // No dawn crossed — no new misery, whatever the standing tally.
-        return new AdvanceTimeOutcome([], Calendar.WorldEnded, false);
+        return new AdvanceTimeOutcome([], Calendar.WorldEnded, false) { Day = CurrentDay, Hour = CurrentHour };
     }
 
-    public void Configure(string name, string description)
+    /// <summary>Names the campaign and puts its first place on the map, with the party in it. The opening
+    /// turn describes where the character wakes; without this the sheet had no place until the story
+    /// reached a second one, and in most games it never did.</summary>
+    public void Configure(string name, string description, PoiType startingPlaceType, string startingPlaceName)
     {
         if (IsStarted) throw new InvalidOperationException("Cannot configure a campaign that is already started.");
 
         Name = name;
         Description = description;
+        // The middle of the map: every later place is charted relative to it.
+        RecordPointOfInterest(startingPlaceType, startingPlaceName, 50, 50);
+        SetPartyLocation(startingPlaceName);
         IsConfigured = true;
     }
 

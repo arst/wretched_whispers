@@ -32,6 +32,32 @@ public class EvalTurnRunnerTests
     }
 
     [Fact]
+    public async Task SixQuietExplorationTurns_ThenAnHourSlipsBy_AndTheNarratorIsTold()
+    {
+        // The whole rule through the real coordinator: six turns in which nothing passes time, and the
+        // seventh opens an hour later, with Game State saying so.
+        static ChatResponse Says(string text) => new(new ChatMessage(ChatRole.Assistant, text));
+        var client = new ScriptedChatClient(Enumerable.Range(1, 7).Select(i => Says($"Ash falls. ({i})")).ToArray());
+        await using var host = await EvalHost.CreateExplorationAsync(client);
+        var ct = TestContext.Current.CancellationToken;
+
+        Task<int> HourAsync() => host.QueryAsync(async sp =>
+            (await sp.GetRequiredService<ISessionContextLoader>().LoadAsync(host.SessionId, ct)).Campaign!.CurrentHour);
+
+        for (var turn = 1; turn <= 6; turn++)
+            Assert.Null((await host.CreateTurnRunner().RunTurnAsync("I look around.", ct)).Error);
+        Assert.Equal(0, await HourAsync());
+        Assert.DoesNotContain("slipped by", client.Instructions[^1]);
+
+        var seventh = await host.CreateTurnRunner().RunTurnAsync("I look around.", ct);
+
+        Assert.Null(seventh.Error);
+        Assert.Equal(1, await HourAsync());
+        Assert.Contains("An hour has slipped by", client.Instructions[^1]);
+        Assert.Equal(1, seventh.Delta?.HoursElapsed);
+    }
+
+    [Fact]
     public async Task RunTurn_CapturesToolCallOrder_FromExecutorEvents()
     {
         // The scripted model: first call requests CreateCharacter, second call narrates the result.
