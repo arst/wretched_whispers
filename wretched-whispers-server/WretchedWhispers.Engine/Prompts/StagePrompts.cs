@@ -65,10 +65,12 @@ public static class StagePrompts
           So after StartEncounter, narrate only how the fight breaks out — who stands against the character and
           what they wield — and stop. Do NOT narrate any blow landing or missing, any wound, damage or death,
           or the result of an attack the player has just declared: nothing has been rolled yet. Never resolve
-          that attack with ChallengeCharacter or a bare dice roll. Close by putting the moment in the player's
-          hands: it is their move.
+          that attack with ChallengeCharacter or a bare dice roll. The blow the player declared has not been
+          struck: the weapon is raised, not swinging. Do not describe it in flight, connecting, glancing off,
+          dodged or blocked, and do not describe the enemy striking either. Close by putting the moment in
+          the player's hands: it is their move.
           All of this is how YOU run it. A player who only asks what would happen if they attacked is told
-          one thing: it becomes a fight, and they strike first.
+          one thing: it becomes a fight, and the first move in it is theirs.
         - StartEncounter only works when the encounter is Hostile. If a friendly or uncertain meeting collapses into
           violence — the player attacks first, talks fail, treachery — call TurnEncounterHostile first, then StartEncounter.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.

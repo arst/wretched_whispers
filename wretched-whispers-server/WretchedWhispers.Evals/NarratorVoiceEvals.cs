@@ -154,22 +154,37 @@ public class NarratorVoiceEvals
     /// <summary>Runs one sample of a turn; returns a description of the leak, or null when it is clean.</summary>
     private static async Task<string?> FindLeakAsync(Turn turn, int sample, CancellationToken ct)
     {
-        await using var scenario = await EvalScenario.StartAsync(
-            Suite, turn.Name, [new NarrativeCheckEvaluator()], sample: sample);
-        await using var host = await turn.CreateHost(scenario.ChatClient);
+        // A run with nothing cached makes dozens of model calls at once and now and then loses one: the
+        // turn comes back as an error, or the judge returns no verdict. That is the deployment, not the
+        // narrator, so a lost call is tried once more before the sample counts as failed.
+        for (var attempt = 1; ; attempt++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, turn.Name, [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await turn.CreateHost(scenario.ChatClient);
 
-        var outcome = await host.CreateTurnRunner().RunTurnAsync(turn.PlayerMessage, ct);
-        Assert.Null(outcome.Error);
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(turn.PlayerMessage, ct);
+            BooleanMetric? verdict = null;
+            if (outcome.Error is null)
+            {
+                EvaluationResult result = await scenario.Run.EvaluateAsync(
+                    messages: [], modelResponse: outcome.Response,
+                    additionalContext: [new NarrativeCheckContext(Criterion)], cancellationToken: ct);
+                result.TryGet(NarrativeCheckEvaluator.MetricName, out verdict);
+            }
 
-        var engineTerms = EngineTalk.Find(outcome.Narrative);
-        EvaluationResult result = await scenario.Run.EvaluateAsync(
-            messages: [], modelResponse: outcome.Response,
-            additionalContext: [new NarrativeCheckContext(Criterion)], cancellationToken: ct);
-        var judged = result.Get<BooleanMetric>(NarrativeCheckEvaluator.MetricName).Value;
+            if (verdict is null)
+            {
+                Assert.True(attempt < 2, $"{turn.Name} sample {sample}: the call was lost twice (turn error: "
+                    + $"{outcome.Error ?? "none"}; judge verdict: none).");
+                continue;
+            }
 
-        return engineTerms.Count == 0 && judged == true
-            ? null
-            : $"{turn.Name} sample {sample} — engine terms: [{string.Join(", ", engineTerms)}]; "
-              + $"judge: {(judged == true ? "pass" : "FAIL")}. Narrative: {outcome.Narrative}";
+            var engineTerms = EngineTalk.Find(outcome.Narrative);
+            return engineTerms.Count == 0 && verdict.Value == true
+                ? null
+                : $"{turn.Name} sample {sample} — engine terms: [{string.Join(", ", engineTerms)}]; "
+                  + $"judge: {(verdict.Value == true ? "pass" : "FAIL")}. Narrative: {outcome.Narrative}";
+        }
     }
 }

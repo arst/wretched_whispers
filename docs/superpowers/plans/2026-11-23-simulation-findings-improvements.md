@@ -325,12 +325,12 @@ Two things this turned up:
 - **Not fixed: the offered test.** About half the answers now say the moss adds nothing to the blow and then offer a test to "make it work", with what it would do left open. Four wordings did not stop it. The judge lets it pass, because nothing false is stated; the player who takes the test still gets nothing from the game. A code answer would be an item effect the game can apply (Task 16's neighbour), not another prompt pass.
 - **Prompt rules move each other.** Adding these two rules took the 3.1 question eval from 2 of 48 to 8 of 48. One line each in the Exploration and Combat prompts, where they describe starting a fight and answering a question during one, brought it back to 3 of 48. Every later item should re-measure the question eval at 48 samples, not only run it at its bar.
 
-**Found on the way, for 3.7:** `Exploration-CombatEntry-StopsAtStart` is one cached sample of a behaviour that varies. On fresh draws the opening narrates the player's declared swing in motion in 2 of 6 on `main` and 3 of 6 with the 3.1 prompt. It should become a rate with a bar when 3.7 is tuned.
+**The two single-sample evals that failed on their draw are fixed (24 November 2026).**
 
-**Two single-sample evals fail on their current draw (24 November 2026).** Both are one cached sample of something that varies, so a prompt change re-rolls them:
+- `Combat-Narration-Grounded` failed 1 of 6 draws: the narrator explained a dodge against 14 as "encumbrance" when it was the armor. Fixed in code: a test's outcome now says what moved its DR and by how much, and the round, flee and test results pass it on as `drBecause`. The Combat prompt points at it.
+- `Exploration-CombatEntry-StopsAtStart` (part of 3.7) is now six samples with a bar of 1. It told an outcome in 2 to 3 of 6; an Exploration rule ("the blow the player declared has not been struck: the weapon is raised, not swinging") brings it to 0 of 6. A second prompt example was echoed on the way: "they strike first", from a line added for 3.1, turned up in openings and was reworded.
 
-- `Exploration-CombatEntry-StopsAtStart`, as above: for 3.7.
-- `Combat-Narration-Grounded`: 1 of 6 draws. The narrator explained a dodge number of 14 as "encumbrance"; the round result gives the number and not its cause (here the armor), and the Combat prompt tells the narrator to name the cause. The fix is in code: the result should say why the number is above 12.
+Left of 3.7: `Combat-NonAttackAction-NoStrikeNarrated` and `Successor-Opening-NoCombat`.
 
 If 3.6 does not hold through prompting, the code options are a single tool that charts a place and moves the party there, and time that advances by rule. Decide when the eval numbers are in.
 
