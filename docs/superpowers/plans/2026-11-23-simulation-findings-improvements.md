@@ -351,9 +351,49 @@ If 3.6 does not hold through prompting, the code options are a single tool that 
 
 ## Stage 4: Confirm
 
-- [ ] A third wave, same personas, compared with the second run by prompt hash.
-- [ ] `simulation/findings/<date>-third-run.md` with the three runs side by side.
-- [ ] Anything still above its bar after tuning gets a code guard, not another prompt pass.
+- [x] A third wave, same personas, on `main` at `7bc80be` (24 November 2026).
+- [x] `simulation/findings/2026-11-24-third-run.md` with the three runs side by side.
+- [ ] Anything still above its bar after tuning gets a code guard, not another prompt pass: Stage 5.
+
+What held in play: planning text shown 9 turns to 0; tool names 20 turns to 3 and tool talk 43 to 9; every game has a place on the sheet (5 of 11 before); no game's clock stood still (the rule passed 22 hours, tools 104); injuries named 10 of 10; no silver on a demand from outside the story.
+
+---
+
+## Stage 5: what the third run sent back
+
+Ranked by what a player loses. Each is a code change unless marked.
+
+### Task 17: A death from a failed test cannot be read as "broken"
+
+4 of the 8 deaths from a failed test were told as "broken, not dead"; all 8 deaths in combat were told right. The result says `isDead: true` beside `currentHp: 0` and `isBroken: false`, and the eval passes 18 of 18, so the eval does not reproduce it.
+
+- [ ] The test result (and a rest's, and a cast's) leads with a verdict in words when the character dies or is broken, so there is one thing to read.
+- [ ] An eval that reproduces it: the death comes several turns into a game, not on the first.
+
+### Task 18: The reply cut keeps a reply's own single-line blocks
+
+7 of 9 cuts were right. The two wrong ones lost an opening's whole character sheet (1,474 characters) and most of a poem. A line that belongs to the reply is followed by another single line break; a second message's first paragraph is followed by a blank line or the end.
+
+- [ ] Cut only when the line after the break is followed by a blank line or nothing. Replay all three runs' replies through it before merging: the 9 here and the 32 of the first two.
+
+### Task 19: A found scroll can be cast, and food can be eaten
+
+- [ ] A tool that gives the character a scroll (name and school), so a scroll found or bought is one `CastScroll` knows. 9 casts failed and 2 turns errored on a scroll that was an item.
+- [ ] A way to spend food: either a tool, or `Rest` eating a day of food and saying so. Three turns failed on `UseItemFromCharacterInventory("Food: 4 days")`.
+
+### Task 20: Silver on the player's say-so, 100 at a time (design first)
+
+The cap turned 2,000 silver of declared windfalls into three grants of 100, each from a source the narrator invented on the spot. The prompt rule did not hold against a persistent player. A guard needs a rule for where silver can come from; that is Task 16's ground (what things are worth), so decide them together.
+
+### Task 21: The story told ahead of the sheet (prompt, with evals)
+
+Loot and a sale told as done with no tool called; items given away that stayed in the pack; an hour stated from memory, not from the sheet (11 of 55). Evals first, from this run's turns: `Exploration-FoundLoot-NeedsStateChange`, `Exploration-GivenAway-LeavesThePack`, and a stated-hour check several turns into a game.
+
+### Still open from Stage 3
+
+- 3.7: `Successor-Opening-NoCombat` (1 of 15 openings started a fight) and `Combat-NonAttackAction-NoStrikeNarrated`.
+- 3.8: chained actions and "undo". The multi-action player reports the first clause or two resolved and the rest dropped in silence, and an undone climb that rolled again and killed the character.
+- 3.9: reply length. The median reply to a short message fell from 984 to 853 characters without being aimed at.
 
 ---
 

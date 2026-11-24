@@ -17,7 +17,7 @@ are more coherent and more cooperative than people.
 | `analysis/analyze.py` | Measures failure modes across an export: counts per game, with examples. |
 | `analysis/verify_first_run.py` | The incident checks behind the first run's findings. |
 | `findings/` | What each run turned up, ranked. |
-| `runs/` | Git-ignored. Session cookies, `manifest.jsonl` (which persona played which session), the server log and the exports. |
+| `runs/` | Git-ignored. Session cookies, `manifest.jsonl` (which persona played which session), the server log and the exports. Earlier waves are kept in `runs/first-run/` and `runs/second-run/`, each with a database dump; point `WW_TURNS` at their `export/turns.jsonl` to analyse them. |
 | `../.claude/agents/ww-player.md` | The player agent itself. Claude Code only loads agents from that folder, so it lives there. |
 
 ## Running a wave
@@ -60,8 +60,9 @@ model, per-request token usage, and the ordered list of what the player was show
 - **A player's report is a lead, not a finding.** In the first run several reports were wrong about
   what happened. Check each against the traces before acting on it.
 - **The exports hold every message and the full prompts.** `runs/` is git-ignored; keep it that way.
-- **Starting clean.** Games accumulate in the `ww-sim-pg` volume across waves. To start over:
-  `docker rm -f ww-sim-pg && docker volume rm ww-sim-pg`, and delete `runs/`.
+- **Starting clean.** Games accumulate in the `ww-sim-pg` volume across waves. To start over, first
+  keep the last wave: `docker exec ww-sim-pg pg_dump -U postgres ww | gzip > runs/<name>/ww.sql.gz` and
+  move the export, log, manifest and cookies beside it. Then `docker rm -f ww-sim-pg && docker volume rm ww-sim-pg`.
 - **`promptHash` identifies the prompt version.** It covers the instructions without the game state,
   so turns in the same stage, difficulty and class share a hash until the prompt text changes. Use it
   to compare runs before and after a prompt change. Traces from the first run (23 November 2026)
