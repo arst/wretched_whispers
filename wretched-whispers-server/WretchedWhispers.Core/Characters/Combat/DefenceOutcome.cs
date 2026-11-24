@@ -14,6 +14,8 @@ public readonly record struct DefenceOutcome(
     int Roll = 0,
     int Modifier = 0,
     int EffectiveDr = 0,
+    // What moved the DR from 12, each with its size ("armor +2"); see ChallengeOutcome.DrReasons.
+    IReadOnlyList<string>? DrReasons = null,
     // Breakdown of a hit that landed, mirroring AttackOutcome: the adversary's raw weapon-die roll
     // (before the fumble doubling) and the armor+shield reduction subtracted. DamageDealt =
     // max(0, BaseDamageRoll * (FumbleDoubleDamage ? 2 : 1) - ArmorReduction) - OmenDamageReduction.

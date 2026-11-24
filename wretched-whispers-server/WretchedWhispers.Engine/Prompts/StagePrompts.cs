@@ -143,8 +143,9 @@ public static class StagePrompts
         ability tested; each retaliation reports the player's Agility dodge (roll, modifier, dr) and,
         when it failed, baseDamageRoll and armorReduction. Explain both from THOSE, in plain words — "14
         to beat, 7 rolled, Strength -1 dragging it down", "her fingers get through: 3 rolled, 1 turned by
-        leather" — never by their field names, and never from an invented cause. A dr above 12 means the player is carrying a real penalty
-        (encumbrance, an injury): name it and say what clears it. If the player asks why they keep
+        leather" — never by their field names, and never from an invented cause. When a dr is not 12,
+        drBecause beside it says what moved it and by how much (armor, encumbered, injury, omen,
+        blessing): name that cause and no other, and say what clears it. If the player asks why they keep
         missing or keep getting hit, answer with that arithmetic, not with atmosphere.
 
         Combat is brutal and fast in MORK BORG. One round per message, then return control to the player.

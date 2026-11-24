@@ -4,8 +4,10 @@ namespace WretchedWhispers.Core.Characters.Challenge;
 
 public class ChallengeOutcome
 {
-    private ChallengeOutcome(bool isSuccess, Natural natural, int roll, int modifier, int effectiveDr)
+    private ChallengeOutcome(bool isSuccess, Natural natural, int roll, int modifier, int effectiveDr,
+        IReadOnlyList<string> drReasons)
     {
+        DrReasons = drReasons;
         IsSuccess = isSuccess;
         Natural = natural;
         Roll = roll;
@@ -22,9 +24,15 @@ public class ChallengeOutcome
     /// <summary>DR after encumbrance/injury adjustments — what the total was compared against.</summary>
     public int EffectiveDr { get; }
 
-    public static ChallengeOutcome Success(Natural natural, int roll, int modifier, int effectiveDr) =>
-        new(true, natural, roll, modifier, effectiveDr);
+    /// <summary>What moved the DR from the one asked for, each with its size: "armor +2", "omen -4".
+    /// Empty when nothing did.</summary>
+    public IReadOnlyList<string> DrReasons { get; }
 
-    public static ChallengeOutcome Fail(Natural natural, int roll, int modifier, int effectiveDr) =>
-        new(false, natural, roll, modifier, effectiveDr);
+    public static ChallengeOutcome Success(Natural natural, int roll, int modifier, int effectiveDr,
+        IReadOnlyList<string> drReasons) =>
+        new(true, natural, roll, modifier, effectiveDr, drReasons);
+
+    public static ChallengeOutcome Fail(Natural natural, int roll, int modifier, int effectiveDr,
+        IReadOnlyList<string> drReasons) =>
+        new(false, natural, roll, modifier, effectiveDr, drReasons);
 }

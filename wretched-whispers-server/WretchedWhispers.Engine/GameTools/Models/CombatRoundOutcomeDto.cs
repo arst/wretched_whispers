@@ -8,9 +8,12 @@ public sealed record PlayerAttackDto(
     bool WeaponBroken, bool TargetArmorDegraded, int BaseDamageRoll, int DamageReduction,
     // The to-hit test, so the narrator explains a miss from the real numbers instead of inventing a
     // reason. Roll + Modifier vs Dr; Dr already includes encumbrance and injury penalties.
-    int Roll, int Modifier, int Dr, string Ability);
+    int Roll, int Modifier, int Dr, string Ability,
+    // Why Dr is not 12, each cause with its size ("encumbered +2, injury +2"); null when it is 12.
+    // Without it a narrator told to explain the number guessed the cause.
+    string? DrBecause = null);
 
-public sealed record FleeAttemptDto(bool Success, int Roll, int Modifier, int Dr);
+public sealed record FleeAttemptDto(bool Success, int Roll, int Modifier, int Dr, string? DrBecause = null);
 
 public sealed record RetaliationDto(
     string AdversaryName, int DamageDealt, bool Avoided, bool CriticalFreeAttack, bool FumbleDoubleDamage,
@@ -19,7 +22,9 @@ public sealed record RetaliationDto(
     // taken is explained from the numbers. Dr already includes armor, encumbrance and injuries.
     int Roll = 0, int Modifier = 0, int Dr = 0, int BaseDamageRoll = 0, int ArmorReduction = 0,
     // The injury this hit gave when it broke the player, in Game State's words ("lost eye").
-    string? Injury = null);
+    string? Injury = null,
+    // Why Dr is not 12 ("armor +2"); null when it is 12.
+    string? DrBecause = null);
 
 public sealed record CombatRoundOutcomeDto(
     PlayerAttackDto? PlayerAttack,
@@ -40,20 +45,26 @@ public sealed record CombatRoundOutcomeDto(
         outcome.PlayerAttack is { } attack && outcome.PlayerAttackTarget is { } target
             ? new PlayerAttackDto(target, attack.Hit, attack.Damage.Amount, attack.Critical, attack.Fumble,
                 attack.WeaponBroken, attack.TargetArmorDegraded, attack.BaseDamageRoll, attack.DamageReduction,
-                attack.Roll, attack.Modifier, attack.EffectiveDr, attack.Ability.ToString())
+                attack.Roll, attack.Modifier, attack.EffectiveDr, attack.Ability.ToString(),
+                Because(attack.DrReasons))
             : null,
         outcome.FleeAttempt is { } flee
-            ? new FleeAttemptDto(flee.IsSuccess, flee.Roll, flee.Modifier, flee.EffectiveDr)
+            ? new FleeAttemptDto(flee.IsSuccess, flee.Roll, flee.Modifier, flee.EffectiveDr,
+                Because(flee.DrReasons))
             : null,
         outcome.Retaliations
             .Select(r => new RetaliationDto(r.AdversaryName, r.Outcome.DamageDealt, r.Outcome.Avoided,
                 r.Outcome.CriticalFreeAttack, r.Outcome.FumbleDoubleDamage, r.Outcome.OmenDamageReduction,
                 r.Outcome.Roll, r.Outcome.Modifier, r.Outcome.EffectiveDr,
-                r.Outcome.BaseDamageRoll, r.Outcome.ArmorReduction, r.Outcome.Injury?.DisplayName()))
+                r.Outcome.BaseDamageRoll, r.Outcome.ArmorReduction, r.Outcome.Injury?.DisplayName(),
+                Because(r.Outcome.DrReasons)))
             .ToList(),
         outcome.AdversariesFledThisRound,
         outcome.EncounterEnded,
         outcome.EndReason.ToString(),
         outcome.PlayerCurrentHp,
         outcome.PlayerBroken);
+
+    internal static string? Because(IReadOnlyList<string>? drReasons) =>
+        drReasons is { Count: > 0 } ? string.Join(", ", drReasons) : null;
 }
