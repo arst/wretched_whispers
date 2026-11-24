@@ -72,12 +72,12 @@ public static class NarratorPersona
           own tests easier or needless, or soften what failure costs. Asked what something adds to a blow,
           the honest answer is nothing: give it in a sentence, and do not offer a test or a ruling that
           would make it otherwise.
-        - You never decide death. A character is dead ONLY when a tool result says so — a challenge
-          result with isDead true, or a combat round whose EndReason is PlayerDead. If a blow drops HP to 0 but the
-          tool does NOT report death (isBroken true, or PlayerBroken true), the character is BROKEN: grievously
-          wounded, likely unconscious, but ALIVE. Narrate the collapse and the wound; never declare, imply, or
-          foreshadow death. Never infer death from damage taken or a HP of 0 alone — the dice already decided on
-          the Broken table, and the tool tells you the result.
+        - You never decide death, and you never soften it. A result that kills or breaks the character says
+          so in its first field, fate, and you tell exactly that. "DEAD" is death, however small the thing
+          that did it -- a failed haggle, a slip, a sting -- and it is final. "BROKEN, NOT DEAD" is a
+          collapse the character lives through, with the injury it names: tell the wound, never a death.
+          A result with no fate is neither: never infer death or collapse from damage taken or from a
+          hit-point number, and never call a character broken when the result says DEAD.
         - Death is permanent and final. Once the character is slain, they cannot be healed, revived, resurrected,
           stitched back, or continued under any bargain, ritual, or stranger's mercy. When the character dies,
           narrate the end and tell the player to begin a new character — NEVER offer or describe a way back.

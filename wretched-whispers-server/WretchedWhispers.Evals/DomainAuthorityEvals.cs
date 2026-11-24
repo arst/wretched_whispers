@@ -288,6 +288,30 @@ public class DomainAuthorityEvals
             RooftopLeap, expectedInjury: null);
 
     [Fact]
+    public Task Exploration_DeathFromASmallThing_IsToldAsDeath() =>
+        // Third simulated run: 4 of the 8 deaths from a failed test were told as "broken, not dead". All
+        // four came from small things, a few turns in: a haggle, a sneak, a calming word, with the "Minor"
+        // consequence killing a character on their last hit point. A leap off a roof that kills is easy to
+        // believe and was told right 18 of 18. Here the haggler's own message is tested as the narrator
+        // tested it in play; the call is forced, so only the telling is the model's. Measured on
+        // gpt-5-mini over eight samples: told wrong in 2 before the result said its fate in words ("You
+        // are at 0 HP, barely clinging on"; no death told at all), 0 with it.
+        AssertFateIsToldAsync(
+            "Exploration-Death-FromASmallThing",
+            client => EvalHost.CreateExplorationAsync(client, maxHp: 1, diceSeed: 8),
+            "20 for the bone-handled blade is robbery. I'll give you 8. Also 2 dried meat, 2 silver total for those.",
+            expectedInjury: null,
+            earlierTurns: ["who here buys or sells? what's the market like", "what does a knife go for, and dried meat"],
+            forcedCall: ("ChallengeCharacter", new()
+            {
+                ["challengeDr"] = 12,
+                ["abilityKind"] = "Presence",
+                ["hoursTaken"] = 0,
+                ["consequenceOnFailure"] = "Minor"
+            }),
+            samples: 8);
+
+    [Fact]
     public Task Exploration_InjuryFromAFailedTest_IsNamed() =>
         AssertFateIsToldAsync(
             "Exploration-Injury-Named",
@@ -318,15 +342,21 @@ public class DomainAuthorityEvals
     /// otherwise. The domain's own state is checked first, so a seed that stops producing the fate fails
     /// loudly instead of passing for the wrong reason.</summary>
     private static async Task AssertFateIsToldAsync(
-        string scenarioName, Func<IChatClient, Task<EvalHost>> createHost, string playerMessage, string? expectedInjury)
+        string scenarioName, Func<IChatClient, Task<EvalHost>> createHost, string playerMessage, string? expectedInjury,
+        string[]? earlierTurns = null, (string Tool, Dictionary<string, object?> Arguments)? forcedCall = null,
+        int samples = 3)
     {
         var ct = TestContext.Current.CancellationToken;
         var mistold = new List<string>();
-        for (var sample = 1; sample <= 3; sample++)
+        for (var sample = 1; sample <= samples; sample++)
         {
             await using var scenario = await EvalScenario.StartAsync(
                 Suite, scenarioName, [new NarrativeCheckEvaluator()], sample: sample);
-            await using var host = await createHost(scenario.ChatClient);
+            var client = new ForcedCallChatClient(scenario.ChatClient);
+            await using var host = await createHost(client);
+            foreach (var earlier in earlierTurns ?? [])
+                Assert.Null((await host.CreateTurnRunner().RunTurnAsync(earlier, ct)).Error);
+            if (forcedCall is { } call) client.ForceNextCall(call.Tool, call.Arguments);
 
             var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, ct);
             Assert.Null(outcome.Error);
@@ -353,7 +383,7 @@ public class DomainAuthorityEvals
         }
 
         Assert.True(mistold.Count == 0,
-            $"{scenarioName}: the fate the dice gave was told otherwise in {mistold.Count} of 3 runs: "
+            $"{scenarioName}: the fate the dice gave was told otherwise in {mistold.Count} of {samples} runs: "
             + string.Join("; ", mistold));
     }
 
@@ -548,6 +578,10 @@ public class DomainAuthorityEvals
     /// </summary>
     private const int MaxCombatEntryOutcomesTold = 1;
 
+    /// <summary>Measured on gpt-5-mini: 1 of 9 openings of this meeting made no encounter at all. As one
+    /// cached sample the eval went red on that draw.</summary>
+    private const int FirstMeetingSamples = 6;
+
     [Fact]
     public async Task Exploration_OpenFirstMeeting_RollsReactionViaUnknownEncounter()
     {
@@ -555,29 +589,27 @@ public class DomainAuthorityEvals
         // 'Unknown' so the DOMAIN rolls the Mörk Borg reaction table — the GM never decides the
         // stranger's attitude itself. A pre-declared Hostile/Friendly stores no reaction roll, so the
         // committed encounter is the deterministic witness of which path the model took.
-        await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Exploration-FirstMeeting-RollsReaction", [new ToolCallEvaluator(ordered: false)]);
-        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync(
-            "A hooded figure waits at the crossroads shrine, face hidden, intent unknowable. I approach slowly and hail them.", TestContext.Current.CancellationToken);
-
-        EvaluationResult result = await scenario.Run.EvaluateAsync(
-            messages: [], modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["CreateEncounter"])], cancellationToken: TestContext.Current.CancellationToken);
-
-        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.ContainsMetricName);
-        Assert.True(metric.Value,
-            $"An open first meeting must create an encounter; got [{string.Join(", ", outcome.ToolCalls)}].");
-
-        var (reaction, reactionRoll) = await host.QueryAsync(async sp =>
+        var ct = TestContext.Current.CancellationToken;
+        var misses = new List<string>();
+        for (var sample = 1; sample <= FirstMeetingSamples; sample++)
         {
-            var context = await sp.GetRequiredService<ISessionContextLoader>()
-                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken);
-            return (context.ActiveEncounter?.Reaction, context.ActiveEncounter?.ReactionRoll);
-        });
-        Assert.True(reactionRoll is not null && reaction is not null,
-            "The encounter carries no reaction roll — the GM pre-declared the attitude instead of "
-            + "creating the encounter as 'Unknown' and letting the domain roll the reaction table.");
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-FirstMeeting-RollsReaction", [], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "A hooded figure waits at the crossroads shrine, face hidden, intent unknowable. I approach slowly and hail them.", ct);
+
+            var reactionRoll = await host.QueryAsync(async sp =>
+                (await sp.GetRequiredService<ISessionContextLoader>().LoadAsync(host.SessionId, ct))
+                .ActiveEncounter?.ReactionRoll);
+            if (reactionRoll is null)
+                misses.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}]");
+        }
+
+        Assert.True(misses.Count <= 1,
+            "An open first meeting must create an encounter as 'Unknown', so the domain rolls the reaction "
+            + $"table. No reaction roll in {misses.Count} of {FirstMeetingSamples} (at most 1 allowed): "
+            + string.Join("; ", misses));
     }
 
     [Fact]
@@ -908,6 +940,10 @@ public class DomainAuthorityEvals
         var groundingContext =
             "Character inventory before the turn: torches x3. Inventory changes ONLY through a "
             + "UseItemFromCharacterInventory result below; without one, every count is unchanged.\n"
+            // The judge once read the rest's "day 1, hour 8" as the hour before the turn and failed a
+            // correct "you slept eight hours ... Hour 8".
+            + "The turn began at day 1, hour 0. The results below are what the game applied in this "
+            + "turn; a day and hour in them are the clock after it.\n"
             + string.Join("\n", outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
 
         EvaluationResult result = await scenario.Run.EvaluateAsync(

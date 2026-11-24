@@ -183,7 +183,7 @@ public class AgentToolProviderTests
         foreach (var (name, args) in new (string, object)[]
                  {
                      ("Roll", new { diceExpression = "d20" }),
-                     ("ChallengeCharacter", new { challengeDr = 12, abilityKind = "Strength" }),
+                     ("ChallengeCharacter", new { challengeDr = 12, abilityKind = "Strength", hoursTaken = 0 }),
                      ("AdvanceTime", new { hours = 1 }),
                  })
         {

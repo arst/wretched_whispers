@@ -28,6 +28,7 @@ public sealed partial class CharacterTools(
     ICharactersRepository charactersRepository,
     CharacterService characterService,
     EncounterService encounterService,
+    CampaignService campaignService,
     SessionContext sessionContext)
 {
     // The flag only labels the item. The healing is rolled and applied by the domain when it is used.
@@ -42,19 +43,22 @@ public sealed partial class CharacterTools(
     // create-session and successor forms, and everything else is rolled by CharacterCreationService, so a
     // character always exists before the narrator's first turn. See SessionEndpoints.CreateSession.
 
-    [Description("Challenge the character with an ability test against a difficulty rating. On failure, the chosen consequence is applied automatically as rolled damage.")]
+    [Description("Challenge the character with an ability test against a difficulty rating. On failure, the chosen consequence is applied automatically as rolled damage. The attempt takes the hours you give, and timePassed in the result says what the clock reads after.")]
     [GameTool(SessionStage.Exploration)]
     public async Task<ChallengeOutcomeDto> ChallengeCharacter(
         [Description("Level of the challenge, the higher the number the harder. Usually 12 for normal.")]
         int challengeDr,
         [Description("Ability kind to use: 'Strength', 'Agility', 'Presence', 'Toughness'.")]
         AbilityKind abilityKind,
+        [Description("Hours the attempt takes, pass or fail, and the clock moves by them: 0 for a moment's work (a leap, a lie, a shove), 1 or more for anything longer (a search, a climb, a lock, a long haggle). Do not also call AdvanceTime for the same hours.")]
+        int hoursTaken,
         [Description("What failure costs, chosen like a GM: 'None' (no harm), 'Minor' (scrapes), 'Serious' (a real wound), 'Deadly' (can kill). Follow the difficulty guidance in your instructions when choosing.")]
         ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None,
         [Description("Spend one omen to lower this test's DR by 4 - COSTS one of the player's omens (see Omens in Game State). Fails if no omens remain. Only use when the player asks to spend an omen, or at a truly dramatic moment.")]
         bool spendOmenToLowerDr = false)
     {
         ToolGuard.InRange(challengeDr, 2, 20, nameof(challengeDr), "12 is a normal challenge");
+        ToolGuard.InRange(hoursTaken, 0, 24, nameof(hoursTaken), "0 for a moment's work, 1 for a search");
         var settings = DifficultyPresets.For(sessionContext.Campaign?.Difficulty ?? Difficulty.Grim);
         var result = await characterService.ChallengePlayer(
             RequireCharacterId(), new Dr(challengeDr), abilityKind, settings, consequenceOnFailure,
@@ -64,7 +68,12 @@ public sealed partial class CharacterTools(
             result.Outcome.Roll + result.Outcome.Modifier,
             result.Outcome.EffectiveDr, result.DamageTaken, result.IsDead, result.CurrentHp,
             result.NewInjury?.DisplayName(),
-            CombatRoundOutcomeDto.Because(result.Outcome.DrReasons));
+            CombatRoundOutcomeDto.Because(result.Outcome.DrReasons),
+            // The dead have no more hours. In play a test was rolled for a room-by-room search and the
+            // clock stood still about half the time: the narrator had to remember a second call.
+            hoursTaken > 0 && !result.IsDead && sessionContext.CampaignId is { } campaignId
+                ? TimePassedDto.From(await campaignService.AdvanceTime(campaignId, hoursTaken))
+                : null);
     }
 
     [Description("MORK BORG 'Getting Better': the post-adventure improvement ritual and the ONLY leveling mechanic. Call ONLY when the fiction concludes a genuine adventure or scenario -- a quest completed, a dungeon survived, a nemesis dead -- never after a routine fight. Requires a full night's rest since the last ritual (fails otherwise). Everything is rolled for you: 6d10 vs max HP (max grows by d6 on success) and a d6 against each ability (improve, or on harder difficulties worsen). Narrate the returned result.")]

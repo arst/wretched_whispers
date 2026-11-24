@@ -367,14 +367,20 @@ Ranked by what a player loses. Each is a code change unless marked.
 
 4 of the 8 deaths from a failed test were told as "broken, not dead"; all 8 deaths in combat were told right. The result says `isDead: true` beside `currentHp: 0` and `isBroken: false`, and the eval passes 18 of 18, so the eval does not reproduce it.
 
-- [ ] The test result (and a rest's, and a cast's) leads with a verdict in words when the character dies or is broken, so there is one thing to read.
-- [ ] An eval that reproduces it: the death comes several turns into a game, not on the first.
+- [x] The results of a test, a round, a cast and a rest lead with `fate` when the character dies or is broken: "DEAD. This killed the character, however small the cause…" or "BROKEN, NOT DEAD… with this injury". The persona's death rule is rewritten around it.
+- [x] An eval that reproduces it. What play had and the first eval lacked was not the turns before but the smallness of the cause: a leap off a roof that kills is told right 18 of 18, a failed haggle that kills is told wrong 2 of 8 ("You are at 0 HP, barely clinging on"). The narrator cannot be relied on to pick a harmful consequence for a haggle, so the eval forces that call. With `fate`: 0 of 8.
 
 ### Task 18: The reply cut keeps a reply's own single-line blocks
 
 7 of 9 cuts were right. The two wrong ones lost an opening's whole character sheet (1,474 characters) and most of a poem. A line that belongs to the reply is followed by another single line break; a second message's first paragraph is followed by a blank line or the end.
 
-- [ ] Cut only when the line after the break is followed by a blank line or nothing. Replay all three runs' replies through it before merging: the 9 here and the 32 of the first two.
+- [x] The rule, in order: a question hands the moment over, so what follows it on one line break is a second message; so is a line that talks about the conversation; a line inside a block the reply set one line at a time is the reply's own; otherwise a second message's first paragraph is followed by a blank line or nothing. Replayed over all three runs: 39 cuts in 874 replies, each read and each a second message; the four wrong cuts of the old rule (two poems, an opening's sheet, a stanza) are kept.
+- Known limits, in the code: a two-line block ending a reply on a statement is cut after its first line; a second message set one line at a time after a statement is shown.
+
+### Found while running the suite for Tasks 17 and 18: two evals that passed on the draw
+
+- [x] `Exploration-Travel-AdvancesTime` (plan item 3.6) had its bar set from six samples, 5 of 6. Twelve more on the same prompt gave 4 of 12: whenever the narrator rolled a test for the search it passed no time, because that needed a second call. `ChallengeCharacter` now takes `hoursTaken` and moves the clock itself; `timePassed` in the result gives the day and hour. 12 of 12 searches move the clock, and 9 of 9 quick tests (a leap, a lie, a shove) leave it alone.
+- [x] `Exploration-FirstMeeting-RollsReaction` was one cached sample and made no encounter on its draw; 8 more all did. It is now six samples with one miss allowed.
 
 ### Task 19: A found scroll can be cast, and food can be eaten
 

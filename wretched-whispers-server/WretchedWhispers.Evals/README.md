@@ -63,7 +63,7 @@ Suite `place-and-time` (`PlaceAndTimeEvals.cs`), six samples each, read from the
 
 - **Opening-StartingPlace-OnTheSheet** — the opening turn puts the place the tale opens in on the map, with the party there. Held by the tool: `ConfigureCampaign` takes the starting place. 0 of 3 before, 6 of 6 now.
 - **Exploration-Arrival-SetsLocation** — an arrival by road moves the party on the sheet and moves the clock, and any hour the reply states is the hour on the sheet. Held by the tool: `SetPartyLocation` takes the hours of the journey. The clock moved in 1 of 3 before, 6 of 6 now. At most 1 miss of 6.
-- **Exploration-Travel-AdvancesTime** — a room-by-room search passes at least an hour. This one is the narrator's choice: 4 of 6 before the Exploration rule on time, 5 of 6 with it. At most 1 miss of 6.
+- **Exploration-Travel-AdvancesTime** — a room-by-room search passes at least an hour. Measured 5 of 6 at first, but 4 of 12 on more samples: a test rolled for the search left the clock still. 12 of 12 since `ChallengeCharacter` takes the hours the attempt takes. At most 1 miss of 6.
 
 The clock over many turns is a rule in code, not an eval: every sixth Exploration turn in a row that passed no time makes an hour pass (`Campaign.QuietTurnsPerHour`). `EvalTurnRunnerTests` runs seven scripted turns through the real coordinator to check it.
 
@@ -77,6 +77,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Exploration-FailedTest-ToldAsFailure** — the player's message narrates a risky feat as already done ("the grate tears free"). The narrator must test it, and with the dice seeded to fail must tell it as a failure. A run that rolls nothing and accepts the player's account fails too. Three samples.
 - **Exploration-NoInventedMechanics** — the player poisons their weapon and asks what it adds. The narration must not state a game effect the game cannot apply: no bonus die, no damage over time, no saving roll for the enemy (LLM judge). A rate: at most 1 of 3 samples. 3 of 3 before the persona's "Invent no rules" rule, 1 of 6 with it. Not checked: an offer of a test to "make it work" with the effect left open, which about half the answers still make.
 - **Exploration-Death-ToldAsDeath**, **Combat-Death-ToldAsDeath** — the dice are seeded so the first failed test, or the first round, kills. The narration must say the character is dead and must not ask what they do next (LLM judge); the domain's own state is checked first. Three samples each.
+- **Exploration-Death-FromASmallThing** — the death that play got wrong: a failed haggle, two turns in, kills a character on their last hit point. The test call is forced (`ForcedCallChatClient`), so the narrator cannot choose a harmless consequence and only the telling is the model's. Eight samples. Told wrong in 2 of 8 before the result said its fate in words, 0 of 8 with it.
 - **Exploration-Injury-Named**, **Combat-Injury-Named** — seeded so the character is struck down and survives with a known injury (smashed face, severed arm). The narration must tell that injury and not a death. Three samples each.
 - **Exploration-ClaimedLoot-NeedsStateChange** — taking an item either really changes the inventory (the turn delta shows it) or is not narrated as taken (LLM judge when the delta shows no item).
 - **Combat-DoubleAction-OneRound** — a player message describing two attacks is still one round: exactly one `ResolveCombatRound` call (code also rejects a second call in the same turn).
@@ -103,7 +104,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Exploration-CombatEntry-OrderedChain** — violence erupting must run `CreateEncounter -> AddAdversaryToEncounter -> StartEncounter`, in order.
 - **Exploration-SecondRest-StillCallsRest** — *multi-turn*: resting on a second night, with the first night's prose in the history, must still call `Rest` and advance time (the turn ledger shows the model that the first night ran the tool).
 - **Exploration-CombatEntry-StopsAtStart** — an attack that starts combat ends the turn at `StartEncounter`: no ability test or bare roll stands in for the attack, the stage is Combat with nothing resolved, and the narration (LLM judge) states no attack result and leaves the move to the player. Six samples. The tool calls and the state are checked on each; the narration is a rate, at most 1 of 6 telling an outcome (2 to 3 of 6 before the rule that the declared blow is not yet struck, 0 of 6 with it).
-- **Exploration-FirstMeeting-RollsReaction** — an open-attitude first meeting must create the encounter as `Unknown` so the domain rolls the reaction table.
+- **Exploration-FirstMeeting-RollsReaction** — an open-attitude first meeting must create the encounter as `Unknown` so the domain rolls the reaction table. Six samples, at most 1 miss (1 of 9 made no encounter).
 - **Resolution-Loot-AddsItem** — Resolution-stage loot must go through `AddItemToCharacterInventory`.
 - **Resolution-MovingOn-Completes** — leaving the aftermath must call `CompleteResolution`, and the derived stage must be Exploration afterwards.
 

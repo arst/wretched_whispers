@@ -20,6 +20,10 @@ public sealed record CastOutcomeDto(
     [property: Description("The caster's hit points after the casting")] int CurrentHp,
     [property: Description("True when the fizzle killed the caster")] bool IsDead)
 {
+    /// <summary>Dead or broken, in words, as the first thing in the result. See <see cref="FateWords"/>.</summary>
+    [System.Text.Json.Serialization.JsonPropertyOrder(-1)]
+    public string? Fate => WretchedWhispers.Core.Characters.Status.FateWords.For(IsDead, NewInjury, CurrentHp);
+
     public static CastOutcomeDto From(ScrollCastResult result) => new(
         result.Outcome.Succeeded, result.Outcome.Reason, result.Outcome.PowerKey, result.Outcome.Effect,
         result.Outcome.HpLost, result.Outcome.NewInjury?.DisplayName(),

@@ -41,6 +41,13 @@ public sealed record CombatRoundOutcomeDto(
     // Spelled out beside PlayerBroken: with only EndReason to go on, a death was told as "not yet dead".
     public bool PlayerDead => EndReason == nameof(EncounterEndReason.PlayerDead);
 
+    /// <summary>Dead or broken, in words, as the first thing in the result. See <see cref="FateWords"/>.</summary>
+    [System.Text.Json.Serialization.JsonPropertyOrder(-1)]
+    public string? Fate => FateWords.For(
+        PlayerDead,
+        PlayerBroken ? Retaliations.Select(r => r.Injury).FirstOrDefault(injury => injury is not null) ?? "a grievous wound" : null,
+        PlayerCurrentHp);
+
     public static CombatRoundOutcomeDto From(CombatRoundOutcome outcome) => new(
         outcome.PlayerAttack is { } attack && outcome.PlayerAttackTarget is { } target
             ? new PlayerAttackDto(target, attack.Hit, attack.Damage.Amount, attack.Critical, attack.Fumble,

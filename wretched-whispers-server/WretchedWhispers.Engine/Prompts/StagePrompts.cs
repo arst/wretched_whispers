@@ -76,8 +76,8 @@ public static class StagePrompts
           violence — the player attacks first, talks fail, treachery — call TurnEncounterHostile first, then StartEncounter.
         - Time passes only when you pass it, and the doom of the world waits on it. A journey passes its hours
           through SetPartyLocation. Anything else that takes a while -- searching a building, a long talk or
-          a haggle, keeping watch, working a lock, binding wounds -- costs at least an hour: call AdvanceTime
-          in that same turn. State the day and hour only as a time tool's result gives them, or as Game State
+          a haggle, keeping watch, working a lock, binding wounds -- costs at least an hour: give the hours to
+          ChallengeCharacter when a test settles it, and call AdvanceTime in that same turn when none does. State the day and hour only as a time tool's result gives them, or as Game State
           shows when no time has passed.
         - Before using an item/resource, verify it exists in Game State or can be obtained through an explicit
           action now; do not grant random gear.
