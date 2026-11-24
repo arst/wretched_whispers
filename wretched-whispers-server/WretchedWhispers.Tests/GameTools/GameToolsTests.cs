@@ -448,6 +448,23 @@ public class GameToolsTests
     }
 
     [Fact]
+    public async Task SetPartyLocation_NeedsTheHoursOfTheJourney()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Dark", "desc");
+        campaign.Configure("Doom", "The end", PoiType.Ruin, "The Drowned Chapel");
+        campaign.RecordPointOfInterest(PoiType.Town, "Galgenbeck", 50, 20);
+        _context.SetCampaignId(campaign.Id);
+        _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => CampaignTools().SetPartyLocation("Galgenbeck", hoursTravelled: 0));
+        Assert.Equal("The Drowned Chapel", campaign.CurrentLocationName);
+
+        await CampaignTools().SetPartyLocation("Galgenbeck", hoursTravelled: 2);
+        Assert.Equal("Galgenbeck", campaign.CurrentLocationName);
+        Assert.Equal(2, campaign.CurrentHour);
+    }
+
+    [Fact]
     public async Task ConfigureCampaign_AutoStartsWhenPlayerAlreadyJoined()
     {
         var campaign = Campaign.Create(Difficulty.Grim, "Dark", "desc");

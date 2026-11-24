@@ -133,6 +133,37 @@ public class CampaignServiceTests : TestBase
     }
 
     [Fact]
+    public async Task TravelTo_MovesThePartyAndTheClock()
+    {
+        // Simulated play: arrivals moved the party on the sheet and left the clock where it was, and the
+        // doom of the world runs on that clock. A journey now carries its hours.
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        campaign.Configure("Doom", "The end", PoiType.Ruin, "The Drowned Chapel");
+        campaign.RecordPointOfInterest(PoiType.Town, "Galgenbeck", 50, 20, "The Drowned Chapel");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        var hourBefore = campaign.CurrentHour;
+
+        await _service.TravelTo(campaign.Id, "Galgenbeck", hours: 3);
+
+        Assert.Equal("Galgenbeck", campaign.CurrentLocationName);
+        Assert.Equal(hourBefore + 3, campaign.CurrentHour);
+    }
+
+    [Fact]
+    public async Task TravelTo_AnUnchartedPlace_PassesNoTime()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        campaign.Configure("Doom", "The end", PoiType.Ruin, "The Drowned Chapel");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+        var hourBefore = campaign.CurrentHour;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.TravelTo(campaign.Id, "Nowhere", hours: 3));
+
+        Assert.Equal("The Drowned Chapel", campaign.CurrentLocationName);
+        Assert.Equal(hourBefore, campaign.CurrentHour);
+    }
+
+    [Fact]
     public async Task Join_ThenConfigure_AutoStarts()
     {
         var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
@@ -207,6 +238,20 @@ public class CampaignServiceTests : TestBase
         Assert.Equal(5, campaign.CurrentHour);
         Assert.False(result.IsNewDawn);
         _campaignsRepository.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AdvanceTime_SaysWhatTheClockReadsAfterwards()
+    {
+        // Simulated play: 13 of 38 replies that stated the hour stated one the sheet did not have. The
+        // narrator saw the hour from before the turn and had to do the sum itself, across midnight too.
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(It.IsAny<Guid>())).ReturnsAsync(campaign);
+
+        var result = await _service.AdvanceTime(Guid.NewGuid(), 27);
+
+        Assert.Equal((2, 3), (result.Day, result.Hour));
+        Assert.Equal((campaign.CurrentDay, campaign.CurrentHour), (result.Day, result.Hour));
     }
 
     [Fact]

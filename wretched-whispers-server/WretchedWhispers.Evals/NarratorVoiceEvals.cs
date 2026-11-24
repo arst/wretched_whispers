@@ -120,9 +120,12 @@ public class NarratorVoiceEvals
     /// <summary>
     /// Leaking samples tolerated out of the question turns' 24. Measured on gpt-5-mini: 15 of 24 before
     /// the persona's rule for answering questions and the reminder that closes the instructions; with
-    /// the rule alone 4 to 7 of 24, with the reminder alone 10 of 48, with both 2 to 3 of 48.
+    /// the rule alone 4 to 7 of 24, with the reminder alone 10 of 48, with both 11 of 192 over four later
+    /// versions of the prompt (2, 3, 2 and 4 of 48). At that rate 24 samples hold 3 or fewer 19 times in
+    /// 20; a bar of 2 failed one redraw in six. Most of what is left is one turn: asked what happens if
+    /// they attack, the narrator says the fight starts and "your first move comes with your next message".
     /// </summary>
-    private const int MaxQuestionLeaks = 2;
+    private const int MaxQuestionLeaks = 3;
 
     [Fact]
     public Task Narration_RarelyTalksAboutTheMachinery() => AssertRarelyLeaksAsync(Turns, MaxLeaks);

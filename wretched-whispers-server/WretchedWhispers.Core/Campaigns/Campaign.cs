@@ -102,11 +102,11 @@ public sealed class Campaign
                 var triggered = Calendar.DawnRoll(DawnDice, dice);
                 if (triggered is not null) newMiseries.Add(triggered.Psalm);
             }
-            return new AdvanceTimeOutcome(newMiseries, Calendar.WorldEnded, true);
+            return new AdvanceTimeOutcome(newMiseries, Calendar.WorldEnded, true) { Day = CurrentDay, Hour = CurrentHour };
         }
 
         // No dawn crossed — no new misery, whatever the standing tally.
-        return new AdvanceTimeOutcome([], Calendar.WorldEnded, false);
+        return new AdvanceTimeOutcome([], Calendar.WorldEnded, false) { Day = CurrentDay, Hour = CurrentHour };
     }
 
     /// <summary>Names the campaign and puts its first place on the map, with the party in it. The opening

@@ -38,7 +38,7 @@ public sealed class CampaignTools(
         return CreateCampaignDto(campaign);
     }
 
-    [Description("Advance time in the campaign by the specified number of hours")]
+    [Description("Advance time in the campaign by the specified number of hours. Call it whenever the story spends time where the party is: a search, a long talk, a wait. A journey passes its own hours through SetPartyLocation. The doom of the world runs on this clock. The result gives the day and hour it is now: tell those and no others.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<AdvanceTimeOutcome> AdvanceTime(
         [Description("The number of hours to advance the campaign time by")] int hours)
@@ -83,13 +83,14 @@ public sealed class CampaignTools(
         return $"Charted. The map holds {campaign.Pois.Count} places.";
     }
 
-    [Description("Mark where the party currently is. Call when the party arrives at a charted place.")]
+    [Description("Move the party to a charted place and pass the hours the journey took. Call when the party arrives somewhere. The clock advances by those hours, so do not also call AdvanceTime for the same journey. The result says what the passing time brought (a new dawn, a misery, the end of the world) and the day and hour it is now.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution, AllowedAfterTurnEnd = true)]
-    public async Task<string> SetPartyLocation(
-        [Description("Name of an already-charted place")] string locationName)
+    public async Task<AdvanceTimeOutcome> SetPartyLocation(
+        [Description("Name of an already-charted place")] string locationName,
+        [Description("Hours the journey there took, at least 1")] int hoursTravelled)
     {
-        var campaign = await campaignService.SetPartyLocation(RequireCampaignId(), locationName);
-        return $"The party is now at {campaign.CurrentLocationName}.";
+        ToolGuard.Positive(hoursTravelled, nameof(hoursTravelled), "a journey takes at least 1 hour");
+        return await campaignService.TravelTo(RequireCampaignId(), locationName, hoursTravelled);
     }
 
     private static CampaignDto CreateCampaignDto(Campaign campaign) => new(

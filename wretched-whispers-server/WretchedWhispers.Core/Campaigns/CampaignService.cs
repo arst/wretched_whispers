@@ -72,13 +72,15 @@ public class CampaignService(
         return campaign;
     }
 
-    public async Task<Campaign> SetPartyLocation(Guid campaignId, string name, CancellationToken ct = default)
+    /// <summary>Moves the party to a charted place and passes the hours the journey took. One step, so an
+    /// arrival cannot leave the clock where it was. An uncharted place throws before any time passes.</summary>
+    public async Task<AdvanceTimeOutcome> TravelTo(Guid campaignId, string name, int hours, CancellationToken ct = default)
     {
         var campaign = await GetRequiredCampaign(campaignId, ct);
 
         campaign.SetPartyLocation(name);
         await campaignsRepository.SaveCampaign(campaign, ct);
-        return campaign;
+        return await AdvanceTime(campaignId, hours, ct);
     }
 
     public async Task AttachEncounter(Guid campaignId, Guid encounterId, CancellationToken ct = default)
