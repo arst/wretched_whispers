@@ -440,7 +440,7 @@ public class GameToolsTests
         _context.SetCampaignId(campaign.Id);
         _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
 
-        var result = await CampaignTools().ConfigureCampaign("Doom Awaits", "A slow march to annihilation");
+        var result = await CampaignTools().ConfigureCampaign("Doom Awaits", "A slow march to annihilation", "The Drowned Chapel", PoiType.Ruin);
 
         Assert.Equal("Doom Awaits", result.Name);
         Assert.Equal("A slow march to annihilation", result.Description);
@@ -455,7 +455,7 @@ public class GameToolsTests
         _context.SetCampaignId(campaign.Id);
         _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
 
-        await CampaignTools().ConfigureCampaign("Doom Awaits", "A slow march to annihilation");
+        await CampaignTools().ConfigureCampaign("Doom Awaits", "A slow march to annihilation", "The Drowned Chapel", PoiType.Ruin);
 
         Assert.True(campaign.IsActive());
         _campaignsRepo.Verify(r => r.SaveCampaign(campaign), Times.Once);

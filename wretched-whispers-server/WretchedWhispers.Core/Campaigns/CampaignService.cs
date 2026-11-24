@@ -22,11 +22,12 @@ public class CampaignService(
                ?? throw new InvalidOperationException($"Campaign with {campaignId} doesn't exist.");
     }
 
-    public async Task<Campaign> ConfigureCampaign(Guid campaignId, string name, string description, CancellationToken ct = default)
+    public async Task<Campaign> ConfigureCampaign(Guid campaignId, string name, string description,
+        PoiType startingPlaceType, string startingPlaceName, CancellationToken ct = default)
     {
         var campaign = await GetRequiredCampaign(campaignId, ct);
 
-        campaign.Configure(name, description);
+        campaign.Configure(name, description, startingPlaceType, startingPlaceName);
         TryAutoStart(campaign);
         await campaignsRepository.SaveCampaign(campaign, ct);
         return campaign;

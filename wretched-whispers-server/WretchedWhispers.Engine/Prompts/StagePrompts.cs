@@ -31,7 +31,8 @@ public static class StagePrompts
 
         Finish the setup in THIS turn -- do not interrogate the player with menus, and never ask for a name
         or a class, they have already chosen both. Call ConfigureCampaign with a doom-appropriate name and
-        description; the campaign begins automatically.
+        description, and with the place the tale opens in: decide where they wake before you call it, give
+        that place a name, and describe that same place below. The campaign begins automatically.
 
         Then open the tale. Paint the dying world in a few visceral lines, name who they are -- use their
         name and their class from Game State, and let the class colour the telling -- and reveal their

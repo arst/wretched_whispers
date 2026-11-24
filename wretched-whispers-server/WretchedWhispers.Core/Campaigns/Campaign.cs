@@ -109,12 +109,18 @@ public sealed class Campaign
         return new AdvanceTimeOutcome([], Calendar.WorldEnded, false);
     }
 
-    public void Configure(string name, string description)
+    /// <summary>Names the campaign and puts its first place on the map, with the party in it. The opening
+    /// turn describes where the character wakes; without this the sheet had no place until the story
+    /// reached a second one, and in most games it never did.</summary>
+    public void Configure(string name, string description, PoiType startingPlaceType, string startingPlaceName)
     {
         if (IsStarted) throw new InvalidOperationException("Cannot configure a campaign that is already started.");
 
         Name = name;
         Description = description;
+        // The middle of the map: every later place is charted relative to it.
+        RecordPointOfInterest(startingPlaceType, startingPlaceName, 50, 50);
+        SetPartyLocation(startingPlaceName);
         IsConfigured = true;
     }
 

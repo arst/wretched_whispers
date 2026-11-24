@@ -89,7 +89,7 @@ public class CampaignServiceTests : TestBase
         Task Act() => method switch
         {
             nameof(CampaignService.JoinCampaign) => _service.JoinCampaign(Guid.NewGuid(), Guid.NewGuid()),
-            nameof(CampaignService.ConfigureCampaign) => _service.ConfigureCampaign(Guid.NewGuid(), "Doom", "The end"),
+            nameof(CampaignService.ConfigureCampaign) => _service.ConfigureCampaign(Guid.NewGuid(), "Doom", "The end", PoiType.Town, "Galgenbeck"),
             nameof(CampaignService.AttachEncounter) => _service.AttachEncounter(Guid.NewGuid(), Guid.NewGuid()),
             nameof(CampaignService.EndCampaign) => _service.EndCampaign(Guid.NewGuid()),
             nameof(CampaignService.IsActive) => _service.IsActive(Guid.NewGuid()),
@@ -110,11 +110,26 @@ public class CampaignServiceTests : TestBase
         _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
         _charactersRepository.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
 
-        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end");
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end", PoiType.Town, "Galgenbeck");
         Assert.False(campaign.IsActive()); // configured but no player yet
 
         await _service.JoinCampaign(campaign.Id, character.Id);
         Assert.True(campaign.IsActive()); // both conditions met -> started
+    }
+
+    [Fact]
+    public async Task Configure_ChartsTheStartingPlaceAndPutsThePartyThere()
+    {
+        // Six of eleven simulated games never had a place on the sheet: the opening turn describes where
+        // the character wakes, and no tool offered on that turn could record it.
+        var campaign = Campaign.Create(Difficulty.Grim, "raw", "raw");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end", PoiType.Ruin, "The Drowned Chapel");
+
+        var place = Assert.Single(campaign.Pois);
+        Assert.Equal(("The Drowned Chapel", PoiType.Ruin), (place.Name, place.Type));
+        Assert.Equal("The Drowned Chapel", campaign.CurrentLocationName);
     }
 
     [Fact]
@@ -128,7 +143,7 @@ public class CampaignServiceTests : TestBase
         await _service.JoinCampaign(campaign.Id, character.Id);
         Assert.False(campaign.IsActive()); // player joined, not configured yet
 
-        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end");
+        await _service.ConfigureCampaign(campaign.Id, "Doom", "The end", PoiType.Town, "Galgenbeck");
         Assert.True(campaign.IsActive());
     }
 

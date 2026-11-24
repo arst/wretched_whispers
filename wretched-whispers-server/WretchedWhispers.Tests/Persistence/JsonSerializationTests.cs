@@ -257,7 +257,7 @@ public class JsonSerializationTests : TestBase
         var campaign = Campaign.Create(Difficulty.Grim, "DoomCampaign", "The end is nigh");
         var charId = Guid.NewGuid();
         campaign.JoinGame(charId);
-        campaign.Configure("DoomCampaign", "The end is nigh");
+        campaign.Configure("DoomCampaign", "The end is nigh", PoiType.Town, "Galgenbeck");
 
         var json = JsonSerializer.Serialize(campaign, _options);
         var deserialized = JsonSerializer.Deserialize<Campaign>(json, _options)!;

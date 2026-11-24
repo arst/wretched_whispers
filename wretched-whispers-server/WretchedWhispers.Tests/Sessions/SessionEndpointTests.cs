@@ -640,7 +640,7 @@ public class SessionEndpointTests : IClassFixture<SessionEndpointTests.SessionWe
 
         if (!campaign.IsActive())
         {
-            campaign.Configure("Seeded", "Seeded campaign");
+            campaign.Configure("Seeded", "Seeded campaign", PoiType.Town, "Galgenbeck");
             campaign.Start();
         }
 
