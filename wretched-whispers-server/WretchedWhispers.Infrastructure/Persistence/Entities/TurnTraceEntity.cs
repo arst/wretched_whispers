@@ -33,8 +33,9 @@ public class TurnTraceEntity
     /// </summary>
     public string? TurnDeltaJson { get; set; }
 
-    /// <summary>Legacy: prose a former guardrail withheld from the player. No longer written — all
-    /// narration is shown and lands in <see cref="Narrative"/> — but older rows still carry it.</summary>
+    /// <summary>What the model wrote after its reply had ended (its own planning, the scene told again),
+    /// which the player was not shown. Null when there was none. Rows from before November 2026 may
+    /// carry prose a former guardrail withheld.</summary>
     public string? SuppressedNarrative { get; set; }
 
     /// <summary>The narrative shown to the player (for a turn that did not commit: what had streamed

@@ -143,6 +143,41 @@ public class AgentExecutorIntegrationTests
             e => Assert.IsType<AgentTrace>(e));
     }
 
+    // The model's second message after a tool round (its planning, written to the player) is cut off
+    // the reply and kept for the trace.
+    [Fact]
+    public async Task WhatTheModelWritesAfterItsReplyEnded_IsNotShown_AndIsTraced()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        const string reply = "Something rises from the muck.\n\nIt is your move. What do you do?";
+        const string secondMessage =
+            "\nThe assistant ended with two messages? Now player must respond. But we are ChatGPT now.";
+        var client = new ScriptedChatClient(
+            ChatResponses.ToolCall("call_1", "CreateEncounter", new()
+            {
+                ["name"] = "Grim",
+                ["description"] = "Something moves in the muck",
+                ["initialEncounterType"] = "Hostile"
+            }),
+            ChatResponses.Text(reply + secondMessage));
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "I wade in.");
+
+        Assert.Equal(reply, string.Concat(events.OfType<NarrativeChunk>().Select(c => c.Text)));
+        Assert.Equal(secondMessage, events.OfType<AgentTrace>().Single().DroppedNarrative);
+    }
+
+    [Fact]
+    public async Task AReplyThatEndsOnce_TracesNothingDropped()
+    {
+        var (tools, ctx) = ExplorationToolsAndContext();
+        var client = new ScriptedChatClient(ChatResponses.Text("The road is empty.\n\nWhat do you do?"));
+
+        var events = await RunAsync(CreateExecutor(client), tools, ctx, "I look around.");
+
+        Assert.Null(events.OfType<AgentTrace>().Single().DroppedNarrative);
+    }
+
     private static async Task<List<GameTurnEvent>> RunAsync(AgentExecutor executor, IReadOnlyList<AIFunction> tools,
         SessionContext ctx, string playerMessage)
     {

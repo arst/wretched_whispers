@@ -121,7 +121,9 @@ public record AgentTrace(
     long? InputTokens = null,
     long? OutputTokens = null,
     int Iterations = 0,
-    IReadOnlyList<ModelCall>? ModelCalls = null) : GameTurnEvent("agent_trace");
+    IReadOnlyList<ModelCall>? ModelCalls = null,
+    // What the model wrote after its reply had ended, which the player was not shown.
+    string? DroppedNarrative = null) : GameTurnEvent("agent_trace");
 
 /// <summary>
 /// One model request of a turn (a turn makes one per tool round): which model answered, what it

@@ -106,7 +106,8 @@ public sealed class AgentExecutor(
             InputTokens: _metrics.InputTokens,
             OutputTokens: _metrics.OutputTokens,
             Iterations: _metrics.Requests,
-            ModelCalls: _metrics.Calls.ToList());
+            ModelCalls: _metrics.Calls.ToList(),
+            DroppedNarrative: run.Dropped.Length > 0 ? run.Dropped : null);
     }
 
     // Relaxed escaping: the prompts are full of dashes and quotes, and this is stored, never rendered.
@@ -154,6 +155,7 @@ public sealed class AgentExecutor(
         public int ToolResults { get; set; }
         public int NarrativeChars { get; set; }
         public bool Redacted { get; set; }
+        public string Dropped { get; set; } = string.Empty;
         public bool IsEmpty => ToolCalls.Count == 0 && ToolResults == 0 && NarrativeChars == 0;
     }
 
@@ -207,6 +209,8 @@ public sealed class AgentExecutor(
                         logger.LogDebug("Tool call: {Tool}({Args})", call.Name, call.Arguments);
                         break;
                     case FunctionResultContent result:
+                        // What the model writes next is a new response, and so a new reply.
+                        scrubber.StartNewReply();
                         var made = result.CallId is not null && calls.TryGetValue(result.CallId, out var c) ? c : null;
                         var name = made?.Name ?? "unknown";
                         var output = result.Result?.ToString() ?? "";
@@ -225,6 +229,7 @@ public sealed class AgentExecutor(
         if (Narrate(scrubber.Flush()) is { } rest)
             yield return rest;
         run.Redacted = scrubber.Redacted;
+        run.Dropped = scrubber.Dropped;
     }
 
     private static string? SerializeArgs(IDictionary<string, object?>? arguments)
