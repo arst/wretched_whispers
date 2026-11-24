@@ -459,6 +459,55 @@ public class GameToolsTests
         _campaignsRepo.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData("Food: 3 days")]
+    [InlineData("food")]
+    [InlineData("a ration")]
+    public async Task UseItem_NamingTheFood_EatsADayOfIt(string asTheNarratorWroteIt)
+    {
+        var hero = TestCharacters.Create(_zeroDice);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var result = await CharacterTools().UseItemFromCharacterInventory(asTheNarratorWroteIt);
+
+        Assert.Equal(2, hero.FoodDays);
+        Assert.Equal(2, result.Character.FoodDays);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UseItem_NamingTheFood_WhenNoneIsLeft_SaysSo()
+    {
+        var hero = TestCharacters.Create(_zeroDice);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        for (var day = 0; day < 3; day++) await CharacterTools().UseItemFromCharacterInventory("food");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CharacterTools().UseItemFromCharacterInventory("food"));
+
+        Assert.Contains("no food left", error.Message);
+    }
+
+    [Fact]
+    public async Task AddScroll_GivesAScrollOfThatSchoolThatCanBeCast()
+    {
+        var hero = TestCharacters.Create(_zeroDice);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var found = await CharacterTools().AddScrollToCharacter(ScrollSchool.Sacred);
+
+        var scroll = Assert.Single(hero.Scrolls);
+        Assert.Equal(ScrollSchool.Sacred, scroll.School);
+        Assert.Equal(found.Name, scroll.Description);
+        Assert.Equal(ScrollPowers.Find(scroll.Description)?.Effect, found.Effect);
+        Assert.NotNull(found.Effect);
+        // What the narrator will then write is the name the tool gave, and CastScroll must know it.
+        await CharacterTools().CastScroll(found.Name);
+    }
+
     [Fact]
     public async Task ResolveCombatRound_NamesTheInjuryARetaliationGave()
     {

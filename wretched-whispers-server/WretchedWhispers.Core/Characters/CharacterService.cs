@@ -1,6 +1,7 @@
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Dices;
 
 namespace WretchedWhispers.Core.Characters;
@@ -41,6 +42,16 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
         var outcome = character.UseItem(itemId, dice);
         await charactersRepository.Save(character, ct);
         return outcome;
+    }
+
+    public async Task<Scroll> AddScroll(Guid characterId, ScrollSchool school, CancellationToken ct = default)
+    {
+        var character = await charactersRepository.Get(characterId, ct);
+        if (character is null) throw new InvalidOperationException($"Character with id {characterId} does not exist.");
+
+        var scroll = character.AddScroll(school, dice);
+        await charactersRepository.Save(character, ct);
+        return scroll;
     }
 
     public async Task<GettingBetterOutcome> GetBetter(Guid characterId, bool allowAbilityLoss, CancellationToken ct = default)

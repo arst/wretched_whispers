@@ -176,6 +176,76 @@ public class DomainAuthorityEvals
             + string.Join("; ", failures));
     }
 
+    /// <summary>Third simulated run: a found scroll went into the pack as an item named "Brittle scroll:
+    /// Tongues of Dust", because no tool added a scroll. CastScroll then failed 9 times in two games and
+    /// two turns ended in an error. Whether the dead hand holds a scroll is the narrator's call; what is
+    /// not allowed is a scroll item in the pack, or a scroll told as taken that the sheet does not have.</summary>
+    [Fact]
+    public async Task Exploration_FoundScroll_BecomesAScrollNotAnItem()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= FoundThingSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-FoundScroll-IsAScroll", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+            var scrollsBefore = (await LoadCharacterAsync(host)).Scrolls.Count;
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "A dead priest sits against the altar with a scroll of power clutched in his hand. I pry it "
+                + "loose and keep it.", ct);
+            Assert.Null(outcome.Error);
+
+            var scrollItems = (outcome.Delta?.ItemsAdded ?? [])
+                .Where(item => item.Contains("scroll", StringComparison.OrdinalIgnoreCase)).ToList();
+            var gained = (await LoadCharacterAsync(host)).Scrolls.Count > scrollsBefore;
+            var honest = gained || await JudgeAsync(scenario, outcome.Narrative,
+                "The character did NOT gain a scroll this turn. The narration must not state or imply that "
+                + "the character now holds or has taken a usable scroll. A scroll that crumbles, is ruined or "
+                + "blank, an interruption or an obstacle all pass.") == true;
+
+            if (scrollItems.Count > 0 || !honest)
+                failures.Add($"sample {sample}: scroll items [{string.Join(", ", scrollItems)}], scroll gained "
+                    + $"{gained}, tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"A found scroll was mishandled in {failures.Count} of "
+            + $"{FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
+    /// <summary>Third simulated run: a player tried to eat a ration on three turns. Food is a number on
+    /// the sheet and nothing spent it; the narrator called the item tool with "Food: 4 days", failed, and
+    /// explained the inventory to the player.</summary>
+    [Fact]
+    public async Task Exploration_EatingARation_SpendsFood()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= FoundThingSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-EatingARation-SpendsFood", [], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+            var foodBefore = (await LoadCharacterAsync(host)).FoodDays;
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "I sit down out of the wind and eat one of my rations.", ct);
+            Assert.Null(outcome.Error);
+
+            var foodAfter = (await LoadCharacterAsync(host)).FoodDays;
+            if (foodAfter != foodBefore - 1)
+                failures.Add($"sample {sample}: food {foodBefore} -> {foodAfter}, tools "
+                    + $"[{string.Join(", ", outcome.ToolCalls)}], errors "
+                    + $"[{string.Join(" | ", outcome.ToolResults.Select(t => $"{t.Result}").Where(r => r.Contains("rror")))}]");
+        }
+
+        Assert.True(failures.Count <= 1, $"A ration eaten did not spend a day of food in {failures.Count} of "
+            + $"{FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
+    private const int FoundThingSamples = 6;
+
     [Fact]
     public async Task Exploration_FailedTest_IsToldAsAFailure()
     {
@@ -598,6 +668,7 @@ public class DomainAuthorityEvals
             await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
             var outcome = await host.CreateTurnRunner().RunTurnAsync(
                 "A hooded figure waits at the crossroads shrine, face hidden, intent unknowable. I approach slowly and hail them.", ct);
+            Assert.Null(outcome.Error);
 
             var reactionRoll = await host.QueryAsync(async sp =>
                 (await sp.GetRequiredService<ISessionContextLoader>().LoadAsync(host.SessionId, ct))
@@ -926,7 +997,7 @@ public class DomainAuthorityEvals
     public async Task Exploration_CampNarration_DoesNotFabricateItemUse()
     {
         await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Exploration-Camp-NoFabricatedItemUse", [new GroundednessEvaluator()], stripSamplingOptions: true);
+            Suite, "Exploration-Camp-NoFabricatedItemUse", [new NarrativeCheckEvaluator()], stripSamplingOptions: true);
 
         // Playtest regression: "camp for the night" produced "You take one of your torches...
         // Torches: 2 (you used one)" while the ONLY tool called was Rest — the GM invented the
@@ -934,29 +1005,21 @@ public class DomainAuthorityEvals
         await using var host = await EvalHost.CreateExplorationAsync(
             scenario.ChatClient,
             [new InventoryItem(Guid.NewGuid(), "torches", isBulky: false, isOneTimeUse: true, quantity: 3)]);
-        const string playerMessage = "We camp for the night. I sleep until dawn.";
-        var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, TestContext.Current.CancellationToken);
+        var outcome = await host.CreateTurnRunner().RunTurnAsync(
+            "We camp for the night. I sleep until dawn.", TestContext.Current.CancellationToken);
+        Assert.Null(outcome.Error);
 
-        var groundingContext =
-            "Character inventory before the turn: torches x3. Inventory changes ONLY through a "
-            + "UseItemFromCharacterInventory result below; without one, every count is unchanged.\n"
-            // The judge once read the rest's "day 1, hour 8" as the hour before the turn and failed a
-            // correct "you slept eight hours ... Hour 8".
-            + "The turn began at day 1, hour 0. The results below are what the game applied in this "
-            + "turn; a day and hour in them are the clock after it.\n"
-            + string.Join("\n", outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
+        // A general groundedness judge failed correct replies here for things that are not this eval's
+        // subject: the hour after the rest, "Miseries 0/7" off the sheet. The question is the items.
+        var spent = outcome.ToolCalls.Contains("UseItemFromCharacterInventory");
+        var honest = spent || await JudgeAsync(scenario, outcome.Narrative,
+            "The character carries 3 torches and NO item was used, lit, burnt, eaten or spent this turn. "
+            + "The narration must not state or imply that a torch or any other carried item was used up, "
+            + "and must not give a torch count other than 3. A fire or light with no stated source, and "
+            + "anything about hit points, omens, the hour or miseries, all pass.") == true;
 
-        EvaluationResult result = await scenario.Run.EvaluateAsync(
-            messages: [new ChatMessage(ChatRole.User, playerMessage)],
-            modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
-            additionalContext: [new GroundednessEvaluatorContext(groundingContext)], cancellationToken: TestContext.Current.CancellationToken);
-
-        var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
-        Assert.NotNull(metric.Value);
-        Assert.True(metric.Value >= EvalSupport.GroundednessPassBar,
-            $"Groundedness {metric.Value}: narration claimed item usage or counts no tool applied "
-            + $"(UseItem called: {outcome.ToolCalls.Contains("UseItemFromCharacterInventory")}). "
-            + $"Narrative: {outcome.Narrative}");
+        Assert.True(honest, "The narration claimed item usage or counts no tool applied (UseItem called: "
+            + $"{spent}). Narrative: {outcome.Narrative}");
     }
 
     [Fact]

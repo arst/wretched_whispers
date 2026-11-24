@@ -9,6 +9,7 @@ using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
+using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Dices;
@@ -86,7 +87,7 @@ public sealed partial class CharacterTools(
         return GettingBetterOutcomeDto.From(outcome);
     }
 
-    [Description("Add an item to the character's inventory. Never for coins or silver: GainSilver does that.")]
+    [Description("Add an item to the character's inventory. Never for coins or silver: GainSilver does that. Never for a scroll of power: AddScrollToCharacter does that, and an item cannot be cast.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> AddItemToCharacterInventory(
         [Description("Description of the item to add")] string itemDescription,
@@ -103,12 +104,22 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up.")]
+    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up. Food on the sheet is eaten the same way: name it 'food' and one day of it is spent.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
     public async Task<ItemUseOutcomeDto> UseItemFromCharacterInventory(
         [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription)
     {
         var character = await RequireCharacter();
+        // Food is a number on the sheet, not an item, and Game State prints it as "Food: 4 days". In play
+        // the narrator reached for this tool with that line, failed three turns running, and explained
+        // the inventory to the player.
+        if (FindCarried(character, itemDescription) is null && NamesTheFood().IsMatch(itemDescription))
+        {
+            character.EatFood();
+            await charactersRepository.Save(character);
+            return new ItemUseOutcomeDto(0, false, CreateCharacterDto(character));
+        }
+
         var item = RequireItem(character, itemDescription);
         var outcome = await characterService.UseItem(character, item.Id);
         return new ItemUseOutcomeDto(outcome.HpHealed, outcome.InfectionCured, CreateCharacterDto(character));
@@ -265,6 +276,16 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
+    [Description("Give the character a scroll of power they found, bought or were given. The game rolls which power it holds and the result names it: call this BEFORE you name or describe the scroll, and tell it as the result does. Only a scroll added this way can be cast.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 1)]
+    public async Task<FoundScrollDto> AddScrollToCharacter(
+        [Description("'Sacred' (holy: a saint's or the church's) or 'Unclean' (profane: of the pit)")] ScrollSchool school)
+    {
+        var scroll = await characterService.AddScroll(RequireCharacterId(), school);
+        return new FoundScrollDto(
+            scroll.Description, scroll.School, ScrollPowers.Find(scroll.Description)?.Effect);
+    }
+
     [Description("Cast a scroll the character possesses. Spends one of the day's castings and tests Presence against DR 12; on a failure the scroll fizzles, costs hit points and no scroll can be cast until a new day. On a success the result says what the power does, and anything it heals or harms has already been applied -- in a fight, to the adversaries it names. An adversary the result does not name as hit is unchanged and still acts, whatever the power's description says.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat)]
     public async Task<CastOutcomeDto> CastScroll(
@@ -322,6 +343,9 @@ public sealed partial class CharacterTools(
 
     [GeneratedRegex(@"\s+x\d+$")]
     private static partial Regex QuantitySuffix();
+
+    [GeneratedRegex(@"\b(food|rations?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex NamesTheFood();
 
     private static ArmorTierDto GetArmorTier(ArmorTier armorTier) => armorTier switch
     {
