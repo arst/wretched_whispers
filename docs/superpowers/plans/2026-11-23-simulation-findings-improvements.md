@@ -341,7 +341,9 @@ Left of 3.7: `Combat-NonAttackAction-NoStrikeNarrated` and `Successor-Opening-No
 - **A stated hour the sheet did not have**: the result of passing time did not say what hour it had become, so the narrator did the sum. `AdvanceTime`, `Rest` and `SetPartyLocation` now return the day and hour.
 - **A search that takes time** passes an hour in 5 of 6 with a sharper Exploration rule (4 of 6 before).
 
-**Open, and a design decision: the clock over a whole game.** Two 30-turn games advanced one hour and none. That is not one action left untimed; it is thirty short ones (a look, a question, a blow) that are each too small for an hour and add up to an afternoon. No prompt rule reaches it. The code option is time by rule: an hour passes after every so many Exploration turns in which no time tool was called. How many turns make an hour, and whether fights count, is a call about the game's pace.
+**The clock over a whole game: time by rule (decided 24 November 2026).** Two 30-turn games advanced one hour and none. That is not one action left untimed; it is thirty short ones (a look, a question, a blow) that are each too small for an hour and add up to an afternoon. No prompt rule reaches it, so the game counts: every sixth Exploration turn in a row that passed no time makes an hour due. It is passed at the start of the next Exploration turn, before the narrator reads Game State, and Game State says an hour has slipped by (and any dawn or misery it brought) so it can be told. Any time passed by a tool starts the count again. Combat turns are not counted.
+
+Known limits: one flat rate for every kind of turn; and a slipped hour can cross a dawn, which can end the world with the turn refused and no last narration. The third wave will show whether six is the right number.
 
 If 3.6 does not hold through prompting, the code options are a single tool that charts a place and moves the party there, and time that advances by rule. Decide when the eval numbers are in.
 

@@ -65,6 +65,8 @@ Suite `place-and-time` (`PlaceAndTimeEvals.cs`), six samples each, read from the
 - **Exploration-Arrival-SetsLocation** — an arrival by road moves the party on the sheet and moves the clock, and any hour the reply states is the hour on the sheet. Held by the tool: `SetPartyLocation` takes the hours of the journey. The clock moved in 1 of 3 before, 6 of 6 now. At most 1 miss of 6.
 - **Exploration-Travel-AdvancesTime** — a room-by-room search passes at least an hour. This one is the narrator's choice: 4 of 6 before the Exploration rule on time, 5 of 6 with it. At most 1 miss of 6.
 
+The clock over many turns is a rule in code, not an eval: every sixth Exploration turn in a row that passed no time makes an hour pass (`Campaign.QuietTurnsPerHour`). `EvalTurnRunnerTests` runs seven scripted turns through the real coordinator to check it.
+
 Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 
 - **Combat-PlayerAttack-OneRound** — a player attack must call `ResolveCombatRound` exactly once (journaling a notable event alongside it is permitted).

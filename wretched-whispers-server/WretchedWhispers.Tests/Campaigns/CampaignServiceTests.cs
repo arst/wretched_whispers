@@ -254,6 +254,61 @@ public class CampaignServiceTests : TestBase
         Assert.Equal((campaign.CurrentDay, campaign.CurrentHour), (result.Day, result.Hour));
     }
 
+    // Simulated play: two 30-turn games advanced one hour and none. No single turn was at fault: a
+    // look, a question and a blow are each too small for an hour, and thirty of them are an afternoon.
+    // So quiet turns are counted, and every sixth one makes an hour due.
+
+    [Fact]
+    public async Task QuietTurns_TheSixthMakesAnHourDue()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        for (var turn = 1; turn <= 5; turn++)
+            await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 0));
+        Assert.Null(await _service.PassQuietHour(campaign.Id));
+
+        await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 0));
+        var slipped = await _service.PassQuietHour(campaign.Id);
+
+        Assert.NotNull(slipped);
+        Assert.Equal((1, 1), (slipped.Day, slipped.Hour));
+        Assert.Equal(1, campaign.CurrentHour);
+        Assert.Null(await _service.PassQuietHour(campaign.Id)); // and the count starts again
+    }
+
+    [Fact]
+    public async Task QuietTurns_PassingTimeStartsTheCountAgain()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        for (var turn = 1; turn <= 5; turn++)
+            await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 0));
+        await _service.AdvanceTime(campaign.Id, 2);
+        await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, 2));
+
+        Assert.Null(await _service.PassQuietHour(campaign.Id));
+        Assert.Equal(2, campaign.CurrentHour);
+    }
+
+    [Fact]
+    public async Task QuietTurns_ATurnThatPassedTimeIsNotQuiet()
+    {
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "Description");
+        _campaignsRepository.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        for (var turn = 1; turn <= 6; turn++)
+        {
+            var hourAtStart = campaign.CurrentHour;
+            await _service.AdvanceTime(campaign.Id, 1);
+            await _service.NoteTurnEnded(campaign.Id, clockAtTurnStart: (1, hourAtStart));
+        }
+
+        Assert.Null(await _service.PassQuietHour(campaign.Id));
+        Assert.Equal(6, campaign.CurrentHour);
+    }
+
     [Fact]
     public async Task AdvanceTime_AcrossTwoDawns_RollsTheDoomClockForEach()
     {

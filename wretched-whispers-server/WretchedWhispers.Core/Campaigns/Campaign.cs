@@ -14,8 +14,9 @@ public sealed class Campaign
         bool isStarted = false, bool isEnded = false, bool isConfigured = false,
         List<JournalEntry>? journal = null, Difficulty difficulty = Difficulty.Grim,
         List<PointOfInterest>? pointsOfInterest = null, string? currentLocationName = null,
-        List<FallenCharacter>? fallen = null)
+        List<FallenCharacter>? fallen = null, int quietTurns = 0)
     {
+        QuietTurns = quietTurns;
         Id = id;
         Name = name;
         Description = description;
@@ -75,6 +76,18 @@ public sealed class Campaign
 
     [JsonIgnore] public IReadOnlyList<FallenCharacter> FallenCharacters => Fallen.AsReadOnly();
 
+    /// <summary>How many quiet turns make an hour. A look, a question and a blow are each too small to
+    /// pass time for, and thirty of them are an afternoon: simulated games of 30 turns advanced one hour
+    /// and none, and the doom of the world waits on the clock.</summary>
+    public const int QuietTurnsPerHour = 6;
+
+    /// <summary>Exploration turns in a row during which no time passed.</summary>
+    [JsonInclude] internal int QuietTurns { get; private set; }
+
+    [JsonIgnore] public bool IsQuietHourDue => QuietTurns >= QuietTurnsPerHour;
+
+    internal void NoteQuietTurn() => QuietTurns++;
+
     [JsonIgnore] public bool WorldEnded => Calendar.WorldEnded;
 
     [JsonIgnore] public IReadOnlyCollection<Misery> Miseries => Calendar.Miseries;
@@ -86,6 +99,7 @@ public sealed class Campaign
     internal AdvanceTimeOutcome AdvanceTime(int hours, Dice dice)
     {
         CurrentHour += hours;
+        QuietTurns = 0;
 
         if (CurrentHour >= 24)
         {
