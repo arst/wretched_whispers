@@ -138,6 +138,142 @@ public class DomainAuthorityEvals
     }
 
     [Fact]
+    public async Task Exploration_FoundCoins_BecomeSilverNotAnItem()
+    {
+        // First simulated run: coins were added to the pack as items (22 calls in 4 games), because no
+        // tool could raise silver. Now one can. Whether the corpse has coin is the narrator's call; what
+        // is not allowed is a coin item in the pack, or coins told as taken while the purse stays as it was.
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-FoundCoins-GainSilver", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "A dead pilgrim lies in the ditch, purse still on his belt. I cut it loose and take whatever "
+                + "coin is in it.", ct);
+            Assert.Null(outcome.Error);
+
+            var coinItems = (outcome.Delta?.ItemsAdded ?? [])
+                .Where(item => System.Text.RegularExpressions.Regex.IsMatch(item, @"\b(coins?|silver|purse)\b",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                .ToList();
+            var silverRose = outcome.Delta is { SilverChange: > 0 };
+            var honest = silverRose || await JudgeAsync(scenario, outcome.Narrative,
+                "The character's silver did NOT change this turn. The narration must not state or imply that "
+                + "the character gained, took or now holds any coins or silver from the purse. An empty purse, "
+                + "worthless tokens, an interruption or an obstacle all pass.") == true;
+
+            if (coinItems.Count > 0 || !honest)
+                failures.Add($"sample {sample}: coin items [{string.Join(", ", coinItems)}], silver change "
+                    + $"{outcome.Delta?.SilverChange}, tools [{string.Join(", ", outcome.ToolCalls)}], "
+                    + $"narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count == 0, $"Found coins were mishandled in {failures.Count} of 3 runs: "
+            + string.Join("; ", failures));
+    }
+
+    [Fact]
+    public async Task Exploration_FailedTest_IsToldAsAFailure()
+    {
+        // Both simulated runs: "A failed climb (total 5 against 12) narrated as 'The climb still works ...
+        // You are on the roof now'", and a failed rite told as "the rite catches" with the damage tacked
+        // on. In both the player's message had already narrated the success. The dice here are seeded so
+        // the test fails, and Tuck has the hit points to survive it. Measured on gpt-5-mini: before the
+        // Exploration rule "the player says what the character attempts", 3 of 3 runs rolled nothing and
+        // told the player's account as what happened; with it, 3 of 3 test, fail and tell the failure.
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-FailedTest-ToldAsFailure", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(
+                scenario.ChatClient, maxHp: 12, diceSeed: FailingDiceSeed);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "An iron grate bars the crypt stair. I wedge my staff under it and heave with everything I "
+                + "have. The bars groan and bend, the grate tears free of the stone, and I walk down into the "
+                + "dark with the grate clattering behind me.", ct);
+            Assert.Null(outcome.Error);
+
+            var tests = outcome.ToolResults.Where(t => t.Function == "ChallengeCharacter")
+                .Select(t => t.Result as string ?? JsonSerializer.Serialize(t.Result, JsonSerializerOptions.Web))
+                .ToList();
+            if (tests.Count == 0)
+            {
+                // No roll at all: the player's own account of the feat was taken as what happened.
+                failures.Add($"sample {sample}: no test, tools [{string.Join(", ", outcome.ToolCalls)}], "
+                    + $"narrative: {outcome.Narrative}");
+                continue;
+            }
+
+            Assert.True(tests.All(t => t.Contains("\"isSuccess\":false") || t.Contains("\"isSuccess\": false")),
+                $"The scenario needs the test to fail; pick another dice seed. Results: {string.Join(" ", tests)}");
+
+            var passed = await JudgeAsync(scenario, outcome.Narrative,
+                "The character tried to tear an iron grate free and go down the crypt stair. The dice were "
+                + "rolled and the attempt FAILED. The narration must tell it as a failure: the grate is not "
+                + "torn free and the character does not get down the stair by this attempt. Harm, noise or "
+                + "another way offered afterwards all pass. FAIL if the grate comes free, gives way enough to "
+                + "pass, or the character ends up past it, even 'at a cost'.");
+            if (passed != true)
+                failures.Add($"sample {sample}: results {string.Join(" ", tests)} narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count == 0, $"A feat was granted without a roll, or against one, in {failures.Count} of 3 runs: "
+            + string.Join("; ", failures));
+    }
+
+    /// <summary>With this seed the first test Tuck makes in a fresh exploration scene fails.</summary>
+    private const int FailingDiceSeed = 1;
+
+    [Fact]
+    public async Task Exploration_InventedEffect_IsNotPromised()
+    {
+        // First simulated run: "Invented poison rules ('+1d6 poison damage', an ongoing bleed), which the
+        // narrator later admitted." Second run: a flat -2 for a broken hand that no roll ever applied. The
+        // game resolves a hit with the weapon's die and nothing else; a number the narrator promises on
+        // top is one the game will never apply. This varies from run to run, so it is a rate with a bar.
+        // Measured on gpt-5-mini: a stated effect in 3 of 3 before the persona's "Invent no rules" rule (an
+        // extra d6 and a Toughness roll for the enemy), 1 of 6 with it. What the rule does not stop: about
+        // half the answers say the moss adds nothing and then offer a test to "make it work", with the
+        // effect left open. The judge lets that pass; it is in the plan as an open item.
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-NoInventedMechanics", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "Black grave-moss grows on the shrine wall. I scrape it off and smear it thick on the head of "
+                + "my staff so my next blow poisons whoever it hits. How much extra damage does the poison do?", ct);
+            Assert.Null(outcome.Error);
+
+            var passed = await JudgeAsync(scenario, outcome.Narrative,
+                "In this game a weapon deals its own damage die and nothing else: there is no rule for "
+                + "poisoned weapons, bonus damage, ongoing damage or conditions on an enemy. FAIL the narration "
+                + "only if it states a game effect the poison has, or will have, on whoever is struck: an extra "
+                + "damage die or number, a bonus or penalty to a roll, damage over time, a test or saving roll "
+                + "the enemy makes, or a condition with a stated effect. PASS if it says the moss adds nothing "
+                + "to the blow or leaves it as colour in the story. A test the CHARACTER makes to gather or "
+                + "apply the moss passes too, even when what it achieves is left open, as long as none of the "
+                + "effects above is promised.");
+            if (passed != true)
+                failures.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"An effect the game cannot apply was promised in {failures.Count} of 3 runs "
+            + "(at most 1 allowed): "
+            + string.Join("; ", failures));
+    }
+
+    [Fact]
     public async Task Exploration_Resting_CallsRest()
     {
         // Resting must go through Rest (heals HP + restores abilities + advances time). Regression guard against
@@ -273,38 +409,57 @@ public class DomainAuthorityEvals
         // (the combat tools only exist from the next message on). The turn must start the encounter,
         // resolve nothing — no ability test or bare roll standing in for the attack — and narrate only
         // the fight breaking out, leaving the move to the player.
-        await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Exploration-CombatEntry-StopsAtStart", [new NarrativeCheckEvaluator()]);
-        await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
-        var hpBefore = (await LoadCharacterAsync(host)).Hp.Current;
+        //
+        // The tool calls and the domain state are checked on every sample. What the narration does with
+        // the swing the player declared varies from run to run, so that part is a rate with a bar.
+        var ct = TestContext.Current.CancellationToken;
+        var told = new List<string>();
+        for (var sample = 1; sample <= CombatEntrySamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-CombatEntry-StopsAtStart", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+            var hpBefore = (await LoadCharacterAsync(host)).Hp.Current;
 
-        var outcome = await host.CreateTurnRunner().RunTurnAsync(
-            "A bandit blocks the road with a rusty knife. I don't wait — I swing my staff at his skull!",
-            TestContext.Current.CancellationToken);
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "A bandit blocks the road with a rusty knife. I don't wait — I swing my staff at his skull!", ct);
 
-        Assert.Null(outcome.Error);
-        var calls = outcome.ToolCalls.ToList();
-        Assert.Contains("StartEncounter", calls);
-        // After StartEncounter only record-keeping is acceptable; the model should not even try more.
-        Assert.All(
-            calls.Skip(calls.IndexOf("StartEncounter") + 1),
-            c => Assert.Contains(c, new[] { "RecordJournalEntry", "RecordPointOfInterest", "SetPartyLocation" }));
-        Assert.DoesNotContain("ChallengeCharacter", calls);
+            Assert.Null(outcome.Error);
+            var calls = outcome.ToolCalls.ToList();
+            Assert.Contains("StartEncounter", calls);
+            // After StartEncounter only record-keeping is acceptable; the model should not even try more.
+            Assert.All(
+                calls.Skip(calls.IndexOf("StartEncounter") + 1),
+                c => Assert.Contains(c, new[] { "RecordJournalEntry", "RecordPointOfInterest", "SetPartyLocation" }));
+            Assert.DoesNotContain("ChallengeCharacter", calls);
 
-        // Domain truth: combat is on, and nothing has been resolved.
-        var stage = await host.QueryAsync(async sp =>
-            (await sp.GetRequiredService<ISessionContextLoader>()
-                .LoadAsync(host.SessionId, TestContext.Current.CancellationToken)).DeriveStage());
-        Assert.Equal(SessionStage.Combat, stage);
-        Assert.Equal(hpBefore, (await LoadCharacterAsync(host)).Hp.Current);
+            // Domain truth: combat is on, and nothing has been resolved.
+            var stage = await host.QueryAsync(async sp =>
+                (await sp.GetRequiredService<ISessionContextLoader>().LoadAsync(host.SessionId, ct)).DeriveStage());
+            Assert.Equal(SessionStage.Combat, stage);
+            Assert.Equal(hpBefore, (await LoadCharacterAsync(host)).Hp.Current);
 
-        var passed = await JudgeAsync(scenario, outcome.Narrative,
-            "Combat has only just begun and NO attack has been resolved yet. The narration may describe the "
-            + "fight breaking out, the opponent, and the character's wind-up or intent. It must NOT state or "
-            + "imply the result of any attack: no blow landing or missing, no wound, damage, or death, for "
-            + "either side. It should leave the next move to the player.");
-        Assert.True(passed, $"The opening of combat narrated an unresolved outcome. Narrative: {outcome.Narrative}");
+            var passed = await JudgeAsync(scenario, outcome.Narrative,
+                "Combat has only just begun and NO attack has been resolved yet. The narration may describe the "
+                + "fight breaking out, the opponent, and the character's wind-up or intent. It must NOT state or "
+                + "imply the result of any attack: no blow landing or missing, no wound, damage, or death, for "
+                + "either side. It should leave the next move to the player.");
+            if (passed != true) told.Add($"sample {sample}: {outcome.Narrative}");
+        }
+
+        Assert.True(told.Count <= MaxCombatEntryOutcomesTold,
+            $"The opening of combat narrated an unresolved outcome in {told.Count} of {CombatEntrySamples} runs "
+            + $"(at most {MaxCombatEntryOutcomesTold} allowed): {string.Join("; ", told)}");
     }
+
+    private const int CombatEntrySamples = 6;
+
+    /// <summary>
+    /// Measured on gpt-5-mini: 2 to 3 of 6 before the Exploration rule "the blow the player declared has
+    /// not been struck: the weapon is raised, not swinging", 0 of 6 with it. As one cached sample this
+    /// eval passed or failed on the draw.
+    /// </summary>
+    private const int MaxCombatEntryOutcomesTold = 1;
 
     [Fact]
     public async Task Exploration_OpenFirstMeeting_RollsReactionViaUnknownEncounter()

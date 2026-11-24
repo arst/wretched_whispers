@@ -47,7 +47,7 @@ public sealed class EvalHost : IAsyncDisposable
         ChatSessionId = chatSessionId;
     }
 
-    public static async Task<EvalHost> CreateAsync(IChatClient chatClient)
+    public static async Task<EvalHost> CreateAsync(IChatClient chatClient, int diceSeed = 1)
     {
         // A file, not one shared in-memory connection: every scope opens its own connection, as in
         // production. The coordinator summarizes the chronicle on a detached task after each turn, and on
@@ -71,7 +71,7 @@ public sealed class EvalHost : IAsyncDisposable
         // Deterministic dice (last registration wins over AddDomainServices' unseeded default):
         // rolled values land in tool results, which land in model requests — unseeded dice would
         // change the request hash every run and defeat the response cache.
-        services.AddSingleton<IRandomService>(new SeededRandomService(seed: 1));
+        services.AddSingleton<IRandomService>(new SeededRandomService(seed: diceSeed));
 
         var provider = services.BuildServiceProvider();
 
@@ -318,12 +318,15 @@ public sealed class EvalHost : IAsyncDisposable
     /// encounter attached, so <c>DeriveStage</c> falls through to <see cref="SessionStage.Exploration"/>.
     /// Pass <paramref name="extraGear"/> to seed inventory items a scenario needs, <paramref name="omens"/>
     /// for scenarios that spend omens (defaults keep the shared seed byte-identical so existing
-    /// scenarios' cached responses stay valid — Tuck rolls with 0 omens).
+    /// scenarios' cached responses stay valid — Tuck rolls with 0 omens). <paramref name="maxHp"/> gives
+    /// Tuck enough life to fail a test and still stand; <paramref name="diceSeed"/> picks the rolls a
+    /// scenario needs (a test that fails).
     /// </summary>
     public static async Task<EvalHost> CreateExplorationAsync(
-        IChatClient chatClient, IReadOnlyList<InventoryItem>? extraGear = null, int omens = 0)
+        IChatClient chatClient, IReadOnlyList<InventoryItem>? extraGear = null, int omens = 0,
+        int maxHp = 2, int diceSeed = 1)
     {
-        var host = await CreateAsync(chatClient);
+        var host = await CreateAsync(chatClient, diceSeed);
 
         await using var scope = host._provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;
@@ -339,7 +342,7 @@ public sealed class EvalHost : IAsyncDisposable
         // One scroll in the pack so casting is actually available — the CastScroll eval needs a real
         // scroll to cast, and the GM correctly refuses to cast one the character does not possess.
         var character = SeedTuck(
-            dice, scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")]);
+            dice, scrolls: [new Scroll(Guid.NewGuid(), ScrollSchool.Unclean, "Palms Open the Southern Gate")], maxHp);
         foreach (var item in extraGear ?? []) character.AddItem(item);
         if (omens > 0) character.Omens.Refill(omens);
         await charactersRepo.Save(character);
@@ -353,7 +356,7 @@ public sealed class EvalHost : IAsyncDisposable
 
     /// <summary>The shared "Tuck" seed for combat/exploration scenarios. Keep the values stable —
     /// they feed the model prompt, and changing them invalidates every scenario's cached responses.</summary>
-    private static Character SeedTuck(Dice dice, List<Scroll> scrolls)
+    private static Character SeedTuck(Dice dice, List<Scroll> scrolls, int maxHp = 2)
     {
         var abilities = new Abilities(
             agility: new AbilityScore(0),
@@ -370,7 +373,7 @@ public sealed class EvalHost : IAsyncDisposable
             Armor: new Armor(ArmorTier.Medium),
             Shield: null,
             Scrolls: scrolls);
-        return Character.Create(Guid.NewGuid(), "Tuck", 2, abilities, equipment, dice);
+        return Character.Create(Guid.NewGuid(), "Tuck", maxHp, abilities, equipment, dice);
     }
 
     /// <summary>

@@ -48,6 +48,11 @@ public static class StagePrompts
           (usually 12) and choose consequenceOnFailure to match the stakes AND the Difficulty guidance in
           your instructions. Whenever you roll, never narrate success, failure, or harm without it; weave the
           returned roll, modifier, DR, and damage into the prose.
+        - The player says what the character attempts; what comes of it is yours and the dice's to tell. When
+          a message narrates the outcome along with the attempt ("the bars bend and the grate tears free",
+          "the guard believes me", "the rite takes hold"), keep the attempt and set the rest aside: if it is
+          risky, test it like any other, and tell what the roll gives. A failed test is a failure: the thing
+          attempted does not happen, however the player wrote it, and it is never granted "at a cost".
         - FIRST MEETING with any creature whose attitude the fiction leaves open: call CreateEncounter with type
           'Unknown' — the Mörk Borg reaction table is rolled for you, and the reaction and roll come back in the result. Narrate that
           rolled reaction honestly; NEVER decide hostility yourself when the attitude is uncertain. Pre-declare
@@ -60,8 +65,12 @@ public static class StagePrompts
           So after StartEncounter, narrate only how the fight breaks out — who stands against the character and
           what they wield — and stop. Do NOT narrate any blow landing or missing, any wound, damage or death,
           or the result of an attack the player has just declared: nothing has been rolled yet. Never resolve
-          that attack with ChallengeCharacter or a bare dice roll. Close by putting the moment in the player's
-          hands: it is their move.
+          that attack with ChallengeCharacter or a bare dice roll. The blow the player declared has not been
+          struck: the weapon is raised, not swinging. Do not describe it in flight, connecting, glancing off,
+          dodged or blocked, and do not describe the enemy striking either. Close by putting the moment in
+          the player's hands: it is their move.
+          All of this is how YOU run it. A player who only asks what would happen if they attacked is told
+          one thing: it becomes a fight, and the first move in it is theirs.
         - StartEncounter only works when the encounter is Hostile. If a friendly or uncertain meeting collapses into
           violence — the player attacks first, talks fail, treachery — call TurnEncounterHostile first, then StartEncounter.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
@@ -113,6 +122,9 @@ public static class StagePrompts
 
         If the player's message is a question, clarification, inventory/status check, or rules
         discussion, answer from the Game State and STOP. Call no tools. A question is not a combat round.
+        Answer in the game's rules -- they attack on Strength, every enemy left standing strikes back and
+        they dodge on Agility, using an item or a scroll takes the place of the attack -- and never in
+        terms of what you will run, show or resolve.
 
         When the player acts, call ResolveCombatRound EXACTLY ONCE:
         - Attacking: action 'Attack' with the target's name.
@@ -133,8 +145,9 @@ public static class StagePrompts
         ability tested; each retaliation reports the player's Agility dodge (roll, modifier, dr) and,
         when it failed, baseDamageRoll and armorReduction. Explain both from THOSE, in plain words — "14
         to beat, 7 rolled, Strength -1 dragging it down", "her fingers get through: 3 rolled, 1 turned by
-        leather" — never by their field names, and never from an invented cause. A dr above 12 means the player is carrying a real penalty
-        (encumbrance, an injury): name it and say what clears it. If the player asks why they keep
+        leather" — never by their field names, and never from an invented cause. When a dr is not 12,
+        drBecause beside it says what moved it and by how much (armor, encumbered, injury, omen,
+        blessing): name that cause and no other, and say what clears it. If the player asks why they keep
         missing or keep getting hit, answer with that arithmetic, not with atmosphere.
 
         Combat is brutal and fast in MORK BORG. One round per message, then return control to the player.

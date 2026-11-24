@@ -19,6 +19,8 @@ public readonly record struct AttackOutcome(
     int Roll = 0,
     int Modifier = 0,
     int EffectiveDr = 0,
+    // What moved the DR from 12, each with its size ("encumbered +2"); see ChallengeOutcome.DrReasons.
+    IReadOnlyList<string>? DrReasons = null,
     // Melee tests Strength, ranged tests Presence. Named rather than left to be inferred — a player
     // with good Agility and bad Strength cannot otherwise tell why their modifier is negative.
     AbilityKind Ability = AbilityKind.Strength

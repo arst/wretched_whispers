@@ -314,7 +314,23 @@ Behaviours that vary run to run are scored as a rate against a bar, the way `nar
 
 **3.1 done (24 November 2026).** Tool talk goes with question turns, not with a code cause: in the second run 30 of 81 turns that called no tool had it, against 21 of 194 that called one, and it is no more common when the model does no hidden reasoning. `narrator-voice` gained eight question turns taken from the run's player messages; 15 of 24 samples leaked. Two prompt changes together bring that to 2 of 48: the persona's rule for answering a question (briefly, in the game's terms, with said-and-not-said pairs), and a reminder that closes the instructions after the stage rules. Either alone is not enough (4 to 7 of 24; 10 of 48). An example in the prompt is echoed in play: "the first blow is yours" turned up in combat openings and was replaced.
 
-**Found on the way, for 3.7:** `Exploration-CombatEntry-StopsAtStart` is one cached sample of a behaviour that varies. On fresh draws the opening narrates the player's declared swing in motion in 2 of 6 on `main` and 3 of 6 with the 3.1 prompt. It should become a rate with a bar when 3.7 is tuned.
+**3.3 and 3.4 done (24 November 2026).** Three evals, three samples each, in `domain-authority`:
+
+- `Exploration-FoundCoins-GainSilver` passed as written (0 of 3): the first run's coin items are gone since `GainSilver` exists. It stays as a guard.
+- `Exploration-FailedTest-ToldAsFailure` found something worse than a failure told as a success. When the player's message narrates a feat as already done, the narrator rolled nothing and told the player's account as what happened: 3 of 3. An Exploration rule ("the player says what the character attempts; what comes of it is yours and the dice's to tell") brings it to 0 of 3: tested, failed, told as a failure.
+- `Exploration-NoInventedMechanics`: a poisoned weapon was given "+d6 poison damage" and a saving roll for the enemy in 3 of 3. A persona rule ("Invent no rules") brings a stated effect to 1 of 6; the eval allows 1 of 3.
+
+Two things this turned up:
+
+- **Not fixed: the offered test.** About half the answers now say the moss adds nothing to the blow and then offer a test to "make it work", with what it would do left open. Four wordings did not stop it. The judge lets it pass, because nothing false is stated; the player who takes the test still gets nothing from the game. A code answer would be an item effect the game can apply (Task 16's neighbour), not another prompt pass.
+- **Prompt rules move each other.** Adding these two rules took the 3.1 question eval from 2 of 48 to 8 of 48. One line each in the Exploration and Combat prompts, where they describe starting a fight and answering a question during one, brought it back to 3 of 48. Every later item should re-measure the question eval at 48 samples, not only run it at its bar.
+
+**The two single-sample evals that failed on their draw are fixed (24 November 2026).**
+
+- `Combat-Narration-Grounded` failed 1 of 6 draws: the narrator explained a dodge against 14 as "encumbrance" when it was the armor. Fixed in code: a test's outcome now says what moved its DR and by how much, and the round, flee and test results pass it on as `drBecause`. The Combat prompt points at it.
+- `Exploration-CombatEntry-StopsAtStart` (part of 3.7) is now six samples with a bar of 1. It told an outcome in 2 to 3 of 6; an Exploration rule ("the blow the player declared has not been struck: the weapon is raised, not swinging") brings it to 0 of 6. A second prompt example was echoed on the way: "they strike first", from a line added for 3.1, turned up in openings and was reworded.
+
+Left of 3.7: `Combat-NonAttackAction-NoStrikeNarrated` and `Successor-Opening-NoCombat`.
 
 If 3.6 does not hold through prompting, the code options are a single tool that charts a place and moves the party there, and time that advances by rule. Decide when the eval numbers are in.
 

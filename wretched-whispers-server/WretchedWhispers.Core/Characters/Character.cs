@@ -206,12 +206,12 @@ public sealed class Character
         }
 
         return new AttackOutcome(hit, dmg, crit, fumble, weaponBroken, targetArmorDegraded, baseRoll, reduction,
-            test.Roll, test.Modifier, test.EffectiveDr, abilityKind);
+            test.Roll, test.Modifier, test.EffectiveDr, test.DrReasons, abilityKind);
     }
 
     public DefenceOutcome Defend(DiceExpr attackDie, Dice dice, bool spendOmenToReduceDamage = false)
     {
-        var test = Challenge(new Dr(12 + Armor.DefencePenalty), AbilityKind.Agility, dice, Armor.AgilityPenalty);
+        var test = Challenge(new Dr(12), AbilityKind.Agility, dice, Armor.DefencePenalty + Armor.AgilityPenalty);
         var isFumble = test.Natural == Natural.One;
 
         // A natural 20 always avoids, so the crit flag only ever rides the avoided path — the free
@@ -225,7 +225,8 @@ public sealed class Character
                 FumbleDoubleDamage = isFumble,
                 Roll = test.Roll,
                 Modifier = test.Modifier,
-                EffectiveDr = test.EffectiveDr
+                EffectiveDr = test.EffectiveDr,
+                DrReasons = test.DrReasons
             };
 
         var (damage, baseRoll, armorReduction) = CalculateDamageAfterDefense(attackDie, isFumble, dice);
@@ -252,6 +253,7 @@ public sealed class Character
             Roll = test.Roll,
             Modifier = test.Modifier,
             EffectiveDr = test.EffectiveDr,
+            DrReasons = test.DrReasons,
             BaseDamageRoll = baseRoll,
             ArmorReduction = armorReduction
         };
@@ -527,58 +529,62 @@ public sealed class Character
         return CastOutcome.Fizzle(scroll.Description, loss, injury);
     }
 
-    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int penalty = 0,
+    public ChallengeOutcome Challenge(Dr challenge, AbilityKind ability, Dice dice, int armorPenalty = 0,
         bool spendOmenToLowerDr = false)
     {
+        // Everything that moves the DR goes through here, so the outcome can say why it is not the DR asked for.
+        var reasons = new List<string>();
+        void Adjust(string cause, int by)
+        {
+            if (by == 0) return;
+            challenge = new Dr(challenge.Value + by);
+            reasons.Add($"{cause} {by:+0;-0}");
+        }
+
         if (spendOmenToLowerDr)
         {
             if (!Omens.TrySpend()) throw new InvalidOperationException("No omens remaining.");
-            challenge = new Dr(challenge.Value - 4);
+            Adjust("omen", -4);
         }
 
         // A blessing (Grace for a Sinner) eases exactly one test, whichever comes next.
         if (NextTestBonus > 0)
         {
-            challenge = new Dr(challenge.Value - NextTestBonus);
+            Adjust("blessing", -NextTestBonus);
             NextTestBonus = 0;
         }
 
-        // Encumbrance penalty
         if (ability is AbilityKind.Strength or AbilityKind.Agility && IsEncumbered)
-            challenge = new Dr(challenge.Value + 2);
+            Adjust("encumbered", 2);
 
-        // Injury-based DR increases (fixed penalties)
-        switch (ability)
+        // Injuries: a fixed penalty for some, a rolled one for others.
+        var injuryPenalty = ability switch
         {
-            case AbilityKind.Strength:
-                challenge = new Dr(challenge.Value + Injuries.GetStrengthPenalty());
-                break;
-            case AbilityKind.Agility:
-                challenge = new Dr(challenge.Value + Injuries.GetAgilityPenalty());
-                break;
-        }
+            AbilityKind.Strength => Injuries.GetStrengthPenalty(),
+            AbilityKind.Agility => Injuries.GetAgilityPenalty(),
+            _ => 0
+        };
 
-        // Injury-based dice penalties
         var presencePenaltyDice = Injuries.GetPresencePenaltyDice();
         if (ability is AbilityKind.Presence && presencePenaltyDice.Sides > 0)
-            penalty += dice.Roll(presencePenaltyDice);
+            injuryPenalty += dice.Roll(presencePenaltyDice);
 
         var agilityPenaltyDice = Injuries.GetAgilityPenaltyDice();
         if (ability is AbilityKind.Agility && agilityPenaltyDice.Sides > 0)
-            penalty += dice.Roll(agilityPenaltyDice);
+            injuryPenalty += dice.Roll(agilityPenaltyDice);
 
-        challenge = new Dr(challenge.Value + penalty);
+        Adjust("injury", injuryPenalty);
+        Adjust("armor", armorPenalty);
 
         var rollResults = dice.Roll(DiceExpr.D20);
         var outcome = rollResults + Abilities[ability].Modifier;
         var nat = rollResults switch { 1 => Natural.One, 20 => Natural.Twenty, _ => Natural.None };
 
         var modifier = Abilities[ability].Modifier;
-        return nat is Natural.One ? ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value)
-            : nat is Natural.Twenty ? ChallengeOutcome.Success(nat, rollResults, modifier, challenge.Value)
-            : outcome >= challenge.Value
-                ? ChallengeOutcome.Success(nat, rollResults, modifier, challenge.Value)
-                : ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value);
+        var isSuccess = nat is Natural.Twenty || (nat is not Natural.One && outcome >= challenge.Value);
+        return isSuccess
+            ? ChallengeOutcome.Success(nat, rollResults, modifier, challenge.Value, reasons)
+            : ChallengeOutcome.Fail(nat, rollResults, modifier, challenge.Value, reasons);
     }
 
     /// <summary>Flee from combat: Agility vs DR 12, hindered by armor (MORK BORG flee rule).</summary>
