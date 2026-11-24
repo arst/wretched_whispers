@@ -57,6 +57,7 @@ Suite `campaign-creation` (`CampaignCreationEvals.cs`):
 Suite `narrator-voice` (`NarratorVoiceEvals.cs`):
 
 - **Voice-\*** — the narration is shown to the player unfiltered, so it must not talk about the machinery: tool names, "the domain", result field names, restated instructions, notes to self. Six kinds of turn (opening, look around, first meeting, risky feat, combat entry, combat round), three samples each. This varies from one model run to the next, so it is a rate with a bar (at most 2 leaking samples of 18; 5 of 18 leaked before the persona's "every word you write is shown to the player" rule), not a pass per sample. Each sample gets an exact check (`EngineTalk`) and an LLM judge.
+- **Voice-Question-\*** — the same check on the turns where it leaked most in simulated play: the player asks a question (how to play, how to heal, prices, what a rest will do, what happens if they attack, what is in the pack, the rules of a round, using an item mid-fight). Each message is one a simulated player sent. Eight kinds of turn, three samples each, at most 2 leaking of 24. 15 of 24 leaked before the persona's rule for answering questions and the reminder that closes the instructions; 2 of 48 with both. Neither is enough alone (4 to 7 of 24, and 10 of 48).
 
 Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 

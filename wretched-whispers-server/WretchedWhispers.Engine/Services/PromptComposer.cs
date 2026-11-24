@@ -37,6 +37,8 @@ public sealed class PromptComposer
             ## Difficulty
             {toneNote}
             {ComposeClassSection(context)}
+            {NarratorPersona.ClosingReminder}
+
             """;
     }
 

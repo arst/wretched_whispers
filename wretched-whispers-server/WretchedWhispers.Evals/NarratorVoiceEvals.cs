@@ -71,13 +71,72 @@ public class NarratorVoiceEvals
             "I strike the plague priest with my staff!"),
     ];
 
+    /// <summary>
+    /// A question is where the machinery showed most in simulated play (43 of 275 turns in the run of
+    /// 23 November 2026): the narrator answers by describing its own procedure. Each message below is
+    /// one a simulated player sent, with the scene added where the question needs one; the quoted
+    /// text is what came back.
+    /// </summary>
+    private static readonly Turn[] QuestionTurns =
+    [
+        // "I must call the tool that spends or adds it and then narrate the result."
+        new("Voice-Question-HowToPlay",
+            client => EvalHost.CreateExplorationAsync(client),
+            "ok. i dont really know what to do. how do i win"),
+        // "tell me how long you want to rest and I will call the rest tool"
+        new("Voice-Question-Healing",
+            client => EvalHost.CreateExplorationAsync(client),
+            "how do i heal. is there a potion"),
+        // "buy the three-tin bundle for 8 silver (I'll call BuyItem) ... sell the Sword for 15 now (I'll call SellItem)"
+        new("Voice-Question-Prices",
+            client => EvalHost.CreateExplorationAsync(client),
+            "I stop at the peddler's cart by the well. i need food. 3 tins from you, and what do you pay "
+            + "for my sword if i sell it back"),
+        // "If you choose to rest here I will call the rest tool (it will advance time and apply whatever recovery the rules grant)."
+        new("Voice-Question-RestBeforehand",
+            client => EvalHost.CreateExplorationAsync(client),
+            "Is there a quiet spot here where I could sit down and rest for a while? Please tell me how "
+            + "much the rest will heal before I do it, and whether I need to eat."),
+        // "if you attack I must call TurnEncounterHostile and then StartEncounter"
+        new("Voice-Question-WhatIfIAttack",
+            client => EvalHost.CreateExplorationAsync(client),
+            "Two scavengers are picking through a broken wagon ahead and have not seen me. What are my "
+            + "options? What happens if I just attack them?"),
+        // "You check your pack again -- honest and blunt, the tools back this up."
+        new("Voice-Question-Inventory",
+            client => EvalHost.CreateExplorationAsync(client),
+            "Before anything else, what do I have that could splint a crushed foot? Tell me exactly what "
+            + "is in my pack."),
+        // "The tool call is the table's truth" / "I will call the combat resolution tool"
+        new("Voice-Question-CombatRules",
+            client => EvalHost.CreateCombatAsync(client),
+            "Hold on, before I swing. On a miss, does he get a free swing at me before my next turn? "
+            + "And what is the number I need to roll?"),
+        new("Voice-Question-CombatUseItem",
+            client => EvalHost.CreateCombatAsync(client),
+            "what happens if i stop to eat or use something from my pack right now, do i lose my attack"),
+    ];
+
+    /// <summary>
+    /// Leaking samples tolerated out of the question turns' 24. Measured on gpt-5-mini: 15 of 24 before
+    /// the persona's rule for answering questions and the reminder that closes the instructions; with
+    /// the rule alone 4 to 7 of 24, with the reminder alone 10 of 48, with both 2 of 48.
+    /// </summary>
+    private const int MaxQuestionLeaks = 2;
+
     [Fact]
-    public async Task Narration_RarelyTalksAboutTheMachinery()
+    public Task Narration_RarelyTalksAboutTheMachinery() => AssertRarelyLeaksAsync(Turns, MaxLeaks);
+
+    [Fact]
+    public Task AnswerToAQuestion_RarelyTalksAboutTheMachinery() =>
+        AssertRarelyLeaksAsync(QuestionTurns, MaxQuestionLeaks);
+
+    private static async Task AssertRarelyLeaksAsync(Turn[] turns, int maxLeaks)
     {
         var ct = TestContext.Current.CancellationToken;
 
         // Kinds of turn run side by side; a kind's samples run one after another.
-        var leaksPerTurn = await Task.WhenAll(Turns.Select(async turn =>
+        var leaksPerTurn = await Task.WhenAll(turns.Select(async turn =>
         {
             var leaks = new List<string>();
             for (var sample = 1; sample <= SamplesPerTurn; sample++)
@@ -87,9 +146,9 @@ public class NarratorVoiceEvals
         }));
 
         var leaking = leaksPerTurn.SelectMany(leaks => leaks).ToList();
-        Assert.True(leaking.Count <= MaxLeaks,
-            $"{leaking.Count} of {Turns.Length * SamplesPerTurn} sampled turns talk about the machinery "
-            + $"(at most {MaxLeaks} allowed).\n\n{string.Join("\n\n", leaking)}");
+        Assert.True(leaking.Count <= maxLeaks,
+            $"{leaking.Count} of {turns.Length * SamplesPerTurn} sampled turns talk about the machinery "
+            + $"(at most {maxLeaks} allowed).\n\n{string.Join("\n\n", leaking)}");
     }
 
     /// <summary>Runs one sample of a turn; returns a description of the leak, or null when it is clean.</summary>
