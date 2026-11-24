@@ -273,6 +273,90 @@ public class DomainAuthorityEvals
             + string.Join("; ", failures));
     }
 
+    // Second simulated run: 2 of 15 deaths were told as survival. A round that ended PlayerDead: "You are
+    // not yet dead ... broken and prone." A failed test whose result said isDead true: "You are not dead;
+    // you are broken." The first run left 8 of 13 new injuries unnamed. The dice below are seeded so the
+    // first test or round kills, or maims with a known injury. Measured on gpt-5-mini after the code
+    // fixes (the injury named in the result, playerDead on a round): told right in 18 of 18 deaths and 6
+    // of 6 injuries, with no prompt change. These are guards.
+
+    [Fact]
+    public Task Exploration_DeathFromAFailedTest_IsToldAsDeath() =>
+        AssertFateIsToldAsync(
+            "Exploration-Death-ToldAsDeath",
+            client => EvalHost.CreateExplorationAsync(client, maxHp: 1, diceSeed: 8),
+            RooftopLeap, expectedInjury: null);
+
+    [Fact]
+    public Task Exploration_InjuryFromAFailedTest_IsNamed() =>
+        AssertFateIsToldAsync(
+            "Exploration-Injury-Named",
+            client => EvalHost.CreateExplorationAsync(client, maxHp: 1, diceSeed: 5),
+            RooftopLeap, expectedInjury: "smashed face");
+
+    [Fact]
+    public Task Combat_DeathInARound_IsToldAsDeath() =>
+        AssertFateIsToldAsync(
+            "Combat-Death-ToldAsDeath",
+            client => EvalHost.CreateDeathFightAsync(client),
+            BellWardenSwing, expectedInjury: null);
+
+    [Fact]
+    public Task Combat_InjuryInARound_IsNamed() =>
+        AssertFateIsToldAsync(
+            "Combat-Injury-Named",
+            client => EvalHost.CreateDeathFightAsync(client, diceSeed: 13),
+            BellWardenSwing, expectedInjury: "severed arm");
+
+    private const string RooftopLeap =
+        "I take a running jump across the gap between the two rooftops, four storeys above the cobbles.";
+
+    private const string BellWardenSwing = "I swing my staff at the Bell-Warden with everything I have!";
+
+    /// <summary>Runs the turn three times on dice seeded to kill (<paramref name="expectedInjury"/> null)
+    /// or to break the character with that injury, and fails on any run whose narration tells it
+    /// otherwise. The domain's own state is checked first, so a seed that stops producing the fate fails
+    /// loudly instead of passing for the wrong reason.</summary>
+    private static async Task AssertFateIsToldAsync(
+        string scenarioName, Func<IChatClient, Task<EvalHost>> createHost, string playerMessage, string? expectedInjury)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var mistold = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, scenarioName, [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await createHost(scenario.ChatClient);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, ct);
+            Assert.Null(outcome.Error);
+
+            var character = await LoadCharacterAsync(host);
+            var results = string.Join(" ", outcome.ToolResults.Select(
+                t => t.Result as string ?? JsonSerializer.Serialize(t.Result, JsonSerializerOptions.Web)));
+            Assert.True(
+                expectedInjury is null ? character.IsDead : !character.IsDead && results.Contains(expectedInjury),
+                $"The scenario needs the dice to {(expectedInjury is null ? "kill" : $"give '{expectedInjury}'")}; "
+                + $"pick another seed. Tools [{string.Join(", ", outcome.ToolCalls)}], results: {results}");
+
+            var passed = await JudgeAsync(scenario, outcome.Narrative, expectedInjury is null
+                ? "The character DIED this turn, and death is final. The narration must say plainly that the "
+                  + "character is dead. FAIL if it says or implies the character is alive, broken, unconscious, "
+                  + "clinging to life or still able to act, or asks what the character does next. Telling the "
+                  + "player to begin a new character passes."
+                : "The character was struck down this turn, SURVIVED, and now carries this injury: "
+                  + $"{expectedInjury}. PASS if the narration tells that injury (the same part of the body, lost "
+                  + "or ruined) and the character as alive. FAIL if it names no injury, names a different one, or "
+                  + "says the character died.");
+            if (passed != true)
+                mistold.Add($"sample {sample}: results {results} narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(mistold.Count == 0,
+            $"{scenarioName}: the fate the dice gave was told otherwise in {mistold.Count} of 3 runs: "
+            + string.Join("; ", mistold));
+    }
+
     [Fact]
     public async Task Exploration_Resting_CallsRest()
     {

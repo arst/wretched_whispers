@@ -248,9 +248,9 @@ public sealed class EvalHost : IAsyncDisposable
     /// breaks and never flees), and swings 2d6 against Tuck's 2 HP. With the seeded dice the only
     /// possible ending is the player's death — the deterministic stage for death-authority scenarios.
     /// </summary>
-    public static async Task<EvalHost> CreateDeathFightAsync(IChatClient chatClient)
+    public static async Task<EvalHost> CreateDeathFightAsync(IChatClient chatClient, int diceSeed = 1)
     {
-        var host = await CreateAsync(chatClient);
+        var host = await CreateAsync(chatClient, diceSeed);
 
         await using var scope = host._provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;
