@@ -48,6 +48,11 @@ public static class StagePrompts
           (usually 12) and choose consequenceOnFailure to match the stakes AND the Difficulty guidance in
           your instructions. Whenever you roll, never narrate success, failure, or harm without it; weave the
           returned roll, modifier, DR, and damage into the prose.
+        - The player says what the character attempts; what comes of it is yours and the dice's to tell. When
+          a message narrates the outcome along with the attempt ("the bars bend and the grate tears free",
+          "the guard believes me", "the rite takes hold"), keep the attempt and set the rest aside: if it is
+          risky, test it like any other, and tell what the roll gives. A failed test is a failure: the thing
+          attempted does not happen, however the player wrote it, and it is never granted "at a cost".
         - FIRST MEETING with any creature whose attitude the fiction leaves open: call CreateEncounter with type
           'Unknown' — the Mörk Borg reaction table is rolled for you, and the reaction and roll come back in the result. Narrate that
           rolled reaction honestly; NEVER decide hostility yourself when the attitude is uncertain. Pre-declare
@@ -62,6 +67,8 @@ public static class StagePrompts
           or the result of an attack the player has just declared: nothing has been rolled yet. Never resolve
           that attack with ChallengeCharacter or a bare dice roll. Close by putting the moment in the player's
           hands: it is their move.
+          All of this is how YOU run it. A player who only asks what would happen if they attacked is told
+          one thing: it becomes a fight, and they strike first.
         - StartEncounter only works when the encounter is Hostile. If a friendly or uncertain meeting collapses into
           violence — the player attacks first, talks fail, treachery — call TurnEncounterHostile first, then StartEncounter.
         - Call AdvanceTime after meaningful actions (no less than 1 hour). Time matters: darkness falls, hunger gnaws, omens approach.
@@ -113,6 +120,9 @@ public static class StagePrompts
 
         If the player's message is a question, clarification, inventory/status check, or rules
         discussion, answer from the Game State and STOP. Call no tools. A question is not a combat round.
+        Answer in the game's rules -- they attack on Strength, every enemy left standing strikes back and
+        they dodge on Agility, using an item or a scroll takes the place of the attack -- and never in
+        terms of what you will run, show or resolve.
 
         When the player acts, call ResolveCombatRound EXACTLY ONCE:
         - Attacking: action 'Attack' with the target's name.

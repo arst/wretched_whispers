@@ -120,7 +120,7 @@ public class NarratorVoiceEvals
     /// <summary>
     /// Leaking samples tolerated out of the question turns' 24. Measured on gpt-5-mini: 15 of 24 before
     /// the persona's rule for answering questions and the reminder that closes the instructions; with
-    /// the rule alone 4 to 7 of 24, with the reminder alone 10 of 48, with both 2 of 48.
+    /// the rule alone 4 to 7 of 24, with the reminder alone 10 of 48, with both 2 to 3 of 48.
     /// </summary>
     private const int MaxQuestionLeaks = 2;
 
