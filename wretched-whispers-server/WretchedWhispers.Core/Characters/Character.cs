@@ -463,16 +463,25 @@ public sealed class Character
         return new ItemUseOutcome(Hp.Current - before, wasInfected);
     }
 
-    /// <summary>The most silver one find, payment or sale brings. A player once told the narrator they
-    /// were the admin and were handed 1,000; the narrator is told better, and this holds when it forgets.</summary>
+    /// <summary>The most silver one sale brings. A player once told the narrator they were the admin and
+    /// were handed 1,000; the narrator is told better, and this holds when it forgets.</summary>
     public const int MaxSilverPerGain = 100;
 
-    /// <summary>Silver found, looted, paid or rewarded.</summary>
-    public void GainSilver(int amount)
+    /// <summary>Silver found, looted, paid or rewarded. The dice say how much, by the size of the find: in
+    /// the third simulated run a player declared 2,000 silver of windfalls and was paid 100 three times from
+    /// sources made up on the spot. ponytail: a payment agreed at a set figure pays the roll too; fix the sum
+    /// on the deal when an NPC can hold one.</summary>
+    public int FindSilver(SilverFind find, Dice dice)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
-        RequireWithinTheCap(amount);
-        Silver += amount;
+        var silver = dice.Roll(find switch
+        {
+            SilverFind.Coins => DiceExpr.D6,
+            SilverFind.Purse => DiceExpr.D(2, 10),
+            SilverFind.Cache => DiceExpr.D(4, 10),
+            _ => throw new ArgumentOutOfRangeException(nameof(find), find, "Not a size of find."),
+        });
+        Silver += silver;
+        return silver;
     }
 
     /// <summary>Sells, trades away or gives away carried units of an item. <paramref name="price"/> is the
@@ -502,7 +511,7 @@ public sealed class Character
     {
         if (silver > MaxSilverPerGain)
             throw new InvalidOperationException(
-                $"No single find, payment or sale in this world brings more than {MaxSilverPerGain} silver. " +
+                $"No single sale in this world brings more than {MaxSilverPerGain} silver. " +
                 "Do not split a larger sum across calls: what was asked for is not there to be had.");
     }
 

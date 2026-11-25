@@ -6,6 +6,7 @@ using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
@@ -85,8 +86,6 @@ public class GameToolsTests
     [InlineData("BuyItem_NegativeSilverCost")]
     [InlineData("AddItem_QuantityBelowOne")]
     [InlineData("Challenge_OutOfRangeDr")]
-    [InlineData("GainSilver_Zero")]
-    [InlineData("GainSilver_Negative")]
     [InlineData("SellItem_NegativePrice")]
     [InlineData("SellItem_QuantityBelowOne")]
     [InlineData("EquipWeapon_NegativeCost")]
@@ -107,8 +106,6 @@ public class GameToolsTests
             "BuyItem_NegativeSilverCost" => () => tools.BuyItem("rusty knife", silverCost: -5),
             "AddItem_QuantityBelowOne" => () => tools.AddItemToCharacterInventory("a bone", quantity: 0),
             "Challenge_OutOfRangeDr" => () => tools.ChallengeCharacter(99, AbilityKind.Agility, hoursTaken: 0),
-            "GainSilver_Zero" => () => tools.GainSilver(0, "a dead man's purse"),
-            "GainSilver_Negative" => () => tools.GainSilver(-10, "a dead man's purse"),
             "SellItem_NegativePrice" => () => tools.SellItem("a bone", silverPrice: -1),
             "SellItem_QuantityBelowOne" => () => tools.SellItem("a bone", silverPrice: 1, quantity: 0),
             "EquipWeapon_NegativeCost" => () => tools.EquipWeapon(WeaponKind.Sword, silverCost: -1),
@@ -290,13 +287,16 @@ public class GameToolsTests
     }
 
     [Fact]
-    public async Task GainSilver_PaysTheCharacter()
+    public async Task GainSilver_PaysWhatTheDiceRollAndSaysHowMuch()
     {
         var hero = HeroInSession();
 
-        var sheet = await CharacterTools().GainSilver(30, "the toll-keeper's strongbox");
+        var found = await CharacterTools().GainSilver(SilverFind.Purse, "the toll-keeper's strongbox");
 
-        Assert.Equal(40, sheet.Silver);
+        // Zero dice: each of the purse's 2d10 shows 1.
+        Assert.Equal(2, found.SilverFound);
+        Assert.Equal(12, found.SilverNow);
+        Assert.Equal(12, hero.Silver);
         _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
     }
 

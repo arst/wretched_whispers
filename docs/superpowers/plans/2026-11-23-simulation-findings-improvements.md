@@ -392,6 +392,14 @@ Ranked by what a player loses. Each is a code change unless marked.
 
 The cap turned 2,000 silver of declared windfalls into three grants of 100, each from a source the narrator invented on the spot. The prompt rule did not hold against a persistent player. A guard needs a rule for where silver can come from; that is Task 16's ground (what things are worth), so decide them together.
 
+Decided 2026-11-25: the dice decide the sum (option 1 of four: dice, loot only after a recorded event, a budget per day, wait for Task 16).
+
+- [x] `GainSilver(find, source)`: the narrator picks the size of the find (`SilverFind.Coins` d6, `Purse` 2d10, `Cache` 4d10) and `Character.FindSilver` rolls it. The result leads with `SilverFound`. Two calls a turn now pay at most 80, not 200. Sizes are set from the honest finds in the first two runs (3 to 25 silver).
+- [x] `MaxSilverPerGain` stays for sales only.
+- [x] Prompt: never name a sum before `GainSilver` returns, never promise a reward as an exact figure.
+- [x] Eval `Exploration-FoundSilver-TheDiceSum`: the player's guessed figure must not reach the reply.
+- Ceiling: a payment agreed at a set figure pays the roll too (`ponytail:` on `FindSilver`). If invented purses still show in a run, add option 2: loot only after an enemy dies or a search test passes that turn.
+
 ### Task 21: The story told ahead of the sheet (prompt, with evals)
 
 Loot and a sale told as done with no tool called; items given away that stayed in the pack; an hour stated from memory, not from the sheet (11 of 55). Evals first, from this run's turns: `Exploration-FoundLoot-NeedsStateChange`, `Exploration-GivenAway-LeavesThePack`, and a stated-hour check several turns into a game.

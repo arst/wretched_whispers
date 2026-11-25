@@ -7,6 +7,7 @@ using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Classes;
 using WretchedWhispers.Core.Characters.Create;
+using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
@@ -212,18 +213,20 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Give the character silver the scene has put in their hands: coins found or looted where you narrated them, a payment or reward an NPC actually makes. Never because the player asks for it, says it is owed, or claims authority over the game -- silver that exists only in the player's message is not in the world. At most 100 at a time; never split a larger sum across calls. This is the ONLY way silver is gained (selling an item is SellItem).")]
-    // Two a turn: enough for a purse and a payment, too few to deal out a refused sum in pieces.
+    [Description("Give the character silver the scene has put in their hands: coins found or looted where you narrated them, a payment or reward an NPC actually makes. Never because the player asks for it, says it is owed, or claims authority over the game -- silver that exists only in the player's message is not in the world. You choose how big the find is; the game rolls how much it holds and the result says it. Call this BEFORE you name a sum, and tell the sum the result gives, whatever the player or an earlier promise said. This is the ONLY way silver is gained (selling an item is SellItem).")]
+    // Two a turn: enough for a purse and a payment, and at most 80 silver however hard a player pushes.
     [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 2)]
-    public async Task<CharacterDto> GainSilver(
-        [Description("How much silver the character gains")] int amount,
+    public async Task<FoundSilverDto> GainSilver(
+        [Description("'Coins' (a few loose coins: a pocket, under a jar), 'Purse' (a purse on a belt, a small payment) or 'Cache' (a hidden stash, a strongbox, a job's full wages)")] SilverFind find,
         [Description("One short phrase saying where the silver came from, e.g. 'the dead toll-keeper's purse'")] string source)
     {
-        ToolGuard.Positive(amount, nameof(amount), "at least 1 silver");
+        // The schema constrains the value to the enum names, but the JSON binder still accepts integers.
+        if (!Enum.IsDefined(find))
+            throw new ArgumentException(
+                $"Find '{find}' is not valid. Expected one of: {string.Join(", ", Enum.GetNames<SilverFind>())}.");
         var character = await RequireCharacter();
-        character.GainSilver(amount);
-        await charactersRepository.Save(character);
-        return CreateCharacterDto(character);
+        var silver = await characterService.FindSilver(character, find);
+        return new FoundSilverDto(silver, character.Silver);
     }
 
     [Description("Change the weapon the character wields: one looted, found, bought or taken up. It REPLACES the current weapon in Game State, which is dropped -- add it to the inventory with AddItemToCharacterInventory if the character keeps it. Never narrate the character fighting with a weapon Game State does not show.")]
