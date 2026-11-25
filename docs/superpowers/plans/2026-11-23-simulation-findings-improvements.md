@@ -404,6 +404,9 @@ Decided 2026-11-25: the dice decide the sum (option 1 of four: dice, loot only a
 
 Loot and a sale told as done with no tool called; items given away that stayed in the pack; an hour stated from memory, not from the sheet (11 of 55). Evals first, from this run's turns: `Exploration-FoundLoot-NeedsStateChange`, `Exploration-GivenAway-LeavesThePack`, and a stated-hour check several turns into a game.
 
+- [x] Evals first, six samples each on the current prompt: loot after a passed (forced) test 0 of 6, a gift 1 of 12, the hour asked again after three hours 0 of 6. None of the three reproduces in a short scenario, so the prompt is unchanged and the evals stand as guards.
+- The run's slips came 15 to 30 turns into a game, with the narrator's own earlier replies in front of it. Reproducing that needs a long multi-turn eval; not built until a run shows the slips again.
+
 ### Still open from Stage 3
 
 - 3.7: `Successor-Opening-NoCombat` (1 of 15 openings started a fight) and `Combat-NonAttackAction-NoStrikeNarrated`.
