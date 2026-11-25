@@ -1,4 +1,8 @@
 using System.ClientModel;
+using System.ComponentModel;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
@@ -7,6 +11,7 @@ using Microsoft.Extensions.AI.Evaluation.Reporting;
 using Microsoft.Extensions.AI.Evaluation.Reporting.Storage;
 using Microsoft.Extensions.Configuration;
 using WretchedWhispers.Engine.Models;
+using WretchedWhispers.Engine.Services;
 using Xunit;
 
 namespace WretchedWhispers.Evals.Harness;
@@ -48,6 +53,27 @@ public static class EvalSupport
         return Path.Combine(dir?.FullName ?? AppContext.BaseDirectory, ".eval-results");
     }
 
+    /// <summary>
+    /// Every tool the narrator can be given, as it is described to the model: names, descriptions,
+    /// parameters, stages and call limits. A cached reply is keyed by the request's messages and
+    /// options, and the tools are not serialized with the options, so without this a changed tool
+    /// description or a new tool replayed the replies the old tools got. (Seen when a reply cached with
+    /// a new tool was replayed after the tool was taken away: the narrator "called" a tool that did
+    /// not exist.)
+    /// </summary>
+    private static readonly Lazy<string> ToolsFingerprint = new(() =>
+    {
+        static string Describe(ICustomAttributeProvider member) =>
+            member.GetCustomAttributes(typeof(DescriptionAttribute), false)
+                .Cast<DescriptionAttribute>().FirstOrDefault()?.Description ?? "";
+
+        var tools = Enum.GetValues<SessionStage>().SelectMany(stage => GameToolCatalog.ForStage(stage).Select(tool =>
+            $"{stage}|{tool.Name}|{tool.MaxCallsPerTurn}|{Describe(tool.Method)}|" + string.Join(";",
+                tool.Method.GetParameters().Select(p =>
+                    $"{p.ParameterType.Name} {p.Name}={(p.HasDefaultValue ? p.DefaultValue : "required")}: {Describe(p)}"))));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", tools))));
+    });
+
     // DiskBasedReportingConfiguration.Create signature (verified against 10.6.0):
     //   Create(storageRootPath, evaluators, chatConfiguration, enableResponseCaching,
     //          timeToLiveForCacheEntries, cachingKeys, executionName,
@@ -63,6 +89,7 @@ public static class EvalSupport
             chatConfiguration: chatConfiguration,
             enableResponseCaching: true,
             timeToLiveForCacheEntries: null,
+            cachingKeys: [ToolsFingerprint.Value],
             executionName: ExecutionName,
             evaluationMetricInterpreter: InterpretMetric,
             tags: [suite]);

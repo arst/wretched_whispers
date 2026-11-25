@@ -384,8 +384,9 @@ Ranked by what a player loses. Each is a code change unless marked.
 
 ### Task 19: A found scroll can be cast, and food can be eaten
 
-- [ ] A tool that gives the character a scroll (name and school), so a scroll found or bought is one `CastScroll` knows. 9 casts failed and 2 turns errored on a scroll that was an item.
-- [ ] A way to spend food: either a tool, or `Rest` eating a day of food and saying so. Three turns failed on `UseItemFromCharacterInventory("Food: 4 days")`.
+- [x] A tool that gives the character a scroll: `AddScrollToCharacter(school)` rolls its power from the school's table, as a starting scroll's is, so it is one `CastScroll` knows and the game can resolve. One call a turn. 9 casts failed and 2 turns errored on a scroll that was an item. Eval: 0 of 6 without the tool, 5 of 6 with it (the sixth rolled a test and gave no scroll).
+- [x] A way to spend food: `UseItemFromCharacterInventory` eats a day of the food on the sheet when it is given "food", a ration, or the Game State line, since that is the tool the narrator reached for. Three turns failed on `UseItemFromCharacterInventory("Food: 4 days")`. Eval: 0 of 6 before, 6 of 6 now. Eating only spends the food; hunger has no cost yet.
+- [x] Found on the way: the eval cache did not key on the tools, so a changed tool description or a new tool replayed old replies. The harness now adds a fingerprint of every tool as the model sees it.
 
 ### Task 20: Silver on the player's say-so, 100 at a time (design first)
 

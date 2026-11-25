@@ -97,7 +97,7 @@ public sealed class Character
     [JsonInclude] public CharacterClass Class { get; private set; }
     [JsonInclude] public Abilities.Abilities Abilities { get; private set; }
     [JsonInclude] public int Silver { get; private set; }
-    public int FoodDays { get; }
+    public int FoodDays { get; private set; }
 
     [JsonInclude] public Inventory Inventory { get; private set; }
 
@@ -426,6 +426,25 @@ public sealed class Character
     }
 
     /// <summary>Uses one unit of a carried item and applies what the item does.</summary>
+    /// <summary>Eats one day of the food on the sheet.</summary>
+    // ponytail: eating only spends the food. Give hunger a cost (no healing from rest without food, as
+    // the book has it) when starving is to matter.
+    public void EatFood()
+    {
+        if (IsDead) throw new InvalidOperationException("The character is dead and can use nothing.");
+        if (FoodDays == 0) throw new InvalidOperationException("There is no food left to eat.");
+        FoodDays--;
+    }
+
+    /// <summary>A scroll found, bought or given in play. Its power is rolled from the school's table, as
+    /// a starting scroll's is, so it is one the game can resolve when cast.</summary>
+    public Scroll AddScroll(ScrollSchool school, Dice dice)
+    {
+        var scroll = new Scroll(Guid.NewGuid(), school, ScrollPowers.Roll(school, dice).Name);
+        _scrolls.Add(scroll);
+        return scroll;
+    }
+
     public ItemUseOutcome UseItem(Guid itemId, Dice dice)
     {
         // A turn can chain actions past a death ("I jump, then drink"); nothing heals the dead.

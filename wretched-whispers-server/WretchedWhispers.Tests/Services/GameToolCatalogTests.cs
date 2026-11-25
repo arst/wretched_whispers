@@ -32,6 +32,7 @@ public class GameToolCatalogTests
         Assert.Equal(
             new[]
             {
+                "Character.AddScrollToCharacter=1",
                 "Character.GainSilver=2",
                 "Character.GettingBetter=1",
                 "Character.SellItem=3",
@@ -76,7 +77,7 @@ public class GameToolCatalogTests
     }
 
     [Fact]
-    public void Exploration_ExposesExactlyTwentyOneTools()
+    public void Exploration_ExposesExactlyTwentyTwoTools()
     {
         Assert.Equal(
             new[]
@@ -87,6 +88,7 @@ public class GameToolCatalogTests
                 "Campaign.Rest",
                 "Campaign.SetPartyLocation",
                 "Character.AddItemToCharacterInventory",
+                "Character.AddScrollToCharacter",
                 "Character.BuyItem",
                 "Character.CastScroll",
                 "Character.ChallengeCharacter",
@@ -133,6 +135,7 @@ public class GameToolCatalogTests
                 "Campaign.Rest",
                 "Campaign.SetPartyLocation",
                 "Character.AddItemToCharacterInventory",
+                "Character.AddScrollToCharacter",
                 "Character.CureInfection",
                 "Character.DegradeCharacterAbility",
                 "Character.EquipArmor",

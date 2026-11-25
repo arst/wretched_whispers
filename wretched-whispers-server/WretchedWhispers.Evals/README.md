@@ -24,7 +24,9 @@ dotnet test wretched-whispers-server/WretchedWhispers.Evals/WretchedWhispers.Eva
 
 Without these set, the evals **skip**. The first run hits Azure and writes a response cache under
 `<solution root>/.eval-results/` (git-ignored, override with `WW_EVAL_RESULTS`); later runs replay
-from the cache and are free + deterministic until a prompt, seed, or scenario changes.
+from the cache and are free + deterministic until a prompt, seed, or scenario changes. A change to any
+tool (its description, parameters, stages or call limit) also starts every scenario afresh: the tools
+are not part of a cached request's key on their own, so the harness adds a fingerprint of them.
 
 ## Reporting
 
@@ -74,6 +76,8 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Combat-MissingItemUse-NoTurn** — using a missing item in combat must not invent it or advance the round.
 - **Combat-NoOutcomeBeforeTheRoll** — all narration is shown as it is written, so prose written before `ResolveCombatRound` returns must not state the attack's result (LLM judge over the pre-tool text; calling the tool first passes outright).
 - **Exploration-FoundCoins-GainSilver** — coins taken from a corpse raise silver (or the purse is told as empty); they are never added to the pack as an item, and never told as taken while silver stays put. Three samples.
+- **Exploration-FoundScroll-IsAScroll** — a scroll taken from a dead hand becomes a scroll the game can cast (`AddScrollToCharacter` rolls its power), never an item in the pack, and is not told as taken when the sheet did not gain one. 0 of 6 without the tool, 5 of 6 with it. At most 1 miss of 6.
+- **Exploration-EatingARation-SpendsFood** — eating a ration spends a day of the food on the sheet. 0 of 6 before (the item tool failed on "food"), 6 of 6 now. At most 1 miss of 6.
 - **Exploration-FailedTest-ToldAsFailure** — the player's message narrates a risky feat as already done ("the grate tears free"). The narrator must test it, and with the dice seeded to fail must tell it as a failure. A run that rolls nothing and accepts the player's account fails too. Three samples.
 - **Exploration-NoInventedMechanics** — the player poisons their weapon and asks what it adds. The narration must not state a game effect the game cannot apply: no bonus die, no damage over time, no saving roll for the enemy (LLM judge). A rate: at most 1 of 3 samples. 3 of 3 before the persona's "Invent no rules" rule, 1 of 6 with it. Not checked: an offer of a test to "make it work" with the effect left open, which about half the answers still make.
 - **Exploration-Death-ToldAsDeath**, **Combat-Death-ToldAsDeath** — the dice are seeded so the first failed test, or the first round, kills. The narration must say the character is dead and must not ask what they do next (LLM judge); the domain's own state is checked first. Three samples each.
@@ -100,7 +104,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Exploration-TorchLit-UsesItem** — genuinely consuming a carried item must call `UseItemFromCharacterInventory`.
 - **Exploration-OmenSpend-LowersDr** — an omen spent on an ability test must ride `ChallengeCharacter`'s `spendOmenToLowerDr` flag, proven by the committed omen count.
 - **Exploration-RiskyFeat-CallsChallenge** — a risky feat with real stakes must be resolved by `ChallengeCharacter`, never narrated success or failure.
-- **Exploration-Camp-NoFabricatedItemUse** — LLM-judge groundedness: camp narration must not invent item consumption or counts.
+- **Exploration-Camp-NoFabricatedItemUse** — camp narration must not invent item consumption or counts. Judged on that alone: a general groundedness judge failed correct replies for the hour after the rest and for "Miseries 0/7" off the sheet.
 - **Exploration-CombatEntry-OrderedChain** — violence erupting must run `CreateEncounter -> AddAdversaryToEncounter -> StartEncounter`, in order.
 - **Exploration-SecondRest-StillCallsRest** — *multi-turn*: resting on a second night, with the first night's prose in the history, must still call `Rest` and advance time (the turn ledger shows the model that the first night ran the tool).
 - **Exploration-CombatEntry-StopsAtStart** — an attack that starts combat ends the turn at `StartEncounter`: no ability test or bare roll stands in for the attack, the stage is Combat with nothing resolved, and the narration (LLM judge) states no attack result and leaves the move to the player. Six samples. The tool calls and the state are checked on each; the narration is a rate, at most 1 of 6 telling an outcome (2 to 3 of 6 before the rule that the declared blow is not yet struck, 0 of 6 with it).

@@ -11,3 +11,7 @@ public class ScrollDto
     [Description("Unique key identifying the specific scroll")]
     public string Key { get; set; } = string.Empty;
 }
+
+/// <summary>A scroll that came into the character's hands in play: the name CastScroll knows it by and
+/// what its power does.</summary>
+public sealed record FoundScrollDto(string Name, ScrollSchool School, string? Effect);
