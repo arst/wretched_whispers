@@ -280,6 +280,85 @@ public class DomainAuthorityEvals
             + $"{failures.Count} of {FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
     }
 
+    /// <summary>Third simulated run: "Silver: 95 (you took 30 from the chest)" after a lock was picked, and
+    /// "you now have 95 silver, the reliquary and the key are added to your pack" after a test. The test was
+    /// the only call; silver and pack stayed as they were. Here the test is forced and passes, so only what
+    /// follows is the model's: the chest's contents reach the sheet, or the reply does not say they were taken.</summary>
+    [Fact]
+    public async Task Exploration_LootAfterAPassedTest_NeedsTheStateChange()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= FoundThingSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-FoundLoot-NeedsStateChange", [new NarrativeCheckEvaluator()], sample: sample);
+            var client = new ForcedCallChatClient(scenario.ChatClient);
+            await using var host = await EvalHost.CreateExplorationAsync(client, diceSeed: LockPickedSeed);
+            client.ForceNextCall("ChallengeCharacter", new()
+            {
+                ["challengeDr"] = 12,
+                ["abilityKind"] = "Agility",
+                ["hoursTaken"] = 0,
+                ["consequenceOnFailure"] = "Minor"
+            });
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "I pick the lock on the iron chest at the foot of the bed and take whatever is inside.", ct);
+            Assert.Null(outcome.Error);
+            var results = string.Join(" ", outcome.ToolResults.Select(
+                t => t.Result as string ?? JsonSerializer.Serialize(t.Result, JsonSerializerOptions.Web)));
+            Assert.True(System.Text.RegularExpressions.Regex.IsMatch(results, "\"isSuccess\":\\s*true"),
+                $"The scenario needs the lock picked; pick another seed. Results: {results}");
+
+            var changed = outcome.Delta is { ItemsAdded.Length: > 0 } or { SilverChange: > 0 }
+                || outcome.ToolCalls.Contains("AddScrollToCharacter");
+            if (!changed && await JudgeAsync(scenario, outcome.Narrative,
+                    "Neither the character's pack nor their silver changed this turn. The narration may open the "
+                    + "chest and describe what lies in it, but must not state or imply that the character took, "
+                    + "pocketed or now holds any of it, or that silver or items were added. An empty chest, a "
+                    + "trap, an interruption, or contents left where they lie all pass.") != true)
+                failures.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"Loot was told as taken with no tool applying it in {failures.Count} of "
+            + $"{FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
+    private const int LockPickedSeed = 3; // the forced test rolls 14 against DR 12
+
+    /// <summary>Third simulated run: a reliquary and a bell given away in the story stayed in the pack for the
+    /// rest of the game. SellItem with a price of 0 is the gift.</summary>
+    [Fact]
+    public async Task Exploration_ItemGivenAway_LeavesThePack()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= FoundThingSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-GivenAway-LeavesThePack", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient,
+                [new InventoryItem(Guid.NewGuid(), "small bronze bell", isBulky: false, isOneTimeUse: false)]);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "The old woman at the well says the bell belonged to her drowned son. I put the small bronze "
+                + "bell in her hands. Keep it. Then I walk on.", ct);
+            Assert.Null(outcome.Error);
+
+            var stillCarried = (await LoadCharacterAsync(host)).Inventory.InventoryItems
+                .Any(item => item.Description.Contains("bell", StringComparison.OrdinalIgnoreCase));
+            if (stillCarried && await JudgeAsync(scenario, outcome.Narrative,
+                    "The character still carries the bell. The narration must not state or imply that the bell "
+                    + "was handed over, given away or left with anyone. The woman refusing it, an interruption, "
+                    + "or the character keeping it all pass.") != true)
+                failures.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"A gift was told while the item stayed in the pack in {failures.Count} of "
+            + $"{FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
     private const int FoundThingSamples = 6;
 
     [Fact]

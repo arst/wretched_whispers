@@ -77,6 +77,26 @@ public partial class PlaceAndTimeEvals
             "Searching a house room by room takes time and the clock must move");
     }
 
+    /// <summary>Third simulated run: 11 of 55 replies that stated the hour stated the wrong one. Six were one
+    /// game, where the narrator kept writing "Day 1, Hour 1" from its own earlier replies while the sheet
+    /// read hour 3 and 4. So the hour is stated first, then time passes, then the hour is asked again.</summary>
+    [Fact]
+    public async Task Exploration_HourAskedAfterTimePassed_IsTheSheetsHour()
+    {
+        var runs = await RunAsync(
+            "Exploration-StatedHour-FollowsTheSheet",
+            client => EvalHost.CreateExplorationAsync(client),
+            "I step out and look at the sky. What day and hour is it now?",
+            earlierTurns:
+            [
+                "Where am I, and what day and hour is it?",
+                "I spend the next few hours scavenging the ruined chapel for anything useful.",
+            ]);
+
+        AssertHolds(runs, MaxMisses, run => run.HoursPassed >= 1,
+            "After hours of scavenging, the hour told must be the sheet's, not one from an earlier reply");
+    }
+
     /// <summary>Whatever hour or day a reply states must be the one on the sheet after the turn.</summary>
     private static string? WrongClock(After run)
     {
@@ -108,8 +128,11 @@ public partial class PlaceAndTimeEvals
             $"{what}. Failed in {failed.Count} of {runs.Count} runs (at most {maxMisses} allowed): {string.Join("; ", failed)}");
     }
 
+    /// <summary>Hours passed are counted from before <paramref name="earlierTurns"/>, so a scenario that
+    /// needs time to pass first can check that it did.</summary>
     private static async Task<IReadOnlyList<After>> RunAsync(
-        string scenarioName, Func<IChatClient, Task<EvalHost>> createHost, string playerMessage)
+        string scenarioName, Func<IChatClient, Task<EvalHost>> createHost, string playerMessage,
+        string[]? earlierTurns = null)
     {
         var ct = TestContext.Current.CancellationToken;
         var runs = new List<After>();
@@ -118,6 +141,8 @@ public partial class PlaceAndTimeEvals
             await using var scenario = await EvalScenario.StartAsync(Suite, scenarioName, [], sample: sample);
             await using var host = await createHost(scenario.ChatClient);
             var before = await ClockAsync(host, ct);
+            foreach (var earlier in earlierTurns ?? [])
+                Assert.Null((await host.CreateTurnRunner().RunTurnAsync(earlier, ct)).Error);
 
             var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, ct);
             Assert.Null(outcome.Error);
