@@ -62,6 +62,9 @@ public sealed partial class StreamingScrubber
     private string _pending = string.Empty;
     // The part of the current line already released: how a line ends decides whether a reply ended there.
     private string _line = string.Empty;
+    // True when that line follows another on a single line break: it is inside a block the reply
+    // itself set one line at a time (a character sheet, verse).
+    private bool _lineIsInBlock;
     private bool _replyEnded;
     private readonly System.Text.StringBuilder _dropped = new();
 
@@ -77,6 +80,7 @@ public sealed partial class StreamingScrubber
     {
         _replyEnded = false;
         _line = string.Empty;
+        _lineIsInBlock = false;
     }
 
     /// <summary>Adds text; returns what is now safe to show (possibly empty).</summary>
@@ -108,19 +112,40 @@ public sealed partial class StreamingScrubber
         var raw = _pending[..length];
         _pending = _pending[length..];
         var lineStart = raw.LastIndexOf('\n') + 1;
+        if (lineStart > 0)
+        {
+            var before = raw[..(lineStart - 1)];
+            var previousStart = before.LastIndexOf('\n') + 1;
+            var previous = (previousStart == 0 ? _line : string.Empty) + before[previousStart..];
+            _lineIsInBlock = !string.IsNullOrWhiteSpace(previous);
+        }
+
         _line = lineStart > 0 ? raw[lineStart..] : _line + raw;
         return Clean(raw);
     }
 
     /// <summary>Cuts the pending text at the end of the reply, if it is there. Returns the index of a
     /// line break that cannot be judged until more text arrives (the pending length when there is none):
-    /// nothing from it on may be shown yet.</summary>
+    /// nothing from it on may be shown yet.
+    ///
+    /// A second message starts after a finished line and one line break. So does the next line of a
+    /// character sheet or a poem. They are told apart in this order:
+    /// a question hands the moment to the player, so what follows it is a second message; so is a line
+    /// that talks about the conversation; a line inside a block the reply set one line at a time is the
+    /// reply's own; and otherwise a second message's first paragraph is followed by a blank line or by
+    /// nothing, where the reply's own next line is followed by another.
+    /// ponytail: read from the text, so both mistakes remain possible. A two-line block ending a reply
+    /// on a statement is cut after its first line; a second message set one line at a time after a
+    /// statement is shown. The Responses API returns the messages as separate items.</summary>
     private int EndReplyWhereItEnds(bool noMoreText)
     {
         var lineStart = 0;
+        var inBlock = _lineIsInBlock;
         for (var i = _pending.IndexOf('\n'); i >= 0; i = _pending.IndexOf('\n', lineStart))
         {
             var line = (lineStart == 0 ? _line : string.Empty) + _pending[lineStart..i];
+            var lineIsInBlock = inBlock;
+            inBlock = !string.IsNullOrWhiteSpace(line);
             lineStart = i + 1;
             if (!EndsAReply(line)) continue;
 
@@ -131,6 +156,19 @@ public sealed partial class StreamingScrubber
             // A blank line makes a paragraph, a list marker a list, and nothing at all is just the end.
             if (next.Length == 0 || ListLine().IsMatch(next)) continue;
 
+            if (!HandsTheMomentOver(line))
+            {
+                if (!nextIsWhole) return i;
+                if (!TalksAboutTheConversation().IsMatch(next))
+                {
+                    if (lineIsInBlock) continue;
+                    // What follows the next line decides: one more character is enough to tell.
+                    var afterNext = nextEnd + 1;
+                    if (nextEnd >= 0 && afterNext == _pending.Length && !noMoreText) return i;
+                    if (nextEnd >= 0 && afterNext < _pending.Length && _pending[afterNext] != '\n') continue;
+                }
+            }
+
             _dropped.Append(_pending[i..]);
             _pending = _pending[..i];
             _replyEnded = true;
@@ -139,6 +177,19 @@ public sealed partial class StreamingScrubber
 
         return _pending.Length;
     }
+
+    /// <summary>A line that ends by asking the player something: "What do you do?".</summary>
+    private static bool HandsTheMomentOver(string line) =>
+        line.TrimEnd().TrimEnd(')', '"', '\u201d', '\u2019', '*').EndsWith('?');
+
+    // What a second message says when it is the model talking to itself. The same marks the simulation
+    // analysis looks for.
+    [GeneratedRegex(
+        @"\bthe assistant\b|\bassistant (message|notes)|\b(last|previous) (user |assistant )?(message|query|output)\b"
+        + @"|\bthe user\b|\bthe player's (next )?(input|action)\b|\bgame state\b|\bsystem (prompt|shows|expects)\b"
+        + @"|\bdeveloper instructions\b|\balready (responded|provided)\b|\bend of turn\b|\bChatGPT\b|\bas (the )?GM\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex TalksAboutTheConversation();
 
     /// <summary>A line that finishes a sentence and is not part of a list or of verse set with hard
     /// breaks (two trailing blanks).</summary>

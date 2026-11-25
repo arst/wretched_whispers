@@ -320,7 +320,7 @@ public class EvalTurnRunnerTests
                 },
             }),
             Call("c3", "StartEncounter", new()),
-            Call("c4", "ChallengeCharacter", new() { ["challengeDr"] = 12, ["abilityKind"] = "Strength" }),
+            Call("c4", "ChallengeCharacter", new() { ["challengeDr"] = 12, ["abilityKind"] = "Strength", ["hoursTaken"] = 0 }),
             new ChatResponse(new ChatMessage(ChatRole.Assistant, "The bandit bares his teeth. Your move.")));
 
         await using var host = await EvalHost.CreateExplorationAsync(client);

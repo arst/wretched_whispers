@@ -137,6 +137,16 @@ public class OutputScrubberTests
     public static TheoryData<string, string> RepliesWithASecondMessage => new()
     {
         {
+            // Third simulated run: the opening scene told again after a reply that ended on a statement.
+            "It will not strike again at once but it watches, the confessional's shadow close and patient.",
+            "\nThe bells stopped a long time before you knew the word for silence. Ash falls like slow rain.\n\n"
+            + "You are Brother Aldous Vane, a heretical priest."
+        },
+        {
+            "The crow ducks its head and waits.\n\nWhat do you do?",
+            "\nThe output already provided; next action awaits."
+        },
+        {
             "The scavenger grins and raises the pole.\n\nIt is the start of combat; make your first move. What do you do?",
             "\nThe previous message already ended with \"What do you do?\" You must respond to the player's next action."
         },
@@ -173,6 +183,13 @@ public class OutputScrubberTests
 
     public static TheoryData<string> RepliesThatAreOneMessage => new()
     {
+        // Third simulated run: an opening whose character sheet was written one sentence to a line. All
+        // of it after the first line was cut, 1,474 characters.
+        "Your fate does that.\n\nYour body now: 2/2 HP.\nYour scores: Strength 0, Agility 0, Presence 0, Toughness 0.\n"
+        + "Weapon: Femur (d4).\nArmor: none. Shield: none.\nSilver: 60 coins.\n\nYou wake in a ditch. What do you do?",
+        // And a poem the player asked for, cut after the first line that ended a sentence.
+        "A green tooth breaks the ash-clotted earth,\npale as a liar's hope, slick with last winter's oil.\n"
+        + "Blossoms open like fresh wounds, honey-dark and thin,\npetals trembling with the taste of iron-rain.",
         "The door hangs open.\n\nInside, something breathes. What do you do?",
         "Your state, as it sits like a coin on a palm:\n- HP 5/5\n- Strength 0, Agility -1\n- Weapon: Knife (d4)\n\nWhat do you do?",
         "Options:\n1. Climb down now.\n2. Wait for dark.\n3. Call out.\nChoose.",

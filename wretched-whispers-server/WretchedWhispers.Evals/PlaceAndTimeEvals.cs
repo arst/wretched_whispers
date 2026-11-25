@@ -21,7 +21,9 @@ namespace WretchedWhispers.Evals;
 /// - The opening names its place: 0 of 3 before (no tool on that turn could), 6 of 6 now.
 /// - An arrival moves the clock: 1 of 3 before, 4 of 6 with the tool descriptions saying so, 6 of 6
 ///   with the hours as an argument.
-/// - A room-by-room search moves the clock: 4 of 6 before the Exploration rule on time, 5 of 6 with it.
+/// - A room-by-room search moves the clock: 4 of 6 before the Exploration rule on time and 5 of 6 with
+///   it, on six samples. Twelve more showed the truth, 4 of 12: whenever a test was rolled for the search
+///   the clock stood still. 12 of 12 with the hours as an argument of the test.
 /// - A stated hour matches the sheet: wrong in 1 of 6 arrivals before the time result gave the day and
 ///   hour, 0 of 6 after.
 /// </summary>

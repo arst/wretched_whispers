@@ -42,7 +42,7 @@ public class GameToolsTests
         _charactersRepo.Object,
         new CharacterService(_charactersRepo.Object, dice ?? _zeroDice),
         new EncounterService(dice ?? _zeroDice, _charactersRepo.Object, _encountersRepo.Object),
-        _context);
+        MakeCampaignService(dice), _context);
 
     private CampaignTools CampaignTools() => new(
         MakeCampaignService(), _context);
@@ -63,7 +63,7 @@ public class GameToolsTests
         _context.SetCharacterId(hero.Id);
         _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
 
-        await CharacterTools().ChallengeCharacter(12, AbilityKind.Strength);
+        await CharacterTools().ChallengeCharacter(12, AbilityKind.Strength, hoursTaken: 0);
 
         // Auto-fill: the session's character id is what reached the domain.
         _charactersRepo.Verify(r => r.Get(hero.Id, It.IsAny<CancellationToken>()), Times.AtLeastOnce);
@@ -73,7 +73,7 @@ public class GameToolsTests
     public async Task ChallengeCharacter_Throws_WhenNoCharacter()
     {
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CharacterTools().ChallengeCharacter(12, AbilityKind.Strength));
+            () => CharacterTools().ChallengeCharacter(12, AbilityKind.Strength, hoursTaken: 0));
         Assert.Contains("No character exists", ex.Message);
     }
 
@@ -106,7 +106,7 @@ public class GameToolsTests
             "DegradeAbility_BelowMinusTwo" => () => tools.DegradeCharacterAbility(AbilityKind.Strength, -3),
             "BuyItem_NegativeSilverCost" => () => tools.BuyItem("rusty knife", silverCost: -5),
             "AddItem_QuantityBelowOne" => () => tools.AddItemToCharacterInventory("a bone", quantity: 0),
-            "Challenge_OutOfRangeDr" => () => tools.ChallengeCharacter(99, AbilityKind.Agility),
+            "Challenge_OutOfRangeDr" => () => tools.ChallengeCharacter(99, AbilityKind.Agility, hoursTaken: 0),
             "GainSilver_Zero" => () => tools.GainSilver(0, "a dead man's purse"),
             "GainSilver_Negative" => () => tools.GainSilver(-10, "a dead man's purse"),
             "SellItem_NegativePrice" => () => tools.SellItem("a bone", silverPrice: -1),
@@ -370,11 +370,93 @@ public class GameToolsTests
         _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
 
         var result = await CharacterTools(dice).ChallengeCharacter(
-            12, AbilityKind.Strength, ChallengeConsequence.Serious);
+            12, AbilityKind.Strength, 0, ChallengeConsequence.Serious);
 
         Assert.Equal("lost eye", result.NewInjury);
         Assert.True(result.IsBroken);
         Assert.Equal(1, result.CurrentHp);
+    }
+
+    // Third simulated run: 4 of the 8 deaths from a failed test were told as "broken, not dead". The
+    // result said isDead true beside currentHp 0 and isBroken false, and a narrator who found the death
+    // hard to believe (a haggle, a sneak) read the 0. The result now says it in words, first.
+
+    [Fact]
+    public async Task ChallengeCharacter_ThatKills_SaysDeadInWords()
+    {
+        var random = new Mock<IRandomService>();
+        random.Setup(r => r.GenerateRandomRoll(4)).Returns(0);   // the Broken table: dead
+        random.Setup(r => r.GenerateRandomRoll(20)).Returns(4);  // a failed test
+        var dice = new Dice(random.Object);
+        var hero = TestCharacters.Create(dice, maxHp: 1);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var result = await CharacterTools(dice).ChallengeCharacter(
+            12, AbilityKind.Presence, 0, ChallengeConsequence.Minor);
+
+        Assert.True(result.IsDead);
+        Assert.StartsWith("DEAD", result.Fate);
+        Assert.StartsWith("{\"fate\":\"DEAD", JsonSerializer.Serialize(result, JsonSerializerOptions.Web));
+    }
+
+    [Fact]
+    public async Task ChallengeCharacter_ThatBreaks_SaysBrokenNotDeadAndNamesTheInjury()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 1);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var result = await CharacterTools(dice).ChallengeCharacter(
+            12, AbilityKind.Strength, 0, ChallengeConsequence.Serious);
+
+        Assert.StartsWith("BROKEN, NOT DEAD", result.Fate);
+        Assert.Contains("lost eye", result.Fate);
+    }
+
+    [Fact]
+    public async Task ChallengeCharacter_ThatNeitherKillsNorBreaks_HasNoFateToTell()
+    {
+        var dice = DiceThatBreakWithALostEye();
+        var hero = TestCharacters.Create(dice, maxHp: 20);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var result = await CharacterTools(dice).ChallengeCharacter(
+            12, AbilityKind.Strength, 0, ChallengeConsequence.Serious);
+
+        Assert.Null(result.Fate);
+    }
+
+    [Fact]
+    public async Task ChallengeCharacter_ThatTakesHours_MovesTheClockAndSaysWhatItReads()
+    {
+        var hero = BuildHero(_zeroDice);
+        var campaign = Campaign.Create(Difficulty.Grim, "Dark", "desc");
+        _context.SetCharacterId(hero.Id);
+        _context.SetCampaignId(campaign.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        _campaignsRepo.Setup(r => r.Get(campaign.Id)).ReturnsAsync(campaign);
+
+        var result = await CharacterTools().ChallengeCharacter(12, AbilityKind.Presence, hoursTaken: 2);
+
+        Assert.Equal(2, campaign.CurrentHour);
+        Assert.NotNull(result.TimePassed);
+        Assert.Equal((1, 2, false), (result.TimePassed.Day, result.TimePassed.Hour, result.TimePassed.IsNewDawn));
+    }
+
+    [Fact]
+    public async Task ChallengeCharacter_ThatTakesAMoment_LeavesTheClockAlone()
+    {
+        var hero = BuildHero(_zeroDice);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+
+        var result = await CharacterTools().ChallengeCharacter(12, AbilityKind.Presence, hoursTaken: 0);
+
+        Assert.Null(result.TimePassed);
+        _campaignsRepo.Verify(r => r.SaveCampaign(It.IsAny<Campaign>()), Times.Never);
     }
 
     [Fact]
