@@ -1,6 +1,7 @@
 using WretchedWhispers.Core.Campaigns;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Scrolls;
 using WretchedWhispers.Core.Dices;
 
@@ -42,6 +43,13 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
         var outcome = character.UseItem(itemId, dice);
         await charactersRepository.Save(character, ct);
         return outcome;
+    }
+
+    public async Task<int> FindSilver(Character character, SilverFind find, CancellationToken ct = default)
+    {
+        var silver = character.FindSilver(find, dice);
+        await charactersRepository.Save(character, ct);
+        return silver;
     }
 
     public async Task<Scroll> AddScroll(Guid characterId, ScrollSchool school, CancellationToken ct = default)

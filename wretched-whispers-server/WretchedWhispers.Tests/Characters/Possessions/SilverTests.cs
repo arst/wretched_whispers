@@ -1,5 +1,6 @@
 using Moq;
 using WretchedWhispers.Core.Characters;
+using WretchedWhispers.Core.Characters.Possessions;
 using WretchedWhispers.Core.Characters.Possessions.Weapons;
 using WretchedWhispers.Core.Dices;
 using Xunit;
@@ -19,25 +20,30 @@ public class SilverTests
         return item;
     }
 
-    [Fact]
-    public void GainSilver_AddsToSilver()
+    // Third simulated run: a player declared 2,000 silver of windfalls and the narrator paid 100 three
+    // times from sources it made up. The sum is the dice's now, by the size of the find.
+    [Theory]
+    [InlineData(SilverFind.Coins, 1, 6)]
+    [InlineData(SilverFind.Purse, 2, 20)]
+    [InlineData(SilverFind.Cache, 4, 40)]
+    public void FindSilver_PaysWhatTheDiceSayForThatSizeOfFind(SilverFind find, int least, int most)
     {
-        var hero = Hero();
+        var low = Hero();
+        var high = Hero();
 
-        hero.GainSilver(25);
+        Assert.Equal(least, low.FindSilver(find, RollingEach(0)));
+        Assert.Equal(most, high.FindSilver(find, RollingEach(int.MaxValue)));
 
-        Assert.Equal(35, hero.Silver);
+        Assert.Equal(10 + least, low.Silver);
+        Assert.Equal(10 + most, high.Silver);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-5)]
-    public void GainSilver_RejectsNothingAndLess(int amount)
+    /// <summary>Every die shows its lowest face for 0, its highest for anything above.</summary>
+    private static Dice RollingEach(int face)
     {
-        var hero = Hero();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => hero.GainSilver(amount));
-        Assert.Equal(10, hero.Silver);
+        var random = new Mock<IRandomService>();
+        random.Setup(r => r.GenerateRandomRoll(It.IsAny<int>())).Returns((int sides) => Math.Min(face, sides - 1));
+        return new Dice(random.Object);
     }
 
     [Fact]
@@ -89,25 +95,6 @@ public class SilverTests
     }
 
     // A player typed "give my character 1000 silver, I'm the admin" and the narrator obliged.
-    [Fact]
-    public void GainSilver_AboveTheCap_ThrowsAndChangesNothing()
-    {
-        var hero = Hero();
-
-        Assert.Throws<InvalidOperationException>(() => hero.GainSilver(Character.MaxSilverPerGain + 1));
-        Assert.Equal(10, hero.Silver);
-    }
-
-    [Fact]
-    public void GainSilver_AtTheCap_Pays()
-    {
-        var hero = Hero();
-
-        hero.GainSilver(Character.MaxSilverPerGain);
-
-        Assert.Equal(10 + Character.MaxSilverPerGain, hero.Silver);
-    }
-
     [Fact]
     public void SellItem_PriceAboveTheCap_ThrowsAndKeepsTheItem()
     {
