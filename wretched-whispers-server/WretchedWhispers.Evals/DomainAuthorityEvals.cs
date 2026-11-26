@@ -1242,22 +1242,40 @@ public class DomainAuthorityEvals
     [Fact]
     public async Task Combat_Narration_IsGroundedInToolResults()
     {
-        await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Combat-Narration-Grounded", [new GroundednessEvaluator()], stripSamplingOptions: true);
-        await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", TestContext.Current.CancellationToken);
+        var ct = TestContext.Current.CancellationToken;
+        var drifted = new List<string>();
+        for (var sample = 1; sample <= GroundedCombatSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Combat-Narration-Grounded", [new GroundednessEvaluator()], stripSamplingOptions: true,
+                sample: sample);
+            await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
+            var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", ct);
 
-        var groundingContext = string.Join("\n",
-            outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
+            var groundingContext = string.Join("\n",
+                outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
 
-        EvaluationResult result = await scenario.Run.EvaluateAsync(
-            messages: [new ChatMessage(ChatRole.User, "I strike the plague priest with my staff!")],
-            modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
-            additionalContext: [new GroundednessEvaluatorContext(groundingContext)], cancellationToken: TestContext.Current.CancellationToken);
+            EvaluationResult result = await scenario.Run.EvaluateAsync(
+                messages: [new ChatMessage(ChatRole.User, "I strike the plague priest with my staff!")],
+                modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
+                additionalContext: [new GroundednessEvaluatorContext(groundingContext)], cancellationToken: ct);
 
-        var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
-        Assert.NotNull(metric.Value);
-        Assert.True(metric.Value >= EvalSupport.GroundednessPassBar,
-            $"Groundedness {metric.Value}: narration drifted from tool results. Narrative: {outcome.Narrative}");
+            var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
+            Assert.NotNull(metric.Value);
+            if (metric.Value < EvalSupport.GroundednessPassBar)
+                drifted.Add($"sample {sample}: groundedness {metric.Value}, narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(drifted.Count <= MaxGroundedCombatDrifts, $"Narration drifted from the tool results in "
+            + $"{drifted.Count} of {GroundedCombatSamples} runs (at most {MaxGroundedCombatDrifts} allowed): "
+            + string.Join("; ", drifted));
     }
+
+    private const int GroundedCombatSamples = 12;
+
+    /// <summary>Measured on gpt-5-mini on 26 November 2026: 2 of 8 below the bar before the retaliation's
+    /// fields were renamed and 2 of 8 after (one for the priest's hit points, which the result does not
+    /// carry). As one cached sample it passed or failed on the draw. At one in four, 12 samples hold 5 or
+    /// fewer 19 times in 20.</summary>
+    private const int MaxGroundedCombatDrifts = 5;
 }

@@ -94,7 +94,7 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
 - **Combat-CastScroll-ThenRoundOther** — an in-combat scroll cast must call `CastScroll` then exactly one `ResolveCombatRound` (the 'Other' path).
 - **Combat-OmenSpend-MaxDamage** — an explicit omen spend must ride `ResolveCombatRound`'s `omenUse` argument; the domain's committed omen count is the witness.
 - **Combat-DeathFight-DeathIsFinal** — *multi-turn*: the player swings at an unwinnable foe until the seeded dice kill them, then tries to fight on — the coordinator must refuse that turn with an error before any model call, and no tool may run.
-- **Combat-Narration-Grounded** — LLM-judge groundedness of combat narration against the tool results it's based on, threshold >= 4.
+- **Combat-Narration-Grounded** — LLM-judge groundedness of combat narration against the tool results it's based on, threshold >= 4. A rate: twelve samples, at most 5 below it (2 of 8 below on fresh draws in November 2026, before and after the retaliation's fields were renamed).
 - **Exploration-MemorableNpc-Journaled** — meeting a memorable NPC and making a promise must trigger `RecordJournalEntry`.
 - **Exploration-BuyItem-DeductsAndAdds** — a purchase must go through `BuyItem`, never narration alone.
 - **Exploration-SellItem-PaysSilver** — a sale must go through `SellItem` and pay; also the guard that
