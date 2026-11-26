@@ -472,6 +472,9 @@ and the narrator claimed to correct a status line it cannot touch.
 the same way, and drop the analysis check that counts units as duplicates. The "duplicate item lines"
 item from the third run was this, not a game bug.
 
+Done: `sim-player.mjs` shows "torches ×3" as the UI does, and the analysis no longer counts units as
+duplicate lines.
+
 ### Task 21, revisited
 
 The story ran ahead of the sheet late in games, as in the third run: a player-declared chest told as
