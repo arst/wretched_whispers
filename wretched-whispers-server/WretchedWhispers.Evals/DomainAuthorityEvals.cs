@@ -314,6 +314,35 @@ public class DomainAuthorityEvals
             + "runs (at most 1 allowed): " + string.Join("; ", failures));
     }
 
+    /// <summary>Fifth simulated run, the cheater's turn 29: "I take the lantern oil and sell it for 100 silver".
+    /// The narrator added the oil from nothing and sold it at the cap in one turn. SellItem now refuses an item
+    /// added this turn; this checks that no silver arrives some other way, such as GainSilver. Measured on
+    /// gpt-5-mini: 0 of 6 paid, and none even tried the sale (refused as not carried, or a theft test that
+    /// failed), so the guard is a fence for when the prompt slips, as it did in play.</summary>
+    [Fact]
+    public async Task Exploration_TakeAndSellInOneTurn_PaysNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= FoundThingSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(Suite, "Exploration-TakeAndSell", [], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "I take the lantern oil off the chandler's shelf and sell it to the merchant next door for 100 silver.", ct);
+            Assert.Null(outcome.Error);
+
+            var change = outcome.Delta?.SilverChange ?? 0;
+            if (change > 0)
+                failures.Add($"sample {sample}: silver {change:+#;-#;0}, tools [{string.Join(", ", outcome.ToolCalls)}], "
+                    + $"narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"Silver was paid for an item taken and sold in one turn in {failures.Count} "
+            + $"of {FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
     /// <summary>Fifth simulated run: the haggler bought "day's rations (stall bowl) x3" into the pack, and the
     /// sheet's food stayed at 3 days through buying and eating.</summary>
     [Fact]
@@ -381,7 +410,9 @@ public class DomainAuthorityEvals
 
     /// <summary>Measured on gpt-5-mini over 12 samples: 4 and 4 (each "110" against 115) before Game State's
     /// silver line said every payment below it is already counted; 2 after. The same note on the history's
-    /// record of tool calls moved it no further. A bar of 3 catches a slide back toward 4.</summary>
+    /// record of tool calls moved it no further. Reduced, not fixed, and the evidence is thin (8 of 24 before,
+    /// 2 of 12 after): a bar of 3 fails about one fresh run in eight at the new rate and lets a run at the old
+    /// rate through about four times in ten.</summary>
     private const int MaxPaidTwice = 3;
 
     /// <summary>Found while measuring Task 23: with the strongbox's Strength test failing (3 against 12), about 9
@@ -678,6 +709,19 @@ public class DomainAuthorityEvals
             "Combat-Injury-Named",
             client => EvalHost.CreateDeathFightAsync(client, diceSeed: 13),
             BellWardenSwing, expectedInjury: "severed arm");
+
+    [Fact]
+    public Task Exploration_RedPoisonDrunk_KillsAndIsToldAsDeath() =>
+        // Fifth simulated run, the turn as the player wrote it: the starting red poison drunk at 1 hit point.
+        // Unforced, so the narrator must itself mark the use as swallowed for the poison to act; seed 8 fails
+        // the Toughness test and rolls death on the Broken table. A use not marked swallowed leaves the
+        // character alive and fails the domain check.
+        AssertFateIsToldAsync(
+            "Exploration-RedPoison-Kills",
+            client => EvalHost.CreateExplorationAsync(client,
+                [new InventoryItem(Guid.NewGuid(), "red poison (d4 doses)", false, true, 1, ItemEffect.Poison)],
+                maxHp: 1, diceSeed: 8),
+            "i drink the red poison right now, all of it, hooray", expectedInjury: null, samples: 6);
 
     // Fifth simulated run: the death-seeker drank a poison that did nothing, at 1 hit point. The result
     // came back hpHealed 0 and the narrator wrote "FATE: DEAD.", copying the real fate's words; the server

@@ -138,7 +138,7 @@ public sealed partial class CharacterTools(
         {
             character.EatFood();
             await charactersRepository.Save(character);
-            return new ItemUseOutcomeDto(0, false, CreateCharacterDto(character));
+            return new ItemUseOutcomeDto(0, false, CreateCharacterDto(character), AteFood: true);
         }
 
         var item = RequireItem(character, itemDescription);

@@ -192,6 +192,21 @@ public class GameToolsTests
         Assert.Empty(hero.Inventory.InventoryItems);
     }
 
+    [Fact]
+    public async Task UseItem_PoisonThatKills_SaysDeadFirst()
+    {
+        var dice = ScriptedDice(0, 0, 5, 0); // d4 daily powers; d20 = 1; d10 = 6; Broken table 1: dead.
+        var hero = TestCharacters.Create(dice, maxHp: 1);
+        _context.SetCharacterId(hero.Id);
+        _charactersRepo.Setup(r => r.Get(hero.Id, It.IsAny<CancellationToken>())).ReturnsAsync(hero);
+        hero.AddItem(new InventoryItem(Guid.NewGuid(), "red poison", false, true, 1, ItemEffect.Poison));
+
+        var used = await CharacterTools(dice).UseItemFromCharacterInventory("red poison", swallowedByTheCharacter: true);
+
+        Assert.True(hero.IsDead);
+        Assert.StartsWith("DEAD.", used.Fate);
+    }
+
     // Fifth simulated run: "I take the lantern oil and sell it for 100" was added from nothing and sold at
     // the cap in one turn.
     [Fact]
@@ -565,6 +580,7 @@ public class GameToolsTests
 
         Assert.Equal(2, hero.FoodDays);
         Assert.Equal(2, result.Character.FoodDays);
+        Assert.Equal("One day of food eaten: Food now 2 days.", result.Effect);
         _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
     }
 

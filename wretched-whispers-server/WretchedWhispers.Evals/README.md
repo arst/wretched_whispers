@@ -107,6 +107,8 @@ Suite `domain-authority` (`DomainAuthorityEvals.cs`):
   the narrator stops a trickle.
 - **Exploration-PaidTwice** — a payment forced through `PaySilver`, then "how much silver do i have left?": the answer must be the sheet's total, not the payment taken off again. Twelve samples, at most 3 wrong; 4 of 12 before Game State's silver line said every payment below it is already counted, 2 of 12 after.
 - **Exploration-BuyRations** — rations bought must reach the sheet's food through `foodDays`, not the pack. Six samples, at most 1 miss.
+- **Exploration-RedPoison-Kills** — the fifth run's line, unforced: the starting red poison drunk at 1 hit point, seeded so the Toughness test fails and the Broken table kills. The narrator must mark the use as swallowed (or the domain check fails) and tell the death. Six samples, none allowed; 6 of 6 right.
+- **Exploration-TakeAndSell** — "I take the lantern oil off the shelf and sell it for 100 silver": no silver may arrive, by `SellItem` (refused for an item added this turn) or any other tool. Six samples, at most 1; 0 of 6, and the sale was never tried.
 - **Exploration-HarmlessPoison** — a poison with no effect, drunk at 1 hit point with the use forced: the reply must not tell a death (fifth run: "FATE: DEAD." from a result that changed nothing). Twelve samples, none allowed; 0 of 12 on `main` too, so a guard.
 - **Exploration-Rest-HealsViaRest** — resting must go through `Rest`, never narrated healing.
 - **Exploration-CastScroll-SpendsUse** — casting a possessed scroll must go through `CastScroll`.

@@ -11,7 +11,8 @@ public sealed record ItemUseOutcomeDto(
     [property: Description("The character after the item was used")] CharacterDto Character,
     [property: Description("Damage the item did to the character, after any test against it")] int DamageTaken = 0,
     [property: Description("The injury the Broken table gave, when the damage dropped the character to 0")] string? NewInjury = null,
-    [property: Description("The Toughness test a swallowed poison called for, as roll+modifier against DR")] string? PoisonTest = null)
+    [property: Description("The Toughness test a swallowed poison called for, as roll+modifier against DR")] string? PoisonTest = null,
+    [property: Description("True when a day of the sheet's food was eaten")] bool AteFood = false)
 {
     /// <summary>Dead or broken, in words, as every result that can kill says it. See <see cref="FateWords"/>.</summary>
     [JsonPropertyOrder(-1)]
@@ -22,13 +23,15 @@ public sealed record ItemUseOutcomeDto(
     /// game was stuck for three turns while the server refused a successor.</summary>
     [JsonPropertyOrder(-1)]
     public string Effect =>
-        DamageTaken > 0
-            ? $"It harmed the character: {DamageTaken} damage{Because}. Hit points now {Character.CurrentHp} of {Character.MaxHp}."
-            : HpHealed > 0 || InfectionCured
-                ? $"It healed {HpHealed} hit points{(InfectionCured ? " and cleared the infection" : "")}. Hit points now "
-                  + $"{Character.CurrentHp} of {Character.MaxHp}."
-                : $"It did nothing to the character's body{Because}: they are alive at {Character.CurrentHp} of "
-                  + $"{Character.MaxHp} hit points. Nothing else changes because of the item itself.";
+        AteFood
+            ? $"One day of food eaten: Food now {Character.FoodDays} days."
+            : DamageTaken > 0
+                ? $"It harmed the character: {DamageTaken} damage{Because}. Hit points now {Character.CurrentHp} of {Character.MaxHp}."
+                : HpHealed > 0 || InfectionCured
+                    ? $"It healed {HpHealed} hit points{(InfectionCured ? " and cleared the infection" : "")}. Hit points now "
+                      + $"{Character.CurrentHp} of {Character.MaxHp}."
+                    : $"It did nothing to the character's body{Because}: they are alive at {Character.CurrentHp} of "
+                      + $"{Character.MaxHp} hit points. Nothing else changes because of the item itself.";
 
     private string Because => PoisonTest is null ? "" : $" (poison, Toughness test {PoisonTest})";
 }

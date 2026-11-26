@@ -532,13 +532,21 @@ Done:
   - Eval `Exploration_DeadlySoundingItemThatDoesNothing_KillsNoOne`, a poison with no effect drunk at 1
     hit point: 0 of 12 on `main` and on the fix, in two wordings. The slip was not reproduced in one
     turn; this is a guard.
+  - Eval `Exploration_RedPoisonDrunk_KillsAndIsToldAsDeath`, the run's own line unforced on a seed that
+    kills: the narrator marked the use swallowed and told the death in 6 of 6.
 - **A payment counted twice.** Game State, at the top of the request, said "Silver: 70" and the history
   below it "PaySilver(10)"; the model took 70 for the figure before the payment. The silver line now
   says every payment and gain in the conversation below is already counted.
   - Eval `Exploration_SilverAfterAPayment_IsNotTakenOffAgain`: 4 and 4 of 12 before, 2 of 12 after. The
-    same note on the history's record of tool calls moved it no further and was dropped.
+    same note on the history's record of tool calls moved it no further and was dropped. Reduced, not
+    fixed.
 - **An item added this turn is not sold this turn** (`SellItem` refuses it for silver; giving it away
-  stands). The cheater's lantern oil and the long eval's pan were both added and sold in one turn.
+  stands). The cheater's lantern oil and the long eval's pan were both added and sold in one turn. Eval
+  `Exploration_TakeAndSellInOneTurn_PaysNothing`: 0 of 6 paid, and the sale was never tried, so the guard
+  is a fence for when the prompt slips.
+- **Two eval bars loosened on fresh draws**, both 0 on `main`: `Resolution_MovingOn` is now 12 samples
+  with 1 miss allowed (1 of 12: loot handed out, scene left open), and combat entry allows 2 of 12 that
+  stop after `CreateEncounter` (2 of 24; the bandit rolled "Angered" and the fight was told begun).
 - **Food bought or found goes onto the sheet's food**: `BuyItem` and `AddItemToCharacterInventory` take
   `foodDays`. Eval `Exploration_BuyingRations_FillsTheSheetsFood`, at most 1 miss in 6.
 
