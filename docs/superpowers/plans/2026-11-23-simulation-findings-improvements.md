@@ -415,6 +415,44 @@ Loot and a sale told as done with no tool called; items given away that stayed i
 
 ---
 
+## Found by the fourth run
+
+From `simulation/findings/2026-11-26-fourth-run.md`. Deaths (0 of 10 told wrong), the stated hour (2 of
+54) and scroll casts (0 failed) held in play. Not yet scheduled; in the order they would pay off.
+
+### Task 22: A retaliation says whose roll it is (code)
+
+`ResolveCombatRound` reports each retaliation's `roll`, `modifier` and `dr`, which are the player's
+defence. The narrator tells them as the enemy's attack, so a defence that held reads as "it rolls 13 to
+beat 12" and misses. Rename the fields so the result says it (a defence roll, and whether the blow
+landed), then an eval from the three verified turns.
+
+### Task 23: Silver paid out and silver spent (code, with evals)
+
+`GainSilver` was called for a purchase ("merchant took coin") and for a sale of an item never in the
+pack; there is no tool that pays silver for a service or a gift. Task 20 made this worse: a payment
+pushed through `GainSilver` used to carry a negative amount and be refused, and now pays a rolled
+purse. Decide: a `PaySilver` (or a price on a
+service), and `GainSilver` refusing a source that is a sale or a payment made.
+
+### Task 24: Food and the day's castings reach the screen (code)
+
+Neither is in the state the web UI and the simulation read. Players asked for their food three times
+and the narrator claimed to correct a status line it cannot touch.
+
+### Task 25: The simulation's screen groups units like the UI (tooling)
+
+`sim-player.mjs` prints one line per unit ("lantern + oil" seven times); the UI shows "×7". Group them
+the same way, and drop the analysis check that counts units as duplicates. The "duplicate item lines"
+item from the third run was this, not a game bug.
+
+### Task 21, revisited
+
+The story ran ahead of the sheet late in games, as in the third run: a player-declared chest told as
+"Gain: 300 silver", a stolen pan sold with no tool, a purchase told done after a haggle, three gifts
+left in the pack. The short guards still pass; a long multi-turn eval is now justified if this is to be
+fixed rather than watched.
+
 ## Later: item pricing
 
 Not scheduled. Its own design and plan when it is taken up.
