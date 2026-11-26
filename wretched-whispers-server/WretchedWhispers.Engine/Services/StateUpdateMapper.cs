@@ -55,7 +55,10 @@ public static class StateUpdateMapper
                 .Select(s => $"{s.Description} ({s.School})").ToArray(),
             MiseryPsalms: campaign?.Miseries
                 .Select(m => string.IsNullOrEmpty(m.Psalm) ? m.Code : m.Psalm).ToArray() ?? [],
-            CharacterClass: DisplayClass(character));
+            CharacterClass: DisplayClass(character),
+            CharacterFoodDays: character?.FoodDays,
+            CharacterCastingsLeft: character?.Powers.UsesRemaining,
+            CharacterCastingsMax: character?.Powers.MaxUses);
     }
 
     /// <summary>Null for classless wretches, so the UI shows a class line only when there is one.</summary>

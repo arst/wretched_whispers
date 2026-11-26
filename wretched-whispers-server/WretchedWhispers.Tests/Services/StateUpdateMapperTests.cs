@@ -63,6 +63,22 @@ public class StateUpdateMapperTests
         Assert.Equal(character.Silver, result.CharacterSilver);
     }
 
+    /// <summary>Fourth simulated run: food and the day's castings were in the narrator's Game State but not
+    /// on the player's sheet; a player asked three times how much food they had.</summary>
+    [Fact]
+    public void Map_SendsFoodAndTheDaysCastings()
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        var character = TestCharacters.Create(NewDice());
+        context.Character = character;
+
+        var result = StateUpdateMapper.Map(context);
+
+        Assert.Equal(character.FoodDays, result.CharacterFoodDays);
+        Assert.Equal(character.Powers.UsesRemaining, result.CharacterCastingsLeft);
+        Assert.Equal(character.Powers.MaxUses, result.CharacterCastingsMax);
+    }
+
     [Fact]
     public void Map_WithAClassedCharacter_SendsTheClassDisplayName()
     {

@@ -466,6 +466,10 @@ slide past about half.
 Neither is in the state the web UI and the simulation read. Players asked for their food three times
 and the narrator claimed to correct a status line it cannot touch.
 
+Done: the state update carries `characterFoodDays`, `characterCastingsLeft` and `characterCastingsMax`;
+the character drawer shows food, and castings left today under the scrolls; the simulation's screen
+shows both.
+
 ### Task 25: The simulation's screen groups units like the UI (tooling)
 
 `sim-player.mjs` prints one line per unit ("lantern + oil" seven times); the UI shows "×7". Group them
