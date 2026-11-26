@@ -52,8 +52,9 @@ model, per-request token usage, and the ordered list of what the player was show
 
 ## Things to know
 
-- **Five players at a time, at most.** Seven at once got HTTP 429 from the gpt-5-mini deployment on
-  26 turn attempts. Five got none in the first run and 8 in the second, so five is the edge.
+- **Four players at a time, at most.** Seven at once got HTTP 429 from the gpt-5-mini deployment on
+  26 turn attempts. Five got none in the first run, 8 in the second and 9 in the first wave of the
+  fourth, so the fourth's later waves and the fifth run used four.
   `sim.sh up 10` raises the server's limit, but the model's quota is the real ceiling.
 - **Haiku is enough for the player.** A game costs the player roughly 20k to 60k tokens. The game's
   own model uses far more: about 500k input tokens for a 30-turn game.
