@@ -33,9 +33,18 @@ public sealed partial class CharacterTools(
     CampaignService campaignService,
     SessionContext sessionContext)
 {
+    // Fifth simulated run: "day's rations x3" and a tin of meat were bought into the pack, and the sheet's food
+    // stayed at 3 days through buying and eating.
+    private const string FoodDaysDescription =
+        "Days of food this is (rations, bread, dried meat, a meal kept for the road): they go onto the sheet's Food, not into the pack. 0 for anything that is not food";
+
     // The flag only labels the item. The healing is rolled and applied by the domain when it is used.
     private const string HealsDescription =
         "True for a healing item (a draught, salve, poultice or remedy): using one unit then restores d6 hit points and clears infection. Leave false for anything else";
+
+    // An instance lives for one turn (AgentToolProvider builds it per turn), so this is what the turn put in
+    // the pack from nothing: no purchase, no roll.
+    private readonly HashSet<Guid> _addedThisTurn = [];
 
     private Guid RequireCharacterId() =>
         sessionContext.CharacterId
@@ -95,20 +104,31 @@ public sealed partial class CharacterTools(
         [Description("Whether the item is bulky and takes 2 inventory slots")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
         [Description("Quantity of the item to add")] int quantity = 1,
-        [Description(HealsDescription)] bool heals = false)
+        [Description(HealsDescription)] bool heals = false,
+        [Description(FoodDaysDescription)] int foodDays = 0)
     {
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
+        ToolGuard.NonNegative(foodDays, nameof(foodDays));
         var character = await RequireCharacter();
+        if (foodDays > 0)
+        {
+            character.AddFood(foodDays);
+            await charactersRepository.Save(character);
+            return CreateCharacterDto(character);
+        }
+
         character.AddItem(new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity,
             heals ? ItemEffect.Heal : ItemEffect.None));
         await charactersRepository.Save(character);
+        if (FindCarried(character, itemDescription) is { } added) _addedThisTurn.Add(added.Id);
         return CreateCharacterDto(character);
     }
 
-    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up. Food on the sheet is eaten the same way: name it 'food' and one day of it is spent.")]
+    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up. Food on the sheet is eaten the same way: name it 'food' and one day of it is spent. The result's effect says what the item did to the character; it did nothing more.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
     public async Task<ItemUseOutcomeDto> UseItemFromCharacterInventory(
-        [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription)
+        [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription,
+        [Description("True only when the character drinks, eats or swallows it themselves. False when it is thrown, poured, smeared on a blade or given to someone.")] bool swallowedByTheCharacter = false)
     {
         var character = await RequireCharacter();
         // Food is a number on the sheet, not an item, and Game State prints it as "Food: 4 days". In play
@@ -122,8 +142,11 @@ public sealed partial class CharacterTools(
         }
 
         var item = RequireItem(character, itemDescription);
-        var outcome = await characterService.UseItem(character, item.Id);
-        return new ItemUseOutcomeDto(outcome.HpHealed, outcome.InfectionCured, CreateCharacterDto(character));
+        var outcome = await characterService.UseItem(character, item.Id, swallowedByTheCharacter);
+        var test = outcome.PoisonTest;
+        return new ItemUseOutcomeDto(outcome.HpHealed, outcome.InfectionCured, CreateCharacterDto(character),
+            outcome.Damage, outcome.Injury?.DisplayName(),
+            test is null ? null : $"{test.Roll}{test.Modifier:+#;-#;+0} against {test.EffectiveDr}, {(test.IsSuccess ? "passed" : "failed")}");
     }
 
     [Description("Improve the character's ability score by a specified amount")]
@@ -180,11 +203,21 @@ public sealed partial class CharacterTools(
         [Description("Whether the item is bulky")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
         [Description("Quantity of the item to buy")] int quantity = 1,
-        [Description(HealsDescription)] bool heals = false)
+        [Description(HealsDescription)] bool heals = false,
+        [Description(FoodDaysDescription)] int foodDays = 0)
     {
         ToolGuard.NonNegative(silverCost, nameof(silverCost));
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
+        ToolGuard.NonNegative(foodDays, nameof(foodDays));
         var character = await RequireCharacter();
+        if (foodDays > 0)
+        {
+            character.PaySilver(silverCost);
+            character.AddFood(foodDays);
+            await charactersRepository.Save(character);
+            return CreateCharacterDto(character);
+        }
+
         character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse,
             quantity, heals ? ItemEffect.Heal : ItemEffect.None));
         await charactersRepository.Save(character);
@@ -193,8 +226,10 @@ public sealed partial class CharacterTools(
 
     [Description("Sell, trade away, or give away an item the character carries, or the weapon in their hand: removes it AND pays the silver in one step. Identify it by the description shown in Game State. silverPrice is the total paid for everything sold in this call; 0 when it is given away or lost.")]
     // ponytail: three sales a turn, so a price the cap refused cannot be dealt out in pieces. What a
-    // thing is worth is not modelled: a narrator who conjures goods and sells them turn after turn is
-    // held by the prompt and its evals, not here. A silver budget per turn is the upgrade if that fails.
+    // thing is worth is not modelled. An item added this turn is not sold this turn: in the fifth simulated
+    // run the cheater's "I take the lantern oil and sell it for 100" was added and sold in one turn, and a
+    // pan a failed theft never gave went the same way in an eval. Across turns the prompt and its evals
+    // hold it; a silver budget per turn is the upgrade if that fails.
     [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 3)]
     public async Task<CharacterDto> SellItem(
         [Description("Description of the inventory item to sell, exactly as shown in Game State")] string itemDescription,
@@ -208,7 +243,14 @@ public sealed partial class CharacterTools(
         if (FindCarried(character, itemDescription) is null && NamesTheWieldedWeapon(character, itemDescription))
             character.SellWeapon(silverPrice);
         else
-            character.SellItem(RequireItem(character, itemDescription).Id, silverPrice, quantity);
+        {
+            var item = RequireItem(character, itemDescription);
+            if (silverPrice > 0 && _addedThisTurn.Contains(item.Id))
+                throw new InvalidOperationException(
+                    $"'{item.Description}' came into the pack this turn and cannot be sold for silver until a later "
+                    + "turn. Tell the sale as not made yet: no silver changes hands.");
+            character.SellItem(item.Id, silverPrice, quantity);
+        }
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }

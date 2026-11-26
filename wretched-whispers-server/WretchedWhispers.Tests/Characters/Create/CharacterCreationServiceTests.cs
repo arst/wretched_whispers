@@ -50,17 +50,18 @@ public class CharacterCreationServiceTests : TestBase
     }
 
     [Theory]
-    [InlineData(0, "life elixir")] // both gear tables roll 1: the second is the elixir
-    [InlineData(6, "medicine chest (Presence + 4 uses)")] // both roll 7: the first is the chest
-    public async Task Create_HealingGear_IsMarkedAsHealing(int zeroBasedD12, string healingItem)
+    [InlineData(0, "life elixir", ItemEffect.Heal)] // both gear tables roll 1: the second is the elixir
+    [InlineData(6, "medicine chest (Presence + 4 uses)", ItemEffect.Heal)] // both roll 7: the first is the chest
+    [InlineData(10, "red poison (d4 doses)", ItemEffect.Poison)] // both roll 11: the first is the poison
+    public async Task Create_GearWithAnEffect_IsMarkedWithIt(int zeroBasedD12, string gear, ItemEffect effect)
     {
         SetupDiceRoll(12, zeroBasedD12);
 
         var character = await NewService().Create("Hero", Difficulty.Grim);
 
         Assert.All(character.Inventory.InventoryItems, item =>
-            Assert.Equal(item.Description == healingItem ? ItemEffect.Heal : ItemEffect.None, item.Effect));
-        Assert.Contains(character.Inventory.InventoryItems, item => item.Description == healingItem);
+            Assert.Equal(item.Description == gear ? effect : ItemEffect.None, item.Effect));
+        Assert.Contains(character.Inventory.InventoryItems, item => item.Description == gear);
     }
 
     [Fact]

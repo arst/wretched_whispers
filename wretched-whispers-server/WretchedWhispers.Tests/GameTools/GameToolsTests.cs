@@ -176,6 +176,69 @@ public class GameToolsTests
         Assert.Empty(used.Character.Inventory.Items);
     }
 
+    // Fifth simulated run: rations bought into the pack never reached the sheet's food.
+    [Fact]
+    public async Task BuyingAndFindingFood_GoesOntoTheSheetsFood_NotThePack()
+    {
+        var hero = HeroInSession();
+        var food = hero.FoodDays;
+        var silver = hero.Silver;
+
+        await CharacterTools().BuyItem("day's rations", silverCost: 3, quantity: 3, foodDays: 3);
+        await CharacterTools().AddItemToCharacterInventory("tin of meat", foodDays: 1);
+
+        Assert.Equal(food + 4, hero.FoodDays);
+        Assert.Equal(silver - 3, hero.Silver);
+        Assert.Empty(hero.Inventory.InventoryItems);
+    }
+
+    // Fifth simulated run: "I take the lantern oil and sell it for 100" was added from nothing and sold at
+    // the cap in one turn.
+    [Fact]
+    public async Task SellItem_AddedThisTurn_IsRefusedForSilver_ButCanBeGivenAway()
+    {
+        var hero = HeroInSession();
+        var silver = hero.Silver;
+        var tools = CharacterTools();
+        await tools.AddItemToCharacterInventory("lantern oil", quantity: 2);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => tools.SellItem("lantern oil", silverPrice: 100));
+        await tools.SellItem("lantern oil", silverPrice: 0);
+
+        Assert.Equal(silver, hero.Silver);
+        Assert.Equal(1, Assert.Single(hero.Inventory.InventoryItems).Quantity);
+        await CharacterTools().SellItem("lantern oil", silverPrice: 5); // a later turn
+        Assert.Equal(silver + 5, hero.Silver);
+    }
+
+    // Fifth simulated run: a poison that did nothing came back as hpHealed 0, and the narrator told the
+    // character dead. The result now says first what the item did, and that the character lives.
+    [Fact]
+    public async Task UseItem_ThatDoesNothing_SaysTheCharacterIsAlive()
+    {
+        var hero = HeroInSession();
+        hero.AddItem(new InventoryItem(Guid.NewGuid(), "red poison", false, true, 1, ItemEffect.Poison));
+
+        var used = await CharacterTools().UseItemFromCharacterInventory("red poison");
+
+        Assert.Null(used.Fate);
+        Assert.StartsWith("It did nothing to the character's body: they are alive at 20 of 20", used.Effect);
+    }
+
+    [Fact]
+    public async Task UseItem_PoisonSwallowed_SaysTheHarmAndTheTest()
+    {
+        var dice = ScriptedDice(0, 7, 5); // d4 daily powers; d20 = 8 against 12; d10 = 6.
+        var hero = HeroInSession(dice);
+        hero.AddItem(new InventoryItem(Guid.NewGuid(), "red poison", false, true, 1, ItemEffect.Poison));
+
+        var used = await CharacterTools(dice).UseItemFromCharacterInventory("red poison", swallowedByTheCharacter: true);
+
+        Assert.Equal(6, used.DamageTaken);
+        Assert.Equal("It harmed the character: 6 damage (poison, Toughness test 8+0 against 12, failed). Hit points now 14 of 20.",
+            used.Effect);
+    }
+
     [Theory]
     [InlineData(true, ItemEffect.Heal)]
     [InlineData(false, ItemEffect.None)]

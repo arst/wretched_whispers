@@ -129,7 +129,9 @@ public sealed class SessionContext
             sb.AppendLine($"  Weapon: {Character.Weapon.Kind} ({Character.Weapon.DamageDie})");
             sb.AppendLine($"  Armor: {Character.Armor.Tier.DisplayName()}");
             sb.AppendLine($"  Shield: {(Character.Shield is null ? "none" : Character.Shield.IsBroken ? "broken" : "intact")}");
-            sb.AppendLine($"  Silver: {Character.Silver}");
+            // Game State sits above the history, so a payment in a later message read as still to be taken off
+            // (fifth simulated run: paid 10 at 80, then "your purse now holds 60"; an eval, 4 of 12).
+            sb.AppendLine($"  Silver: {Character.Silver} (every payment and gain in the conversation below is already counted)");
             sb.AppendLine($"  Food: {Character.FoodDays} days");
             // "Powers" is only the daily budget for casting scrolls (Character.Cast spends one). There is
             // no other way to spend it, so showing the counter to a character with no scrolls just invites

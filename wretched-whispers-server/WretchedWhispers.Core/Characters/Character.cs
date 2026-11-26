@@ -427,7 +427,13 @@ public sealed class Character
         Silver -= price;
     }
 
-    /// <summary>Uses one unit of a carried item and applies what the item does.</summary>
+    /// <summary>Days of food bought or found. Food is a number on the sheet, not an item in the pack.</summary>
+    public void AddFood(int days)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(days);
+        FoodDays += days;
+    }
+
     /// <summary>Eats one day of the food on the sheet.</summary>
     // ponytail: eating only spends the food. Give hunger a cost (no healing from rest without food, as
     // the book has it) when starving is to matter.
@@ -447,7 +453,9 @@ public sealed class Character
         return scroll;
     }
 
-    public ItemUseOutcome UseItem(Guid itemId, Dice dice)
+    /// <summary>Uses one unit of a carried item and applies what the item does. A poison harms only when
+    /// <paramref name="swallowed"/>: smeared on a blade or poured in a cup, it does nothing to the character.</summary>
+    public ItemUseOutcome UseItem(Guid itemId, Dice dice, bool swallowed = false)
     {
         // A turn can chain actions past a death ("I jump, then drink"); nothing heals the dead.
         if (IsDead) throw new InvalidOperationException("The character is dead and can use nothing.");
@@ -455,6 +463,14 @@ public sealed class Character
         var item = Inventory.InventoryItems.FirstOrDefault(i => i.Id == itemId)
             ?? throw new InvalidOperationException($"Item with id {itemId} is not in the inventory");
         Inventory.ConsumeItem(itemId);
+
+        if (item.Effect is ItemEffect.Poison && swallowed)
+        {
+            var test = Challenge(new Dr(12), AbilityKind.Toughness, dice);
+            if (test.IsSuccess) return new ItemUseOutcome(0, false, PoisonTest: test);
+            var damage = dice.Roll(DiceExpr.D10);
+            return new ItemUseOutcome(0, false, damage, ReceiveDamage(damage, dice), test);
+        }
 
         if (item.Effect is not ItemEffect.Heal) return new ItemUseOutcome(0, false);
 

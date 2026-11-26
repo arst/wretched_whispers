@@ -423,7 +423,7 @@ public class StageDerivationTests : TestBase
               Weapon: Sword (d6)
               Armor: None
               Shield: none
-              Silver: 10
+              Silver: 10 (every payment and gain in the conversation below is already counted)
               Food: 3 days
               Omens: 0
               Inventory (16/16 slots free):

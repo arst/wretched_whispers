@@ -38,9 +38,10 @@ public class CharacterService(ICharactersRepository charactersRepository, Dice d
 
     /// <summary>Uses one unit of an item the character carries and saves the result. Takes the loaded
     /// character rather than its id: the caller has already resolved the item on that instance.</summary>
-    public async Task<ItemUseOutcome> UseItem(Character character, Guid itemId, CancellationToken ct = default)
+    public async Task<ItemUseOutcome> UseItem(Character character, Guid itemId, bool swallowed = false,
+        CancellationToken ct = default)
     {
-        var outcome = character.UseItem(itemId, dice);
+        var outcome = character.UseItem(itemId, dice, swallowed);
         await charactersRepository.Save(character, ct);
         return outcome;
     }
