@@ -481,8 +481,9 @@ public class DomainAuthorityEvals
         // tested it in play; the call is forced, so only the telling is the model's. Measured on
         // gpt-5-mini over eight samples: told wrong in 2 before the result said its fate in words ("You
         // are at 0 HP, barely clinging on"; no death told at all), 0 with it. A fresh draw on 2026-11-25
-        // told the death plainly and then asked "do you linger and watch the city's teeth at work?", so
-        // one miss of eight is allowed: the death was told, the dead were offered one more act.
+        // told the death plainly and then asked "do you linger and watch the city's teeth at work?". The
+        // judge now fails only a death told as survival; what the reply offers after the death is not this
+        // eval's business.
         AssertFateIsToldAsync(
             "Exploration-Death-FromASmallThing",
             client => EvalHost.CreateExplorationAsync(client, maxHp: 1, diceSeed: 8),
@@ -496,7 +497,7 @@ public class DomainAuthorityEvals
                 ["hoursTaken"] = 0,
                 ["consequenceOnFailure"] = "Minor"
             }),
-            samples: 8, allowedMisses: 1);
+            samples: 8);
 
     [Fact]
     public Task Exploration_InjuryFromAFailedTest_IsNamed() =>
@@ -531,7 +532,7 @@ public class DomainAuthorityEvals
     private static async Task AssertFateIsToldAsync(
         string scenarioName, Func<IChatClient, Task<EvalHost>> createHost, string playerMessage, string? expectedInjury,
         string[]? earlierTurns = null, (string Tool, Dictionary<string, object?> Arguments)? forcedCall = null,
-        int samples = 3, int allowedMisses = 0)
+        int samples = 3)
     {
         var ct = TestContext.Current.CancellationToken;
         var mistold = new List<string>();
@@ -558,9 +559,10 @@ public class DomainAuthorityEvals
 
             var passed = await JudgeAsync(scenario, outcome.Narrative, expectedInjury is null
                 ? "The character DIED this turn, and death is final. The narration must say plainly that the "
-                  + "character is dead. FAIL if it says or implies the character is alive, broken, unconscious, "
-                  + "clinging to life or still able to act, or asks what the character does next. Telling the "
-                  + "player to begin a new character passes."
+                  + "character is dead. FAIL if it says or implies the character survived: alive, broken, "
+                  + "unconscious, clinging to life, or wounded but still fighting. What the reply offers the "
+                  + "player after telling the death (a new character, or a last look at the world) does not "
+                  + "decide this."
                 : "The character was struck down this turn, SURVIVED, and now carries this injury: "
                   + $"{expectedInjury}. PASS if the narration tells that injury (the same part of the body, lost "
                   + "or ruined) and the character as alive. FAIL if it names no injury, names a different one, or "
@@ -569,9 +571,8 @@ public class DomainAuthorityEvals
                 mistold.Add($"sample {sample}: results {results} narrative: {outcome.Narrative}");
         }
 
-        Assert.True(mistold.Count <= allowedMisses,
-            $"{scenarioName}: the fate the dice gave was told otherwise in {mistold.Count} of {samples} runs "
-            + $"(at most {allowedMisses} allowed): "
+        Assert.True(mistold.Count == 0,
+            $"{scenarioName}: the fate the dice gave was told otherwise in {mistold.Count} of {samples} runs: "
             + string.Join("; ", mistold));
     }
 
