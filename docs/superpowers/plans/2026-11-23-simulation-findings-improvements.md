@@ -445,8 +445,9 @@ purse.
 Done: `PaySilver(silver, paidFor)` takes silver for anything that is not an item (a fee, a toll, a bribe, a
 bed, coin given away), in Exploration and Resolution. `GainSilver`'s description and the silver rule say
 it only ever adds silver and send payments to `BuyItem` or `PaySilver`. Eval
-`Exploration_PayingForAService_TakesTheSilver`: 0 misses in 6; it could not pass before, with no tool to
-take the silver. The run's own slip did not reproduce: its message, replayed verbatim with the Agility
+`Exploration_PayingForAService_TakesTheSilver`: 0 misses in 6. Without `PaySilver` the answer was bought
+through `BuyItem` 6 times of 6 and put in the pack as an item ("Information: Location of the Abbot's
+Grave"), so the eval fails on an item added as well as on silver. The run's own slip did not reproduce: its message, replayed verbatim with the Agility
 test passing, went through `BuyItem` 12 times of 12 with `PaySilver` and 12 of 12 without, so whether
 the prompt stops a purchase going through `GainSilver` is for the next run to show. `GainSilver` still
 pays out if it is called for a purchase. Not done: `GainSilver` refusing a source that reads like a

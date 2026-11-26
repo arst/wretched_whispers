@@ -284,8 +284,8 @@ public class DomainAuthorityEvals
     }
 
     /// <summary>Fourth simulated run: no tool paid for anything but an item, so payments went untold or
-    /// through GainSilver, which raised the purse. The purse must fall by the price, and GainSilver is never
-    /// called. ponytail: the run's own slip (a draught paid through GainSilver after an Agility test) never
+    /// through GainSilver, which raised the purse. The purse must fall by the price, nothing enters the pack,
+    /// and GainSilver is never called. ponytail: the run's own slip (a draught paid through GainSilver after an Agility test) never
     /// reproduced in one turn, 0 of 12 with PaySilver and 0 of 12 without; BuyItem's eval guards purchases.</summary>
     [Fact]
     public async Task Exploration_PayingForAService_TakesTheSilver()
@@ -302,10 +302,12 @@ public class DomainAuthorityEvals
                 "I pay the old gravedigger 5 silver to tell me where the abbot is buried.", ct);
             Assert.Null(outcome.Error);
 
+            // Without PaySilver the answer was "bought": BuyItem put it in the pack as an item, 6 of 6.
             var change = outcome.Delta?.SilverChange ?? 0;
-            if (outcome.ToolCalls.Contains("GainSilver") || change != -5)
-                failures.Add($"sample {sample}: silver change {change}, tools "
-                    + $"[{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+            var items = outcome.Delta?.ItemsAdded ?? [];
+            if (outcome.ToolCalls.Contains("GainSilver") || change != -5 || items.Any())
+                failures.Add($"sample {sample}: silver change {change}, items added [{string.Join(", ", items)}], "
+                    + $"tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
         }
 
         Assert.True(failures.Count <= 1, $"A payment was mishandled in {failures.Count} of {FoundThingSamples} "
