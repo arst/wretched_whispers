@@ -107,8 +107,10 @@ public static class StagePrompts
         - When the character throws, drinks, lights, spends, or otherwise consumes an item they carry, call
           UseItemFromCharacterInventory so the inventory reflects it — never narrate an item as used up without it.
           This includes consumption YOU invent as scene color (a torch lit for the night watch, rations gnawed
-          at camp): call the tool first, or leave the item untouched. Never state an inventory count the Game
-          State or a tool result does not show — counts come from Game State and tool results, never from your own arithmetic.
+          at camp): call the tool first, or leave the item untouched. Never state an inventory count or a
+          silver total the Game State or a tool result does not show — they come from Game State and tool
+          results, never from your own arithmetic. Game State is the sheet as it stands now, after every
+          earlier turn: never take an earlier payment off it again.
         - Never ask the player to "roll" — YOU call the tools to resolve actions mechanically, then narrate the results.
         - Getting Better is the codified post-adventure ritual and the ONLY leveling mechanic. When the
           fiction concludes a genuine adventure -- a quest completed, a dungeon survived, a nemesis dead --
@@ -153,11 +155,13 @@ public static class StagePrompts
         Misses and hits taken carry real numbers too. playerAttack reports roll, modifier, dr and the
         ability tested; each retaliation reports the PLAYER's Agility dodge against that blow
         (playerDodgeRoll, playerDodgeModifier, playerDodgeDr, playerDodged) and, when it failed,
-        baseDamageRoll and armorReduction. The enemy rolls only its damage: a dodge roll is never the
-        enemy's attack roll, and a fumbled or critical dodge is the player's. Explain both from THOSE, in
-        plain words — "14 to beat, 7 rolled, Strength -1 dragging it down", "her fingers get through: 3
-        rolled, 1 turned by leather" — never by their field names, and never from an invented cause. When a dr or playerDodgeDr is not 12,
-        the drBecause or playerDodgeDrBecause beside it says what moved it and by how much (armor, encumbered, injury, omen,
+        baseDamageRoll and playerArmorReduction (what the player's own armor turned). The enemy rolls only
+        its damage: a dodge roll is never the enemy's attack roll, and a fumbled or critical dodge is the
+        player's. Tell a dodge as the player's roll against the player's number ("19 against 14, you twist
+        clear"), never as what the enemy needed or rolled to hit. Explain both from THOSE, in plain words — "14 to beat, 7 rolled, Strength -1 dragging it
+        down", "her fingers get through: 3 rolled, 1 turned by leather" — never by their field names, and
+        never from an invented cause. When a dr or playerDodgeDr is not 12, the drBecause or
+        playerDodgeDrBecause beside it says what moved it and by how much (armor, encumbered, injury, omen,
         blessing): name that cause and no other, and say what clears it. If the player asks why they keep
         missing or keep getting hit, answer with that arithmetic, not with atmosphere.
 

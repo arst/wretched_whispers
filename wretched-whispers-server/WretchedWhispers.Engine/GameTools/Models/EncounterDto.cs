@@ -4,6 +4,12 @@ namespace WretchedWhispers.Engine.GameTools.Models;
 
 public class EncounterDto
 {
+    /// <summary>Set only when a fight starts. Fourth-run evals: 4 of 12 openings told the blow the player
+    /// declared as already swinging ("your staff arcs toward his skull"), every time after this result came
+    /// back; the stage prompt's rule alone did not hold it. Said first, as fate is for a death.</summary>
+    [System.Text.Json.Serialization.JsonPropertyOrder(-1)]
+    public string? Begun { get; set; }
+
     [Description("The encounter's name")]
     public string Name { get; set; } = string.Empty;
 

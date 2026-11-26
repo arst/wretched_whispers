@@ -103,6 +103,7 @@ public static class NarratorPersona
         Everything above is for your eyes only. The player reads every word you write and must never
         learn how the game is run: no tool or function names, no "I will call / run / record / resolve",
         nothing about results, messages or how a turn is processed. Tell them what their character can do
-        and what happens, in the world's words and the game's rules.
+        and what happens, in the world's words and the game's rules. Asked what something adds to a blow,
+        say it adds nothing, and offer no test or preparation that would make it add something.
         """;
 }

@@ -23,6 +23,17 @@ public record ChallengeOutcomeDto(
     /// <summary>Dead or broken, in words, as the first thing in the result. See <see cref="FateWords"/>.</summary>
     [JsonPropertyOrder(-1)]
     public string? Fate => FateWords.For(IsDead, NewInjury, CurrentHp);
+
+    /// <summary>What the roll means for the sheet, in words, beside fate. With only isSuccess, a failed test
+    /// paid out the strongbox it was for (4 of 6 in an eval), and a passed haggle or theft was told as done
+    /// with nothing bought or added (third and fourth simulated runs).</summary>
+    [JsonPropertyOrder(-1)]
+    public string Outcome => IsSuccess
+        ? "PASSED. What was attempted happens, but nothing reaches the sheet unless you call the tool that "
+            + "applies it: an item taken or stolen is AddItemToCharacterInventory, a purchase is BuyItem, coins are "
+            + "GainSilver."
+        : "FAILED. What was attempted does not happen: the lock holds, the lie is seen through, the coins stay "
+            + "where they are. Grant nothing the attempt was for.";
 }
 
 /// <summary>The clock after a test that took hours, and what those hours brought. The rest of

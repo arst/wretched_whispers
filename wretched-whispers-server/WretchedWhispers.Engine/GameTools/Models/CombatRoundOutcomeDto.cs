@@ -24,8 +24,9 @@ public sealed record RetaliationDto(
     bool PlayerDodgeFumbleDoubleDamage, int OmenDamageReduction = 0,
     // When the dodge failed, the damage breakdown, so a hit taken is explained from the numbers.
     // PlayerDodgeDr already includes armor, encumbrance and injuries.
+    // PlayerArmorReduction is what the player's armor turned: as armorReduction it was told as the enemy's.
     int PlayerDodgeRoll = 0, int PlayerDodgeModifier = 0, int PlayerDodgeDr = 0, int BaseDamageRoll = 0,
-    int ArmorReduction = 0,
+    int PlayerArmorReduction = 0,
     // The injury this hit gave when it broke the player, in Game State's words ("lost eye").
     string? Injury = null,
     // Why PlayerDodgeDr is not 12 ("armor +2"); null when it is 12.

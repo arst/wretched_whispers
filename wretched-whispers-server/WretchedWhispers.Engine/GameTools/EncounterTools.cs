@@ -89,7 +89,11 @@ public sealed class EncounterTools(
     public async Task<EncounterDto> StartEncounter()
     {
         var encounter = await encounterService.StartEncounter(RequireEncounterId());
-        return CreateEncounterDto(encounter);
+        var dto = CreateEncounterDto(encounter);
+        dto.Begun = "THE FIGHT HAS BEGUN AND NOTHING IS RESOLVED. The blow the player declared has not been "
+            + "struck: no weapon is swinging, nothing connects or misses, nobody is hurt. Tell who stands against "
+            + "them and what they wield, then give the player the first move.";
+        return dto;
     }
 
     [Description("Escalate the current encounter to Hostile. Use ONLY when the fiction legitimately escalates — the player attacks first, negotiation collapses, treachery is revealed. Never use it to override a rolled reaction without in-fiction cause. Required before StartEncounter when the encounter is Friendly.")]
