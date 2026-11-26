@@ -77,7 +77,7 @@ public class GameToolCatalogTests
     }
 
     [Fact]
-    public void Exploration_ExposesExactlyTwentyTwoTools()
+    public void Exploration_ExposesExactlyTwentyThreeTools()
     {
         Assert.Equal(
             new[]
@@ -97,6 +97,7 @@ public class GameToolCatalogTests
                 "Character.EquipWeapon",
                 "Character.GainSilver",
                 "Character.GettingBetter",
+                "Character.PaySilver",
                 "Character.SellItem",
                 "Character.UseItemFromCharacterInventory",
                 "Dice.Roll",
@@ -145,6 +146,7 @@ public class GameToolCatalogTests
                 "Character.GettingBetter",
                 "Character.ImproveCharacterAbility",
                 "Character.InfectCharacter",
+                "Character.PaySilver",
                 "Character.SellItem",
                 "Character.UseItemFromCharacterInventory",
                 // CompleteResolution lives on EncounterTools, so its group is "Encounter".

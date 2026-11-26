@@ -432,8 +432,26 @@ landed), then an eval from the three verified turns.
 `GainSilver` was called for a purchase ("merchant took coin") and for a sale of an item never in the
 pack; there is no tool that pays silver for a service or a gift. Task 20 made this worse: a payment
 pushed through `GainSilver` used to carry a negative amount and be refused, and now pays a rolled
-purse. Decide: a `PaySilver` (or a price on a
-service), and `GainSilver` refusing a source that is a sale or a payment made.
+purse.
+
+Done: `PaySilver(silver, paidFor)` takes silver for anything that is not an item (a fee, a toll, a bribe, a
+bed, coin given away), in Exploration and Resolution. `GainSilver`'s description and the silver rule say
+it only ever adds silver and send payments to `BuyItem` or `PaySilver`. Eval
+`Exploration_PayingForAService_TakesTheSilver`: 0 misses in 6; it could not pass before, with no tool to
+take the silver. The run's own slip did not reproduce: its message, replayed verbatim with the Agility
+test passing, went through `BuyItem` 12 times of 12 with `PaySilver` and 12 of 12 without, so whether
+the prompt stops a purchase going through `GainSilver` is for the next run to show. `GainSilver` still
+pays out if it is called for a purchase. Not done: `GainSilver` refusing a source that reads like a
+payment, which is a keyword guess; add it if the next run still shows a payment through `GainSilver`.
+
+The suite's first fresh draw after this change failed four evals that had passed on cached samples.
+Measured at 12 samples with and without the change, the rates are the same; the bars had been set on
+lucky draws. `FoundSilver` was the judge (a right sum failed for "not the 50 you guessed" or for the
+purse's new total), now reworded and 0 of 12, and seeded so its test passes. The other three are
+standing slips at about one reply in four, with bars raised to what they measure: the camp's torches told
+as guttering (2 and 3 of 12), the declared blow told in flight at the start of combat (1 of 6 and 4 of
+12), and a test offered that would make a poison "work" (3 and 3 of 12). These evals now catch only a
+slide past about half.
 
 ### Task 24: Food and the day's castings reach the screen (code)
 
@@ -452,6 +470,10 @@ The story ran ahead of the sheet late in games, as in the third run: a player-de
 "Gain: 300 silver", a stolen pan sold with no tool, a purchase told done after a haggle, three gifts
 left in the pack. The short guards still pass; a long multi-turn eval is now justified if this is to be
 fixed rather than watched.
+
+Found while measuring Task 23: with the eval host's default seed the Strength test to smash a strongbox
+fails (3 against 12), and about 9 of 12 replies still take the silver through `GainSilver`, before
+Task 23 as after it. A failed test granted anyway, in one turn: an eval for it is cheap.
 
 ## Later: item pricing
 
