@@ -72,6 +72,6 @@ public sealed class DrReasonsTests : TestBase
 
         var dto = CombatRoundOutcomeDto.From(outcome);
 
-        Assert.Equal("armor +2", dto.Retaliations[0].DrBecause);
+        Assert.Equal("armor +2", dto.Retaliations[0].PlayerDodgeDrBecause);
     }
 }

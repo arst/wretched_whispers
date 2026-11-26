@@ -115,10 +115,12 @@ async function screen(game) {
     `STR ${s.characterStrength} AGI ${s.characterAgility} PRE ${s.characterPresence} TGH ${s.characterToughness}`,
     `${s.characterSilver} silver`,
     `omens ${s.characterOmens}`,
+    `food ${s.characterFoodDays} days`,
     `weapon: ${s.characterWeapon ?? "none"}`,
     `armor: ${s.characterArmor ?? "none"}${s.hasShield ? (s.isShieldBroken ? " + broken shield" : " + shield") : ""}`,
-    `carrying: ${s.characterInventory?.join(", ") || "nothing"}`,
-    s.characterScrolls?.length && `scrolls: ${s.characterScrolls.join(", ")}`,
+    `carrying: ${carried(s.characterInventory) || "nothing"}`,
+    s.characterScrolls?.length &&
+      `scrolls: ${s.characterScrolls.join(", ")} (castings left today ${s.characterCastingsLeft}/${s.characterCastingsMax})`,
     conditions.length && `conditions: ${conditions.join(", ")}`,
     `miseries ${s.miseryCount}/7`,
     s.stage,
@@ -190,4 +192,12 @@ if (command === "new") {
   }
 } else {
   fail("Usage: sim-player.mjs new|say|successor (see the header of this file).");
+}
+
+// One entry per unit, as the state sends it; grouped "×N" as the web UI's InventoryList shows it. Shown raw,
+// players of the fourth run reported "the same item listed seven times".
+function carried(items) {
+  const counts = new Map();
+  for (const item of items ?? []) counts.set(item, (counts.get(item) ?? 0) + 1);
+  return [...counts].map(([item, n]) => (n > 1 ? `${item} ×${n}` : item)).join(", ");
 }

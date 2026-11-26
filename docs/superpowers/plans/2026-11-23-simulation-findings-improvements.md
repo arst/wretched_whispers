@@ -427,6 +427,14 @@ defence. The narrator tells them as the enemy's attack, so a defence that held r
 beat 12" and misses. Rename the fields so the result says it (a defence roll, and whether the blow
 landed), then an eval from the three verified turns.
 
+Done: the retaliation's fields are `playerDodged`, `playerDodgeRoll`, `playerDodgeModifier`,
+`playerDodgeDr`, `playerDodgeDrBecause`, `playerDodgeCriticalFreeAttack` and
+`playerDodgeFumbleDoubleDamage`, named as `playerAttack` is, and the Combat prompt says the enemy rolls
+only its damage. Eval `Combat_Retaliation_IsToldAsTheCharactersDodge`, one seed for each verified turn
+(the dodge held, failed with armor taking it all, fumbled): 6 of 12 told as the enemy's roll with the
+old names, 2 of 12 as `dodgeRoll` ("he dodges": a dodge beside the adversary's name read as the
+adversary's), 0 of 12 as `playerDodgeRoll`.
+
 ### Task 23: Silver paid out and silver spent (code, with evals)
 
 `GainSilver` was called for a purchase ("merchant took coin") and for a sale of an item never in the
@@ -437,8 +445,9 @@ purse.
 Done: `PaySilver(silver, paidFor)` takes silver for anything that is not an item (a fee, a toll, a bribe, a
 bed, coin given away), in Exploration and Resolution. `GainSilver`'s description and the silver rule say
 it only ever adds silver and send payments to `BuyItem` or `PaySilver`. Eval
-`Exploration_PayingForAService_TakesTheSilver`: 0 misses in 6; it could not pass before, with no tool to
-take the silver. The run's own slip did not reproduce: its message, replayed verbatim with the Agility
+`Exploration_PayingForAService_TakesTheSilver`: 0 misses in 6. Without `PaySilver` the answer was bought
+through `BuyItem` 6 times of 6 and put in the pack as an item ("Information: Location of the Abbot's
+Grave"), so the eval fails on an item added as well as on silver. The run's own slip did not reproduce: its message, replayed verbatim with the Agility
 test passing, went through `BuyItem` 12 times of 12 with `PaySilver` and 12 of 12 without, so whether
 the prompt stops a purchase going through `GainSilver` is for the next run to show. `GainSilver` still
 pays out if it is called for a purchase. Not done: `GainSilver` refusing a source that reads like a
@@ -458,11 +467,18 @@ slide past about half.
 Neither is in the state the web UI and the simulation read. Players asked for their food three times
 and the narrator claimed to correct a status line it cannot touch.
 
+Done: the state update carries `characterFoodDays`, `characterCastingsLeft` and `characterCastingsMax`;
+the character drawer shows food, and castings left today under the scrolls; the simulation's screen
+shows both.
+
 ### Task 25: The simulation's screen groups units like the UI (tooling)
 
 `sim-player.mjs` prints one line per unit ("lantern + oil" seven times); the UI shows "×7". Group them
 the same way, and drop the analysis check that counts units as duplicates. The "duplicate item lines"
 item from the third run was this, not a game bug.
+
+Done: `sim-player.mjs` shows "torches ×3" as the UI does, and the analysis no longer counts units as
+duplicate lines.
 
 ### Task 21, revisited
 

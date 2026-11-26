@@ -194,15 +194,6 @@ if not which or "world" in which:
     show("Narrates hours passing while the clock did not move", passed, n=4, width=170)
 
 if not which or "items" in which:
-    dup = []
-    for t in ok:
-        inv = t["gameState"].get("characterInventory") or []
-        c = collections.Counter(inv)
-        worst = c.most_common(1)
-        if worst and worst[0][1] > 1:
-            dup.append((t, f"{worst[0][0]} x{worst[0][1]}; {len(inv)} entries"))
-    # Mostly quantities (four torches are four entries), so read the examples, not the count.
-    show("Sheet lists the same item more than once", dup, n=5, width=90)
     biggest = max(ok, key=lambda t: len(t["gameState"].get("characterInventory") or []))
     print(f"   longest carried list: {len(biggest['gameState']['characterInventory'])} entries ({biggest['persona']})")
 

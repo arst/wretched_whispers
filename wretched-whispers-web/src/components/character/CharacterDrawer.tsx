@@ -141,8 +141,18 @@ export default function CharacterDrawer() {
         </div>
       </Section>
 
+      <Section title="FOOD">
+        <div className="text-doom-bone text-sm">
+          {characterData.characterFoodDays ?? 0} days
+        </div>
+      </Section>
+
       {scrolls.length > 0 && (
         <Section title="SCROLLS">
+          <div className="text-doom-ash mb-2 text-xs">
+            Castings left today: {characterData.characterCastingsLeft ?? 0}/
+            {characterData.characterCastingsMax ?? 0}
+          </div>
           <div className="space-y-1">
             {scrolls.map((scroll) => (
               <div key={scroll} className="text-doom-bone text-sm">

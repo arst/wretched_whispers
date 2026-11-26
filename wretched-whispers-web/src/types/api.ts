@@ -126,7 +126,10 @@ export interface StateUpdateEvent {
   worldEnded?: boolean;
   currentLocationName?: string | null;
   characterOmens?: number;
+  characterFoodDays?: number;
   characterScrolls?: string[];
+  characterCastingsLeft?: number;
+  characterCastingsMax?: number;
   miseryPsalms?: string[];
 }
 

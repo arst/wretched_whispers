@@ -15,16 +15,21 @@ public sealed record PlayerAttackDto(
 
 public sealed record FleeAttemptDto(bool Success, int Roll, int Modifier, int Dr, string? DrBecause = null);
 
+// Every roll here is the PLAYER's Agility dodge against the adversary's blow; the adversary rolls only
+// its damage. Named for it, as playerAttack is: as roll/dr/avoided the narrator told a dodge of 13 against
+// 12 as the enemy rolling 13 and missing, and a fumbled dodge as the enemy fumbling (fourth simulated
+// run); as dodgeRoll beside adversaryName, as the adversary dodging.
 public sealed record RetaliationDto(
-    string AdversaryName, int DamageDealt, bool Avoided, bool CriticalFreeAttack, bool FumbleDoubleDamage,
-    int OmenDamageReduction = 0,
-    // The player's dodge test (always Agility) and, when it failed, the damage breakdown — so a hit
-    // taken is explained from the numbers. Dr already includes armor, encumbrance and injuries.
-    int Roll = 0, int Modifier = 0, int Dr = 0, int BaseDamageRoll = 0, int ArmorReduction = 0,
+    string AdversaryName, int DamageDealt, bool PlayerDodged, bool PlayerDodgeCriticalFreeAttack,
+    bool PlayerDodgeFumbleDoubleDamage, int OmenDamageReduction = 0,
+    // When the dodge failed, the damage breakdown, so a hit taken is explained from the numbers.
+    // PlayerDodgeDr already includes armor, encumbrance and injuries.
+    int PlayerDodgeRoll = 0, int PlayerDodgeModifier = 0, int PlayerDodgeDr = 0, int BaseDamageRoll = 0,
+    int ArmorReduction = 0,
     // The injury this hit gave when it broke the player, in Game State's words ("lost eye").
     string? Injury = null,
-    // Why Dr is not 12 ("armor +2"); null when it is 12.
-    string? DrBecause = null);
+    // Why PlayerDodgeDr is not 12 ("armor +2"); null when it is 12.
+    string? PlayerDodgeDrBecause = null);
 
 public sealed record CombatRoundOutcomeDto(
     PlayerAttackDto? PlayerAttack,

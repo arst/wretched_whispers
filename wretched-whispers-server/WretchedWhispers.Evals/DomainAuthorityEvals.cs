@@ -284,8 +284,8 @@ public class DomainAuthorityEvals
     }
 
     /// <summary>Fourth simulated run: no tool paid for anything but an item, so payments went untold or
-    /// through GainSilver, which raised the purse. The purse must fall by the price, and GainSilver is never
-    /// called. ponytail: the run's own slip (a draught paid through GainSilver after an Agility test) never
+    /// through GainSilver, which raised the purse. The purse must fall by the price, nothing enters the pack,
+    /// and GainSilver is never called. ponytail: the run's own slip (a draught paid through GainSilver after an Agility test) never
     /// reproduced in one turn, 0 of 12 with PaySilver and 0 of 12 without; BuyItem's eval guards purchases.</summary>
     [Fact]
     public async Task Exploration_PayingForAService_TakesTheSilver()
@@ -302,10 +302,12 @@ public class DomainAuthorityEvals
                 "I pay the old gravedigger 5 silver to tell me where the abbot is buried.", ct);
             Assert.Null(outcome.Error);
 
+            // Without PaySilver the answer was "bought": BuyItem put it in the pack as an item, 6 of 6.
             var change = outcome.Delta?.SilverChange ?? 0;
-            if (outcome.ToolCalls.Contains("GainSilver") || change != -5)
-                failures.Add($"sample {sample}: silver change {change}, tools "
-                    + $"[{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+            var items = outcome.Delta?.ItemsAdded ?? [];
+            if (outcome.ToolCalls.Contains("GainSilver") || change != -5 || items.Any())
+                failures.Add($"sample {sample}: silver change {change}, items added [{string.Join(", ", items)}], "
+                    + $"tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
         }
 
         Assert.True(failures.Count <= 1, $"A payment was mishandled in {failures.Count} of {FoundThingSamples} "
@@ -1196,25 +1198,86 @@ public class DomainAuthorityEvals
     /// At one in five, 12 samples hold 5 or fewer about 39 times in 40.</summary>
     private const int MaxCampItemUseTold = 5;
 
+    /// <summary>Fourth simulated run: a retaliation's roll is the CHARACTER's dodge, and it was told as the
+    /// enemy's attack. "Roll 13, dr 12, avoided" became "it must beat DR 12 and it rolls 13 ... it snaps";
+    /// "roll 14 to beat 18, armor ate the damage" became "its kukri opens for 1"; a fumbled dodge became
+    /// "its strike fumbles". One seed for each: the dodge held, failed with armor taking it all, fumbled.</summary>
+    [Theory]
+    [InlineData(26, "held")]
+    [InlineData(15, "failed, and armor turned all the damage")]
+    [InlineData(29, "was a natural 1, the character's fumble, which doubled the damage")]
+    public async Task Combat_Retaliation_IsToldAsTheCharactersDodge(int diceSeed, string dodge)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= DodgeSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, $"Combat-Retaliation-Dodge-{diceSeed}", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient, diceSeed: diceSeed);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", ct);
+            Assert.Null(outcome.Error);
+            var round = outcome.ToolResults.Single(t => t.Function == "ResolveCombatRound").Result?.ToString() ?? "";
+            var retaliation = JsonDocument.Parse(round).RootElement.GetProperty("retaliations")[0];
+            var roll = retaliation.GetProperty("playerDodgeRoll").GetInt32();
+            var dr = retaliation.GetProperty("playerDodgeDr").GetInt32();
+
+            var passed = await JudgeAsync(scenario, outcome.Narrative,
+                $"In this round the priest struck back at the character. {roll} against DR {dr} is the CHARACTER's "
+                + $"Agility roll to dodge that blow, and the dodge {dodge}. The priest makes no roll to hit; it "
+                + $"rolls only its damage. FAIL if the narration tells {roll} or {dr} as the priest's roll or the "
+                + $"number the priest must beat (\"it rolls {roll}\", \"the priest needs {dr}\"), or tells the "
+                + "dodge's outcome or a fumble as the priest's. PASS if those numbers are told as the character's "
+                + "dodge, or not given at all.");
+            if (passed != true) failures.Add($"sample {sample}: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"The dodge was told as the enemy's roll in {failures.Count} of "
+            + $"{DodgeSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
+    /// <summary>Measured on gpt-5-mini, over the three seeds: 6 of 12 with the fields named roll, dr and
+    /// avoided; 2 of 12 as dodgeRoll, dodgeDr and dodged ("he dodges"); 0 of 12 as playerDodgeRoll.</summary>
+    private const int DodgeSamples = 4;
+
     [Fact]
     public async Task Combat_Narration_IsGroundedInToolResults()
     {
-        await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Combat-Narration-Grounded", [new GroundednessEvaluator()], stripSamplingOptions: true);
-        await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
-        var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", TestContext.Current.CancellationToken);
+        var ct = TestContext.Current.CancellationToken;
+        var drifted = new List<string>();
+        for (var sample = 1; sample <= GroundedCombatSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Combat-Narration-Grounded", [new GroundednessEvaluator()], stripSamplingOptions: true,
+                sample: sample);
+            await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
+            var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", ct);
 
-        var groundingContext = string.Join("\n",
-            outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
+            var groundingContext = string.Join("\n",
+                outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
 
-        EvaluationResult result = await scenario.Run.EvaluateAsync(
-            messages: [new ChatMessage(ChatRole.User, "I strike the plague priest with my staff!")],
-            modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
-            additionalContext: [new GroundednessEvaluatorContext(groundingContext)], cancellationToken: TestContext.Current.CancellationToken);
+            EvaluationResult result = await scenario.Run.EvaluateAsync(
+                messages: [new ChatMessage(ChatRole.User, "I strike the plague priest with my staff!")],
+                modelResponse: new ChatResponse(new ChatMessage(ChatRole.Assistant, outcome.Narrative)),
+                additionalContext: [new GroundednessEvaluatorContext(groundingContext)], cancellationToken: ct);
 
-        var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
-        Assert.NotNull(metric.Value);
-        Assert.True(metric.Value >= EvalSupport.GroundednessPassBar,
-            $"Groundedness {metric.Value}: narration drifted from tool results. Narrative: {outcome.Narrative}");
+            var metric = result.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
+            Assert.NotNull(metric.Value);
+            if (metric.Value < EvalSupport.GroundednessPassBar)
+                drifted.Add($"sample {sample}: groundedness {metric.Value}, narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(drifted.Count <= MaxGroundedCombatDrifts, $"Narration drifted from the tool results in "
+            + $"{drifted.Count} of {GroundedCombatSamples} runs (at most {MaxGroundedCombatDrifts} allowed): "
+            + string.Join("; ", drifted));
     }
+
+    private const int GroundedCombatSamples = 12;
+
+    /// <summary>Measured on gpt-5-mini on 26 November 2026: 2 of 8 below the bar before the retaliation's
+    /// fields were renamed and 2 of 8 after (one for the priest's hit points, which the result does not
+    /// carry). As one cached sample it passed or failed on the draw. At one in four, 12 samples hold 5 or
+    /// fewer 19 times in 20.</summary>
+    private const int MaxGroundedCombatDrifts = 5;
 }

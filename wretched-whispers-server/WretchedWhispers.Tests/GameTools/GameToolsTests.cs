@@ -287,6 +287,21 @@ public class GameToolsTests
     }
 
     [Fact]
+    public void Retaliation_NamesItsRollsAsTheCharactersDodge()
+    {
+        // Fourth simulated run: "roll 13, dr 12, avoided true" was told as the enemy rolling 13 to beat 12
+        // and missing. The names are all the narrator has to go on.
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            new RetaliationDto("Priest", 0, true, false, false, 0, 13, 0, 12), System.Text.Json.JsonSerializerOptions.Web);
+
+        Assert.Contains("\"playerDodgeRoll\":13", json);
+        Assert.Contains("\"playerDodgeDr\":12", json);
+        Assert.Contains("\"playerDodged\":true", json);
+        Assert.DoesNotContain("\"roll\"", json);
+        Assert.DoesNotContain("\"avoided\"", json);
+    }
+
+    [Fact]
     public async Task GainSilver_PaysWhatTheDiceRollAndSaysHowMuch()
     {
         var hero = HeroInSession();

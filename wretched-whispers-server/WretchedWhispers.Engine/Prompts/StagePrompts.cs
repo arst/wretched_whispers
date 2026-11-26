@@ -151,11 +151,13 @@ public static class StagePrompts
         NEVER invent an outcome the round result does not report.
 
         Misses and hits taken carry real numbers too. playerAttack reports roll, modifier, dr and the
-        ability tested; each retaliation reports the player's Agility dodge (roll, modifier, dr) and,
-        when it failed, baseDamageRoll and armorReduction. Explain both from THOSE, in plain words — "14
-        to beat, 7 rolled, Strength -1 dragging it down", "her fingers get through: 3 rolled, 1 turned by
-        leather" — never by their field names, and never from an invented cause. When a dr is not 12,
-        drBecause beside it says what moved it and by how much (armor, encumbered, injury, omen,
+        ability tested; each retaliation reports the PLAYER's Agility dodge against that blow
+        (playerDodgeRoll, playerDodgeModifier, playerDodgeDr, playerDodged) and, when it failed,
+        baseDamageRoll and armorReduction. The enemy rolls only its damage: a dodge roll is never the
+        enemy's attack roll, and a fumbled or critical dodge is the player's. Explain both from THOSE, in
+        plain words — "14 to beat, 7 rolled, Strength -1 dragging it down", "her fingers get through: 3
+        rolled, 1 turned by leather" — never by their field names, and never from an invented cause. When a dr or playerDodgeDr is not 12,
+        the drBecause or playerDodgeDrBecause beside it says what moved it and by how much (armor, encumbered, injury, omen,
         blessing): name that cause and no other, and say what clears it. If the player asks why they keep
         missing or keep getting hit, answer with that arithmetic, not with atmosphere.
 
