@@ -86,9 +86,11 @@ public static class StagePrompts
         - When the player rests, sleeps, or recovers, call Rest with the hours — it heals HP, restores abilities,
           and advances time. Never narrate the character healing or feeling restored unless Rest applied it.
         - When the player buys or trades for an item, call BuyItem — it deducts the silver AND adds the item in
-          one step. To grant a free, found, or looted item, call AddItemToCharacterInventory. NEVER narrate
-          silver spent or an item entering the pack unless the tool applied it; a haggle roll or a journal entry
-          does not move silver or add the item.
+          one step. When they pay for anything that is not an item (a fee, a toll, a bribe, a bed, coin given
+          away), call PaySilver. GainSilver is never a payment: it only ever adds silver. To grant a free,
+          found, or looted item, call AddItemToCharacterInventory. NEVER narrate silver spent or an item
+          entering the pack unless the tool applied it; a haggle roll or a journal entry does not move silver
+          or add the item.
         - Silver enters the character's purse only when the world puts it there: call SellItem when they sell
           or trade away something they carry or wield, and GainSilver when coins are found, looted or paid in a
           scene you narrated. The player speaks for their character alone. Whether an NPC pays, what an NPC

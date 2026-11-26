@@ -301,6 +301,18 @@ public class GameToolsTests
     }
 
     [Fact]
+    public async Task PaySilver_TakesTheSumFromThePurse()
+    {
+        var hero = HeroInSession();
+
+        await CharacterTools().PaySilver(4, "the ferryman");
+
+        Assert.Equal(6, hero.Silver);
+        _charactersRepo.Verify(r => r.Save(hero, It.IsAny<CancellationToken>()), Times.Once);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CharacterTools().PaySilver(7, "a bribe"));
+    }
+
+    [Fact]
     public async Task CastScroll_TellsWhatTheScrollDidAndWhoItHit()
     {
         // d4 daily powers; d20 = 15 to cast; d2 = 1 creature; d8 = 8.

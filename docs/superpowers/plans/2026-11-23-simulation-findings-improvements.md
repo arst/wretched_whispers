@@ -432,8 +432,14 @@ landed), then an eval from the three verified turns.
 `GainSilver` was called for a purchase ("merchant took coin") and for a sale of an item never in the
 pack; there is no tool that pays silver for a service or a gift. Task 20 made this worse: a payment
 pushed through `GainSilver` used to carry a negative amount and be refused, and now pays a rolled
-purse. Decide: a `PaySilver` (or a price on a
-service), and `GainSilver` refusing a source that is a sale or a payment made.
+purse.
+
+Done: `PaySilver(silver, paidFor)` takes silver for anything that is not an item (a fee, a toll, a bribe, a
+bed, coin given away), in Exploration and Resolution. `GainSilver`'s description and the silver rule say
+it only ever adds silver and send payments to `BuyItem` or `PaySilver`. Evals
+`Exploration_PayingForAService_TakesTheSilver` and `Exploration_PayingForADraught_NeverRaisesSilver`:
+0 misses in 6 each. Not done: `GainSilver` refusing a source that reads like a payment, which is a
+keyword guess; add it if the next run still shows a payment through `GainSilver`.
 
 ### Task 24: Food and the day's castings reach the screen (code)
 

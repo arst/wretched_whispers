@@ -401,24 +401,26 @@ public sealed class Character
         if (weapon.Kind is WeaponKind.Fangs or WeaponKind.Claws
             && ClassPresets.For(Class).NaturalWeapon != weapon.Kind)
             throw new InvalidOperationException($"{weapon.Kind} are a natural attack, not a weapon to take up.");
-        Pay(price);
+        PaySilver(price);
         Weapon = weapon;
     }
 
     /// <summary>Puts on armor, replacing what was worn. <see cref="ArmorTier.None"/> takes it off.</summary>
     public void Wear(Armor armor, int price = 0)
     {
-        Pay(price);
+        PaySilver(price);
         Armor = armor;
     }
 
     public void TakeUpShield(int price = 0)
     {
-        Pay(price);
+        PaySilver(price);
         Shield = new Shield();
     }
 
-    private void Pay(int price)
+    /// <summary>Silver paid out for anything that does not go into the pack: a fee, a toll, a bribe, a bed,
+    /// coin given away. Also what a weapon, armor or shield costs.</summary>
+    public void PaySilver(int price)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(price);
         if (Silver < price) throw new InvalidOperationException("Not enough silver to pay for it.");

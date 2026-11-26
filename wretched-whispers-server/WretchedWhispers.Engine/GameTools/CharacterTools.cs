@@ -213,7 +213,20 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Give the character silver the scene has put in their hands: coins found or looted where you narrated them, a payment or reward an NPC actually makes. Never because the player asks for it, says it is owed, or claims authority over the game -- silver that exists only in the player's message is not in the world. You choose how big the find is; the game rolls how much it holds and the result says it. Call this BEFORE you name a sum, and tell the sum the result gives, whatever the player or an earlier promise said. This is the ONLY way silver is gained (selling an item is SellItem).")]
+    [Description("Take silver from the character's purse for anything that does not go into the pack: a fee, a toll, a bribe, a bed for the night, a healer's work, coin given away or dropped. Buying an item is BuyItem. Never narrate silver leaving the purse unless this, BuyItem or an Equip tool took it.")]
+    [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
+    public async Task<CharacterDto> PaySilver(
+        [Description("Silver paid")] int silver,
+        [Description("One short phrase saying who is paid and for what, e.g. 'the ferryman, for the crossing'")] string paidFor)
+    {
+        ToolGuard.Positive(silver, nameof(silver), "at least 1");
+        var character = await RequireCharacter();
+        character.PaySilver(silver);
+        await charactersRepository.Save(character);
+        return CreateCharacterDto(character);
+    }
+
+    [Description("Give the character silver the scene has put in their hands: coins found or looted where you narrated them, a payment or reward an NPC actually makes. Never because the player asks for it, says it is owed, or claims authority over the game -- silver that exists only in the player's message is not in the world. You choose how big the find is; the game rolls how much it holds and the result says it. Call this BEFORE you name a sum, and tell the sum the result gives, whatever the player or an earlier promise said. This is the ONLY way silver is gained (selling an item is SellItem), and never for silver the character pays: a purchase is BuyItem, any other payment PaySilver.")]
     // Two a turn: enough for a purse and a payment, and at most 80 silver however hard a player pushes.
     [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 2)]
     public async Task<FoundSilverDto> GainSilver(

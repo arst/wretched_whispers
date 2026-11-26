@@ -280,6 +280,44 @@ public class DomainAuthorityEvals
             + $"{failures.Count} of {FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
     }
 
+    [Fact]
+    public Task Exploration_PayingForAService_TakesTheSilver() =>
+        // Fourth run: no tool paid for anything but an item, so payments went untold or through GainSilver.
+        AssertPaymentAsync("Exploration-PaidService-PaySilver",
+            "I pay the old gravedigger 5 silver to tell me where the abbot is buried.", expectedDrop: 5);
+
+    [Fact]
+    public Task Exploration_PayingForADraught_NeverRaisesSilver() =>
+        // Fourth run, cautious-survivor: GainSilver(Purse, "middling draught sale (merchant took coin)"), and
+        // the purse went up. Before Task 20 the same call carried -12 and was refused.
+        AssertPaymentAsync("Exploration-PaidDraught-NoGain",
+            "I pay quietly, out of sight of the others, and take the middling draught from the merchant for "
+            + "12 silver.", expectedDrop: 12);
+
+    /// <summary>The purse must fall by the price, or stay put if the deal is refused in the story; it never
+    /// rises and GainSilver is never called.</summary>
+    private static async Task AssertPaymentAsync(string scenarioName, string playerMessage, int expectedDrop)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= FoundThingSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(Suite, scenarioName, [], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, ct);
+            Assert.Null(outcome.Error);
+
+            var change = outcome.Delta?.SilverChange ?? 0;
+            if (outcome.ToolCalls.Contains("GainSilver") || change != -expectedDrop)
+                failures.Add($"sample {sample}: silver change {change}, tools "
+                    + $"[{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"A payment was mishandled in {failures.Count} of {FoundThingSamples} "
+            + "runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
     /// <summary>Third simulated run: "Silver: 95 (you took 30 from the chest)" after a lock was picked, and
     /// "you now have 95 silver, the reliquary and the key are added to your pack" after a test. The test was
     /// the only call; silver and pack stayed as they were. Here the test is forced and passes, so only what
