@@ -427,6 +427,14 @@ defence. The narrator tells them as the enemy's attack, so a defence that held r
 beat 12" and misses. Rename the fields so the result says it (a defence roll, and whether the blow
 landed), then an eval from the three verified turns.
 
+Done: the retaliation's fields are `playerDodged`, `playerDodgeRoll`, `playerDodgeModifier`,
+`playerDodgeDr`, `playerDodgeDrBecause`, `playerDodgeCriticalFreeAttack` and
+`playerDodgeFumbleDoubleDamage`, named as `playerAttack` is, and the Combat prompt says the enemy rolls
+only its damage. Eval `Combat_Retaliation_IsToldAsTheCharactersDodge`, one seed for each verified turn
+(the dodge held, failed with armor taking it all, fumbled): 6 of 12 told as the enemy's roll with the
+old names, 2 of 12 as `dodgeRoll` ("he dodges": a dodge beside the adversary's name read as the
+adversary's), 0 of 12 as `playerDodgeRoll`.
+
 ### Task 23: Silver paid out and silver spent (code, with evals)
 
 `GainSilver` was called for a purchase ("merchant took coin") and for a sale of an item never in the

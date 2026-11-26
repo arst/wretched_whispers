@@ -108,9 +108,9 @@ public sealed class EvalHost : IAsyncDisposable
     /// scenarios that spend omens (defaults keep the shared seed byte-identical so existing
     /// scenarios' cached responses stay valid — Tuck rolls with 0 omens).</summary>
     public static async Task<EvalHost> CreateCombatAsync(
-        IChatClient chatClient, IReadOnlyList<Scroll>? scrolls = null, int omens = 0)
+        IChatClient chatClient, IReadOnlyList<Scroll>? scrolls = null, int omens = 0, int diceSeed = 1)
     {
-        var host = await CreateAsync(chatClient);
+        var host = await CreateAsync(chatClient, diceSeed);
 
         await using var scope = host._provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;

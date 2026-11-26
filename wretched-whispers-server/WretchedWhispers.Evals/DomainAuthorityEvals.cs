@@ -1196,6 +1196,49 @@ public class DomainAuthorityEvals
     /// At one in five, 12 samples hold 5 or fewer about 39 times in 40.</summary>
     private const int MaxCampItemUseTold = 5;
 
+    /// <summary>Fourth simulated run: a retaliation's roll is the CHARACTER's dodge, and it was told as the
+    /// enemy's attack. "Roll 13, dr 12, avoided" became "it must beat DR 12 and it rolls 13 ... it snaps";
+    /// "roll 14 to beat 18, armor ate the damage" became "its kukri opens for 1"; a fumbled dodge became
+    /// "its strike fumbles". One seed for each: the dodge held, failed with armor taking it all, fumbled.</summary>
+    [Theory]
+    [InlineData(26, "held")]
+    [InlineData(15, "failed, and armor turned all the damage")]
+    [InlineData(29, "was a natural 1, the character's fumble, which doubled the damage")]
+    public async Task Combat_Retaliation_IsToldAsTheCharactersDodge(int diceSeed, string dodge)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= DodgeSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, $"Combat-Retaliation-Dodge-{diceSeed}", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient, diceSeed: diceSeed);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", ct);
+            Assert.Null(outcome.Error);
+            var round = outcome.ToolResults.Single(t => t.Function == "ResolveCombatRound").Result?.ToString() ?? "";
+            var retaliation = JsonDocument.Parse(round).RootElement.GetProperty("retaliations")[0];
+            var roll = retaliation.GetProperty("playerDodgeRoll").GetInt32();
+            var dr = retaliation.GetProperty("playerDodgeDr").GetInt32();
+
+            var passed = await JudgeAsync(scenario, outcome.Narrative,
+                $"In this round the priest struck back at the character. {roll} against DR {dr} is the CHARACTER's "
+                + $"Agility roll to dodge that blow, and the dodge {dodge}. The priest makes no roll to hit; it "
+                + $"rolls only its damage. FAIL if the narration tells {roll} or {dr} as the priest's roll or the "
+                + $"number the priest must beat (\"it rolls {roll}\", \"the priest needs {dr}\"), or tells the "
+                + "dodge's outcome or a fumble as the priest's. PASS if those numbers are told as the character's "
+                + "dodge, or not given at all.");
+            if (passed != true) failures.Add($"sample {sample}: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count <= 1, $"The dodge was told as the enemy's roll in {failures.Count} of "
+            + $"{DodgeSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
+    /// <summary>Measured on gpt-5-mini, over the three seeds: 6 of 12 with the fields named roll, dr and
+    /// avoided; 2 of 12 as dodgeRoll, dodgeDr and dodged ("he dodges"); 0 of 12 as playerDodgeRoll.</summary>
+    private const int DodgeSamples = 4;
+
     [Fact]
     public async Task Combat_Narration_IsGroundedInToolResults()
     {
