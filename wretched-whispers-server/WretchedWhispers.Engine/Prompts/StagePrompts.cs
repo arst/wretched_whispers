@@ -157,7 +157,8 @@ public static class StagePrompts
         (playerDodgeRoll, playerDodgeModifier, playerDodgeDr, playerDodged) and, when it failed,
         baseDamageRoll and playerArmorReduction (what the player's own armor turned). The enemy rolls only
         its damage: a dodge roll is never the enemy's attack roll, and a fumbled or critical dodge is the
-        player's. Explain both from THOSE, in plain words — "14 to beat, 7 rolled, Strength -1 dragging it
+        player's. Tell a dodge as the player's roll against the player's number ("19 against 14, you twist
+        clear"), never as what the enemy needed or rolled to hit. Explain both from THOSE, in plain words — "14 to beat, 7 rolled, Strength -1 dragging it
         down", "her fingers get through: 3 rolled, 1 turned by leather" — never by their field names, and
         never from an invented cause. When a dr or playerDodgeDr is not 12, the drBecause or
         playerDodgeDrBecause beside it says what moved it and by how much (armor, encumbered, injury, omen,

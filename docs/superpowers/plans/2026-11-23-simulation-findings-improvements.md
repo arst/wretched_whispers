@@ -503,13 +503,17 @@ Done:
   - It reproduced them where the one-turn evals did not: a haggle told as a purchase, a stolen pan told
     as taken, silver totals with a payment taken off twice. That was 11 of 24 turns.
   - With `outcome`: 4 of 24.
-  - With the silver rule saying Game State already holds every earlier turn: 2 of 24. One of those is
-    still a payment taken off twice.
+  - With the silver rule saying Game State already holds every earlier turn: 2 to 5 of 24 on fresh
+    draws. About half are the judge failing a right reply. The rest are still a payment taken off twice
+    in a status answer, and a pan the failed theft never gave, added and sold in one turn. The bar is 6.
 - **The four standing slips the eval bars were raised for:**
   - `StartEncounter`'s result says first that the fight has begun and nothing is resolved: 4 of 12 → 2
     of 12.
   - The closing reminder says a blow gains nothing and no test is offered: the poison eval went 3 of 12
-    → 0 of 12.
+    → 0 and 2 of 12. Examples added to the persona as well made the narrator pay part of an invented
+    debt (2 of 12; 0 of 12 on `main`), so they were dropped.
+  - The combat prompt shows a dodge told as the player's roll against the player's number, after a
+    fresh draw had "to land it he needed 14": the held-dodge seed went 2 of 4 → passing.
   - A rest's result says nothing carried was used up: the camp eval went 2–3 of 12 → 1 of 12. A
     stage-prompt line naming torches made it worse, 5 of 12, and was dropped.
   - The groundedness judge is given the Game State the narrator reads, and the armor turned on a dodge

@@ -541,9 +541,11 @@ public class DomainAuthorityEvals
     private const int InventedEffectSamples = 12;
 
     /// <summary>Measured on gpt-5-mini on 26 November 2026: 3 of 12 and 3 of 12, a test offered whose success
-    /// would make the moss "reliably poisonous"; 0 of 12 with the closing reminder saying a blow gains nothing
-    /// and no test is offered. As 3 samples with 1 allowed it failed one redraw in two.</summary>
-    private const int MaxInventedEffectsPromised = 2;
+    /// would make the moss "reliably poisonous"; 0 of 12 and 2 of 12 with the closing reminder saying a blow
+    /// gains nothing and no test is offered (the 0 with examples in the persona as well, which made the
+    /// narrator pay part of an invented debt in 2 of 12 and were dropped). As 3 samples with 1 allowed it
+    /// failed one redraw in two. At one in twelve, 12 samples hold 3 or fewer about 39 times in 40.</summary>
+    private const int MaxInventedEffectsPromised = 3;
 
     // Second simulated run: 2 of 15 deaths were told as survival. A round that ended PlayerDead: "You are
     // not yet dead ... broken and prone." A failed test whose result said isDead true: "You are not dead;
