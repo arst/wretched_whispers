@@ -491,6 +491,31 @@ Found while measuring Task 23: with the eval host's default seed the Strength te
 fails (3 against 12), and about 9 of 12 replies still take the silver through `GainSilver`, before
 Task 23 as after it. A failed test granted anyway, in one turn: an eval for it is cheap.
 
+Done:
+
+- **A test's result says in words what a pass and a fail mean** (`outcome`, first beside `fate`).
+  "FAILED. What was attempted does not happen ... Grant nothing the attempt was for", and on a pass,
+  that nothing reaches the sheet without the tool that applies it.
+  - Eval `Exploration_LootAfterAFailedTest_IsNotTaken` (the test forced to fail): 4 of 6 took the
+    silver before, 0 of 6 twice after.
+- **Long eval `LongGame_EveryReplyMatchesWhatTheTurnChanged`**: eight turns modelled on the verified
+  slips, every reply judged against what its turn changed.
+  - It reproduced them where the one-turn evals did not: a haggle told as a purchase, a stolen pan told
+    as taken, silver totals with a payment taken off twice. That was 11 of 24 turns.
+  - With `outcome`: 4 of 24.
+  - With the silver rule saying Game State already holds every earlier turn: 2 of 24. One of those is
+    still a payment taken off twice.
+- **The four standing slips the eval bars were raised for:**
+  - `StartEncounter`'s result says first that the fight has begun and nothing is resolved: 4 of 12 → 2
+    of 12.
+  - The closing reminder says a blow gains nothing and no test is offered: the poison eval went 3 of 12
+    → 0 of 12.
+  - A rest's result says nothing carried was used up: the camp eval went 2–3 of 12 → 1 of 12. A
+    stage-prompt line naming torches made it worse, 5 of 12, and was dropped.
+  - The groundedness judge is given the Game State the narrator reads, and the armor turned on a dodge
+    is named `playerArmorReduction`: 2 of 8 → 0 of 12.
+  - Bars are back down to match.
+
 ## Later: item pricing
 
 Not scheduled. Its own design and plan when it is taken up.

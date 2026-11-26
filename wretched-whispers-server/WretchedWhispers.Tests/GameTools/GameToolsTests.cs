@@ -299,6 +299,8 @@ public class GameToolsTests
         Assert.Contains("\"playerDodged\":true", json);
         Assert.DoesNotContain("\"roll\"", json);
         Assert.DoesNotContain("\"avoided\"", json);
+        Assert.Contains("\"playerArmorReduction\"", json);
+        Assert.DoesNotContain("\"armorReduction\"", json);
     }
 
     [Fact]
@@ -687,6 +689,35 @@ public class GameToolsTests
         Assert.Equal("Hostile", result.Disposition);
         Assert.Null(result.Reaction);
         Assert.Null(result.ReactionRoll);
+    }
+
+    [Fact]
+    public void ChallengeResult_SaysWhatAPassAndAFailMean()
+    {
+        // Evals of the third and fourth runs' slips: a failed test paid out the strongbox anyway (4 of 6), and
+        // a passed haggle or theft was told as done with nothing on the sheet.
+        var failed = new ChallengeOutcomeDto(false, 3, 0, 3, 12, 0, false, 2);
+        var passed = failed with { IsSuccess = true, Roll = 14, Total = 14 };
+
+        Assert.StartsWith("FAILED", failed.Outcome);
+        Assert.StartsWith("PASSED", passed.Outcome);
+        Assert.Contains("\"outcome\":\"FAILED", System.Text.Json.JsonSerializer.Serialize(failed, System.Text.Json.JsonSerializerOptions.Web));
+    }
+
+    [Fact]
+    public async Task StartEncounter_SaysFirstThatNothingIsResolved()
+    {
+        var encounter = Encounter.Create("Road", "A bandit blocks the road", EncounterType.Hostile, _zeroDice);
+        encounter.AddAdversary(NewAdversary("Bandit"));
+        _context.SetActiveEncounterId(encounter.Id);
+        _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
+
+        var started = await EncounterTools().StartEncounter();
+        var created = await EncounterTools().CreateEncounter("Ambush", "Bandits leap out", EncounterType.Hostile);
+
+        Assert.StartsWith("THE FIGHT HAS BEGUN AND NOTHING IS RESOLVED", started.Begun);
+        Assert.StartsWith("{\"begun\":", System.Text.Json.JsonSerializer.Serialize(started, System.Text.Json.JsonSerializerOptions.Web));
+        Assert.Null(created.Begun);
     }
 
     [Fact]

@@ -314,6 +314,52 @@ public class DomainAuthorityEvals
             + "runs (at most 1 allowed): " + string.Join("; ", failures));
     }
 
+    /// <summary>Found while measuring Task 23: with the strongbox's Strength test failing (3 against 12), about 9
+    /// of 12 replies still paid out its silver. Here the test is forced and fails, so only what follows is the
+    /// model's: nothing the attempt was for may reach the sheet or be told as taken.</summary>
+    [Fact]
+    public async Task Exploration_LootAfterAFailedTest_IsNotTaken()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= FoundThingSamples; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-FailedTest-NoLoot", [new NarrativeCheckEvaluator()], sample: sample);
+            var client = new ForcedCallChatClient(scenario.ChatClient);
+            await using var host = await EvalHost.CreateExplorationAsync(client, diceSeed: FailingDiceSeed);
+            client.ForceNextCall("ChallengeCharacter", new()
+            {
+                ["challengeDr"] = 12,
+                ["abilityKind"] = "Strength",
+                ["hoursTaken"] = 0,
+                ["consequenceOnFailure"] = "Minor"
+            });
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "I smash the lock off the dead merchant's strongbox and take whatever is inside.", ct);
+            Assert.Null(outcome.Error);
+            var results = string.Join(" ", outcome.ToolResults.Select(
+                t => t.Result as string ?? JsonSerializer.Serialize(t.Result, JsonSerializerOptions.Web)));
+            Assert.True(System.Text.RegularExpressions.Regex.IsMatch(results, "\"isSuccess\":\\s*false"),
+                $"The scenario needs the test failed; pick another seed. Results: {results}");
+
+            var gained = outcome.Delta is { ItemsAdded.Length: > 0 } or { SilverChange: > 0 }
+                || outcome.ToolCalls.Contains("AddScrollToCharacter");
+            if (gained || await JudgeAsync(scenario, outcome.Narrative,
+                    "The character tried to smash a strongbox open and FAILED the test. The narration must not "
+                    + "state or imply that the box opened or that the character took, pocketed or now holds "
+                    + "anything from it. The lock holding, a hurt hand or the box out of reach all pass.") != true)
+                failures.Add($"sample {sample}: silver change {outcome.Delta?.SilverChange}, items added "
+                    + $"[{string.Join(", ", outcome.Delta?.ItemsAdded ?? [])}], tools "
+                    + $"[{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        // Measured: 4 of 6 before the result said FAILED in words, 0 of 6 and 0 of 6 after.
+        Assert.True(failures.Count <= 1, $"Loot was taken after a failed test in {failures.Count} of "
+            + $"{FoundThingSamples} runs (at most 1 allowed): " + string.Join("; ", failures));
+    }
+
     /// <summary>Third simulated run: "Silver: 95 (you took 30 from the chest)" after a lock was picked, and
     /// "you now have 95 silver, the reliquary and the key are added to your pack" after a test. The test was
     /// the only call; silver and pack stayed as they were. Here the test is forced and passes, so only what
@@ -494,10 +540,10 @@ public class DomainAuthorityEvals
 
     private const int InventedEffectSamples = 12;
 
-    /// <summary>Measured on gpt-5-mini on 26 November 2026: 3 of 12 before PaySilver and 3 of 12 after, all
-    /// a test offered whose success would make the moss "reliably poisonous". As 3 samples with 1 allowed
-    /// it failed one redraw in two. At one in four, 12 samples hold 5 or fewer 19 times in 20.</summary>
-    private const int MaxInventedEffectsPromised = 5;
+    /// <summary>Measured on gpt-5-mini on 26 November 2026: 3 of 12 and 3 of 12, a test offered whose success
+    /// would make the moss "reliably poisonous"; 0 of 12 with the closing reminder saying a blow gains nothing
+    /// and no test is offered. As 3 samples with 1 allowed it failed one redraw in two.</summary>
+    private const int MaxInventedEffectsPromised = 2;
 
     // Second simulated run: 2 of 15 deaths were told as survival. A round that ended PlayerDead: "You are
     // not yet dead ... broken and prone." A failed test whose result said isDead true: "You are not dead;
@@ -806,10 +852,10 @@ public class DomainAuthorityEvals
     /// eval passed or failed on the draw. The judge once failed two openings that held the blow ("the
     /// staff hovers ... the first strike is yours"), so its criterion names what is not a result.
     /// Remeasured on 26 November 2026 on fresh draws: 1 of 6 and 4 of 12 (the blow told in flight, "your
-    /// staff arcs toward his skull"), so the 0 of 6 was a lucky draw or the rate has drifted. At about one
-    /// in four, 12 samples hold 6 or fewer about 39 times in 40.
+    /// staff arcs toward his skull"), all written after StartEncounter returned; 2 of 12 once its result
+    /// says first that nothing is resolved. At one in six, 12 samples hold 4 or fewer about 19 times in 20.
     /// </summary>
-    private const int MaxCombatEntryOutcomesTold = 6;
+    private const int MaxCombatEntryOutcomesTold = 4;
 
     /// <summary>Measured on gpt-5-mini: 1 of 9 openings of this meeting made no encounter at all. As one
     /// cached sample the eval went red on that draw.</summary>
@@ -1193,10 +1239,10 @@ public class DomainAuthorityEvals
 
     private const int CampSamples = 12;
 
-    /// <summary>Measured on gpt-5-mini: 2 of 12 and 3 of 12 (before and after PaySilver), torches told as
-    /// guttering or spent as camp colour. As one cached sample it passed for months and went red on a redraw.
-    /// At one in five, 12 samples hold 5 or fewer about 39 times in 40.</summary>
-    private const int MaxCampItemUseTold = 5;
+    /// <summary>Measured on gpt-5-mini: 2 and 3 of 12, torches told as guttering through the night as camp
+    /// colour; 5 of 12 with a stage-prompt line naming torches; 1 of 12 with the rest's result saying nothing
+    /// carried was used up. At one in twelve, 12 samples hold 3 or fewer about 39 times in 40.</summary>
+    private const int MaxCampItemUseTold = 3;
 
     /// <summary>Fourth simulated run: a retaliation's roll is the CHARACTER's dodge, and it was told as the
     /// enemy's attack. "Roll 13, dr 12, avoided" became "it must beat DR 12 and it rolls 13 ... it snaps";
@@ -1252,10 +1298,14 @@ public class DomainAuthorityEvals
                 Suite, "Combat-Narration-Grounded", [new GroundednessEvaluator()], stripSamplingOptions: true,
                 sample: sample);
             await using var host = await EvalHost.CreateCombatAsync(scenario.ChatClient);
+            // The narrator reads Game State as well as the round; without it the judge failed "the priest,
+            // unhurt at 4/4", which Game State shows.
+            var gameState = await host.QueryAsync(async sp =>
+                (await sp.GetRequiredService<ISessionContextLoader>().LoadAsync(host.SessionId, ct)).FormatSnapshot());
             var outcome = await host.CreateTurnRunner().RunTurnAsync("I strike the plague priest with my staff!", ct);
 
-            var groundingContext = string.Join("\n",
-                outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
+            var groundingContext = "Game State before the round:\n" + gameState + "\n\nTool results:\n"
+                + string.Join("\n", outcome.ToolResults.Select(t => $"{t.Function}: {t.Result}"));
 
             EvaluationResult result = await scenario.Run.EvaluateAsync(
                 messages: [new ChatMessage(ChatRole.User, "I strike the plague priest with my staff!")],
@@ -1275,9 +1325,8 @@ public class DomainAuthorityEvals
 
     private const int GroundedCombatSamples = 12;
 
-    /// <summary>Measured on gpt-5-mini on 26 November 2026: 2 of 8 below the bar before the retaliation's
-    /// fields were renamed and 2 of 8 after (one for the priest's hit points, which the result does not
-    /// carry). As one cached sample it passed or failed on the draw. At one in four, 12 samples hold 5 or
-    /// fewer 19 times in 20.</summary>
-    private const int MaxGroundedCombatDrifts = 5;
+    /// <summary>Measured on gpt-5-mini on 26 November 2026: 2 of 8 below the bar, then 0 of 12 once the judge
+    /// was given the Game State the narrator reads (it had failed "the priest, unhurt at 4/4") and the armor
+    /// the player's dodge turned was named playerArmorReduction (it was told as the priest's armor).</summary>
+    private const int MaxGroundedCombatDrifts = 2;
 }

@@ -12,4 +12,11 @@ public record AdvanceTimeOutcome(
     /// result. See <see cref="FateWords"/>.</summary>
     [System.Text.Json.Serialization.JsonPropertyOrder(-1)]
     public string? Fate => WretchedWhispers.Core.Characters.Status.FateWords.For(IsDead, NewInjury, CurrentHp);
+
+    /// <summary>Hours passing spend nothing the character carries. Evals of a night's camp: 2 to 3 of 12
+    /// told the pack's torches guttering through the night with no item used, and a stage-prompt line
+    /// naming torches made it 5 of 12. Said in the result, beside the hours, instead.</summary>
+    [System.Text.Json.Serialization.JsonPropertyOrder(-1)]
+    public string Carried => "Nothing the character carries was used up in these hours: every item in the pack "
+        + "is as Game State shows it.";
 }
