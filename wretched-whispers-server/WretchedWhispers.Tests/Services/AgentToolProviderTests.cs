@@ -14,21 +14,21 @@ using Xunit;
 namespace WretchedWhispers.Tests.Services;
 
 /// <summary>
-/// Verifies the Agent Framework tool provider exposes exactly the stage-scoped tool set
-/// (the registered-function names mirror <see cref="GameToolCatalog"/>). Replaces the former
-/// KernelFactoryTests after the SK→Agent Framework migration. Which tools belong to which stage is
-/// pinned (with explicit lists) in GameToolCatalogTests — here we only prove the provider builds
-/// what the catalog dictates.
+/// Verifies the Agent Framework tool provider offers every catalog tool in every stage of play, and that
+/// its guards refuse a call outside the tool's stage (as the stage stands at the call), past the turn's
+/// end, or past the call limit. Which tools belong to which stage is pinned (with explicit lists) in
+/// GameToolCatalogTests.
 /// </summary>
 public class AgentToolProviderTests
 {
     private readonly AgentToolProvider _provider;
     private readonly Mock<IEncountersRepository> _encountersRepo = new();
     private readonly Mock<ICampaignsRepository> _campaignsRepo = new();
+    private readonly Mock<ICharactersRepository> _charactersRepo = new();
 
     public AgentToolProviderTests()
     {
-        var charsRepo = new Mock<ICharactersRepository>().Object;
+        var charsRepo = _charactersRepo.Object;
         var campsRepo = _campaignsRepo.Object;
         var encsRepo = _encountersRepo.Object;
         var dice = new Dice(new Mock<IRandomService>().Object);
@@ -43,39 +43,79 @@ public class AgentToolProviderTests
             NullLogger<AgentToolProvider>.Instance);
     }
 
-    [Theory]
-    [InlineData(SessionStage.CharacterCreation)]
-    [InlineData(SessionStage.CampaignSetup)]
-    [InlineData(SessionStage.Exploration)]
-    [InlineData(SessionStage.Combat)]
-    [InlineData(SessionStage.Resolution)]
-    [InlineData(SessionStage.Ended)]
-    public void EveryStage_BuildsExactlyTheCatalogToolSet(SessionStage stage)
+    /// <summary>A session past setup, in exploration unless an encounter is set on it: a character, and a
+    /// campaign that has begun.</summary>
+    private SessionContext PlayContext()
     {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var characterId = Guid.NewGuid();
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
+        campaign.JoinGame(characterId);
+        campaign.Start();
+        _campaignsRepo.Setup(r => r.Get(campaign.Id, It.IsAny<CancellationToken>())).ReturnsAsync(campaign);
 
-        var (tools, registered) = _provider.GetToolsForStage(ctx, stage);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid(), Campaign = campaign };
+        ctx.SetCharacterId(characterId);
+        ctx.SetCampaignId(campaign.Id);
+        return ctx;
+    }
 
-        var expected = GameToolCatalog.ForStage(stage);
-        Assert.Equal(expected.Count, tools.Count);
-        Assert.Equal(expected.Select(d => $"{d.Group}.{d.Name}").ToArray(), registered);
+    [Fact]
+    public void EveryStageOfPlay_OffersEveryTool()
+    {
+        var expected = GameToolCatalog.All.Select(d => $"{d.Group}.{d.Name}").ToArray();
+        var exploration = PlayContext();
+        var combat = PlayContext();
+        combat.ActiveEncounter = StartedEncounter();
+        var aftermath = ResolutionContextWithEncounter();
+
+        foreach (var ctx in new[] { exploration, combat, aftermath })
+            Assert.Equal(expected, _provider.GetTools(ctx).RegisteredFunctions);
+    }
+
+    [Fact]
+    public void ABrokenOrEndedSession_IsOfferedNoTools()
+    {
+        var characterless = new SessionContext { SessionId = Guid.NewGuid() };
+        var ended = PlayContext();
+        ended.Campaign?.End();
+
+        Assert.Empty(_provider.GetTools(characterless).Tools);
+        Assert.Empty(_provider.GetTools(ended).Tools);
     }
 
     // CompleteResolution is limited to one call per turn; it needs only an active encounter id and the
     // encounters repository, so it is the lightest limited tool to drive end to end.
     private AIFunction CompleteResolutionTool(SessionContext ctx) =>
-        _provider.GetToolsForStage(ctx, SessionStage.Resolution).Tools.Single(t => t.Name == "CompleteResolution");
+        _provider.GetTools(ctx).Tools.Single(t => t.Name == "CompleteResolution");
 
     private SessionContext ResolutionContextWithEncounter()
     {
         // Each load returns a fresh ended (unresolved) fight, so every call that reaches the domain
         // can resolve it — a second Resolve() on the same instance would throw for its own reasons.
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
+        var ctx = PlayContext();
         var encounterId = Guid.NewGuid();
         _encountersRepo.Setup(r => r.Get(encounterId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => EndedEncounter());
-        ctx.SetActiveEncounterId(encounterId);
+        ReopenAftermath(ctx, encounterId);
         return ctx;
+    }
+
+    /// <summary>Puts the turn back in the aftermath CompleteResolution just closed, so a second call WOULD
+    /// succeed if it reached the domain.</summary>
+    private static void ReopenAftermath(SessionContext ctx, Guid encounterId)
+    {
+        ctx.SetActiveEncounterId(encounterId);
+        ctx.ActiveEncounter = EndedEncounter();
+    }
+
+    private static Encounter StartedEncounter()
+    {
+        var encounter = Encounter.Create("Chapel Duel", "A fight", EncounterType.Hostile,
+            new Dice(new Mock<IRandomService>().Object));
+        encounter.AddAdversary(new Adversary("Priest", new HitPoints(4, 4), new Armor(ArmorTier.Light), 7,
+            new AttackProfile("Brass crucible", DiceExpr.D4)));
+        encounter.StartEncounter();
+        return encounter;
     }
 
     private static Encounter EndedEncounter()
@@ -99,7 +139,7 @@ public class AgentToolProviderTests
         var encounterId = ctx.ActiveEncounterId!.Value;
 
         await tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
-        ctx.SetActiveEncounterId(encounterId); // so a second call WOULD succeed if it reached the domain
+        ReopenAftermath(ctx, encounterId);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken).AsTask());
@@ -115,7 +155,7 @@ public class AgentToolProviderTests
         var encounterId = ctx.ActiveEncounterId!.Value;
 
         await CompleteResolutionTool(ctx).InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
-        ctx.SetActiveEncounterId(encounterId);
+        ReopenAftermath(ctx, encounterId);
         await CompleteResolutionTool(ctx).InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
 
         _encountersRepo.Verify(r => r.Save(It.IsAny<Encounter>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
@@ -127,6 +167,7 @@ public class AgentToolProviderTests
         var ctx = ResolutionContextWithEncounter();
         var encounterId = ctx.ActiveEncounterId!.Value;
         ctx.ClearActiveEncounter();
+        ctx.ActiveEncounter = EndedEncounter(); // still the aftermath, but with no encounter id to resolve
         var tool = CompleteResolutionTool(ctx);
 
         // Rejected by the tool's own validation: it never completed, so it must not use up the budget.
@@ -134,7 +175,7 @@ public class AgentToolProviderTests
             tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken).AsTask());
         Assert.Equal("No encounter to resolve.", first.Message);
 
-        ctx.SetActiveEncounterId(encounterId);
+        ReopenAftermath(ctx, encounterId);
         await tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
 
         _encountersRepo.Verify(r => r.Save(It.IsAny<Encounter>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -154,13 +195,9 @@ public class AgentToolProviderTests
             new AttackProfile("Rusty knife", DiceExpr.D4)));
         _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
 
-        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
-        _campaignsRepo.Setup(r => r.Get(campaign.Id, It.IsAny<CancellationToken>())).ReturnsAsync(campaign);
-
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        ctx.SetCampaignId(campaign.Id);
+        var ctx = PlayContext();
         ctx.SetActiveEncounterId(encounter.Id);
-        return (ctx, _provider.GetToolsForStage(ctx, SessionStage.Exploration).Tools);
+        return (ctx, _provider.GetTools(ctx).Tools);
     }
 
     private static ValueTask<object?> Call(IReadOnlyList<AIFunction> tools, string name, object? args = null) =>
@@ -185,6 +222,8 @@ public class AgentToolProviderTests
                      ("Roll", new { diceExpression = "d20" }),
                      ("ChallengeCharacter", new { challengeDr = 12, abilityKind = "Strength", hoursTaken = 0 }),
                      ("AdvanceTime", new { hours = 1 }),
+                     // In stage now that the fight has begun, but the first round is the player's next message.
+                     ("ResolveCombatRound", new { action = "Attack" }),
                  })
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Call(tools, name, args).AsTask());
@@ -222,7 +261,7 @@ public class AgentToolProviderTests
         var (ctx, tools) = ExplorationTurnWithReadyEncounter();
         await Call(tools, "StartEncounter");
 
-        var nextTurn = _provider.GetToolsForStage(ctx, SessionStage.Exploration).Tools;
+        var nextTurn = _provider.GetTools(ctx).Tools;
 
         Assert.NotNull(await Call(nextTurn, "Roll", new { diceExpression = "d6" }));
     }
@@ -230,13 +269,71 @@ public class AgentToolProviderTests
     [Fact]
     public void ToolNames_AreBareFunctionNames_MatchingStagePrompts()
     {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = _provider.GetToolsForStage(ctx, SessionStage.Exploration);
+        var (tools, _) = _provider.GetTools(PlayContext());
 
         // The stage prompts instruct the model to call e.g. "ChallengeCharacter" (no plugin prefix),
         // so the actual tool names must be the bare method names.
         Assert.Contains(tools, t => t.Name == "ChallengeCharacter");
         Assert.Contains(tools, t => t.Name == "CreateEncounter");
         Assert.Contains(tools, t => t.Name == "Roll");
+    }
+
+    // ---- the stage at the moment of the call ----
+
+    [Fact]
+    public async Task InAFight_AnExplorationTool_IsRefusedWithWhatToCallInstead()
+    {
+        var ctx = PlayContext();
+        ctx.ActiveEncounter = StartedEncounter();
+        var tools = _provider.GetTools(ctx).Tools;
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Call(tools, "ChallengeCharacter", new { challengeDr = 12, abilityKind = "Strength", hoursTaken = 0 }).AsTask());
+
+        Assert.StartsWith("ChallengeCharacter cannot be called during a fight.", ex.Message);
+        Assert.Contains("ResolveCombatRound", ex.Message);
+    }
+
+    /// <summary>The sixth run's stuck game: an aftermath turn in which the player stabbed themself had no
+    /// dice to roll, because a turn's tools were fixed when it began. Closing the aftermath now opens the
+    /// tools for outside a fight in that same turn.</summary>
+    [Fact]
+    public async Task InTheAftermath_ADiceTool_IsRefused_UntilCompleteResolutionClosesIt()
+    {
+        var ctx = ResolutionContextWithEncounter();
+        var tools = _provider.GetTools(ctx).Tools;
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Call(tools, "Roll", new { diceExpression = "d4" }).AsTask());
+        Assert.StartsWith("Roll cannot be called in the aftermath of a fight.", ex.Message);
+        Assert.Contains("CompleteResolution", ex.Message);
+
+        await Call(tools, "CompleteResolution");
+
+        Assert.NotNull(await Call(tools, "Roll", new { diceExpression = "d4" }));
+    }
+
+    [Fact]
+    public async Task ARoundThatEndsTheFight_OpensTheAftermathInTheSameTurn()
+    {
+        var dice = new Dice(new Mock<IRandomService>().Object);
+        var character = TestCharacters.Create(dice);
+        _charactersRepo.Setup(r => r.Get(character.Id, It.IsAny<CancellationToken>())).ReturnsAsync(character);
+        // A fight whose only enemy is already down: the round finds nobody to hit and ends it as won.
+        var encounter = StartedEncounter();
+        encounter.Adversaries[0].ReceiveDamage(4);
+        _encountersRepo.Setup(r => r.Get(encounter.Id, It.IsAny<CancellationToken>())).ReturnsAsync(encounter);
+
+        var ctx = PlayContext();
+        ctx.SetCharacterId(character.Id);
+        ctx.SetActiveEncounterId(encounter.Id);
+        // The copy loaded when the turn began, as the real repository's are: the round never touches it.
+        ctx.ActiveEncounter = StartedEncounter();
+        var tools = _provider.GetTools(ctx).Tools;
+
+        await Call(tools, "ResolveCombatRound", new { action = "Attack" });
+
+        Assert.Equal(SessionStage.Resolution, ctx.DeriveStage());
+        await Call(tools, "CompleteResolution");
     }
 }

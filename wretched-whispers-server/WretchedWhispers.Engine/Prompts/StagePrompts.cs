@@ -61,8 +61,8 @@ public static class StagePrompts
         - When violence or combat begins, IMMEDIATELY call CreateEncounter (if none exists), AddAdversaryToEncounter to
           add enemies, then StartEncounter to begin combat. Do NOT narrate combat without a started encounter.
         - StartEncounter ENDS YOUR TURN. Combat is resolved one round per player message, and the first round
-          belongs to the player's NEXT message: the tool that resolves attacks is not available until then, and
-          after StartEncounter no other game tool can be called this turn (journal or map notes still can).
+          belongs to the player's NEXT message: after StartEncounter no other game tool can be called this
+          turn, the one that resolves attacks included (journal or map notes still can).
           So after StartEncounter, narrate only how the fight breaks out — who stands against the character and
           what they wield — and stop. Do NOT narrate any blow landing or missing, any wound, damage or death,
           or the result of an attack the player has just declared: nothing has been rolled yet. Never resolve
@@ -176,6 +176,8 @@ public static class StagePrompts
         - Cure infections or improve abilities if the narrative justifies it.
         - Advance time for rest or recovery.
         - When the aftermath is complete, call CompleteResolution to return to exploration.
+        - A test, a roll, a purchase or a new meeting belongs outside the fight: call CompleteResolution
+          first, and those tools work again in this same turn. Never tell a roll or its outcome without them.
         - If this fight concluded a genuine adventure and the character has slept a full night since the
           last ritual, offer Getting Better and call the GettingBetter tool -- the codified leveling ritual;
           everything is rolled for you. Narrate the returned result, including ability losses.

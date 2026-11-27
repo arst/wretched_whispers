@@ -11,12 +11,11 @@ using WretchedWhispers.Engine.GameTools;
 namespace WretchedWhispers.Engine.Services;
 
 /// <summary>
-/// Agent Framework replacement for the former KernelFactory. Constructs the stage-scoped game-tool
-/// classes and exposes their allowed methods as <see cref="AIFunction"/> tools. Which tools a stage
-/// exposes — and the bound <see cref="System.Reflection.MethodInfo"/> for each — comes from
-/// <see cref="GameToolCatalog"/> (derived once from <see cref="GameToolAttribute"/>); this class only
-/// supplies the per-turn instances. Tool names are the bare method names, which is what the stage
-/// prompts reference.
+/// Agent Framework replacement for the former KernelFactory. Exposes every game tool in
+/// <see cref="GameToolCatalog"/> as an <see cref="AIFunction"/> bound to this turn's instances, and
+/// wraps each in the guards that enforce its attribute: the stage it may be called in (checked against
+/// the stage at the moment of the call), its per-turn call limit, and the end of the turn's actions.
+/// Tool names are the bare method names, which is what the stage prompts reference.
 /// </summary>
 public sealed class AgentToolProvider(
     ICharactersRepository charactersRepository,
@@ -30,18 +29,20 @@ public sealed class AgentToolProvider(
     /// <summary>Shared trace source for the whole game-turn pipeline.</summary>
     internal static readonly ActivitySource ActivitySource = new("WretchedWhispers.GameTurn");
 
-    public (IReadOnlyList<AIFunction> Tools, string[] RegisteredFunctions) GetToolsForStage(
-        SessionContext sessionContext, SessionStage stage)
+    public (IReadOnlyList<AIFunction> Tools, string[] RegisteredFunctions) GetTools(SessionContext sessionContext)
     {
-        using var activity = ActivitySource.StartActivity("AgentToolProvider.GetToolsForStage");
+        using var activity = ActivitySource.StartActivity("AgentToolProvider.GetTools");
+        var stage = sessionContext.DeriveStage();
         activity?.SetTag("session.stage", stage.ToString());
 
-        var descriptors = GameToolCatalog.ForStage(stage);
-        if (descriptors.Count == 0)
+        // A characterless session is a broken one, and an ended story takes no actions: no tools at all.
+        if (stage is SessionStage.CharacterCreation or SessionStage.Ended)
         {
             logger.LogInformation("Stage {Stage}: no tools registered", stage);
             return ([], []);
         }
+
+        var descriptors = GameToolCatalog.All;
 
         // Per-turn tool instances, keyed by type so a catalog descriptor binds to the right one. They
         // are built here (not DI-registered) because each needs the turn's SessionContext. The set of
@@ -73,13 +74,17 @@ public sealed class AgentToolProvider(
                 continue;
             }
 
-            var function = AIFunctionFactory.Create(descriptor.Method, instance, new AIFunctionFactoryOptions
+            AIFunction function = AIFunctionFactory.Create(descriptor.Method, instance, new AIFunctionFactoryOptions
             {
-                Name = descriptor.Name
+                Name = descriptor.Name,
+                Description = descriptor.Description
             });
             // A fresh wrapper per call of this method = per turn, so the count starts at zero each turn.
             if (descriptor.MaxCallsPerTurn > 0)
                 function = new PerTurnCallLimit(function, descriptor.MaxCallsPerTurn);
+            function = new StageGuard(function, sessionContext, descriptor.Stages);
+            // Outermost: once StartEncounter has ended the turn, the live stage is Combat and the round
+            // tool is in stage, so only this guard keeps the blow the player declared unstruck.
             tools.Add(new TurnEndGuard(function, turnEnd, descriptor.EndsTurn, descriptor.AllowedAfterTurnEnd));
             registeredFunctions.Add($"{descriptor.Group}.{descriptor.Name}");
         }
@@ -113,6 +118,36 @@ internal sealed class PerTurnCallLimit(AIFunction inner, int maxCalls) : Delegat
         Interlocked.Increment(ref _completed);
         return result;
     }
+}
+
+/// <summary>
+/// Enforces a tool's <see cref="GameToolAttribute"/> stages against the stage at the moment of the call,
+/// which the encounter tools keep current in the turn's <see cref="SessionContext"/>. A refused call
+/// throws before reaching the domain, with a message the model can act on.
+/// </summary>
+internal sealed class StageGuard(AIFunction inner, SessionContext context, IReadOnlyList<SessionStage> stages)
+    : DelegatingAIFunction(inner)
+{
+    protected override ValueTask<object?> InvokeCoreAsync(
+        AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        var stage = context.DeriveStage();
+        if (!stages.Contains(stage))
+            throw new InvalidOperationException(
+                $"{Name} cannot be called {GameToolCatalog.Phrase(stage)}. {WhatNow(stage)}");
+        return base.InvokeCoreAsync(arguments, cancellationToken);
+    }
+
+    private static string WhatNow(SessionStage stage) => stage switch
+    {
+        SessionStage.Combat => "A fight is on: the player's action is resolved with ResolveCombatRound, after "
+            + "UseItemFromCharacterInventory or CastScroll when they use an item or a scroll.",
+        SessionStage.Resolution => "The fight is over: call CompleteResolution to close its aftermath, and "
+            + "the tools for outside a fight work again this same turn.",
+        SessionStage.Exploration => "No fight is on, and none has just ended.",
+        SessionStage.CampaignSetup => "The campaign has not begun: call ConfigureCampaign.",
+        _ => "The story has ended: call no more tools."
+    };
 }
 
 /// <summary>Per-turn record of the tool (if any) that ended the turn's game actions.</summary>

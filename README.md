@@ -221,11 +221,12 @@ combat resolves one full round per player action in the domain, the dawn die bel
 narrator. Ask of any state: *can the model change this by saying it changed?* If yes, that is a fabrication vector, and
 it gets closed. Full reasoning in [docs/ai-system-design-lessons.md](docs/ai-system-design-lessons.md).
 
-**Tools are stage-scoped at construction, not filtered at call time.** `GameToolCatalog` reflects `[GameTool]`
-attributes once at startup into a frozen stage → tool map; `AgentToolProvider` then builds each turn's agent with only
-that stage's tools bound. An out-of-stage action isn't rejected — it is *unreachable*, because the function was never
-handed to the model. Architecture where architecture can enforce it, prompt only where it can't. Adding a tool means
-adding one attributed method in one file.
+**Every tool is offered every turn; the stage is checked when a tool is called.** `GameToolCatalog` reflects
+`[GameTool]` attributes once at startup. `AgentToolProvider` hands each turn's agent every tool, wrapped in guards that
+refuse a call outside the tool's stage, as the stage stands at that call, with a message the model can act on. Tools
+used to be bound per stage when the turn began. That made an out-of-stage call unreachable, but it also stranded a turn
+whose stage moved on: an aftermath closed mid-turn had no dice left, and the narrator told a death no tool applied. Each
+tool's description says when it can be called. Adding a tool means adding one attributed method in one file.
 
 **Narration is shown as it is written; it is never the source of truth.** An earlier version withheld any prose the
 model wrote before a tool call, on the theory that it described an outcome not yet rolled. That rule delayed every turn,
