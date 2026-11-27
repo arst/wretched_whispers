@@ -899,7 +899,7 @@ public class DomainAuthorityEvals
         AssertFateIsToldAsync(
             "Exploration-RedPoison-Kills",
             client => EvalHost.CreateExplorationAsync(client,
-                [new InventoryItem(Guid.NewGuid(), "red poison (d4 doses)", false, true, 1, ItemEffect.Poison)],
+                [new InventoryItem(Guid.NewGuid(), "red poison", false, true, 1, ItemEffect.Poison, uses: 3)],
                 maxHp: 1, diceSeed: 8),
             "i drink the red poison right now, all of it, hooray", expectedInjury: null, samples: 6);
 
