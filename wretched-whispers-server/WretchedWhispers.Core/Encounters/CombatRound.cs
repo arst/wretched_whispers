@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Cast;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
@@ -29,7 +30,10 @@ public sealed record CombatRoundOutcome(
     bool EncounterEnded,
     EncounterEndReason EndReason,
     int PlayerCurrentHp,
-    bool PlayerBroken);
+    bool PlayerBroken,
+    // What is left of the adversary the player attacked, after the whole round (its morale included).
+    HitPoints? PlayerAttackTargetHp = null,
+    bool PlayerAttackTargetFled = false);
 
 /// <summary>What a scroll did to one adversary of the fight in progress.</summary>
 public sealed record ScrollHit(string AdversaryName, int Damage, bool Killed);

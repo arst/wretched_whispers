@@ -160,7 +160,7 @@ public sealed class EncounterTools(
         Name = encounter.Name,
         Description = encounter.Description,
         Disposition = encounter.CurrentType.ToString(),
-        Reaction = encounter.Reaction?.ToString(),
+        Reaction = encounter.Reaction?.DisplayName(),
         ReactionRoll = encounter.ReactionRoll,
         Adversaries = encounter.Adversaries.Select(e => new AdversaryDto
         {

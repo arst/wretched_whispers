@@ -12,7 +12,8 @@ public sealed record ItemUseOutcomeDto(
     [property: Description("Damage the item did to the character, after any test against it")] int DamageTaken = 0,
     [property: Description("The injury the Broken table gave, when the damage dropped the character to 0")] string? NewInjury = null,
     [property: Description("The Toughness test a swallowed poison called for, as roll+modifier against DR")] string? PoisonTest = null,
-    [property: Description("True when a day of the sheet's food was eaten")] bool AteFood = false)
+    [property: Description("True when a day of the sheet's food was eaten")] bool AteFood = false,
+    [property: JsonIgnore] string? Left = null)
 {
     /// <summary>Dead or broken, in words, as every result that can kill says it. See <see cref="FateWords"/>.</summary>
     [JsonPropertyOrder(-1)]
@@ -22,7 +23,9 @@ public sealed record ItemUseOutcomeDto(
     /// a poison that did nothing (hpHealed 0), and the narrator told "FATE: DEAD." with no result saying so; the
     /// game was stuck for three turns while the server refused a successor.</summary>
     [JsonPropertyOrder(-1)]
-    public string Effect =>
+    public string Effect => Left is null ? What : $"{What} {Left}";
+
+    private string What =>
         AteFood
             ? $"One day of food eaten: Food now {Character.FoodDays} days."
             : DamageTaken > 0

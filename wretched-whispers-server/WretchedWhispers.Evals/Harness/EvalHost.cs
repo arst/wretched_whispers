@@ -47,7 +47,8 @@ public sealed class EvalHost : IAsyncDisposable
         ChatSessionId = chatSessionId;
     }
 
-    public static async Task<EvalHost> CreateAsync(IChatClient chatClient, int diceSeed = 1)
+    public static async Task<EvalHost> CreateAsync(IChatClient chatClient, int diceSeed = 1,
+        Difficulty difficulty = Difficulty.Grim)
     {
         // A file, not one shared in-memory connection: every scope opens its own connection, as in
         // production. The coordinator summarizes the chronicle on a detached task after each turn, and on
@@ -93,7 +94,7 @@ public sealed class EvalHost : IAsyncDisposable
             var campaignsRepo = sp.GetRequiredService<ICampaignsRepository>();
             var chatRepo = sp.GetRequiredService<IChatHistoryRepository>();
 
-            var campaign = Campaign.Create(Difficulty.Grim, "Eval Campaign", "A doomed eval run");
+            var campaign = Campaign.Create(difficulty, "Eval Campaign", "A doomed eval run");
             await campaignsRepo.SaveCampaign(campaign);
             chatSessionId = await chatRepo.CreateSession(campaign.Id);
 
@@ -324,9 +325,9 @@ public sealed class EvalHost : IAsyncDisposable
     /// </summary>
     public static async Task<EvalHost> CreateExplorationAsync(
         IChatClient chatClient, IReadOnlyList<InventoryItem>? extraGear = null, int omens = 0,
-        int maxHp = 2, int diceSeed = 1)
+        int maxHp = 2, int diceSeed = 1, Difficulty difficulty = Difficulty.Grim)
     {
-        var host = await CreateAsync(chatClient, diceSeed);
+        var host = await CreateAsync(chatClient, diceSeed, difficulty);
 
         await using var scope = host._provider.CreateAsyncScope();
         var sp = scope.ServiceProvider;

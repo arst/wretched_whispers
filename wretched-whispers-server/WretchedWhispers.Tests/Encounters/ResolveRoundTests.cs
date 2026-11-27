@@ -57,6 +57,20 @@ public sealed class ResolveRoundTests : TestBase
     }
 
     [Fact]
+    public async Task Attack_ReportsWhatIsLeftOfTheTarget()
+    {
+        var (encounter, character) = Arrange(adversaryHp: 100);
+        SetupDiceRolls(14, 2, 9, 1); // d20 attack 15 (hit), d6 weapon damage, d20 dodge 10, d4 claws
+
+        var outcome = await CreateService().ResolveRound(
+            encounter.Id, character.Id, PlayerRoundAction.Attack, "Ghoul 1");
+
+        Assert.True(outcome.PlayerAttack?.Hit);
+        Assert.Equal(new HitPoints(100 - (outcome.PlayerAttack?.Damage.Amount ?? 0), 100), outcome.PlayerAttackTargetHp);
+        Assert.False(outcome.PlayerAttackTargetFled);
+    }
+
+    [Fact]
     public async Task Retaliation_ThatBreaksThePlayer_ReportsTheInjury()
     {
         // Every d4 rolls 3 (daily powers, the claws, the Broken table: survives); the d6 gives a lost eye.

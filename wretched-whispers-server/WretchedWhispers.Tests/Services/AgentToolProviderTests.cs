@@ -336,4 +336,33 @@ public class AgentToolProviderTests
         Assert.Equal(SessionStage.Resolution, ctx.DeriveStage());
         await Call(tools, "CompleteResolution");
     }
+
+    /// <summary>The opening turn: once ConfigureCampaign has begun the campaign, the map tools work in that
+    /// same turn. Without this the turn stayed in setup, refused them, and three refusals failed the turn.</summary>
+    [Fact]
+    public async Task ConfiguringTheCampaign_BeginsPlayInTheSameTurn()
+    {
+        var characterId = Guid.NewGuid();
+        var campaign = Campaign.Create(Difficulty.Grim, "Unnamed", "Not yet");
+        campaign.JoinGame(characterId);
+        _campaignsRepo.Setup(r => r.Get(campaign.Id, It.IsAny<CancellationToken>())).ReturnsAsync(campaign);
+        // The copy loaded when the turn began, as the real repository's are: configuring never touches it.
+        var loaded = Campaign.Create(Difficulty.Grim, "Unnamed", "Not yet");
+        loaded.JoinGame(characterId);
+        var ctx = new SessionContext { SessionId = Guid.NewGuid(), Campaign = loaded };
+        ctx.SetCharacterId(characterId);
+        ctx.SetCampaignId(campaign.Id);
+        var tools = _provider.GetTools(ctx).Tools;
+
+        await Call(tools, "ConfigureCampaign", new
+        {
+            name = "Ash",
+            description = "The end",
+            startingPlaceName = "Galgenbeck",
+            startingPlaceType = "Town"
+        });
+
+        Assert.Equal(SessionStage.Exploration, ctx.DeriveStage());
+        await Call(tools, "RecordJournalEntry", new { category = "Event", text = "Woke in Galgenbeck" });
+    }
 }

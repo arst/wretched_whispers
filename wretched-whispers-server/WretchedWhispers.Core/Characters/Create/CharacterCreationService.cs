@@ -80,11 +80,11 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
             container,
             gear1Scroll is null && !gear1.IsShield
                 ? new InventoryItem(Guid.NewGuid(), gear1.GearDescription, false, true, gear1.Quantity,
-                    EffectOf(gear1.GearDescription))
+                    EffectOf(gear1.GearDescription), gear1.Uses)
                 : null,
             gear2Scroll is null && !gear2.IsShield
                 ? new InventoryItem(Guid.NewGuid(), gear2.GearDescription, false, true, gear2.Quantity,
-                    EffectOf(gear2.GearDescription))
+                    EffectOf(gear2.GearDescription), gear2.Uses)
                 : null,
             weapon,
             armor,
@@ -179,46 +179,46 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    private (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+    private (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity, int? Uses)
         RollGearSlot1(
             Abilities.Abilities abilities)
     {
         var d = dice.Roll(DiceExpr.D12);
         return d switch
         {
-            1 => ("rope 30 ft", null, false, 1),
-            2 => ("torches", null, false, abilities.Presence.Modifier + 4),
-            3 => ("lantern + oil", null, false, abilities.Presence.Modifier + 6),
-            4 => ("magnesium strip", null, false, 1),
-            5 => ("random unclean scroll", ScrollSchool: ScrollSchool.Unclean, false, 1),
-            6 => ("sharp needle", null, false, 1),
-            7 => ("medicine chest (Presence + 4 uses)", null, false, abilities.Presence.Modifier + 4),
-            8 => ("metal file & lockpicks", null, false, 1),
-            9 => ("bear trap (dr14 to spot, d8 dmg)", null, false, 1),
-            10 => ("bomb (sealed bottle, d10 dmg)", null, false, 1),
-            11 => ("red poison (d4 doses)", null, false, 1),
-            _ => ("silver crucifix", null, false, 1)
+            1 => ("rope 30 ft", null, false, 1, null),
+            2 => ("torches", null, false, abilities.Presence.Modifier + 4, null),
+            3 => ("lantern", null, false, 1, abilities.Presence.Modifier + 6),
+            4 => ("magnesium strip", null, false, 1, null),
+            5 => ("random unclean scroll", ScrollSchool: ScrollSchool.Unclean, false, 1, null),
+            6 => ("sharp needle", null, false, 1, null),
+            7 => ("medicine chest", null, false, 1, abilities.Presence.Modifier + 4),
+            8 => ("metal file & lockpicks", null, false, 1, null),
+            9 => ("bear trap (dr14 to spot, d8 dmg)", null, false, 1, null),
+            10 => ("bomb (sealed bottle, d10 dmg)", null, false, 1, null),
+            11 => ("red poison", null, false, 1, dice.Roll(DiceExpr.D4)),
+            _ => ("silver crucifix", null, false, 1, null)
         };
     }
 
-    private (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity)
+    private (string GearDescription, Possessions.Scrolls.ScrollSchool? ScrollSchool, bool IsShield, int Quantity, int? Uses)
         RollGearSlot2()
     {
         var d = dice.Roll(DiceExpr.D12);
         return d switch
         {
-            1 => ("life elixir", null, false, dice.Roll(DiceExpr.D4)),
-            2 => ("random sacred scroll", ScrollSchool: ScrollSchool.Sacred, false, 1),
-            3 => ("small but vicious dog", null, false, 1),
-            4 => ("monkeys that ignore but love you", null, false, dice.Roll(DiceExpr.D4)),
-            5 => ("exquisite perfume (25s)", null, false, 1),
-            6 => ("toolbox", null, false, 1),
-            7 => ("heavy chain 15 ft", null, false, 1),
-            8 => ("grappling hook", null, false, 1),
-            9 => ("shield (-1 dmg or break to ignore one attack)", null, true, 1),
-            10 => ("crowbar (d4 dmg)", null, false, 1),
-            11 => ("lard (5 meals)", null, false, 5),
-            _ => ("tent", null, false, 1)
+            1 => ("life elixir", null, false, dice.Roll(DiceExpr.D4), null),
+            2 => ("random sacred scroll", ScrollSchool: ScrollSchool.Sacred, false, 1, null),
+            3 => ("small but vicious dog", null, false, 1, null),
+            4 => ("monkeys that ignore but love you", null, false, dice.Roll(DiceExpr.D4), null),
+            5 => ("exquisite perfume (25s)", null, false, 1, null),
+            6 => ("toolbox", null, false, 1, null),
+            7 => ("heavy chain 15 ft", null, false, 1, null),
+            8 => ("grappling hook", null, false, 1, null),
+            9 => ("shield (-1 dmg or break to ignore one attack)", null, true, 1, null),
+            10 => ("crowbar (d4 dmg)", null, false, 1, null),
+            11 => ("lard", null, false, 1, 5),
+            _ => ("tent", null, false, 1, null)
         };
     }
 

@@ -142,7 +142,8 @@ public sealed class SessionContext
             sb.AppendLine($"  Omens: {Character.Omens.Count}");
             sb.AppendLine($"  Inventory ({Character.Inventory.GetFreeSlots()}/{Character.Inventory.MaxCapacity} slots free):");
             foreach (var item in Character.Inventory.InventoryItems)
-                sb.AppendLine($"    - {item.Description} x{item.Quantity}");
+                sb.AppendLine($"    - {item.Description} x{item.Quantity}"
+                    + (item.Uses is { } uses ? $", {uses} {(uses == 1 ? "use" : "uses")} left" : ""));
             foreach (var scroll in Character.Scrolls)
             {
                 // What the scroll does is told here so the narrator can answer "what does it do?"
@@ -236,9 +237,9 @@ public sealed class SessionContext
         {
             sb.AppendLine($"Active Encounter: {ActiveEncounter.Name}");
             sb.AppendLine($"  Disposition: {ActiveEncounter.CurrentType}"
-                + (ActiveEncounter.Reaction is null
-                    ? ""
-                    : $" (reaction roll {ActiveEncounter.ReactionRoll} — {ActiveEncounter.Reaction})"));
+                + (ActiveEncounter.Reaction is { } reaction
+                    ? $" (reaction roll {ActiveEncounter.ReactionRoll} — {reaction.DisplayName()})"
+                    : ""));
             // Listed by name: tool results are not in the chat history, so without this the model must
             // recall adversary names from its own earlier prose to fill ResolveCombatRound's target.
             if (ActiveEncounter.Adversaries.Count > 0)

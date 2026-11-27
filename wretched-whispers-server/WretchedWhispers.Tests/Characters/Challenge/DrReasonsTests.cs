@@ -1,6 +1,8 @@
+using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Abilities;
 using WretchedWhispers.Core.Characters.Challenge;
 using WretchedWhispers.Core.Characters.Combat;
+using WretchedWhispers.Core.Characters.Possessions.Armors;
 using WretchedWhispers.Core.Characters.Possessions.Armors.Tiers;
 using WretchedWhispers.Core.Dices;
 using WretchedWhispers.Core.Encounters;
@@ -73,5 +75,28 @@ public sealed class DrReasonsTests : TestBase
         var dto = CombatRoundOutcomeDto.From(outcome);
 
         Assert.Equal("armor +2", dto.Retaliations[0].PlayerDodgeDrBecause);
+    }
+
+    /// <summary>Sixth run: a Reed Husk at 5 hit points took 2 and was told "gone". The round now says
+    /// what is left of the target, in words, first.</summary>
+    [Theory]
+    [InlineData(3, false, "Reed Husk still stands, 3 of 5 hit points left.")]
+    [InlineData(0, false, "Reed Husk is dead.")]
+    [InlineData(1, true, "Reed Husk breaks and flees, 1 of 5 hit points left.")]
+    public void RoundResult_SaysWhatIsLeftOfTheTarget(int hpLeft, bool fled, string words)
+    {
+        var character = TestCharacters.Create(Dice);
+        var attack = character.Attack(new Armor(ArmorTier.None), Dice);
+        var outcome = new CombatRoundOutcome(
+            PlayerAttack: attack, PlayerAttackTarget: "Reed Husk", FleeAttempt: null, Retaliations: [],
+            AdversariesFledThisRound: fled ? ["Reed Husk"] : [], EncounterEnded: false,
+            EndReason: EncounterEndReason.None, PlayerCurrentHp: character.Hp.Current, PlayerBroken: false,
+            PlayerAttackTargetHp: new HitPoints(hpLeft, 5), PlayerAttackTargetFled: fled);
+
+        var dto = CombatRoundOutcomeDto.From(outcome);
+
+        Assert.Equal(words, dto.PlayerAttack?.TargetAfter);
+        Assert.StartsWith("{\"targetAfter\":", System.Text.Json.JsonSerializer.Serialize(dto.PlayerAttack,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)));
     }
 }
