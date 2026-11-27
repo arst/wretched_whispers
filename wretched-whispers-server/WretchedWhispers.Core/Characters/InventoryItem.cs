@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using WretchedWhispers.Core.Characters.Challenge;
+using WretchedWhispers.Core.Characters.Status;
 
 namespace WretchedWhispers.Core.Characters;
 
@@ -9,11 +11,18 @@ public enum ItemEffect
     None,
 
     /// <summary>Restores d6 hit points and cures infection: the life elixir and the medicine chest.</summary>
-    Heal
+    Heal,
+
+    /// <summary>Red poison: whoever drinks it makes a Toughness DR12 test or takes d10 damage. In the fifth
+    /// simulated run poison did nothing, and the narrator told a death no result gave.</summary>
+    Poison
 }
 
-/// <summary>What using one unit of an item did to the character.</summary>
-public readonly record struct ItemUseOutcome(int HpHealed, bool InfectionCured);
+/// <summary>What using one unit of an item did to the character. <paramref name="PoisonTest"/> is the
+/// Toughness test a swallowed poison called for; null when there was none.</summary>
+public readonly record struct ItemUseOutcome(
+    int HpHealed, bool InfectionCured, int Damage = 0, InjuryKind? Injury = null,
+    ChallengeOutcome? PoisonTest = null);
 
 public class InventoryItem
 {

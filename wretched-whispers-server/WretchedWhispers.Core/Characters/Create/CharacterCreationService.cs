@@ -151,13 +151,15 @@ public class CharacterCreationService(ICharactersRepository charactersRepository
         };
     }
 
-    /// <summary>The two pieces of starting gear the book gives a healing use: both restore d6 hit points
-    /// and clear infection.</summary>
+    /// <summary>The starting gear the book gives an effect on use: the life elixir and the medicine chest
+    /// restore d6 hit points and clear infection; red poison is Toughness DR12 or d10 damage.</summary>
     private static ItemEffect EffectOf(string gearDescription) =>
         gearDescription.StartsWith("life elixir", StringComparison.Ordinal)
         || gearDescription.StartsWith("medicine chest", StringComparison.Ordinal)
             ? ItemEffect.Heal
-            : ItemEffect.None;
+            : gearDescription.StartsWith("red poison", StringComparison.Ordinal)
+                ? ItemEffect.Poison
+                : ItemEffect.None;
 
     /// <summary>A scroll is named for the power it holds, rolled on its school's table.</summary>
     private Scroll RollScroll(ScrollSchool school) =>

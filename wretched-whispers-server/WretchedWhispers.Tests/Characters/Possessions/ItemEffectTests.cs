@@ -72,6 +72,53 @@ public class ItemEffectTests : TestBase
         Assert.Equal(1, torch.Quantity);
     }
 
+    // Fifth simulated run: red poison drunk at 1 hit point did nothing, and the narrator told a death no
+    // result gave. MORK BORG: Toughness DR12 or d10 damage.
+    [Fact]
+    public void UseItem_PoisonSwallowed_FailedToughnessTest_DealsD10()
+    {
+        SetupDiceRolls(0, 7, 5); // d4 daily powers; d20 = 8 against 12; d10 = 6.
+        var hero = TestCharacters.Create(Dice, maxHp: 20);
+        var poison = Carry(hero, "red poison (d4 doses)", ItemEffect.Poison);
+
+        var outcome = hero.UseItem(poison.Id, Dice, swallowed: true);
+
+        Assert.Equal(6, outcome.Damage);
+        Assert.False(outcome.PoisonTest?.IsSuccess);
+        Assert.Equal(14, hero.Hp.Current);
+        Assert.Empty(hero.Inventory.InventoryItems);
+    }
+
+    [Fact]
+    public void UseItem_PoisonSwallowed_PassedToughnessTest_DoesNoHarm()
+    {
+        SetupDiceRolls(0, 14); // d4 daily powers; d20 = 15 against 12. A damage roll would exhaust the script.
+        var hero = TestCharacters.Create(Dice, maxHp: 20);
+        var poison = Carry(hero, "red poison (d4 doses)", ItemEffect.Poison);
+
+        var outcome = hero.UseItem(poison.Id, Dice, swallowed: true);
+
+        Assert.Equal(0, outcome.Damage);
+        Assert.True(outcome.PoisonTest?.IsSuccess);
+        Assert.Equal(20, hero.Hp.Current);
+    }
+
+    // Smeared on a blade or poured in a cup, the same call spends the poison and must not test the character.
+    [Fact]
+    public void UseItem_PoisonNotSwallowed_RollsNothingAndHarmsNoOne()
+    {
+        SetupDiceRolls(0);
+        var hero = TestCharacters.Create(Dice, maxHp: 20);
+        var poison = Carry(hero, "red poison (d4 doses)", ItemEffect.Poison);
+
+        var outcome = hero.UseItem(poison.Id, Dice);
+
+        Assert.Equal(0, outcome.Damage);
+        Assert.Null(outcome.PoisonTest);
+        Assert.Equal(20, hero.Hp.Current);
+        Assert.Empty(hero.Inventory.InventoryItems);
+    }
+
     // A message can chain "I jump the gap, then drink my elixir": if the jump kills, the elixir must not
     // be drunk by a corpse and put hit points back on it.
     [Fact]
