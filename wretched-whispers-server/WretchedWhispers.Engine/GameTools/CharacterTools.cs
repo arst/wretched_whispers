@@ -38,6 +38,19 @@ public sealed partial class CharacterTools(
     private const string FoodDaysDescription =
         "Days of food this is (rations, bread, dried meat, a meal kept for the road): they go onto the sheet's Food, not into the pack. 0 for anything that is not food";
 
+    // Sixth simulated run: "medicine chest (Presence + 4 uses) x4" was told as one chest, then three, then
+    // twelve uses. Counts go in their own fields, never in the name.
+    private const string ItemNameDescription =
+        "What the item is, with no count in it: 'medicine chest', never 'medicine chest (4 uses)' or '3 torches'. How many separate items go in quantity; the uses one item holds go in uses";
+
+    private const string UsesDescription =
+        "For ONE item spent a little at a time (a medicine chest, a flask of poison doses, a pot of lard, a lantern's oil): how many uses it holds; quantity is then 1. 0 for an item used up whole";
+
+    private static int? UsesOrNone(int uses, int quantity) =>
+        uses == 0 ? null
+        : quantity == 1 ? uses
+        : throw new ArgumentException("An item with uses is added one at a time: quantity must be 1.", nameof(uses));
+
     // The flag only labels the item. The healing is rolled and applied by the domain when it is used.
     private const string HealsDescription =
         "True for a healing item (a draught, salve, poultice or remedy): using one unit then restores d6 hit points and clears infection. Leave false for anything else";
@@ -63,7 +76,7 @@ public sealed partial class CharacterTools(
         AbilityKind abilityKind,
         [Description("Hours the attempt takes, pass or fail, and the clock moves by them: 0 for a moment's work (a leap, a lie, a shove), 1 or more for anything longer (a search, a climb, a lock, a long haggle). Do not also call AdvanceTime for the same hours.")]
         int hoursTaken,
-        [Description("What failure costs, chosen like a GM: 'None' (no harm), 'Minor' (scrapes), 'Serious' (a real wound), 'Deadly' (can kill). Follow the difficulty guidance in your instructions when choosing.")]
+        [Description("What failure costs the body, chosen like a GM: 'None' (no harm), 'Minor' (scrapes), 'Serious' (a real wound), 'Deadly' (can kill). Harm only when the failure itself endangers the body (a fall, a trap, a beast, a blade already at the throat). A failed word, haggle, lie or search is 'None': it costs time, price, goodwill or position, and an NPC who turns violent starts a fight. Follow the difficulty guidance in your instructions for how hard harm falls.")]
         ChallengeConsequence consequenceOnFailure = ChallengeConsequence.None,
         [Description("Spend one omen to lower this test's DR by 4 - COSTS one of the player's omens (see Omens in Game State). Fails if no omens remain. Only use when the player asks to spend an omen, or at a truly dramatic moment.")]
         bool spendOmenToLowerDr = false)
@@ -100,14 +113,16 @@ public sealed partial class CharacterTools(
     [Description("Add an item to the character's inventory. Never for coins or silver: GainSilver does that. Never for a scroll of power: AddScrollToCharacter does that, and an item cannot be cast.")]
     [GameTool(SessionStage.Exploration, SessionStage.Resolution)]
     public async Task<CharacterDto> AddItemToCharacterInventory(
-        [Description("Description of the item to add")] string itemDescription,
+        [Description(ItemNameDescription)] string itemDescription,
         [Description("Whether the item is bulky and takes 2 inventory slots")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
-        [Description("Quantity of the item to add")] int quantity = 1,
+        [Description("How many separate items of it to add")] int quantity = 1,
         [Description(HealsDescription)] bool heals = false,
-        [Description(FoodDaysDescription)] int foodDays = 0)
+        [Description(FoodDaysDescription)] int foodDays = 0,
+        [Description(UsesDescription)] int uses = 0)
     {
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
+        ToolGuard.NonNegative(uses, nameof(uses));
         ToolGuard.NonNegative(foodDays, nameof(foodDays));
         var character = await RequireCharacter();
         if (foodDays > 0)
@@ -118,13 +133,13 @@ public sealed partial class CharacterTools(
         }
 
         character.AddItem(new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse, quantity,
-            heals ? ItemEffect.Heal : ItemEffect.None));
+            heals ? ItemEffect.Heal : ItemEffect.None, UsesOrNone(uses, quantity)));
         await charactersRepository.Save(character);
         if (FindCarried(character, itemDescription) is { } added) _addedThisTurn.Add(added.Id);
         return CreateCharacterDto(character);
     }
 
-    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up. Food on the sheet is eaten the same way: name it 'food' and one day of it is spent. The result's effect says what the item did to the character; it did nothing more.")]
+    [Description("Use, consume, spend, or throw ONE of an item the character carries (a lantern hurled, a potion drunk, a torch spent, rope used up). Identify it by the description shown in Game State. One unit is used, or one use of an item that has uses; the item is removed when the last is gone, and a healing item heals -- the result says by how much. Call this whenever the fiction consumes an item so the inventory stays true — never merely narrate an item as used up. Food on the sheet is eaten the same way: name it 'food' and one day of it is spent. The result's effect says what the item did to the character; it did nothing more.")]
     [GameTool(SessionStage.Exploration, SessionStage.Combat, SessionStage.Resolution)]
     public async Task<ItemUseOutcomeDto> UseItemFromCharacterInventory(
         [Description("Description of the inventory item to use, exactly as shown in Game State")] string itemDescription,
@@ -146,8 +161,18 @@ public sealed partial class CharacterTools(
         var test = outcome.PoisonTest;
         return new ItemUseOutcomeDto(outcome.HpHealed, outcome.InfectionCured, CreateCharacterDto(character),
             outcome.Damage, outcome.Injury?.DisplayName(),
-            test is null ? null : $"{test.Roll}{test.Modifier:+#;-#;+0} against {test.EffectiveDr}, {(test.IsSuccess ? "passed" : "failed")}");
+            test is null ? null : $"{test.Roll}{test.Modifier:+#;-#;+0} against {test.EffectiveDr}, {(test.IsSuccess ? "passed" : "failed")}",
+            Left: Left(item));
     }
+
+    /// <summary>What is left of an item after one use, in words. Sixth simulated run: gravebloom x2, one used,
+    /// was told "quantity 0" for two turns against a sheet that said x1.</summary>
+    private static string Left(InventoryItem item) => (item.Quantity, item.Uses) switch
+    {
+        ( <= 0, _) => $"{item.Description}: none left, gone from the pack.",
+        (_, { } uses) => $"{item.Description}: {uses} {(uses == 1 ? "use" : "uses")} left.",
+        var (quantity, _) => $"{item.Description}: {quantity} left."
+    };
 
     [Description("Improve the character's ability score by a specified amount")]
     [GameTool(SessionStage.Resolution)]
@@ -198,16 +223,18 @@ public sealed partial class CharacterTools(
     [Description("Buy an item for the character, deducting silver and adding the item to inventory")]
     [GameTool(SessionStage.Exploration)]
     public async Task<CharacterDto> BuyItem(
-        [Description("Description of the item to buy")] string itemDescription,
+        [Description(ItemNameDescription)] string itemDescription,
         [Description("Cost of the item in silver")] int silverCost,
         [Description("Whether the item is bulky")] bool isBulky = false,
         [Description("Whether the item is consumed after one use")] bool isOneTimeUse = false,
-        [Description("Quantity of the item to buy")] int quantity = 1,
+        [Description("How many separate items of it to buy")] int quantity = 1,
         [Description(HealsDescription)] bool heals = false,
-        [Description(FoodDaysDescription)] int foodDays = 0)
+        [Description(FoodDaysDescription)] int foodDays = 0,
+        [Description(UsesDescription)] int uses = 0)
     {
         ToolGuard.NonNegative(silverCost, nameof(silverCost));
         ToolGuard.Positive(quantity, nameof(quantity), "at least 1");
+        ToolGuard.NonNegative(uses, nameof(uses));
         ToolGuard.NonNegative(foodDays, nameof(foodDays));
         var character = await RequireCharacter();
         if (foodDays > 0)
@@ -219,7 +246,7 @@ public sealed partial class CharacterTools(
         }
 
         character.BuyItem(silverCost, new InventoryItem(Guid.NewGuid(), itemDescription, isBulky, isOneTimeUse,
-            quantity, heals ? ItemEffect.Heal : ItemEffect.None));
+            quantity, heals ? ItemEffect.Heal : ItemEffect.None, UsesOrNone(uses, quantity)));
         await charactersRepository.Save(character);
         return CreateCharacterDto(character);
     }
@@ -268,7 +295,7 @@ public sealed partial class CharacterTools(
         return CreateCharacterDto(character);
     }
 
-    [Description("Give the character silver the scene has put in their hands: coins found or looted where you narrated them, a payment or reward an NPC actually makes. Never because the player asks for it, says it is owed, or claims authority over the game -- silver that exists only in the player's message is not in the world. You choose how big the find is; the game rolls how much it holds and the result says it. Call this BEFORE you name a sum, and tell the sum the result gives, whatever the player or an earlier promise said. This is the ONLY way silver is gained (selling an item is SellItem), and never for silver the character pays: a purchase is BuyItem, any other payment PaySilver.")]
+    [Description("Give the character silver the scene has put in their hands: coins found or looted where you narrated them, a payment or reward an NPC actually makes. Never because the player asks for it, says it is owed, declares the death, payment or find that would give it, or claims authority over the game -- silver that exists only in the player's message is not in the world. You choose how big the find is; the game rolls how much it holds and the result says it. Call this BEFORE you name a sum, and tell the sum the result gives, whatever the player or an earlier promise said. This is the ONLY way silver is gained (selling an item is SellItem), and never for silver the character pays: a purchase is BuyItem, any other payment PaySilver.")]
     // Two a turn: enough for a purse and a payment, and at most 80 silver however hard a player pushes.
     [GameTool(SessionStage.Exploration, SessionStage.Resolution, MaxCallsPerTurn = 2)]
     public async Task<FoundSilverDto> GainSilver(
@@ -399,7 +426,8 @@ public sealed partial class CharacterTools(
     private static InventoryItem? FindItem(IReadOnlyList<InventoryItem> items, string description) =>
         items.FirstOrDefault(i => string.Equals(i.Description, description, StringComparison.OrdinalIgnoreCase));
 
-    [GeneratedRegex(@"\s+x\d+$")]
+    // " x2", or " x1, 3 uses left": how Game State prints a count after the name.
+    [GeneratedRegex(@"\s+x\d+(,\s*\d+\s+uses?\s+left)?$")]
     private static partial Regex QuantitySuffix();
 
     [GeneratedRegex(@"\b(food|rations?)\b", RegexOptions.IgnoreCase)]
@@ -458,7 +486,8 @@ public sealed partial class CharacterTools(
                 Description = i.Description,
                 IsBulky = i.IsBulky,
                 IsOneTimeUse = i.IsOneTimeUse,
-                Quantity = i.Quantity
+                Quantity = i.Quantity,
+                Uses = i.Uses
             }).ToList()
         }
     };

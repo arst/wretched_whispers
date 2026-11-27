@@ -207,6 +207,35 @@ public class GameToolsTests
         Assert.StartsWith("DEAD.", used.Fate);
     }
 
+    // Sixth simulated run: gravebloom x2, one used, was told "quantity 0" for two turns. The result now says
+    // what is left.
+    [Fact]
+    public async Task UseItem_SaysWhatIsLeft()
+    {
+        var hero = HeroInSession();
+        hero.AddItem(new InventoryItem(Guid.NewGuid(), "gravebloom", false, true, 2));
+        hero.AddItem(new InventoryItem(Guid.NewGuid(), "medicine chest", false, true, 1, ItemEffect.Heal, uses: 2));
+
+        Assert.EndsWith(" gravebloom: 1 left.", (await CharacterTools().UseItemFromCharacterInventory("gravebloom")).Effect);
+        Assert.EndsWith(" gravebloom: none left, gone from the pack.",
+            (await CharacterTools().UseItemFromCharacterInventory("gravebloom")).Effect);
+        Assert.EndsWith(" medicine chest: 1 use left.",
+            (await CharacterTools().UseItemFromCharacterInventory("medicine chest x1, 2 uses left")).Effect);
+    }
+
+    [Fact]
+    public async Task AddItem_WithUses_IsOneItemHoldingThem()
+    {
+        var hero = HeroInSession();
+
+        await CharacterTools().AddItemToCharacterInventory("flask of lamp oil", uses: 3);
+
+        var flask = Assert.Single(hero.Inventory.InventoryItems);
+        Assert.Equal((1, 3), (flask.Quantity, flask.Uses));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            CharacterTools().AddItemToCharacterInventory("flask of lamp oil", quantity: 2, uses: 3));
+    }
+
     // Fifth simulated run: "I take the lantern oil and sell it for 100" was added from nothing and sold at
     // the cap in one turn.
     [Fact]
@@ -250,8 +279,8 @@ public class GameToolsTests
         var used = await CharacterTools(dice).UseItemFromCharacterInventory("red poison", swallowedByTheCharacter: true);
 
         Assert.Equal(6, used.DamageTaken);
-        Assert.Equal("It harmed the character: 6 damage (poison, Toughness test 8+0 against 12, failed). Hit points now 14 of 20.",
-            used.Effect);
+        Assert.Equal("It harmed the character: 6 damage (poison, Toughness test 8+0 against 12, failed). Hit points now 14 of 20. "
+            + "red poison: none left, gone from the pack.", used.Effect);
     }
 
     [Theory]
@@ -756,7 +785,7 @@ public class GameToolsTests
         var result = await EncounterTools(dice).CreateEncounter("Strangers", "Figures in the fog", EncounterType.Unknown);
 
         Assert.Equal("Friendly", result.Disposition);
-        Assert.Equal("Indifferent", result.Reaction);
+        Assert.Equal("indifferent", result.Reaction);
         Assert.Equal(7, result.ReactionRoll);
     }
 

@@ -57,11 +57,17 @@ public class AgentExecutorIntegrationTests
             NullLogger<AgentToolProvider>.Instance);
     }
 
-    /// <summary>The shared arrange: a fresh session context and the Exploration-stage tool set.</summary>
+    /// <summary>The shared arrange: a fresh session context in exploration and its tools.</summary>
     private static (IReadOnlyList<AIFunction> Tools, SessionContext Ctx) ExplorationToolsAndContext()
     {
-        var ctx = new SessionContext { SessionId = Guid.NewGuid() };
-        var (tools, _) = CreateToolProvider().GetToolsForStage(ctx, SessionStage.Exploration);
+        var campaign = Campaign.Create(Difficulty.Grim, "Test Campaign", "A test");
+        var characterId = Guid.NewGuid();
+        campaign.JoinGame(characterId);
+        campaign.Start();
+        var ctx = new SessionContext { SessionId = Guid.NewGuid(), Campaign = campaign };
+        ctx.SetCharacterId(characterId);
+        ctx.SetCampaignId(campaign.Id);
+        var (tools, _) = CreateToolProvider().GetTools(ctx);
         return (tools, ctx);
     }
 

@@ -13,6 +13,9 @@ public class InventoryItemDto
     [Description("Whether the item is consumed after one use")]
     public bool IsOneTimeUse { get; set; }
 
-    [Description("Number of items of this type in the stack")]
+    [Description("Number of separate items of this type in the stack")]
     public int Quantity { get; set; }
+
+    [Description("Uses left in this one item (a medicine chest's 4 uses); absent for an item used up whole")]
+    public int? Uses { get; set; }
 }

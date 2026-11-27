@@ -194,6 +194,40 @@ public class InventoryTests
     }
 
     [Fact]
+    public void ConsumeItem_WithUses_SpendsOneUse_AndTheLastUseEmptiesIt()
+    {
+        var inventory = new Inventory("Backpack", 10, []);
+        var chest = new InventoryItem(Guid.NewGuid(), "medicine chest", false, true, 1, uses: 2);
+        inventory.AddItem(chest);
+
+        inventory.ConsumeItem(chest.Id);
+        Assert.Equal(1, chest.Uses);
+        Assert.Equal(1, chest.Quantity);
+
+        inventory.ConsumeItem(chest.Id);
+        Assert.Empty(inventory.InventoryItems);
+    }
+
+    [Fact]
+    public void RemoveUnits_OfAnItemWithUses_TakesTheWholeItem()
+    {
+        var inventory = new Inventory("Backpack", 10, []);
+        var chest = new InventoryItem(Guid.NewGuid(), "medicine chest", false, true, 1, uses: 4);
+        inventory.AddItem(chest);
+
+        inventory.RemoveUnits(chest.Id, 1);
+
+        Assert.Empty(inventory.InventoryItems);
+    }
+
+    [Fact]
+    public void AnItemWithUses_IsOneItem()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new InventoryItem(Guid.NewGuid(), "medicine chest", false, true, 3, uses: 4));
+    }
+
+    [Fact]
     public void ReplenishItem_WhenItemExists_ShouldIncreaseQuantity()
     {
         // Arrange

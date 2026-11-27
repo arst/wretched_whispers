@@ -68,7 +68,7 @@ public static class EvalSupport
                 .Cast<DescriptionAttribute>().FirstOrDefault()?.Description ?? "";
 
         var tools = Enum.GetValues<SessionStage>().SelectMany(stage => GameToolCatalog.ForStage(stage).Select(tool =>
-            $"{stage}|{tool.Name}|{tool.MaxCallsPerTurn}|{Describe(tool.Method)}|" + string.Join(";",
+            $"{stage}|{tool.Name}|{tool.MaxCallsPerTurn}|{tool.Description}|" + string.Join(";",
                 tool.Method.GetParameters().Select(p =>
                     $"{p.ParameterType.Name} {p.Name}={(p.HasDefaultValue ? p.DefaultValue : "required")}: {Describe(p)}"))));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", tools))));

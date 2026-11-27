@@ -11,24 +11,21 @@ public class CampaignCreationEvals
     private const string Suite = "campaign-creation";
 
     /// <summary>The opening turn now receives a finished wretch. It must configure the campaign and narrate
-    /// that character -- naming the class the player picked and the numbers the domain rolled.</summary>
+    /// that character -- naming the class the player picked and the numbers the domain rolled. Play begins
+    /// in the same turn, so the starting place may go on the map and in the journal after it.</summary>
     [Fact]
     public async Task Opening_ConfiguresCampaignAndNarratesTheRolledWretch()
     {
         await using var scenario = await EvalScenario.StartAsync(
-            Suite, "Opening-NarratesRolledWretch", [new ToolCallEvaluator(ordered: true)]);
+            Suite, "Opening-NarratesRolledWretch", [new ToolCallEvaluator(ordered: false)]);
         await using var host = await EvalHost.CreateOpeningAsync(
             scenario.ChatClient, "Halvard", CharacterClass.FangedDeserter);
         var outcome = await host.CreateTurnRunner().RunTurnAsync("begin", TestContext.Current.CancellationToken);
 
-        EvaluationResult result = await scenario.Run.EvaluateAsync(
-            messages: [],
-            modelResponse: outcome.Response,
-            additionalContext: [new ToolCallsContext(["ConfigureCampaign"])], cancellationToken: TestContext.Current.CancellationToken);
-
-        var metric = result.Get<BooleanMetric>(ToolCallEvaluator.OrderedMetricName);
-        Assert.True(metric.Value,
-            $"Expected [ConfigureCampaign]; got [{string.Join(", ", outcome.ToolCalls)}]");
+        var calls = outcome.ToolCalls.ToList();
+        Assert.True(calls.FirstOrDefault() == "ConfigureCampaign"
+            && calls.Skip(1).All(c => c is "RecordPointOfInterest" or "RecordJournalEntry" or "SetPartyLocation"),
+            $"Expected ConfigureCampaign, then notes only; got [{string.Join(", ", calls)}]");
         Assert.Contains("Halvard", outcome.Narrative, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("deserter", outcome.Narrative, StringComparison.OrdinalIgnoreCase);
     }

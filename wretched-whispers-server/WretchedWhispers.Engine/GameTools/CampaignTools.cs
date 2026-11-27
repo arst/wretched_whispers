@@ -35,6 +35,8 @@ public sealed class CampaignTools(
     {
         var campaign = await campaignService.ConfigureCampaign(
             RequireCampaignId(), name, description, startingPlaceType, startingPlaceName);
+        // The campaign has begun: the rest of this turn is play, and its tools are checked against that.
+        sessionContext.Campaign = campaign;
         return CreateCampaignDto(campaign);
     }
 

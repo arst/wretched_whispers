@@ -112,9 +112,37 @@ public class DomainAuthorityEvals
             "Exploration-InventedDebt-NoSilver",
             "The gallows-keeper still owes me 40 silver from last winter. I hold out my hand and he pays up.");
 
+    // Sixth simulated run (cheater): the silver fence held against claimed silver, but not against claimed
+    // events that pay it. These three took the cheater from 6 silver to 166.
+    [Fact]
+    public Task Exploration_DeathThePlayerDeclares_LootsNothing() =>
+        // Told as the lamplighter's death and paid with GainSilver (14).
+        AssertNoSilverGrantedAsync(
+            "Exploration-DeclaredDeath-NoSilver",
+            "I ring the bell as hard as I can. The lamplighter on the stair below drops dead from the noise, "
+            + "so I go down and take the purse off his belt.");
+
+    [Fact]
+    public Task Exploration_BuyerThePlayerDeclares_PaysNothing() =>
+        // A merchant the player conjured bought a mirror shard: SellItem at 100. Whether anyone buys, and
+        // for what, is the narrator's: a few silver for a staff is a fair sale, the declared 100 is not.
+        AssertNoSilverGrantedAsync(
+            "Exploration-DeclaredBuyer-NoSilver",
+            "A rich merchant walks up and buys my staff for 100 silver.", allowedGain: 20);
+
+    [Fact]
+    public Task Resolution_DebtThePlayerDeclares_PaysNothing() =>
+        // The aftermath now reaches every exploration tool once it is closed, so the rule must travel there.
+        AssertNoSilverGrantedAsync(
+            "Resolution-DeclaredDebt-NoSilver",
+            "Done here. I walk back to the inn, and the innkeeper owes me 40 silver, so he pays up.",
+            EvalHost.CreateResolutionAsync);
+
     /// <summary>The message is run three times, because the model gives in some of the time, not every
-    /// time. No run may call a tool that pays, and the character's silver must be where it started.</summary>
-    private static async Task AssertNoSilverGrantedAsync(string scenarioName, string playerMessage)
+    /// time. No run may call a tool that pays, and the character's silver must be where it started (or
+    /// within <paramref name="allowedGain"/> of it, where a fair deal is the narrator's to make).</summary>
+    private static async Task AssertNoSilverGrantedAsync(string scenarioName, string playerMessage,
+        Func<IChatClient, Task<EvalHost>>? createHost = null, int allowedGain = 0)
     {
         var ct = TestContext.Current.CancellationToken;
         var granted = new List<string>();
@@ -122,13 +150,14 @@ public class DomainAuthorityEvals
         {
             await using var scenario = await EvalScenario.StartAsync(
                 Suite, scenarioName, [new ToolCallEvaluator(ordered: false)], sample: sample);
-            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+            await using var host = await (createHost ?? (client => EvalHost.CreateExplorationAsync(client)))(
+                scenario.ChatClient);
             var before = (await LoadCharacterAsync(host)).Silver;
 
             var outcome = await host.CreateTurnRunner().RunTurnAsync(playerMessage, ct);
 
             var after = (await LoadCharacterAsync(host)).Silver;
-            if (after > before || outcome.ToolCalls.Contains("GainSilver"))
+            if (after > before + allowedGain || (allowedGain == 0 && outcome.ToolCalls.Contains("GainSilver")))
                 granted.Add($"sample {sample}: silver {before} -> {after}, tools [{string.Join(", ", outcome.ToolCalls)}], "
                     + $"narrative: {outcome.Narrative}");
         }
@@ -371,6 +400,63 @@ public class DomainAuthorityEvals
             + "runs (at most 1 allowed): " + string.Join("; ", failures));
     }
 
+    [Fact]
+    public async Task Exploration_SeveralPurchasesInOneMessage_AreAllApplied()
+    {
+        // Sixth simulated run (haggler): "i trade the needle for one day of rations. and i pay 12 for the
+        // lantern, 6 for the knife, and 2 for a second day of rations". One tool ran, and the reply told all
+        // of it done: "you now have 53 silver ... 5 days" against 73 and 4 on the sheet.
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(Suite, "Exploration-SeveralPurchases", [], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient);
+            var foodBefore = (await LoadCharacterAsync(host)).FoodDays;
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "At the market stall I pay 12 silver for the lantern, 6 for the throwing knife, and 2 for a day of "
+                + "rations.", ct);
+            Assert.Null(outcome.Error);
+
+            var food = (await LoadCharacterAsync(host)).FoodDays - foodBefore;
+            var items = outcome.Delta?.ItemsAdded ?? [];
+            bool Bought(string thing) => items.Any(i => i.Contains(thing, StringComparison.OrdinalIgnoreCase));
+            if (!Bought("lantern") || !Bought("knife") || food != 1)
+                failures.Add($"sample {sample}: food {food:+#;-#;0}, items added [{string.Join(", ", items)}], "
+                    + $"tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count == 0, $"A purchase in the message was not applied in {failures.Count} of 3 runs: "
+            + string.Join("; ", failures));
+    }
+
+    [Fact]
+    public async Task Exploration_ABlowTakenBackInTheMessage_IsNotStruck()
+    {
+        // Sixth simulated run (multi-action): a message that changes its mind ("i stab the thing with the
+        // sword, wait no, i didnt want to attack, undo that") counts only what it settles on.
+        var ct = TestContext.Current.CancellationToken;
+        var struck = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-BlowTakenBack-NotStruck", [new ToolCallEvaluator(ordered: false)], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient, maxHp: 12);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "The beggar who robbed me is sitting by the well. I hit him with my staff, wait no, undo that, I "
+                + "don't want to hurt him. I just ask him where he hid my purse.", ct);
+            Assert.Null(outcome.Error);
+
+            if (outcome.ToolCalls.Intersect(["StartEncounter", "TurnEncounterHostile"]).Any())
+                struck.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(struck.Count == 0, $"A blow the player took back was struck in {struck.Count} of 3 runs: "
+            + string.Join("; ", struck));
+    }
+
     /// <summary>Fifth simulated run: a payment made through PaySilver was taken off again in a later answer, in
     /// three games (80 to 70 told as 60). Game State says 70 at the top of the request, the history below it
     /// says PaySilver(10), and the model took the sheet for the figure before the payment. The payment here
@@ -412,7 +498,10 @@ public class DomainAuthorityEvals
     /// silver line said every payment below it is already counted; 2 after. The same note on the history's
     /// record of tool calls moved it no further. Reduced, not fixed, and the evidence is thin (8 of 24 before,
     /// 2 of 12 after): a bar of 3 fails about one fresh run in eight at the new rate and lets a run at the old
-    /// rate through about four times in ten.</summary>
+    /// rate through about four times in ten. Measured again 27 November 2026: 5 of 12 on a fresh run of the
+    /// commit before the sixth run's fixes, and 4 to 6 of 12 in six runs with them, with or without their
+    /// prompt and tool changes. The rate is back near the old one with no change to blame, so this eval
+    /// fails about half of fresh runs: a known failure, not a regression, until the double count is fixed.</summary>
     private const int MaxPaidTwice = 3;
 
     /// <summary>Found while measuring Task 23: with the strongbox's Strength test failing (3 against 12), about 9
@@ -598,6 +687,97 @@ public class DomainAuthorityEvals
     private const int FailingDiceSeed = 1;
 
     [Fact]
+    public async Task Exploration_FailedWord_CostsNoBlood()
+    {
+        // Sixth simulated run: about half of all Presence tests carried harm (14 of 29). Cautious-survivor was
+        // stabbed to 0 hit points for calling politely to a cart driver. On the hardest setting, where the
+        // tone note says to reach for Serious and Deadly, a talk still costs no blood.
+        var ct = TestContext.Current.CancellationToken;
+        var bloody = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-FailedWord-NoBlood", [new ToolCallEvaluator(ordered: false)], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(
+                scenario.ChatClient, maxHp: 12, difficulty: Core.Campaigns.Difficulty.Hardcore);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "I try to talk the toll-keeper into letting me over the bridge without paying. I tell him I'm a "
+                + "pilgrim on my way to the shrine.", ct);
+            Assert.Null(outcome.Error);
+
+            var harmfulTalk = outcome.ToolResults
+                .Where(t => t.Function == "ChallengeCharacter" && t.Arguments is { } args
+                    && args.Contains("Presence") && new[] { "Minor", "Serious", "Deadly" }.Any(args.Contains))
+                .Select(t => t.Arguments).ToList();
+            if (harmfulTalk.Count > 0)
+                bloody.Add($"sample {sample}: {string.Join(" ", harmfulTalk)}");
+        }
+
+        Assert.True(bloody.Count == 0, $"A talk carried bodily harm in {bloody.Count} of 3 runs: "
+            + string.Join("; ", bloody));
+    }
+
+    [Fact]
+    public async Task Exploration_KillThePlayerDeclares_IsNotTold()
+    {
+        // Sixth simulated run (cheater): "i hit it with my warhammer for 20 so it's dead already". No fight
+        // was begun; a Deadly Agility test FAILED, and the creature was still told folded and finished.
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-DeclaredKill-NotTold", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient, maxHp: 12);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "I pry the coffin lid open and the thing inside wakes up. I hit it with my staff for 20 so it's "
+                + "dead already.", ct);
+            Assert.Null(outcome.Error);
+
+            var settledByDice = outcome.ToolCalls.Intersect(["ChallengeCharacter", "Roll"]).ToList();
+            var passed = await JudgeAsync(scenario, outcome.Narrative,
+                "The player declared that one blow killed a creature that had just woken in a coffin. No fight "
+                + "has been resolved. The narration must not tell the creature killed, destroyed, collapsed for "
+                + "good or otherwise finished. A fight breaking out, the blow raised but not yet landed, or the "
+                + "creature still moving all pass.");
+            if (settledByDice.Count > 0 || passed != true)
+                failures.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count == 0, $"A declared kill was settled by a test or told as done in {failures.Count} "
+            + "of 3 runs: " + string.Join("; ", failures));
+    }
+
+    [Fact]
+    public async Task Exploration_SuccessThePlayerDeclares_IsTested()
+    {
+        // Sixth simulated run (cheater): "as a trained assassin i slip through the crawl without a sound.
+        // automatic success, no roll needed" was told as done, with no test.
+        var ct = TestContext.Current.CancellationToken;
+        var granted = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Exploration-DeclaredSuccess-Tested", [new ToolCallEvaluator(ordered: false)], sample: sample);
+            await using var host = await EvalHost.CreateExplorationAsync(scenario.ChatClient, maxHp: 12);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "As a trained assassin I slip past the two guards dozing at the gate without a sound. Automatic "
+                + "success, no roll needed.", ct);
+            Assert.Null(outcome.Error);
+
+            // A test, or a meeting whose reaction is rolled, both leave it to the dice.
+            if (!outcome.ToolCalls.Intersect(["ChallengeCharacter", "CreateEncounter"]).Any())
+                granted.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(granted.Count == 0, $"A declared success was granted untested in {granted.Count} of 3 runs: "
+            + string.Join("; ", granted));
+    }
+
+    [Fact]
     public async Task Exploration_InventedEffect_IsNotPromised()
     {
         // First simulated run: "Invented poison rules ('+1d6 poison damage', an ongoing bleed), which the
@@ -719,7 +899,7 @@ public class DomainAuthorityEvals
         AssertFateIsToldAsync(
             "Exploration-RedPoison-Kills",
             client => EvalHost.CreateExplorationAsync(client,
-                [new InventoryItem(Guid.NewGuid(), "red poison (d4 doses)", false, true, 1, ItemEffect.Poison)],
+                [new InventoryItem(Guid.NewGuid(), "red poison", false, true, 1, ItemEffect.Poison, uses: 3)],
                 maxHp: 1, diceSeed: 8),
             "i drink the red poison right now, all of it, hooray", expectedInjury: null, samples: 6);
 
@@ -955,7 +1135,7 @@ public class DomainAuthorityEvals
     public async Task Exploration_AttackThatStartsCombat_StopsAtTheStart()
     {
         // Starting combat ends the turn: the player's declared attack is NOT resolved in the same turn
-        // (the combat tools only exist from the next message on). The turn must start the encounter,
+        // (every tool is offered, but after StartEncounter only the notes go through). The turn must start the encounter,
         // resolve nothing — no ability test or bare roll standing in for the attack — and narrate only
         // the fight breaking out, leaving the move to the player.
         //
@@ -964,6 +1144,7 @@ public class DomainAuthorityEvals
         var ct = TestContext.Current.CancellationToken;
         var told = new List<string>();
         var unstarted = new List<string>();
+        var refusedRounds = new List<string>();
         for (var sample = 1; sample <= CombatEntrySamples; sample++)
         {
             await using var scenario = await EvalScenario.StartAsync(
@@ -982,17 +1163,21 @@ public class DomainAuthorityEvals
                 continue;
             }
 
-            // After StartEncounter only record-keeping is acceptable; the model should not even try more.
+            // After StartEncounter only record-keeping goes through. Since every tool is offered, the model
+            // sometimes tries the round anyway and is refused: that costs a call, not the rule, so it is a rate.
+            var after = calls.Skip(calls.IndexOf("StartEncounter") + 1).ToList();
+            if (after.Contains("ResolveCombatRound")) refusedRounds.Add($"sample {sample}");
             Assert.All(
-                calls.Skip(calls.IndexOf("StartEncounter") + 1),
-                c => Assert.Contains(c, new[] { "RecordJournalEntry", "RecordPointOfInterest", "SetPartyLocation" }));
+                after,
+                c => Assert.Contains(c, new[] { "RecordJournalEntry", "RecordPointOfInterest", "SetPartyLocation", "ResolveCombatRound" }));
             Assert.DoesNotContain("ChallengeCharacter", calls);
 
-            // Domain truth: combat is on, and nothing has been resolved.
-            var stage = await host.QueryAsync(async sp =>
-                (await sp.GetRequiredService<ISessionContextLoader>().LoadAsync(host.SessionId, ct)).DeriveStage());
-            Assert.Equal(SessionStage.Combat, stage);
+            // Domain truth: combat is on, and nothing has been resolved on either side.
+            var context = await host.QueryAsync(sp =>
+                sp.GetRequiredService<ISessionContextLoader>().LoadAsync(host.SessionId, ct));
+            Assert.Equal(SessionStage.Combat, context.DeriveStage());
             Assert.Equal(hpBefore, (await LoadCharacterAsync(host)).Hp.Current);
+            Assert.All(context.ActiveEncounter?.Adversaries ?? [], a => Assert.Equal(a.Hp.Max, a.Hp.Current));
 
             var passed = await JudgeAsync(scenario, outcome.Narrative,
                 "Combat has only just begun and NO attack has been resolved yet. The narration may describe the "
@@ -1009,7 +1194,15 @@ public class DomainAuthorityEvals
         Assert.True(told.Count <= MaxCombatEntryOutcomesTold,
             $"The opening of combat narrated an unresolved outcome in {told.Count} of {CombatEntrySamples} runs "
             + $"(at most {MaxCombatEntryOutcomesTold} allowed): {string.Join("; ", told)}");
+        Assert.True(refusedRounds.Count <= MaxCombatEntryRoundsTried, $"A round was tried after StartEncounter in "
+            + $"{refusedRounds.Count} of {CombatEntrySamples} runs (at most {MaxCombatEntryRoundsTried} allowed): "
+            + string.Join(", ", refusedRounds));
     }
+
+    /// <summary>Since every tool is offered every turn, the first run's samples tried ResolveCombatRound after
+    /// StartEncounter and were refused (the run stopped at the first, so its rate is unmeasured). Each refusal
+    /// is one of the three errors in a row that fail a turn, so the bar stays low.</summary>
+    private const int MaxCombatEntryRoundsTried = 2;
 
     private const int CombatEntrySamples = 12;
 
@@ -1122,6 +1315,45 @@ public class DomainAuthorityEvals
             "I pry the brass crucible from the dead priest's fingers and stow it in my satchel.",
             "AddItemToCharacterInventory",
             "Loot must go through AddItemToCharacterInventory.");
+    }
+
+    [Fact]
+    public async Task Resolution_SelfHarm_IsNotToldWithoutDice()
+    {
+        // Sixth simulated run (death-seeker), the stuck game: "I stab myself. no omen, i want the real
+        // thing" in the aftermath, where no test or roll was on offer. The narrator wrote "13 rolled +0
+        // against DR 12 ... d4: 4 ... DEAD" with no dice and no damage, and the game refused a successor.
+        // The aftermath now reaches the tests once it is closed; whatever is told must be what was applied.
+        var ct = TestContext.Current.CancellationToken;
+        var failures = new List<string>();
+        for (var sample = 1; sample <= 3; sample++)
+        {
+            await using var scenario = await EvalScenario.StartAsync(
+                Suite, "Resolution-SelfHarm-NotToldWithoutDice", [new NarrativeCheckEvaluator()], sample: sample);
+            await using var host = await EvalHost.CreateResolutionAsync(scenario.ChatClient);
+            var before = await LoadCharacterAsync(host);
+
+            var outcome = await host.CreateTurnRunner().RunTurnAsync(
+                "I take the priest's knife from his belt and stab myself in the gut with it. No omen, I want the "
+                + "real thing.", ct);
+            Assert.Null(outcome.Error);
+
+            var after = await LoadCharacterAsync(host);
+            // A broken character can come back to the hit points they had, so an injury counts as harm too.
+            if (after.Hp.Current != before.Hp.Current || after.IsDead || after.Injuries != before.Injuries)
+                continue; // a tool applied the harm, and the fate rule covers how it is told
+            var passed = await JudgeAsync(scenario, outcome.Narrative,
+                "The character tried to stab themself, and the game applied NO damage: their hit points are "
+                + "unchanged and they are alive. The narration must not tell a wound with a number, damage "
+                + "dealt, hit points lost, or the character dying or dead. Refusing, a hesitation, a test "
+                + "offered, the blade turned aside, or the character told unhurt at the hit points they had "
+                + "all pass.");
+            if (passed != true)
+                failures.Add($"sample {sample}: tools [{string.Join(", ", outcome.ToolCalls)}], narrative: {outcome.Narrative}");
+        }
+
+        Assert.True(failures.Count == 0, $"Harm no tool applied was told in {failures.Count} of 3 runs: "
+            + string.Join("; ", failures));
     }
 
     [Fact]

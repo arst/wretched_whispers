@@ -28,8 +28,12 @@ public class InventoryItem
 {
     [JsonConstructor]
     public InventoryItem(Guid id, string description, bool isBulky, bool isOneTimeUse, int quantity = 1,
-        ItemEffect effect = ItemEffect.None)
+        ItemEffect effect = ItemEffect.None, int? uses = null)
     {
+        if (uses is not null && (uses <= 0 || quantity != 1))
+            throw new ArgumentException("An item with uses is one item (quantity 1) holding at least one use.",
+                nameof(uses));
+        Uses = uses;
         Effect = effect;
         Id = id;
         Description = description;
@@ -46,6 +50,12 @@ public class InventoryItem
 
     [JsonInclude] public int Quantity { get; private set; }
 
+    /// <summary>For one item spent a little at a time (a medicine chest, a flask of doses): the uses left in
+    /// it. Null for an item used up whole, where <see cref="Quantity"/> counts the separate items. Kept apart
+    /// so no count is written into a name: in the sixth simulated run "medicine chest (Presence + 4 uses) x4"
+    /// was told as one chest, then three, then twelve uses.</summary>
+    [JsonInclude] public int? Uses { get; private set; }
+
     public bool IsOneTimeUse { get; }
 
     public ItemEffect Effect { get; }
@@ -56,10 +66,16 @@ public class InventoryItem
         Quantity += amount;
     }
 
+    /// <summary>Spends one use of an item that has uses, or one of the items otherwise. The last use spends
+    /// the item.</summary>
     public bool TryUseOne()
     {
         if (Quantity <= 0) return false;
+        if (Uses is { } uses && (Uses = uses - 1) > 0) return true;
         Quantity--;
         return true;
     }
+
+    /// <summary>Takes whole items away (sold, given, lost), whatever uses they hold.</summary>
+    internal void TakeAway(int units) => Quantity -= units;
 }

@@ -51,8 +51,8 @@ public class CharacterCreationServiceTests : TestBase
 
     [Theory]
     [InlineData(0, "life elixir", ItemEffect.Heal)] // both gear tables roll 1: the second is the elixir
-    [InlineData(6, "medicine chest (Presence + 4 uses)", ItemEffect.Heal)] // both roll 7: the first is the chest
-    [InlineData(10, "red poison (d4 doses)", ItemEffect.Poison)] // both roll 11: the first is the poison
+    [InlineData(6, "medicine chest", ItemEffect.Heal)] // both roll 7: the first is the chest
+    [InlineData(10, "red poison", ItemEffect.Poison)] // both roll 11: the first is the poison
     public async Task Create_GearWithAnEffect_IsMarkedWithIt(int zeroBasedD12, string gear, ItemEffect effect)
     {
         SetupDiceRoll(12, zeroBasedD12);
@@ -62,6 +62,24 @@ public class CharacterCreationServiceTests : TestBase
         Assert.All(character.Inventory.InventoryItems, item =>
             Assert.Equal(item.Description == gear ? effect : ItemEffect.None, item.Effect));
         Assert.Contains(character.Inventory.InventoryItems, item => item.Description == gear);
+    }
+
+    /// <summary>Sixth simulated run: "medicine chest (Presence + 4 uses) x4" was told as one chest, then
+    /// three, then twelve uses. A thing spent a little at a time is ONE item holding its uses, and no
+    /// count is written into its name.</summary>
+    [Theory]
+    [InlineData(2, "lantern")] // both gear tables roll 3: the first is the lantern and its oil
+    [InlineData(6, "medicine chest")]
+    [InlineData(10, "red poison")]
+    public async Task Create_GearSpentALittleAtATime_IsOneItemHoldingItsUses(int zeroBasedD12, string gear)
+    {
+        SetupDiceRoll(12, zeroBasedD12);
+
+        var character = await NewService().Create("Hero", Difficulty.Grim);
+
+        var item = Assert.Single(character.Inventory.InventoryItems, i => i.Description == gear);
+        Assert.Equal(1, item.Quantity);
+        Assert.True(item.Uses > 0);
     }
 
     [Fact]

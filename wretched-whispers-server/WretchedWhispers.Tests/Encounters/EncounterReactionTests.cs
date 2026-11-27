@@ -194,4 +194,11 @@ public sealed class EncounterReactionTests : TestBase
         Assert.False(adversary.IsDead);
         Assert.True(adversary.IsFled);
     }
+
+    /// <summary>Sixth simulated run: the bare enum name "AlmostFriendly" turned up in the story.</summary>
+    [Fact]
+    public void Reaction_IsGivenInWords()
+    {
+        Assert.Equal("almost friendly", InitialReaction.AlmostFriendly.DisplayName());
+    }
 }

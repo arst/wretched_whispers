@@ -19,7 +19,7 @@ public class EncounterDto
     [Description("Current disposition: Friendly (combat cannot start) or Hostile")]
     public string Disposition { get; set; } = string.Empty;
 
-    [Description("Rolled Mörk Borg reaction when the encounter was created as Unknown: Kill, Angered, Indifferent, AlmostFriendly, or Helpful. Null when the type was pre-declared.")]
+    [Description("Rolled Mörk Borg reaction when the encounter was created as Unknown: out to kill, angered, indifferent, almost friendly, or helpful. Null when the type was pre-declared.")]
     public string? Reaction { get; set; }
 
     [Description("The raw 2d6 reaction roll behind Reaction. Null when the type was pre-declared.")]

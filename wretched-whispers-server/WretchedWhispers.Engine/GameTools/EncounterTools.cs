@@ -27,6 +27,15 @@ public sealed class EncounterTools(
         sessionContext.ActiveEncounterId
         ?? throw new InvalidOperationException("No active encounter -- call CreateEncounter first.");
 
+    /// <summary>Keeps the turn's context on the encounter as it now stands, so a tool called later this
+    /// turn is checked against the stage it is actually in (a fight begun, a fight over).</summary>
+    private Encounter Track(Encounter encounter)
+    {
+        sessionContext.SetActiveEncounterId(encounter.Id);
+        sessionContext.ActiveEncounter = encounter;
+        return encounter;
+    }
+
     private Guid RequireCharacterId() =>
         sessionContext.CharacterId
         ?? throw new InvalidOperationException("No character exists for this session.");
@@ -44,8 +53,7 @@ public sealed class EncounterTools(
                 $"Encounter type {initialEncounterType} is not valid. Expected one of: Friendly, Hostile, Unknown.");
         var type = initialEncounterType;
 
-        var encounter = await encounterService.CreateEncounter(name, description, type);
-        sessionContext.SetActiveEncounterId(encounter.Id);
+        var encounter = Track(await encounterService.CreateEncounter(name, description, type));
 
         // Link the encounter to the campaign via the domain service so SessionContextLoader finds it
         // on the next turn.
@@ -88,7 +96,7 @@ public sealed class EncounterTools(
     [GameTool(SessionStage.Exploration, MaxCallsPerTurn = 1, EndsTurn = true)]
     public async Task<EncounterDto> StartEncounter()
     {
-        var encounter = await encounterService.StartEncounter(RequireEncounterId());
+        var encounter = Track(await encounterService.StartEncounter(RequireEncounterId()));
         var dto = CreateEncounterDto(encounter);
         dto.Begun = "THE FIGHT HAS BEGUN AND NOTHING IS RESOLVED. The blow the player declared has not been "
             + "struck: no weapon is swinging, nothing connects or misses, nobody is hurt. Tell who stands against "
@@ -120,9 +128,12 @@ public sealed class EncounterTools(
                 $"Action '{action}' is not valid. Expected one of: Attack, Flee, Other.");
         var roundAction = action;
 
+        var encounterId = RequireEncounterId();
         var outcome = await encounterService.ResolveRound(
-            RequireEncounterId(), RequireCharacterId(), roundAction, targetAdversaryName, omenUse,
+            encounterId, RequireCharacterId(), roundAction, targetAdversaryName, omenUse,
             Difficulty());
+        if (outcome.EncounterEnded && await repository.Get(encounterId) is { } ended)
+            Track(ended);
         return CombatRoundOutcomeDto.From(outcome);
     }
 
@@ -149,7 +160,7 @@ public sealed class EncounterTools(
         Name = encounter.Name,
         Description = encounter.Description,
         Disposition = encounter.CurrentType.ToString(),
-        Reaction = encounter.Reaction?.ToString(),
+        Reaction = encounter.Reaction?.DisplayName(),
         ReactionRoll = encounter.ReactionRoll,
         Adversaries = encounter.Adversaries.Select(e => new AdversaryDto
         {

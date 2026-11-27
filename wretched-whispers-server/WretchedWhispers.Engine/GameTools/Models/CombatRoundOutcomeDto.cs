@@ -1,3 +1,4 @@
+using WretchedWhispers.Core.Characters;
 using WretchedWhispers.Core.Characters.Status;
 using WretchedWhispers.Core.Encounters;
 
@@ -11,7 +12,10 @@ public sealed record PlayerAttackDto(
     int Roll, int Modifier, int Dr, string Ability,
     // Why Dr is not 12, each cause with its size ("encumbered +2, injury +2"); null when it is 12.
     // Without it a narrator told to explain the number guessed the cause.
-    string? DrBecause = null);
+    string? DrBecause = null,
+    // What is left of the target, in words and first: from the numbers alone a Reed Husk at 5 that
+    // took 2 was told "gone" (sixth simulated run).
+    [property: System.Text.Json.Serialization.JsonPropertyOrder(-1)] string? TargetAfter = null);
 
 public sealed record FleeAttemptDto(bool Success, int Roll, int Modifier, int Dr, string? DrBecause = null);
 
@@ -59,7 +63,7 @@ public sealed record CombatRoundOutcomeDto(
             ? new PlayerAttackDto(target, attack.Hit, attack.Damage.Amount, attack.Critical, attack.Fumble,
                 attack.WeaponBroken, attack.TargetArmorDegraded, attack.BaseDamageRoll, attack.DamageReduction,
                 attack.Roll, attack.Modifier, attack.EffectiveDr, attack.Ability.ToString(),
-                Because(attack.DrReasons))
+                Because(attack.DrReasons), TargetAfter(target, outcome.PlayerAttackTargetHp, outcome.PlayerAttackTargetFled))
             : null,
         outcome.FleeAttempt is { } flee
             ? new FleeAttemptDto(flee.IsSuccess, flee.Roll, flee.Modifier, flee.EffectiveDr,
@@ -77,6 +81,14 @@ public sealed record CombatRoundOutcomeDto(
         outcome.EndReason.ToString(),
         outcome.PlayerCurrentHp,
         outcome.PlayerBroken);
+
+    private static string? TargetAfter(string target, HitPoints? hp, bool fled) => hp switch
+    {
+        null => null,
+        { Current: <= 0 } => $"{target} is dead.",
+        { } left when fled => $"{target} breaks and flees, {left.Current} of {left.Max} hit points left.",
+        { } left => $"{target} still stands, {left.Current} of {left.Max} hit points left."
+    };
 
     internal static string? Because(IReadOnlyList<string>? drReasons) =>
         drReasons is { Count: > 0 } ? string.Join(", ", drReasons) : null;

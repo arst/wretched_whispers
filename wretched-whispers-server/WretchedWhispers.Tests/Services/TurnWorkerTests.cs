@@ -464,7 +464,7 @@ public sealed class TurnWorkerTests : IDisposable
         }
         var toolProvider = new Mock<IAgentToolProvider>();
         toolProvider
-            .Setup(p => p.GetToolsForStage(It.IsAny<SessionContext>(), It.IsAny<SessionStage>()))
+            .Setup(p => p.GetTools(It.IsAny<SessionContext>()))
             .Returns(((IReadOnlyList<AIFunction>)[], Array.Empty<string>()));
         var sessionLock = new Mock<ISessionLock>();
         sessionLock

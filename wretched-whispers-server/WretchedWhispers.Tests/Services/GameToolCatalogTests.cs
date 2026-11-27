@@ -160,4 +160,36 @@ public class GameToolCatalogTests
     {
         Assert.Empty(Flatten(SessionStage.Ended));
     }
+
+    [Fact]
+    public void All_IsEveryToolOnce()
+    {
+        var all = GameToolCatalog.All.Select(d => d.Name).ToList();
+
+        Assert.Equal(all.Distinct().Count(), all.Count);
+        Assert.Equal(
+            Enum.GetValues<SessionStage>().SelectMany(GameToolCatalog.ForStage).Select(d => d.Name).Distinct()
+                .Order(),
+            all.Order());
+    }
+
+    /// <summary>Every tool is offered every turn, so each says when it can be called: the model learns
+    /// it from the description rather than from a refusal.</summary>
+    [Theory]
+    [InlineData("ResolveCombatRound", "Can be called only during a fight.")]
+    [InlineData("CompleteResolution", "Can be called only in the aftermath of a fight.")]
+    [InlineData("ChallengeCharacter", "Cannot be called during a fight or in the aftermath of a fight.")]
+    [InlineData("Rest", "Cannot be called during a fight.")]
+    [InlineData("Roll", "Cannot be called in the aftermath of a fight.")]
+    [InlineData("ConfigureCampaign", "Can be called only before the campaign begins.")]
+    public void Descriptions_SayWhenTheToolCanBeCalled(string tool, string ending)
+    {
+        Assert.EndsWith(" " + ending, GameToolCatalog.All.Single(d => d.Name == tool).Description);
+    }
+
+    [Fact]
+    public void ToolsForEveryStageOfPlay_SayNothingAboutStages()
+    {
+        Assert.DoesNotContain("be called", GameToolCatalog.All.Single(d => d.Name == "UseItemFromCharacterInventory").Description);
+    }
 }

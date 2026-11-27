@@ -123,7 +123,7 @@ public class TurnCoordinatorTests
     {
         IReadOnlyList<AIFunction> tools = [];
         _toolProvider
-            .Setup(f => f.GetToolsForStage(It.IsAny<SessionContext>(), SessionStage.Exploration))
+            .Setup(f => f.GetTools(It.IsAny<SessionContext>()))
             .Returns((tools, new[] { "Character.ChallengeCharacter" }));
     }
 
@@ -349,7 +349,7 @@ public class TurnCoordinatorTests
     {
         IReadOnlyList<AIFunction> tools = names.Select(n => AIFunctionFactory.Create(() => "ok", n)).ToList();
         _toolProvider
-            .Setup(f => f.GetToolsForStage(It.IsAny<SessionContext>(), It.IsAny<SessionStage>()))
+            .Setup(f => f.GetTools(It.IsAny<SessionContext>()))
             .Returns((tools, names));
     }
 

@@ -269,6 +269,17 @@ public class StageDerivationTests : TestBase
     }
 
     [Fact]
+    public void FormatSnapshot_ShowsTheUsesLeftInAnItem()
+    {
+        var character = TestCharacters.Create(Dice, maxHp: 10);
+        character.AddItem(new InventoryItem(Guid.NewGuid(), "medicine chest", false, true, 1, uses: 4));
+        var ctx = new SessionContext { SessionId = Guid.NewGuid(), Character = character };
+        ctx.SetCharacterId(character.Id);
+
+        Assert.Contains("    - medicine chest x1, 4 uses left", ctx.FormatSnapshot());
+    }
+
+    [Fact]
     public void FormatSnapshot_SaysWhatEachScrollDoes()
     {
         var scroll = new Scroll(Guid.NewGuid(), ScrollSchool.Sacred, "Bestial Speech");
@@ -320,7 +331,7 @@ public class StageDerivationTests : TestBase
         // Load-bearing tokens only — exact prose is the formatter's business.
         Assert.Contains("Hostile", snapshot);
         Assert.Contains("reaction roll 4", snapshot);
-        Assert.Contains("Angered", snapshot);
+        Assert.Contains("angered", snapshot);
     }
 
     [Fact]

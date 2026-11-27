@@ -68,7 +68,7 @@ public sealed class Inventory
             throw new InvalidOperationException(
                 $"Only {item.Quantity} of '{item.Description}' is carried, not {quantity}.");
 
-        for (var i = 0; i < quantity; i++) item.TryUseOne();
+        item.TakeAway(quantity);
         if (item.Quantity == 0) _inventoryItems.Remove(item);
     }
 

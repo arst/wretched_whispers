@@ -220,7 +220,7 @@ public sealed class TurnCoordinator(
                 return;
             }
 
-            var (tools, registeredFunctions) = toolProvider.GetToolsForStage(context, currentStage);
+            var (tools, registeredFunctions) = toolProvider.GetTools(context);
             draft.ToolsOffered = tools.Select(t => t.Name).ToList();
             // Note when any tool starts, so a transient failure can tell "nothing happened yet" from
             // "the run was already under way" (see the catch below).

@@ -100,7 +100,7 @@ public class EncounterService(
             throw new InvalidOperationException("No omens remaining.");
 
         AttackOutcome? playerAttack = null;
-        string? attackedName = null;
+        Adversary? attacked = null;
         ChallengeOutcome? fleeAttempt = null;
         var playerFled = false;
         // Track by id, not name — two adversaries can share a name, and only one of them fled.
@@ -124,7 +124,7 @@ public class EncounterService(
                         minimumOneDamage: settings?.PlayerHitsAlwaysDamage ?? false);
                     encounter.ProcessPlayerAttackOutcome(outcome, target.Id, dice);
                     playerAttack = outcome;
-                    attackedName = target.Name;
+                    attacked = target;
                     break;
                 }
             case PlayerRoundAction.Flee:
@@ -171,9 +171,10 @@ public class EncounterService(
         await encountersRepository.Save(encounter, ct);
 
         return new CombatRoundOutcome(
-            playerAttack, attackedName, fleeAttempt, retaliations, fledThisRound,
+            playerAttack, attacked?.Name, fleeAttempt, retaliations, fledThisRound,
             endReason is not EncounterEndReason.None, endReason,
-            character.Hp.Current, retaliations.Any(r => r.Outcome.Injury is not null) && !character.IsDead);
+            character.Hp.Current, retaliations.Any(r => r.Outcome.Injury is not null) && !character.IsDead,
+            attacked?.Hp, attacked?.IsFled ?? false);
     }
 
     /// <summary>Casts a scroll and, when its power harms others, applies that to the adversaries of the
