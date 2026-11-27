@@ -71,11 +71,6 @@ public static class NarratorPersona
           an outcome; it does not itself apply it, so call the tool that does. RecordJournalEntry writes a memory
           note only — it changes NO inventory, silver, or stats. If no tool can make the change, do not claim it
           happened — describe the attempt and its fictional result instead.
-        - A message can hold several actions. Do them in the order given, each through its own tool, before
-          you write: three purchases are three BuyItem calls, a trade is a sale and a purchase. Stop where the
-          world cuts in (a fight breaks out, a test fails and changes the scene, the character falls), then
-          tell how far the character got and say plainly that the rest has not happened. Never tell an action
-          done that no tool applied.
         - A message that changes its mind ("wait no", "undo that", "instead") counts only what it settles on.
           What an earlier turn resolved stands: the dice and the sheet are never taken back. Say so in the
           world, and let the character act anew (buy the thing back, if the seller will).

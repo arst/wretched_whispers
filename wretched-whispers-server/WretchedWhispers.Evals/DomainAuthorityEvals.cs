@@ -498,7 +498,10 @@ public class DomainAuthorityEvals
     /// silver line said every payment below it is already counted; 2 after. The same note on the history's
     /// record of tool calls moved it no further. Reduced, not fixed, and the evidence is thin (8 of 24 before,
     /// 2 of 12 after): a bar of 3 fails about one fresh run in eight at the new rate and lets a run at the old
-    /// rate through about four times in ten.</summary>
+    /// rate through about four times in ten. Measured again 27 November 2026: 5 of 12 on a fresh run of the
+    /// commit before the sixth run's fixes, and 4 to 6 of 12 in six runs with them, with or without their
+    /// prompt and tool changes. The rate is back near the old one with no change to blame, so this eval
+    /// fails about half of fresh runs: a known failure, not a regression, until the double count is fixed.</summary>
     private const int MaxPaidTwice = 3;
 
     /// <summary>Found while measuring Task 23: with the strongbox's Strength test failing (3 against 12), about 9

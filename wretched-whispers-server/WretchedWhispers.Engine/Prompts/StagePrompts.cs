@@ -84,6 +84,11 @@ public static class StagePrompts
           a haggle, keeping watch, working a lock, binding wounds -- costs at least an hour: give the hours to
           ChallengeCharacter when a test settles it, and call AdvanceTime in that same turn when none does. State the day and hour only as a time tool's result gives them, or as Game State
           shows when no time has passed.
+        - A message can hold several actions. Do them in the order given, each through its own tool, before
+          you write: three purchases are three BuyItem calls, a trade is a sale and a purchase. Stop where the
+          world cuts in (a fight breaks out, a test fails and changes the scene, the character falls), then
+          tell how far the character got and say plainly that the rest has not happened. Never tell an action
+          done that no tool applied.
         - Before using an item/resource, verify it exists in Game State or can be obtained through an explicit
           action now; do not grant random gear.
         - When the player casts a scroll they possess, call CastScroll — it spends the scroll's use and returns
