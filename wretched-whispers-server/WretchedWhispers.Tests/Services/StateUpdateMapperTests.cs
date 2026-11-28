@@ -63,6 +63,22 @@ public class StateUpdateMapperTests
         Assert.Equal(character.Silver, result.CharacterSilver);
     }
 
+    /// <summary>An item's uses live in their own field, out of its name, so the sheet has to say them.</summary>
+    [Fact]
+    public void Map_SaysTheUsesAnItemHasLeft()
+    {
+        var context = new SessionContext { SessionId = Guid.NewGuid() };
+        var character = TestCharacters.Create(NewDice());
+        character.AddItem(new InventoryItem(Guid.NewGuid(), "red poison", false, true, 1, uses: 3));
+        character.AddItem(new InventoryItem(Guid.NewGuid(), "medicine chest", false, true, 1, uses: 1));
+        context.Character = character;
+
+        var inventory = StateUpdateMapper.Map(context).CharacterInventory ?? [];
+
+        Assert.Contains("red poison (3 uses left)", inventory);
+        Assert.Contains("medicine chest (1 use left)", inventory);
+    }
+
     /// <summary>Fourth simulated run: food and the day's castings were in the narrator's Game State but not
     /// on the player's sheet; a player asked three times how much food they had.</summary>
     [Fact]
