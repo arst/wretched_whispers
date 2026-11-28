@@ -29,8 +29,11 @@ public static class StateUpdateMapper
             // One entry per UNIT: the UI groups duplicates back with a xN badge, and the turn-delta
             // multiset diff needs units so a quantity decrement (3 torches -> 2) surfaces as one
             // removed entry instead of vanishing (per-item mapping hid all quantity-only changes).
+            // An item with uses is one unit, its uses said beside the name, so a use spent shows too.
             CharacterInventory: character?.Inventory.InventoryItems
-                .SelectMany(i => Enumerable.Repeat(i.Description, i.Quantity)).ToArray(),
+                .SelectMany(i => Enumerable.Repeat(
+                    i.Uses is { } uses ? $"{i.Description} ({uses} {(uses == 1 ? "use" : "uses")} left)" : i.Description,
+                    i.Quantity)).ToArray(),
             CharacterSilver: character?.Silver,
             MiseryCount: campaign?.Miseries.Count ?? 0,
             Stage: context.DeriveStage().ToString().ToLowerInvariant(),
